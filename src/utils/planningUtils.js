@@ -3,18 +3,21 @@ import { parse, differenceInMinutes, format, addDays, startOfMonth, endOfMonth, 
 import { fr } from 'date-fns/locale';
 
 export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) => {
-  console.log(`calculateEmployeeDailyHours for ${employee} on ${dayKey}:`, { planning, config });
+  // S'assurer que employee est une chaîne (ID) et non un objet
+  const employeeId = typeof employee === 'object' && employee !== null ? employee.id || employee.name : employee;
+  
+  console.log(`calculateEmployeeDailyHours for ${employeeId} on ${dayKey}:`, { planning, config });
   
   // Vérifier si les données sont valides
   if (!planning || !config?.timeSlots || !Array.isArray(config.timeSlots)) {
-    console.warn(`calculateEmployeeDailyHours: Invalid config for ${employee} on ${dayKey}`, { planning, config });
+    console.warn(`calculateEmployeeDailyHours: Invalid config for ${employeeId} on ${dayKey}`, { planning, config });
     return 0;
   }
   
   // Chercher les données de l'employé dans le planning
-  const employeeData = planning[employee];
+  const employeeData = planning[employeeId];
   if (!employeeData || !employeeData[dayKey]) {
-    // console.warn(`calculateEmployeeDailyHours: No data for ${employee} on ${dayKey}`, { planning });
+    // console.warn(`calculateEmployeeDailyHours: No data for ${employeeId} on ${dayKey}`, { planning });
     return 0;
   }
   
@@ -22,13 +25,13 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   
   // Vérifier que les slots sont un tableau valide
   if (!Array.isArray(slots)) {
-    console.warn(`calculateEmployeeDailyHours: Invalid slots for ${employee} on ${dayKey}`, { slots });
+    console.warn(`calculateEmployeeDailyHours: Invalid slots for ${employeeId} on ${dayKey}`, { slots });
     return 0;
   }
   
   // Vérifier s'il y a au moins un créneau sélectionné
   if (!slots.some(slot => slot === true)) {
-    console.log(`calculateEmployeeDailyHours: No selected slots for ${employee} on ${dayKey}`, { slots });
+    console.log(`calculateEmployeeDailyHours: No selected slots for ${employeeId} on ${dayKey}`, { slots });
     return 0;
   }
   const interval = config.interval || 30;
@@ -50,7 +53,7 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
           const end = parse(endTime, 'HH:mm', new Date());
           totalMinutes += differenceInMinutes(end, start);
         } catch (e) {
-          console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employee} on ${dayKey}`, { startTime, endTime, error: e });
+          console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, endTime, error: e });
         }
       }
       shiftStartIndex = null;
@@ -66,13 +69,13 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
         const end = parse(endTime, 'HH:mm', new Date());
         totalMinutes += differenceInMinutes(end, start);
       } catch (e) {
-        console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employee} on ${dayKey}`, { startTime, endTime, error: e });
+        console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, endTime, error: e });
       }
     }
   }
 
   const hours = totalMinutes / 60;
-  console.log(`calculateEmployeeDailyHours: Result for ${employee} on ${dayKey}:`, { slots, interval, hours });
+  console.log(`calculateEmployeeDailyHours: Result for ${employeeId} on ${dayKey}:`, { slots, interval, hours });
   return hours;
 };
 

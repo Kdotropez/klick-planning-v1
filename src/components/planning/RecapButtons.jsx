@@ -113,7 +113,7 @@ const RecapButtons = ({
             let weekHours = 0;
             for (let i = 0; i < 7; i++) {
               const dayDate = format(addDays(weekStart, i), 'yyyy-MM-dd');
-              const hours = calculateEmployeeDailyHours(employee.id, dayDate, weekData.planning, shop.config);
+              const hours = calculateEmployeeDailyHours(employee, dayDate, weekData.planning, shop.config);
               weekHours += hours;
             }
             totalMonthHours += weekHours;

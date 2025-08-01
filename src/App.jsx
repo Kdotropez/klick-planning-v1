@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
-import LicenseModal from './components/common/LicenseModal';
+
 import LicenseManager from './components/admin/LicenseManager';
 import { enableProtection } from './utils/protection';
 import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
@@ -120,6 +120,10 @@ const App = () => {
     }
 
     const checkLicense = () => {
+      // Temporairement désactivé pour le déploiement
+      setShowLicenseModal(false);
+      setLicenseError('');
+      /*
       const license = loadLicense(); // Charger la licence existante seulement
 
       if (!license) {
@@ -147,6 +151,7 @@ const App = () => {
       
       setShowLicenseModal(false);
       setLicenseError('');
+      */
     };
     checkLicense();
   }, []); // Supprimé planningData de la dépendance
@@ -442,12 +447,12 @@ const App = () => {
           onClearLocalStorage={handleClearLocalStorage}
         />
         <CopyrightNotice />
-        <LicenseModal
+        {/* <LicenseModal
           isOpen={showLicenseModal}
           onClose={() => setShowLicenseModal(false)}
           error={licenseError}
           onLicenseValid={handleLicenseValid}
-        />
+        /> */}
       </ErrorBoundary>
     );
   }
@@ -503,12 +508,12 @@ const App = () => {
           )}
           <CopyrightNotice />
         </div>
-        <LicenseModal
+        {/* <LicenseModal
           isOpen={showLicenseModal}
           onClose={() => setShowLicenseModal(false)}
           error={licenseError}
           onLicenseValid={handleLicenseValid}
-        />
+        /> */}
       </ErrorBoundary>
     );
   }
@@ -560,12 +565,12 @@ const App = () => {
           />
           <CopyrightNotice />
         </div>
-        <LicenseModal
+        {/* <LicenseModal
           isOpen={showLicenseModal}
           onClose={() => setShowLicenseModal(false)}
           error={licenseError}
           onLicenseValid={handleLicenseValid}
-        />
+        /> */}
       </ErrorBoundary>
     );
   }

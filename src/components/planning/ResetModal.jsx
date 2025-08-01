@@ -135,8 +135,8 @@ const ResetModal = ({
             >
               <option value="">-- Choisir un employé --</option>
               {employees && employees.map((employee, index) => (
-                <option key={index} value={employee}>
-                  {employee}
+                <option key={employee.id || index} value={employee.id || employee}>
+                  {employee.name || employee}
                 </option>
               ))}
             </select>

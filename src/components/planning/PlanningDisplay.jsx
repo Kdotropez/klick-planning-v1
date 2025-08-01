@@ -582,7 +582,7 @@ const PlanningDisplay = ({
             let weekHours = 0;
             for (let i = 0; i < 7; i++) {
               const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-              const hours = calculateEmployeeDailyHours(employee.id, dayKey, planning, config);
+              const hours = calculateEmployeeDailyHours(employee, dayKey, planning, config);
               weekHours += hours;
             }
             totalHours += weekHours;
