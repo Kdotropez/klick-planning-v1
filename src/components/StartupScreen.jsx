@@ -64,7 +64,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
             <p style={{ textAlign: 'center', marginBottom: '20px' }}>
               Le gestionnaire se charge...
             </p>
-            <LicenseManager />
+                         {/* <LicenseManager /> */}
           </div>
         </div>
       </div>

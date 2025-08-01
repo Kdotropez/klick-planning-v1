@@ -103,10 +103,10 @@ const App = () => {
     }
   }, [feedback]);
 
-  useEffect(() => {
-    // Activer la protection propriétaire
-    enableProtection();
-  }, []);
+  // useEffect(() => {
+  //   // Activer la protection propriétaire
+  //   enableProtection();
+  // }, []);
 
   // Vérification de la licence au démarrage
   useEffect(() => {
