@@ -4,12 +4,12 @@ import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 
-import LicenseManager from './components/admin/LicenseManager';
-import { enableProtection } from './utils/protection';
-import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
-import './utils/createFullLicense.js';
-import './utils/licenseKeyGenerator.js';
-import './utils/licenseCreator.js';
+// import LicenseManager from './components/admin/LicenseManager';
+// import { enableProtection } from './utils/protection';
+// import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
+// import './utils/createFullLicense.js';
+// import './utils/licenseKeyGenerator.js';
+// import './utils/licenseCreator.js';
 import StartupScreen from './components/StartupScreen';
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
