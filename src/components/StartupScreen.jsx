@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Button from './common/Button';
-import LicenseManager from './admin/LicenseManager';
+// import LicenseManager from './admin/LicenseManager';
 
 const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
@@ -64,7 +64,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
             <p style={{ textAlign: 'center', marginBottom: '20px' }}>
               Le gestionnaire se charge...
             </p>
-                         <LicenseManager />
+                         {/* <LicenseManager /> */}
           </div>
         </div>
       </div>
