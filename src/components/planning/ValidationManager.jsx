@@ -164,16 +164,8 @@ const ValidationManager = ({
         </div>
       </div>
 
-      <div className="validation-controls">
-        {!isWeekValidated ? (
-          <button 
-            className="btn btn-success"
-            onClick={() => setShowValidationModal(true)}
-            disabled={selectedEmployees.length === 0}
-          >
-            🔒 Valider la semaine
-          </button>
-                 ) : (
+             <div className="validation-controls">
+         {isWeekValidated && (
            <div className="validation-status">
              <span className="badge badge-success">✅ Semaine validée</span>
              {hasLockedEmployees ? (
