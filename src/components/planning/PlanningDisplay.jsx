@@ -689,12 +689,267 @@ const PlanningDisplay = ({
           {localFeedback}
         </p>
       )}
-      
-      
 
-      
+      {/* Titre de la semaine - EN HAUT */}
+      <div style={{
+        textAlign: 'center',
+        marginBottom: '20px',
+        padding: '15px',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '10px',
+        border: '2px solid #e9ecef'
+      }}>
+        <h2 style={{
+          fontFamily: 'Roboto, sans-serif',
+          fontSize: '24px',
+          fontWeight: 'bold',
+          color: '#2c3e50',
+          margin: '0',
+          textTransform: 'uppercase',
+          letterSpacing: '1px'
+        }}>
+          {getWeekTitle()}
+        </h2>
+        <p style={{
+          fontFamily: 'Roboto, sans-serif',
+          fontSize: '16px',
+          color: '#6c757d',
+          margin: '5px 0 0 0',
+          fontStyle: 'italic'
+        }}>
+          {selectedShop}
+        </p>
+      </div>
 
+      {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
+      {localSelectedEmployees && localSelectedEmployees.length > 0 && (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '8px', 
+          flexWrap: 'wrap',
+          padding: '10px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          border: '1px solid #e9ecef',
+          marginBottom: '15px'
+        }}>
+          <div style={{ 
+            fontSize: '14px', 
+            fontWeight: 'bold', 
+            color: '#495057',
+            marginBottom: '8px',
+            width: '100%',
+            textAlign: 'center'
+          }}>
+            Récapitulatifs Employés
+          </div>
+          
+          {localSelectedEmployees.map((employeeId) => {
+            const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+            const employeeName = employee?.name || employeeId;
+            
+            return (
+              <div key={employeeId} style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                padding: '8px 12px',
+                backgroundColor: 'white',
+                borderRadius: '6px',
+                border: '1px solid #dee2e6',
+                minWidth: '120px',
+                textAlign: 'center'
+              }}>
+                <div style={{ 
+                  fontSize: '12px', 
+                  fontWeight: 'bold',
+                  color: '#495057',
+                  marginBottom: '4px'
+                }}>
+                  {employeeName}
+                </div>
+                
+                <button
+                  onClick={() => setShowRecapModal(employeeId)}
+                  style={{
+                    backgroundColor: '#17a2b8',
+                    color: 'white',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    marginBottom: '2px'
+                  }}
+                  title="Récapitulatif journalier"
+                >
+                  📅 Jour: {(() => {
+                    if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                    const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
+                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                    return hours.toFixed(1);
+                  })()}h
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setSelectedEmployeeForWeeklyRecap(employeeId);
+                    setShowEmployeeWeeklyRecap(true);
+                  }}
+                  style={{
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    marginBottom: '2px'
+                  }}
+                  title="Récapitulatif hebdomadaire"
+                >
+                  📊 Semaine: {(() => {
+                    if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                    let totalHours = 0;
+                    for (let i = 0; i < 7; i++) {
+                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                      totalHours += hours;
+                    }
+                    return totalHours.toFixed(1);
+                  })()}h
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setSelectedEmployeeForMonthlyRecap(employeeId);
+                    setShowEmployeeMonthlyRecap(true);
+                  }}
+                  style={{
+                    backgroundColor: '#ffc107',
+                    color: '#212529',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    marginBottom: '2px'
+                  }}
+                  title="Récapitulatif mensuel"
+                >
+                  📈 Mois: {(() => {
+                    if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                    let totalHours = 0;
+                    for (let i = 0; i < 7; i++) {
+                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                      totalHours += hours;
+                    }
+                    return totalHours.toFixed(1);
+                  })()}h
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setSelectedEmployeeForMonthlyDetail(employeeId);
+                    setShowEmployeeMonthlyDetail(true);
+                  }}
+                  style={{
+                    backgroundColor: '#6f42c1',
+                    color: 'white',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer'
+                  }}
+                  title="Détail mensuel complet"
+                >
+                  📋 Détail mensuel
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
+      {/* PLANNING - DIRECTEMENT APRÈS LE TITRE ET LES RÉCAPITULATIFS */}
+      <div className="planning-content">
+        <div className="planning-left">
+          {/* Sélecteur de boutique */}
+          <div style={{
+            textAlign: 'center',
+            marginBottom: '15px',
+            padding: '10px',
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6'
+          }}>
+            <select
+              value={selectedShop}
+              onChange={(e) => setSelectedShop(e.target.value)}
+              style={{ 
+                padding: '8px 12px',
+                fontSize: '14px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                minWidth: '200px',
+                backgroundColor: '#fff',
+                cursor: 'pointer'
+              }}
+            >
+              {shops.map(shop => (
+                <option key={shop.id} value={shop.id}>{shop.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <DayButtons 
+            days={days} 
+            currentDay={currentDay} 
+            setCurrentDay={handleDayChangeWithLock}
+            planning={planning}
+            config={config}
+            selectedEmployees={localSelectedEmployees}
+            selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
+            selectedShop={selectedShop}
+          />
+          
+          {/* Gestionnaire de validation */}
+          <ValidationManager
+            selectedShop={selectedShop}
+            selectedWeek={validWeek}
+            selectedEmployees={localSelectedEmployees}
+            planning={planning}
+            onValidationChange={setValidationState}
+            currentShopEmployees={currentShopEmployees}
+            autoLockEnabled={autoLockEnabled}
+            onAutoLockToggle={() => setAutoLockEnabled(!autoLockEnabled)}
+          />
+        </div>
+
+        <div className="planning-right">
+          <PlanningTable
+            employees={currentShopEmployees}
+            selectedEmployees={localSelectedEmployees}
+            onEmployeeToggle={handleEmployeeToggle}
+            planning={planning}
+            onToggleSlot={toggleSlot}
+            config={config}
+            lockedEmployees={validationState.lockedEmployees}
+            currentDay={currentDay}
+            selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
+            showCalendarTotals={showCalendarTotals}
+            setShowCalendarTotals={setShowCalendarTotals}
+            currentShopEmployees={currentShopEmployees}
+            validatedData={validatedData}
+            onMarkAsValidated={markAsValidated}
+          />
+        </div>
+      </div>
+
+      {/* TOUT LE RESTE - SOUS LE PLANNING */}
       <PlanningMenuBar
         currentShop={selectedShop}
         shops={shops}
@@ -710,7 +965,7 @@ const PlanningDisplay = ({
         onExport={onExport}
         onImport={onImport}
         onReset={() => setShowResetModal(true)}
-                 setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+        setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
         handleManualSave={handleManualSave}
         selectedEmployees={localSelectedEmployees}
         currentShopEmployees={currentShopEmployees}
@@ -811,266 +1066,6 @@ const PlanningDisplay = ({
         getTotalShopEmployeesCount={() => currentShopEmployees?.length || 0}
         showCalendarTotals={showCalendarTotals}
       />
-
-      <div className="planning-content">
-        <div className="planning-left">
-          {/* Titre de la semaine */}
-          <div style={{
-            textAlign: 'center',
-            marginBottom: '20px',
-            padding: '15px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '10px',
-            border: '2px solid #e9ecef'
-          }}>
-            <h2 style={{
-              fontFamily: 'Roboto, sans-serif',
-              fontSize: '24px',
-              fontWeight: 'bold',
-              color: '#2c3e50',
-              margin: '0',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}>
-              {getWeekTitle()}
-            </h2>
-            <p style={{
-              fontFamily: 'Roboto, sans-serif',
-              fontSize: '16px',
-              color: '#6c757d',
-              margin: '5px 0 0 0',
-              fontStyle: 'italic'
-            }}>
-              {selectedShop}
-            </p>
-          </div>
-
-          {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
-          {localSelectedEmployees && localSelectedEmployees.length > 0 && (
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'center', 
-              gap: '8px', 
-              flexWrap: 'wrap',
-              padding: '10px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '8px',
-              border: '1px solid #e9ecef',
-              marginBottom: '15px'
-            }}>
-              <div style={{ 
-                fontSize: '14px', 
-                fontWeight: 'bold', 
-                color: '#495057',
-                marginBottom: '8px',
-                width: '100%',
-                textAlign: 'center'
-              }}>
-                Récapitulatifs Employés
-              </div>
-              
-              {localSelectedEmployees.map((employeeId) => {
-                const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
-                const employeeName = employee?.name || employeeId;
-                
-                return (
-                  <div key={employeeId} style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    padding: '8px 12px',
-                    backgroundColor: 'white',
-                    borderRadius: '6px',
-                    border: '1px solid #dee2e6',
-                    minWidth: '120px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 'bold',
-                      color: '#495057',
-                      marginBottom: '4px'
-                    }}>
-                      {employeeName}
-                    </div>
-                    
-                    <button
-                      onClick={() => setShowRecapModal(employeeId)}
-                      style={{
-                        backgroundColor: '#17a2b8',
-                        color: 'white',
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                        marginBottom: '2px'
-                      }}
-                      title="Récapitulatif journalier"
-                    >
-                      📅 Jour: {(() => {
-                        if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                        const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
-                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                        return hours.toFixed(1);
-                      })()}h
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeForWeeklyRecap(employeeId);
-                        setShowEmployeeWeeklyRecap(true);
-                      }}
-                      style={{
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                        marginBottom: '2px'
-                      }}
-                      title="Récapitulatif hebdomadaire"
-                    >
-                      📊 Semaine: {(() => {
-                        if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                        let totalHours = 0;
-                        for (let i = 0; i < 7; i++) {
-                          const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                          totalHours += hours;
-                        }
-                        return totalHours.toFixed(1);
-                      })()}h
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeForMonthlyRecap(employeeId);
-                        setShowEmployeeMonthlyRecap(true);
-                      }}
-                      style={{
-                        backgroundColor: '#ffc107',
-                        color: '#212529',
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer',
-                        marginBottom: '2px'
-                      }}
-                      title="Récapitulatif mensuel"
-                    >
-                      📈 Mois: {(() => {
-                        if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                        let totalHours = 0;
-                        for (let i = 0; i < 7; i++) {
-                          const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                          totalHours += hours;
-                        }
-                        return totalHours.toFixed(1);
-                      })()}h
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeForMonthlyDetail(employeeId);
-                        setShowEmployeeMonthlyDetail(true);
-                      }}
-                      style={{
-                        backgroundColor: '#6f42c1',
-                        color: 'white',
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
-                      }}
-                      title="Détail mensuel complet"
-                    >
-                      📋 Détail mensuel
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Sélecteur de boutique */}
-          <div style={{
-            textAlign: 'center',
-            marginBottom: '15px',
-            padding: '10px',
-            backgroundColor: '#ffffff',
-            borderRadius: '8px',
-            border: '1px solid #dee2e6'
-          }}>
-            <select
-              value={selectedShop}
-              onChange={(e) => setSelectedShop(e.target.value)}
-              style={{ 
-                padding: '8px 12px',
-                fontSize: '14px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                minWidth: '200px',
-                backgroundColor: '#fff',
-                cursor: 'pointer'
-              }}
-            >
-              {shops.map(shop => (
-                <option key={shop.id} value={shop.id}>{shop.name}</option>
-              ))}
-            </select>
-          </div>
-
-                     <DayButtons 
-             days={days} 
-             currentDay={currentDay} 
-             setCurrentDay={handleDayChangeWithLock}
-             planning={planning}
-             config={config}
-             selectedEmployees={localSelectedEmployees}
-             selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
-             selectedShop={selectedShop}
-           />
-          
-          {/* Gestionnaire de validation */}
-          <ValidationManager
-            selectedShop={selectedShop}
-            selectedWeek={validWeek}
-            selectedEmployees={localSelectedEmployees}
-            planning={planning}
-            onValidationChange={setValidationState}
-            currentShopEmployees={currentShopEmployees}
-            autoLockEnabled={autoLockEnabled}
-            onAutoLockToggle={() => setAutoLockEnabled(!autoLockEnabled)}
-          />
-
-        </div>
-
-        <div className="planning-right">
-          <PlanningTable
-            employees={currentShopEmployees}
-            selectedEmployees={localSelectedEmployees}
-            onEmployeeToggle={handleEmployeeToggle}
-            planning={planning}
-            onToggleSlot={toggleSlot}
-            config={config}
-            lockedEmployees={validationState.lockedEmployees}
-            currentDay={currentDay}
-            selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
-            showCalendarTotals={showCalendarTotals}
-            setShowCalendarTotals={setShowCalendarTotals}
-            currentShopEmployees={currentShopEmployees}
-            validatedData={validatedData}
-            onMarkAsValidated={markAsValidated}
-          />
-          
-        </div>
-      </div>
 
       {/* Modales */}
       <ResetModal
