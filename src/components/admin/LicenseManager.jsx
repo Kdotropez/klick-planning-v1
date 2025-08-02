@@ -1,14 +1,98 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  createLicense, 
-  saveLicense, 
-  generateLicenseKey, 
-  getUsedKeys, 
-  resetUsedKeys,
-  loadLicense,
-  createNicolasLicense,
-  LICENSE_TYPES 
-} from '../../utils/licenseManager';
+
+// Types de licences
+const LICENSE_TYPES = {
+  PROVISIONAL: 'provisional',
+  UNLIMITED: 'unlimited'
+};
+
+// Fonctions simplifiées intégrées
+const generateLicenseKey = (type, duration = 7) => {
+  const prefix = type === LICENSE_TYPES.UNLIMITED ? 'UNLIMITED' : 'PROVISIONAL';
+  const durationCode = duration.toString().padStart(3, '0');
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.random().toString().slice(2, 6);
+  return `${prefix}-${durationCode}-${timestamp}-${random}`.toUpperCase();
+};
+
+const createLicense = (type, duration, clientName, email) => {
+  const now = new Date();
+  const expiryDate = new Date(now.getTime() + (duration * 24 * 60 * 60 * 1000));
+  
+  return {
+    id: `LIC-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`.toUpperCase(),
+    type: type,
+    clientName: clientName,
+    email: email,
+    issuedDate: now.toISOString(),
+    expiryDate: expiryDate.toISOString(),
+    isActive: true
+  };
+};
+
+const saveLicense = (license) => {
+  try {
+    localStorage.setItem('currentLicense', JSON.stringify(license));
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la licence:', error);
+    return false;
+  }
+};
+
+const loadLicense = () => {
+  try {
+    const saved = localStorage.getItem('currentLicense');
+    return saved ? JSON.parse(saved) : null;
+  } catch (error) {
+    console.error('Erreur lors du chargement de la licence:', error);
+    return null;
+  }
+};
+
+const getUsedKeys = () => {
+  try {
+    const saved = localStorage.getItem('usedKeys');
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('Erreur lors du chargement des clés utilisées:', error);
+    return [];
+  }
+};
+
+const saveUsedKey = (key) => {
+  try {
+    const usedKeys = getUsedKeys();
+    if (!usedKeys.includes(key)) {
+      usedKeys.push(key);
+      localStorage.setItem('usedKeys', JSON.stringify(usedKeys));
+    }
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la clé:', error);
+    return false;
+  }
+};
+
+const resetUsedKeys = () => {
+  try {
+    localStorage.removeItem('usedKeys');
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la réinitialisation des clés:', error);
+    return false;
+  }
+};
+
+const createNicolasLicense = () => {
+  const license = createLicense(
+    LICENSE_TYPES.UNLIMITED,
+    36500,
+    'Nicolas Lefevre',
+    'nicolas.lefevre@example.com'
+  );
+  return saveLicense(license) ? license : null;
+};
 
 const LicenseManager = () => {
   const [clientName, setClientName] = useState('');
@@ -100,19 +184,40 @@ const LicenseManager = () => {
           textAlign: 'center',
           backgroundColor: message.includes('✅') ? '#d4edda' : '#f8d7da',
           color: message.includes('✅') ? '#155724' : '#721c24',
-          border: message.includes('✅') ? '1px solid #c3e6cb' : '1px solid #f5c6cb'
+          border: `1px solid ${message.includes('✅') ? '#c3e6cb' : '#f5c6cb'}`
         }}>
           {message}
         </div>
       )}
 
-      {/* Créer une Licence */}
-      <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
-        <h3>📝 Créer une Licence</h3>
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Nom du client :
-          </label>
+      {/* Licence actuelle */}
+      {currentLicense && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#e9ecef',
+          borderRadius: '5px',
+          marginBottom: '20px'
+        }}>
+          <h3>📋 Licence Actuelle</h3>
+          <p><strong>Client:</strong> {currentLicense.clientName}</p>
+          <p><strong>Email:</strong> {currentLicense.email}</p>
+          <p><strong>Type:</strong> {currentLicense.type}</p>
+          <p><strong>Expire le:</strong> {new Date(currentLicense.expiryDate).toLocaleDateString()}</p>
+          <p><strong>Statut:</strong> {currentLicense.isActive ? '✅ Active' : '❌ Inactive'}</p>
+        </div>
+      )}
+
+      {/* Formulaire de création */}
+      <div style={{
+        padding: '20px',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '5px',
+        marginBottom: '20px'
+      }}>
+        <h3>🆕 Créer une nouvelle licence</h3>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Nom du client:</label>
           <input
             type="text"
             value={clientName}
@@ -120,16 +225,15 @@ const LicenseManager = () => {
             style={{
               width: '100%',
               padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ddd'
+              border: '1px solid #ddd',
+              borderRadius: '4px'
             }}
-            placeholder="Nom complet du client"
+            placeholder="Nom du client"
           />
         </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Email du client :
-          </label>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
           <input
             type="email"
             value={clientEmail}
@@ -137,89 +241,32 @@ const LicenseManager = () => {
             style={{
               width: '100%',
               padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ddd'
+              border: '1px solid #ddd',
+              borderRadius: '4px'
             }}
-            placeholder="email@client.com"
+            placeholder="email@example.com"
           />
         </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Type de licence :
-          </label>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Type de licence:</label>
           <select
             value={licenseType}
             onChange={(e) => setLicenseType(e.target.value)}
             style={{
               width: '100%',
               padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ddd'
+              border: '1px solid #ddd',
+              borderRadius: '4px'
             }}
           >
             <option value="provisional">Provisoire (7 jours)</option>
-            <option value="unlimited">Illimitée (100 ans)</option>
+            <option value="unlimited">Illimitée</option>
           </select>
         </div>
+
         <button
           onClick={createNewLicense}
-          style={{
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            width: '100%',
-            marginBottom: '8px'
-          }}
-        >
-          🚀 Créer Licence
-        </button>
-        
-        <button
-          onClick={createNicolasLicenseAdmin}
-          style={{
-            backgroundColor: '#e74c3c',
-            color: 'white',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            width: '100%'
-          }}
-        >
-          👨‍💻 Licence Nicolas Lefevre (Illimitée)
-        </button>
-      </div>
-
-      {/* Générer une Clé */}
-      <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
-        <h3>🔑 Générer une Clé</h3>
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Type de clé :
-          </label>
-          <select
-            value={licenseType}
-            onChange={(e) => setLicenseType(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ddd'
-            }}
-          >
-            <option value="provisional">Provisoire (7 jours)</option>
-            <option value="unlimited">Illimitée (100 ans)</option>
-          </select>
-        </div>
-        <button
-          onClick={generateKey}
           style={{
             backgroundColor: '#007bff',
             color: 'white',
@@ -227,98 +274,127 @@ const LicenseManager = () => {
             padding: '10px 20px',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            width: '100%',
-            marginBottom: '10px'
+            marginRight: '10px'
           }}
         >
-          🔑 Générer Clé
+          🆕 Créer la licence
         </button>
-        {generatedKey && (
-          <div style={{ marginTop: '10px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-              Clé générée :
-            </label>
-            <div style={{
-              background: '#f8f9fa',
-              border: '1px solid #dee2e6',
-              borderRadius: '4px',
-              padding: '8px',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              wordBreak: 'break-all',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <span>{generatedKey}</span>
-              <button
-                onClick={() => copyToClipboard(generatedKey)}
-                style={{
-                  backgroundColor: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  padding: '4px 8px',
-                  borderRadius: '3px',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  marginLeft: '8px'
-                }}
-              >
-                📋 Copier
-              </button>
-            </div>
-          </div>
-        )}
+
+        <button
+          onClick={generateKey}
+          style={{
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          🗝️ Générer une clé
+        </button>
       </div>
 
-      {/* Licence Actuelle */}
-      {currentLicense && (
-        <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #28a745', borderRadius: '8px', backgroundColor: '#d4edda' }}>
-          <h3>📋 Licence Actuelle</h3>
-          <p><strong>Client :</strong> {currentLicense.clientName}</p>
-          <p><strong>Email :</strong> {currentLicense.email}</p>
-          <p><strong>Type :</strong> {currentLicense.type === 'provisional' ? 'Provisoire' : 'Illimitée'}</p>
-          <p><strong>Expire le :</strong> {new Date(currentLicense.expiryDate).toLocaleDateString('fr-FR')}</p>
+      {/* Clé générée */}
+      {generatedKey && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#d1ecf1',
+          borderRadius: '5px',
+          marginBottom: '20px'
+        }}>
+          <h3>🗝️ Clé générée</h3>
+          <div style={{
+            padding: '10px',
+            backgroundColor: 'white',
+            border: '1px solid #bee5eb',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            wordBreak: 'break-all'
+          }}>
+            {generatedKey}
+          </div>
+          <button
+            onClick={() => copyToClipboard(generatedKey)}
+            style={{
+              backgroundColor: '#17a2b8',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginTop: '10px'
+            }}
+          >
+            📋 Copier
+          </button>
         </div>
       )}
 
-      {/* Clés Utilisées */}
-      {usedKeys.length > 0 && (
-        <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
-          <h3>🗑️ Clés Utilisées ({usedKeys.length})</h3>
-          <div style={{ maxHeight: '150px', overflow: 'auto' }}>
+      {/* Clés utilisées */}
+      <div style={{
+        padding: '20px',
+        backgroundColor: '#fff3cd',
+        borderRadius: '5px',
+        marginBottom: '20px'
+      }}>
+        <h3>📋 Clés utilisées ({usedKeys.length})</h3>
+        {usedKeys.length > 0 ? (
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
             {usedKeys.map((key, index) => (
               <div key={index} style={{
-                padding: '4px',
-                margin: '2px 0',
-                backgroundColor: '#f8f9fa',
+                padding: '5px',
+                backgroundColor: 'white',
+                margin: '5px 0',
                 borderRadius: '3px',
                 fontFamily: 'monospace',
-                fontSize: '11px'
+                fontSize: '12px'
               }}>
                 {key}
               </div>
             ))}
           </div>
-          <button
-            onClick={clearUsedKeys}
-            style={{
-              backgroundColor: '#dc3545',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '11px',
-              marginTop: '8px'
-            }}
-          >
-            🗑️ Effacer Toutes les Clés
-          </button>
-        </div>
-      )}
+        ) : (
+          <p>Aucune clé utilisée</p>
+        )}
+        <button
+          onClick={clearUsedKeys}
+          style={{
+            backgroundColor: '#dc3545',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginTop: '10px'
+          }}
+        >
+          🗑️ Effacer toutes les clés
+        </button>
+      </div>
+
+      {/* Actions spéciales */}
+      <div style={{
+        padding: '20px',
+        backgroundColor: '#d4edda',
+        borderRadius: '5px'
+      }}>
+        <h3>⚙️ Actions spéciales</h3>
+        <button
+          onClick={createNicolasLicenseAdmin}
+          style={{
+            backgroundColor: '#6f42c1',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          👑 Créer licence Nicolas Lefevre
+        </button>
+      </div>
     </div>
   );
 };
