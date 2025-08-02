@@ -19,7 +19,7 @@ const NavigationButtons = ({
   onExport,
   onReset,
   onBackToStartup,
-  setShowGlobalDayViewModal
+
 }) => {
   return (
     <div className="navigation-buttons" style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '15px' }}>
@@ -142,15 +142,7 @@ const NavigationButtons = ({
       >
         Réinitialiser
       </Button>
-      <Button
-        className="button-primary"
-        onClick={() => setShowGlobalDayViewModal(true)}
-        style={{ backgroundColor: '#1e88e5', color: '#fff', padding: '8px 16px', fontSize: '14px' }}
-        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-      >
-        Vue globale par jour
-      </Button>
+
       <Button
         className="button-retour"
         onClick={onBackToStartup}

@@ -23,7 +23,6 @@ const PlanningMenuBar = ({
   onExport,
   onImport,
   onReset,
-  setShowGlobalDayViewModal,
   setShowGlobalDayViewModalV2,
   handleManualSave,
   
@@ -448,12 +447,7 @@ const PlanningMenuBar = ({
             isOpen={openMenus.actions}
             onClick={() => toggleMenu('actions')}
           >
-            <MenuItem onClick={() => {
-              setShowGlobalDayViewModal(true);
-              closeAllMenus();
-            }}>
-              📊 Vue globale par jour (V1)
-            </MenuItem>
+
             <MenuItem onClick={() => {
               setShowGlobalDayViewModalV2(true);
               closeAllMenus();
