@@ -76,6 +76,21 @@ const PlanningDisplay = ({
     validatedEmployees: [],
     lockedEmployees: []
   });
+
+  // Charger l'état de validation depuis le localStorage
+  useEffect(() => {
+    if (selectedShop && validWeek) {
+      const savedValidation = localStorage.getItem(`validation_${selectedShop}_${validWeek}`);
+      if (savedValidation) {
+        try {
+          const parsedValidation = JSON.parse(savedValidation);
+          setValidationState(parsedValidation);
+        } catch (error) {
+          console.error('Erreur lors du chargement de la validation:', error);
+        }
+      }
+    }
+  }, [selectedShop, validWeek]);
   
 
 
@@ -278,11 +293,14 @@ const PlanningDisplay = ({
       validationState,
       lockedEmployees: validationState.lockedEmployees,
       isLocked: validationState.lockedEmployees.includes(employee),
-      forceValue
+      forceValue,
+      validationStateType: typeof validationState,
+      lockedEmployeesType: typeof validationState.lockedEmployees
     });
     
     // Vérifier si l'employé est verrouillé
-    if (validationState.lockedEmployees.includes(employee) && forceValue === null) {
+    if (validationState.lockedEmployees && validationState.lockedEmployees.includes(employee) && forceValue === null) {
+      console.log('EMPLOYÉ BLOQUÉ - Modification refusée');
       setLocalFeedback(`⚠️ L'employé ${employee} est verrouillé. Utilisez le bouton "Débloquer employé" pour le modifier.`);
       return;
     }
