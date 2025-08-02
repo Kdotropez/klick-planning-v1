@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Button from './common/Button';
-import LicenseManager from './admin/LicenseManager';
+import LicenseManager from './LicenseManager';
 
 const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
