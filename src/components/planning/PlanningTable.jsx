@@ -32,12 +32,20 @@ const PlanningTable = ({
 
   const handleMouseDown = (employeeId, slotIndex, dayIndex, event) => {
     if (event.type !== 'mousedown') return;
+    
+    // Vérifier si l'employé est verrouillé
+    if (lockedEmployees.includes(employeeId)) {
+      console.log('EMPLOYÉ VERROUILLÉ - Modification bloquée:', employeeId);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    
     console.log('handleMouseDown called:', { employeeId, slotIndex, dayIndex });
     setIsDragging(true);
     setDragStart({ employeeId, slotIndex, dayIndex });
 
-    const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
-    const dayKey = format(addDays(new Date(validWeek), dayIndex), 'yyyy-MM-dd');
+    const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
     const currentValue = planning?.[employeeId]?.[dayKey]?.[slotIndex] || false;
     setDragValue(!currentValue);
 
@@ -54,6 +62,13 @@ const PlanningTable = ({
   const handleMouseMove = (employeeId, slotIndex, dayIndex, event) => {
     if (!isDragging || !dragStart || event.type !== 'mousemove') return;
     if (employeeId !== dragStart.employeeId || dayIndex !== dragStart.dayIndex) return;
+    
+    // Vérifier si l'employé est verrouillé
+    if (lockedEmployees.includes(employeeId)) {
+      console.log('EMPLOYÉ VERROUILLÉ - Drag bloqué:', employeeId);
+      return;
+    }
+    
     clearTimeout(clickTimeout);
     console.log('handleMouseMove called:', { employeeId, slotIndex, dayIndex, dragValue });
     if (typeof onToggleSlot === 'function') {
@@ -74,6 +89,14 @@ const PlanningTable = ({
   const handleTouchStart = (employeeId, slotIndex, dayIndex, event) => {
     console.log('handleTouchStart called:', { employeeId, slotIndex, dayIndex });
     event.preventDefault();
+    
+    // Vérifier si l'employé est verrouillé
+    if (lockedEmployees.includes(employeeId)) {
+      console.log('EMPLOYÉ VERROUILLÉ - Modification bloquée (touch):', employeeId);
+      event.stopPropagation();
+      return;
+    }
+    
     if (typeof onToggleSlot !== 'function') {
       console.error('onToggleSlot is not a function:', onToggleSlot);
       return;
@@ -82,8 +105,7 @@ const PlanningTable = ({
       console.error('Invalid props:', { planning, selectedWeek, currentDay, selectedEmployees });
       return;
     }
-    const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
-    const dayKey = format(addDays(new Date(validWeek), dayIndex), 'yyyy-MM-dd');
+    const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
     const currentValue = planning?.[employeeId]?.[dayKey]?.[slotIndex] || false;
     console.log('Toggling slot:', { employeeId, dayKey, slotIndex, currentValue });
     onToggleSlot(employeeId, slotIndex, dayIndex, !currentValue);
