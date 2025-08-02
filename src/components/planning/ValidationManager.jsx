@@ -181,20 +181,29 @@ const ValidationManager = ({
                  <span className="badge badge-info">
                    {validationState.lockedEmployees.length} employé(s) verrouillé(s)
                  </span>
-                 <button 
-                   className="btn btn-warning btn-sm"
-                   onClick={() => setShowUnlockModal(true)}
-                 >
-                   🔓 Débloquer employé
-                 </button>
-                 {getUnlockedEmployees().length > 0 && (
+                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                    <button 
-                     className="btn btn-success btn-sm"
-                     onClick={() => setShowRevalidateModal(true)}
+                     className="btn btn-warning btn-sm"
+                     onClick={() => setShowUnlockModal(true)}
                    >
-                     🔒 Revalider employé
+                     🔓 Débloquer employé
                    </button>
-                 )}
+                   <button 
+                     className="btn btn-danger btn-sm"
+                     onClick={unlockAllEmployees}
+                     style={{ backgroundColor: '#dc3545', borderColor: '#dc3545' }}
+                   >
+                     🔓 Débloquer tous
+                   </button>
+                   {getUnlockedEmployees().length > 0 && (
+                     <button 
+                       className="btn btn-success btn-sm"
+                       onClick={() => setShowRevalidateModal(true)}
+                     >
+                       🔒 Revalider employé
+                     </button>
+                   )}
+                 </div>
                </>
              ) : (
                <>
