@@ -247,6 +247,39 @@ const PlanningDisplay = ({
     setCurrentDay(newDay);
   }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled, selectedEmployees, localSelectedEmployees]);
 
+  // Fonction de verrouillage automatique simplifiée - verrouiller immédiatement lors du changement de jour
+  const handleDayChangeWithLock = useCallback((newDay) => {
+    console.log('🔍 handleDayChangeWithLock appelé:', { 
+      currentDay, 
+      newDay, 
+      lastModifiedDay, 
+      autoLockEnabled,
+      localSelectedEmployees: localSelectedEmployees?.length
+    });
+    
+    // Si on a modifié un jour et qu'on change vers un jour suivant, verrouiller
+    if (lastModifiedDay !== null && lastModifiedDay < newDay && autoLockEnabled && localSelectedEmployees && localSelectedEmployees.length > 0) {
+      console.log('🔒 Verrouillage immédiat lors du changement de jour:', { lastModifiedDay, newDay });
+      
+      const updatedValidationState = {
+        ...validationState,
+        isWeekValidated: true,
+        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...localSelectedEmployees])]
+      };
+      
+      setValidationState(updatedValidationState);
+      
+      // Sauvegarder l'état de validation
+      if (selectedShop && validWeek) {
+        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
+      }
+      
+      console.log('📊 État de validation mis à jour:', updatedValidationState);
+    }
+    
+    setCurrentDay(newDay);
+  }, [currentDay, lastModifiedDay, autoLockEnabled, localSelectedEmployees, validationState, selectedShop, validWeek]);
+
   // Effet pour le verrouillage automatique lors du changement de jour
   useEffect(() => {
     if (currentDay !== null && lastModifiedDay !== null && currentDay > lastModifiedDay) {
@@ -432,6 +465,7 @@ const PlanningDisplay = ({
     if (forceValue === null) {
       console.log('📝 Mise à jour lastModifiedDay:', { dayIndex, previousLastModifiedDay: lastModifiedDay });
       setLastModifiedDay(dayIndex);
+      console.log('✅ lastModifiedDay mis à jour vers:', dayIndex);
     }
     
     setPlanning(prev => {
@@ -829,16 +863,16 @@ const PlanningDisplay = ({
             </select>
           </div>
 
-          <DayButtons 
-            days={days} 
-            currentDay={currentDay} 
-            setCurrentDay={handleDayChange}
-            planning={planning}
-            config={config}
-            selectedEmployees={localSelectedEmployees}
-            selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
-            selectedShop={selectedShop}
-          />
+                     <DayButtons 
+             days={days} 
+             currentDay={currentDay} 
+             setCurrentDay={handleDayChangeWithLock}
+             planning={planning}
+             config={config}
+             selectedEmployees={localSelectedEmployees}
+             selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
+             selectedShop={selectedShop}
+           />
           
           {/* Gestionnaire de validation */}
           <ValidationManager
