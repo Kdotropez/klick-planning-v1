@@ -252,7 +252,7 @@ export const exportPlanningData = (planningData) => {
 
 // Fonction de sauvegarde forcée qui récupère toutes les données du localStorage
 export const forceSaveAllData = (planningData) => {
-  const updatedPlanningData = { ...planningData };
+  let updatedPlanningData = { ...planningData };
   
   // Récupérer toutes les clés du localStorage qui contiennent des données de planning
   const localStorageKeys = Object.keys(localStorage);

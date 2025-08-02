@@ -24,6 +24,7 @@ const PlanningMenuBar = ({
   onImport,
   onReset,
   setShowGlobalDayViewModal,
+  setShowGlobalDayViewModalV2,
   handleManualSave,
   
   // Récapitulatifs
@@ -53,7 +54,8 @@ const PlanningMenuBar = ({
 }) => {
   const [openMenus, setOpenMenus] = useState({
     actions: false,
-    tools: false
+    tools: false,
+    retour: false
   });
   
   const fileInputRef = useRef(null);
@@ -68,7 +70,8 @@ const PlanningMenuBar = ({
   const closeAllMenus = () => {
     setOpenMenus({
       actions: false,
-      tools: false
+      tools: false,
+      retour: false
     });
   };
 
@@ -172,127 +175,86 @@ const PlanningMenuBar = ({
         }
       }}
     >
-      {/* Navigation Principale - Directement Visible */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        gap: '10px', 
-        flexWrap: 'wrap',
-        alignItems: 'center'
-      }}>
-        {/* Boutons de navigation semaine */}
-        <Button
-          className="button-primary"
-          onClick={() => changeWeek('prev')}
-          style={{
-            backgroundColor: '#2196f3',
-            color: 'white',
-            padding: '8px 16px',
-            fontSize: '14px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          ← Semaine précédente
-        </Button>
-
-        <Button
-          className="button-primary"
-          onClick={() => changeWeek('next')}
-          style={{
-            backgroundColor: '#2196f3',
-            color: 'white',
-            padding: '8px 16px',
-            fontSize: '14px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          Semaine suivante →
-        </Button>
-
-        {/* Sélecteur de boutique */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Boutique:</label>
-          <select
-            value={currentShop}
-            onChange={(e) => changeShop(e.target.value)}
-            style={{ 
-              padding: '8px 12px',
+             {/* Navigation Principale - Directement Visible */}
+               <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '10px', 
+          flexWrap: 'wrap',
+          alignItems: 'center'
+        }}>
+          {/* Boutons de navigation semaine */}
+          <Button
+            className="button-primary"
+            onClick={() => changeWeek('prev')}
+            style={{
+              backgroundColor: '#2196f3',
+              color: 'white',
+              padding: '8px 16px',
               fontSize: '14px',
-              border: '1px solid #ccc',
+              border: 'none',
               borderRadius: '4px',
-              minWidth: '150px'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
           >
-            {shops.map(shop => (
-              <option key={shop.id} value={shop.id}>{shop.name}</option>
-            ))}
-          </select>
-        </div>
+            ← Semaine précédente
+          </Button>
 
-        {/* Sélecteur de mois */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Mois:</label>
-          <select
-            value={currentWeek ? format(new Date(currentWeek), 'yyyy-MM') : ''}
-            onChange={(e) => changeMonth(e.target.value)}
-            style={{ 
-              padding: '8px 12px',
+          {/* Sélecteur de mois */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <select
+              value={currentWeek ? format(new Date(currentWeek), 'yyyy-MM') : ''}
+              onChange={(e) => changeMonth(e.target.value)}
+              style={{ 
+                padding: '8px 12px',
+                fontSize: '14px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                minWidth: '150px'
+              }}
+            >
+              {(() => {
+                const currentDate = currentWeek ? new Date(currentWeek) : new Date();
+                const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1);
+                const endDate = new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1);
+                
+                const months = [];
+                for (let d = new Date(startDate); d <= endDate; d.setMonth(d.getMonth() + 1)) {
+                  const monthKey = format(d, 'yyyy-MM');
+                  const monthLabel = format(d, 'MMMM yyyy', { locale: fr });
+                  months.push(
+                    <option key={monthKey} value={monthKey}>
+                      {monthLabel}
+                    </option>
+                  );
+                }
+                return months;
+              })()}
+            </select>
+          </div>
+
+          <Button
+            className="button-primary"
+            onClick={() => changeWeek('next')}
+            style={{
+              backgroundColor: '#2196f3',
+              color: 'white',
+              padding: '8px 16px',
               fontSize: '14px',
-              border: '1px solid #ccc',
+              border: 'none',
               borderRadius: '4px',
-              minWidth: '150px'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
           >
-            {(() => {
-              const currentDate = currentWeek ? new Date(currentWeek) : new Date();
-              const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1);
-              const endDate = new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1);
-              
-              const months = [];
-              for (let d = new Date(startDate); d <= endDate; d.setMonth(d.getMonth() + 1)) {
-                const monthKey = format(d, 'yyyy-MM');
-                const monthLabel = format(d, 'MMMM yyyy', { locale: fr });
-                months.push(
-                  <option key={monthKey} value={monthKey}>
-                    {monthLabel}
-                  </option>
-                );
-              }
-              return months;
-            })()}
-          </select>
+            Semaine suivante →
+          </Button>
         </div>
-
-        {/* Bouton sauvegarde */}
-        <Button
-          className="button-validate"
-          onClick={handleManualSave}
-          style={{
-            backgroundColor: '#4caf50',
-            color: 'white',
-            padding: '8px 16px',
-            fontSize: '14px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          💾 Sauvegarder
-        </Button>
-      </div>
 
       {/* Récapitulatifs des Employés - Directement Visibles */}
       <div style={{ 
@@ -472,58 +434,91 @@ const PlanningMenuBar = ({
          </div>
        </div>
 
-      {/* Menus Secondaires */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        gap: '10px', 
-        flexWrap: 'wrap'
-      }}>
-                 {/* Menu Actions */}
+             {/* Menus Secondaires */}
+       <div style={{ 
+         display: 'flex', 
+         justifyContent: 'center', 
+         gap: '10px', 
+         flexWrap: 'wrap'
+       }}>
+                  {/* Menu Actions */}
+          <MenuButton
+            icon={<FaCog />}
+            label="Actions"
+            isOpen={openMenus.actions}
+            onClick={() => toggleMenu('actions')}
+          >
+            <MenuItem onClick={() => {
+              setShowGlobalDayViewModal(true);
+              closeAllMenus();
+            }}>
+              📊 Vue globale par jour (V1)
+            </MenuItem>
+            <MenuItem onClick={() => {
+              setShowGlobalDayViewModalV2(true);
+              closeAllMenus();
+            }}>
+              🎨 Vue globale par jour (V2 - Nouveau design)
+            </MenuItem>
+            <MenuItem onClick={onExport}>
+              <FaDownload /> Exporter les données
+            </MenuItem>
+            <MenuItem onClick={handleImportClick}>
+              📥 Importer les données
+            </MenuItem>
+            <MenuItem onClick={onReset}>
+              🔄 Réinitialiser
+            </MenuItem>
+            <MenuItem onClick={() => setShowRecapModal('week')}>
+              📊 Récap hebdomadaire boutique ({calculateShopWeekHours()}h)
+            </MenuItem>
+            <MenuItem onClick={() => setShowMonthlyRecapModal(true)}>
+              📈 Récap mensuel boutique ({calculateGlobalMonthHours()}h)
+            </MenuItem>
+          </MenuButton>
+
+         {/* Menu Outils */}
          <MenuButton
-           icon={<FaCog />}
-           label="Actions"
-           isOpen={openMenus.actions}
-           onClick={() => toggleMenu('actions')}
+           icon={<FaTools />}
+           label="Outils"
+           isOpen={openMenus.tools}
+           onClick={() => toggleMenu('tools')}
          >
-           <MenuItem onClick={onExport}>
-             <FaDownload /> Exporter les données
+           <MenuItem onClick={() => {}}>
+             🔧 Diagnostic données
            </MenuItem>
-           <MenuItem onClick={handleImportClick}>
-             📥 Importer les données
+           <MenuItem onClick={() => {}}>
+             🧹 Nettoyer cache
            </MenuItem>
-           <MenuItem onClick={onReset}>
-             🔄 Réinitialiser
-           </MenuItem>
-           <MenuItem onClick={() => setShowGlobalDayViewModal(true)}>
-             📊 Vue globale par jour
-           </MenuItem>
-           <MenuItem onClick={() => setShowRecapModal('week')}>
-             📊 Récap hebdomadaire boutique ({calculateShopWeekHours()}h)
-           </MenuItem>
-           <MenuItem onClick={() => setShowMonthlyRecapModal(true)}>
-             📈 Récap mensuel boutique ({calculateGlobalMonthHours()}h)
+           <MenuItem onClick={() => {}}>
+             📋 Logs système
            </MenuItem>
          </MenuButton>
 
-        {/* Menu Outils */}
-        <MenuButton
-          icon={<FaTools />}
-          label="Outils"
-          isOpen={openMenus.tools}
-          onClick={() => toggleMenu('tools')}
-        >
-          <MenuItem onClick={() => {}}>
-            🔧 Diagnostic données
-          </MenuItem>
-          <MenuItem onClick={() => {}}>
-            🧹 Nettoyer cache
-          </MenuItem>
-          <MenuItem onClick={() => {}}>
-            📋 Logs système
-          </MenuItem>
-        </MenuButton>
-      </div>
+         {/* Sélecteur de retour */}
+         <MenuButton
+           icon={<FaArrowLeft />}
+           label="Retour"
+           isOpen={openMenus.retour}
+           onClick={() => toggleMenu('retour')}
+         >
+           <MenuItem onClick={onBackToStartup}>
+             🏠 Écran de démarrage
+           </MenuItem>
+           <MenuItem onClick={onBackToConfig}>
+             ⚙️ Configuration boutiques
+           </MenuItem>
+           <MenuItem onClick={onBack}>
+             👥 Gestion employés
+           </MenuItem>
+           <MenuItem onClick={onBackToShop}>
+             🏪 Sélection boutique
+           </MenuItem>
+           <MenuItem onClick={onBackToWeek}>
+             📅 Sélection semaine
+           </MenuItem>
+         </MenuButton>
+       </div>
       
       {/* Input file caché pour l'import */}
       <input

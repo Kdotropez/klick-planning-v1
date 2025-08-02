@@ -8,6 +8,7 @@ import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
 import GlobalDayViewModal from './GlobalDayViewModal';
+import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 
@@ -42,6 +43,7 @@ const PlanningDisplay = ({
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModal, setShowGlobalDayViewModal] = useState(false);
+  const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showRecapModal, setShowRecapModal] = useState(null);
   const [showMonthlyRecapModal, setShowMonthlyRecapModal] = useState(false);
@@ -493,6 +495,7 @@ const PlanningDisplay = ({
         onImport={onImport}
         onReset={() => setShowResetModal(true)}
         setShowGlobalDayViewModal={setShowGlobalDayViewModal}
+        setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
         handleManualSave={handleManualSave}
         selectedEmployees={localSelectedEmployees}
         currentShopEmployees={currentShopEmployees}
@@ -627,6 +630,34 @@ const PlanningDisplay = ({
             </p>
           </div>
 
+          {/* Sélecteur de boutique */}
+          <div style={{
+            textAlign: 'center',
+            marginBottom: '15px',
+            padding: '10px',
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6'
+          }}>
+            <select
+              value={selectedShop}
+              onChange={(e) => setSelectedShop(e.target.value)}
+              style={{ 
+                padding: '8px 12px',
+                fontSize: '14px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                minWidth: '200px',
+                backgroundColor: '#fff',
+                cursor: 'pointer'
+              }}
+            >
+              {shops.map(shop => (
+                <option key={shop.id} value={shop.id}>{shop.name}</option>
+              ))}
+            </select>
+          </div>
+
           <DayButtons 
             days={days} 
             currentDay={currentDay} 
@@ -687,13 +718,25 @@ const PlanningDisplay = ({
       />
 
       <GlobalDayViewModal
-        show={showGlobalDayViewModal}
-        onClose={() => setShowGlobalDayViewModal(false)}
+        showGlobalDayViewModal={showGlobalDayViewModal}
+        setShowGlobalDayViewModal={setShowGlobalDayViewModal}
         planning={planning}
         config={config}
-        currentDay={currentDay}
-        currentWeek={validWeek}
-        employees={currentShopEmployees}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        selectedEmployees={localSelectedEmployees}
+      />
+
+      {/* Version 2 de la modale globale */}
+      <GlobalDayViewModalV2
+        showGlobalDayViewModal={showGlobalDayViewModalV2}
+        setShowGlobalDayViewModal={setShowGlobalDayViewModalV2}
+        planning={planning}
+        config={config}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        selectedEmployees={localSelectedEmployees}
+        currentShopEmployees={currentShopEmployees}
       />
 
       {showMonthlyRecapModal && (
