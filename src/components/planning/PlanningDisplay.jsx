@@ -91,6 +91,11 @@ const PlanningDisplay = ({
   // État pour le verrouillage automatique
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
   const [lastModifiedDay, setLastModifiedDay] = useState(null);
+  
+  // État pour forcer le rafraîchissement
+  const [forceRefresh, setForceRefresh] = useState(0);
+  
+
 
   // États pour les menus et l'import
   const [openMenus, setOpenMenus] = useState({
@@ -378,6 +383,13 @@ const PlanningDisplay = ({
 
   // Gérer le changement de boutique et de semaine de manière unifiée
   useEffect(() => {
+    console.log('🔄 useEffect déclenché - Changement de boutique/semaine:', {
+      selectedShop,
+      selectedWeek,
+      forceRefresh,
+      planningDataKeys: planningData ? Object.keys(planningData) : 'null'
+    });
+    
     if (selectedShop && selectedWeek) {
       // 1. Récupérer les données de la boutique actuelle (recalculer à chaque changement)
       const currentShopData = getShopById(planningData, selectedShop);
@@ -405,8 +417,13 @@ const PlanningDisplay = ({
       setCurrentShopEmployees(shopEmployees);
       
       // 2. Récupérer le planning existant pour cette boutique/semaine
+      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek, planningData });
       const weekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
+      console.log('🔍 Résultat getWeekPlanning:', weekData);
+      
+      // Charger le planning depuis les données sauvegardées
       setPlanning(weekData.planning || {});
+      console.log('📥 Planning chargé depuis les données sauvegardées:', weekData.planning);
       
       // 3. Gérer les employés sélectionnés
       if (weekData.selectedEmployees && weekData.selectedEmployees.length > 0) {
@@ -425,7 +442,7 @@ const PlanningDisplay = ({
         }
       }
     }
-  }, [selectedShop, selectedWeek, planningData]);
+  }, [selectedShop, selectedWeek, planningData, forceRefresh]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
     if (!(config?.timeSlots?.length || 0)) {
@@ -487,6 +504,18 @@ const PlanningDisplay = ({
       updatedPlanning[employee][dayKey] = updatedPlanning[employee][dayKey].map((val, idx) =>
         idx === slotIndex ? (forceValue !== null ? forceValue : !val) : val
       );
+      
+      // SAUVEGARDE AUTOMATIQUE IMMÉDIATE (DÉSACTIVÉE TEMPORAIREMENT POUR ÉVITER LES CONFLITS)
+      // if (selectedShop && selectedWeek) {
+      //   try {
+      //     const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
+      //     setPlanningData(updatedPlanningData);
+      //     console.log('💾 Sauvegarde automatique après modification');
+      //   } catch (error) {
+      //     console.error('Erreur lors de la sauvegarde automatique:', error);
+      //   }
+      // }
+      
       return updatedPlanning;
     });
   }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay]);
@@ -640,7 +669,159 @@ const PlanningDisplay = ({
     }
   };
 
-
+  // Fonction pour copier les données d'une semaine vers la semaine suivante (version corrigée)
+  const copyWeekToNextWeek = useCallback(() => {
+    try {
+      console.log('🔄 Début de la copie de semaine vers la semaine suivante');
+      
+      // Semaine source : 28/07 au 3/08 (2025-07-28)
+      const sourceWeek = '2025-07-28';
+      // Semaine destination : 4/08 au 10/08 (2025-08-04)
+      const destinationWeek = '2025-08-04';
+      
+      // VÉRIFIER SI LA SEMAINE DESTINATION CONTIENT DÉJÀ DES DONNÉES
+      const destinationWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[destinationWeek];
+      const existingDestinationPlanning = destinationWeekData?.planning || {};
+      
+      // Compter les cliques existants dans la semaine destination
+      let existingClicksCount = 0;
+      Object.keys(existingDestinationPlanning).forEach(empId => {
+        Object.keys(existingDestinationPlanning[empId]).forEach(dayKey => {
+          const daySlots = existingDestinationPlanning[empId][dayKey];
+          if (daySlots && Array.isArray(daySlots)) {
+            existingClicksCount += daySlots.filter(slot => slot === true).length;
+          }
+        });
+      });
+      
+      console.log(`🔍 Semaine destination (${destinationWeek}) contient ${existingClicksCount} cliques existants`);
+      
+      // Si la semaine destination contient des données, demander confirmation
+      if (existingClicksCount > 0) {
+        const confirmMessage = `⚠️ La semaine du 4/08 au 10/08 contient déjà ${existingClicksCount} cliques.\n\nVoulez-vous vraiment écraser ces données ?\n\nCette action ne peut pas être annulée.`;
+        
+        if (!window.confirm(confirmMessage)) {
+          console.log('❌ Copie annulée par l\'utilisateur');
+          setLocalFeedback('❌ Copie annulée. Les données existantes sont préservées.');
+          return;
+        }
+        
+        console.log('✅ Utilisateur a confirmé l\'écrasement des données existantes');
+      }
+      
+      // Récupérer les données de la semaine source depuis planningData
+      const sourceWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[sourceWeek];
+      const sourcePlanning = sourceWeekData?.planning || {};
+      const sourceSelectedEmployees = sourceWeekData?.selectedEmployees || [];
+      
+      console.log('📊 Planning source à copier (semaine 28/07):', sourcePlanning);
+      console.log('📊 Structure détaillée du planning source:', JSON.stringify(sourcePlanning, null, 2));
+      
+      // Afficher les clés des employés et des jours
+      if (sourcePlanning) {
+        Object.keys(sourcePlanning).forEach(empId => {
+          console.log(`👤 Employé ${empId}:`, Object.keys(sourcePlanning[empId]));
+          Object.keys(sourcePlanning[empId]).forEach(dayKey => {
+            console.log(`  📅 Jour ${dayKey}:`, sourcePlanning[empId][dayKey]);
+          });
+        });
+      }
+      
+      if (!sourcePlanning || Object.keys(sourcePlanning).length === 0) {
+        console.log('⚠️ Aucun planning source à copier');
+        setLocalFeedback('⚠️ Aucun planning à copier. Assurez-vous d\'avoir des cliques sur la semaine du 28/07 au 3/08.');
+        return;
+      }
+      
+      // TRANSFORMATION DES CLÉS DE DATES : Créer un nouveau planning avec les clés de la semaine destination
+      const transformedPlanning = {};
+      
+      // Générer les dates de la semaine destination (4/08 au 10/08)
+      const destinationDates = [];
+      const startDate = new Date(destinationWeek);
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        destinationDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      // Générer les dates de la semaine source (28/07 au 3/08)
+      const sourceDates = [];
+      const sourceStartDate = new Date(sourceWeek);
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(sourceStartDate);
+        date.setDate(sourceStartDate.getDate() + i);
+        sourceDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      console.log('📅 Dates source:', sourceDates);
+      console.log('📅 Dates destination:', destinationDates);
+      
+      // Transformer le planning en remplaçant les clés de dates
+      Object.keys(sourcePlanning).forEach(empId => {
+        transformedPlanning[empId] = {};
+        
+        // Copier les données de chaque jour en transformant les clés
+        sourceDates.forEach((sourceDate, index) => {
+          const destinationDate = destinationDates[index];
+          if (sourcePlanning[empId][sourceDate]) {
+            transformedPlanning[empId][destinationDate] = [...sourcePlanning[empId][sourceDate]];
+            console.log(`🔄 Copie ${sourceDate} → ${destinationDate} pour ${empId}`);
+          }
+        });
+      });
+      
+      console.log('🔄 Planning transformé:', transformedPlanning);
+      
+      // 1. Copier le planning transformé vers localStorage
+      localStorage.setItem(`planning_${selectedShop}_${destinationWeek}`, JSON.stringify(transformedPlanning));
+      
+      // 2. Copier aussi les employés sélectionnés de la semaine source
+      if (sourceSelectedEmployees && sourceSelectedEmployees.length > 0) {
+        localStorage.setItem(`selected_employees_${selectedShop}_${destinationWeek}`, JSON.stringify(sourceSelectedEmployees));
+        console.log('👥 Employés sélectionnés copiés:', sourceSelectedEmployees);
+      }
+      
+      // 3. IMPORTANT : Mettre à jour la structure planningData pour que getWeekPlanning puisse la lire
+      console.log('🔧 Avant saveWeekPlanning - planningData:', planningData);
+      console.log('🔧 Paramètres saveWeekPlanning:', {
+        selectedShop,
+        destinationWeek,
+        transformedPlanning,
+        sourceSelectedEmployees
+      });
+      
+      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, destinationWeek, transformedPlanning, sourceSelectedEmployees);
+      console.log('🔧 Après saveWeekPlanning - updatedPlanningData:', updatedPlanningData);
+      
+      setPlanningData(updatedPlanningData);
+      
+      console.log('✅ Planning transformé copié vers localStorage ET planningData');
+      
+      // Vérifier que la copie a bien fonctionné
+      const verifyCopy = localStorage.getItem(`planning_${selectedShop}_${destinationWeek}`);
+      if (verifyCopy) {
+        const copiedData = JSON.parse(verifyCopy);
+        console.log('🔍 Vérification de la copie - données copiées:', copiedData);
+        
+        // Naviguer vers la semaine de destination
+        console.log('🔄 Navigation vers la semaine:', destinationWeek);
+        setSelectedWeek(destinationWeek);
+        
+        // Forcer le rafraîchissement pour déclencher le useEffect qui charge le planning
+        setForceRefresh(prev => prev + 1);
+        
+        setLocalFeedback(`✅ Planning copié vers la semaine du 4/08 au 10/08. Navigation automatique en cours...`);
+      } else {
+        console.log('❌ Échec de la copie - données non trouvées dans localStorage');
+        setLocalFeedback('❌ Échec de la copie. Veuillez réessayer.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la copie:', error);
+      setLocalFeedback('❌ Erreur lors de la copie des données');
+    }
+  }, [selectedShop, setSelectedWeek, planningData, setPlanningData]);
 
   if (!currentShopData) {
     return (
@@ -1730,6 +1911,23 @@ const PlanningDisplay = ({
               }
             >
               {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
+            </button>
+            
+            <button
+              onClick={copyWeekToNextWeek}
+              style={{
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              title="Copier les données de la semaine du 28/07 au 3/08 vers la semaine du 4/08 au 10/08"
+            >
+              📋 Copier semaine
             </button>
           </div>
           

@@ -1,4 +1,4 @@
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, addDays } from 'date-fns';
 
 // Structure de données v2.0
 export const createNewPlanningData = () => ({
@@ -123,7 +123,9 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
 
 // Gestion des semaines
 export const saveWeekPlanning = (planningData, shopId, weekKey, planning, selectedEmployees) => {
-  return {
+  console.log('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
+  
+  const result = {
     ...planningData,
     shops: planningData.shops.map(shop => 
       shop.id === shopId 
@@ -140,6 +142,10 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
         : shop
     )
   };
+  
+  console.log('🔧 saveWeekPlanning - Résultat:', result.shops.find(s => s.id === shopId)?.weeks[weekKey]);
+  
+  return result;
 };
 
 // Sauvegarder le planning pour la boutique actuelle seulement
@@ -670,40 +676,58 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
     const weekData = shop.weeks?.[weekKey] || { planning: {}, selectedEmployees: [] };
     
     // Initialiser les données de planning pour tous les employés de la boutique
-    const initializedPlanning = { ...weekData.planning };
+    const initializedPlanning = {};
     const shopEmployees = shop.employees || [];
     const timeSlots = shop.config?.timeSlots || [];
     
-    // Créer les 7 jours de la semaine
-    const days = ['0', '1', '2', '3', '4', '5', '6'];
+    // Créer les 7 jours de la semaine avec des clés de dates
+    const weekStart = new Date(weekKey);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const dayDate = addDays(weekStart, i);
+      days.push(format(dayDate, 'yyyy-MM-dd'));
+    }
+    
+    console.log('🔍 getWeekPlanning - Jours générés:', days);
+    console.log('🔍 getWeekPlanning - Données existantes:', weekData.planning);
     
     shopEmployees.forEach(employee => {
       if (employee && employee.id) {
-        if (!initializedPlanning[employee.id]) {
-          initializedPlanning[employee.id] = {};
-        }
+        initializedPlanning[employee.id] = {};
         
-        days.forEach(day => {
-          if (!initializedPlanning[employee.id][day]) {
-            // Initialiser avec un tableau de la bonne longueur selon les créneaux horaires
-            initializedPlanning[employee.id][day] = new Array(timeSlots.length).fill(false);
-          } else if (initializedPlanning[employee.id][day].length !== timeSlots.length) {
-            // Si la longueur ne correspond pas, ajuster
-            const currentSlots = initializedPlanning[employee.id][day];
-            if (currentSlots.length < timeSlots.length) {
-              // Ajouter des créneaux manquants
-              initializedPlanning[employee.id][day] = [
-                ...currentSlots,
-                ...new Array(timeSlots.length - currentSlots.length).fill(false)
-              ];
+        console.log(`🔍 getWeekPlanning - Employé ${employee.id}:`, initializedPlanning[employee.id]);
+        
+        days.forEach(dayKey => {
+          // Vérifier si on a des données existantes pour ce jour et cet employé
+          const existingData = weekData.planning?.[employee.id]?.[dayKey];
+          
+          if (existingData) {
+            // Utiliser les données existantes si elles ont la bonne longueur
+            if (existingData.length === timeSlots.length) {
+              initializedPlanning[employee.id][dayKey] = [...existingData];
+              console.log(`🔍 getWeekPlanning - Utilisé données existantes pour ${dayKey} (${employee.id})`);
             } else {
-              // Tronquer si trop long
-              initializedPlanning[employee.id][day] = currentSlots.slice(0, timeSlots.length);
+              // Ajuster la longueur si nécessaire
+              if (existingData.length < timeSlots.length) {
+                initializedPlanning[employee.id][dayKey] = [
+                  ...existingData,
+                  ...new Array(timeSlots.length - existingData.length).fill(false)
+                ];
+              } else {
+                initializedPlanning[employee.id][dayKey] = existingData.slice(0, timeSlots.length);
+              }
+              console.log(`🔍 getWeekPlanning - Ajusté longueur pour ${dayKey} (${employee.id})`);
             }
+          } else {
+            // Initialiser avec un tableau vide si pas de données existantes
+            initializedPlanning[employee.id][dayKey] = new Array(timeSlots.length).fill(false);
+            console.log(`🔍 getWeekPlanning - Initialisé ${dayKey} pour ${employee.id}`);
           }
         });
       }
     });
+    
+    console.log('🔍 getWeekPlanning - Résultat final:', initializedPlanning);
     
     return {
       planning: initializedPlanning,
