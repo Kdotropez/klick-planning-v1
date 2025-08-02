@@ -52,6 +52,14 @@ const ValidationManager = ({
     setShowValidationModal(false);
   };
 
+  // Revalider les employés débloqués
+  const revalidateUnlockedEmployees = () => {
+    setValidationState(prev => ({
+      ...prev,
+      lockedEmployees: [...new Set([...prev.lockedEmployees, ...selectedEmployees])]
+    }));
+  };
+
   // Débloquer un employé spécifique
   const unlockEmployee = (employeeId) => {
     setValidationState(prev => ({
@@ -127,11 +135,19 @@ const ValidationManager = ({
                    🔓 Débloquer employé
                  </button>
                </>
-             ) : (
-               <span className="badge badge-warning">
-                 Tous les employés débloqués
-               </span>
-             )}
+                           ) : (
+                <>
+                  <span className="badge badge-warning">
+                    Tous les employés débloqués
+                  </span>
+                  <button 
+                    className="btn btn-success btn-sm"
+                    onClick={revalidateUnlockedEmployees}
+                  >
+                    🔒 Revalider tous les employés
+                  </button>
+                </>
+              )}
            </div>
          )}
       </div>
