@@ -90,10 +90,25 @@ const PlanningDisplay = ({
 
   // Fonction de verrouillage automatique
   const autoLockPreviousDay = useCallback((newDay) => {
-    console.log('🔍 autoLockPreviousDay appelé:', { autoLockEnabled, selectedEmployees, lastModifiedDay, newDay });
+    console.log('🔍 autoLockPreviousDay appelé:', { 
+      autoLockEnabled, 
+      selectedEmployees, 
+      localSelectedEmployees,
+      lastModifiedDay, 
+      newDay,
+      validationState 
+    });
     
-    if (!autoLockEnabled || !selectedEmployees || selectedEmployees.length === 0) {
-      console.log('❌ Verrouillage automatique ignoré:', { autoLockEnabled, selectedEmployeesLength: selectedEmployees?.length });
+    // Utiliser localSelectedEmployees si selectedEmployees est vide
+    const employeesToLock = selectedEmployees && selectedEmployees.length > 0 ? selectedEmployees : localSelectedEmployees;
+    
+    if (!autoLockEnabled || !employeesToLock || employeesToLock.length === 0) {
+      console.log('❌ Verrouillage automatique ignoré:', { 
+        autoLockEnabled, 
+        selectedEmployeesLength: selectedEmployees?.length,
+        localSelectedEmployeesLength: localSelectedEmployees?.length,
+        employeesToLockLength: employeesToLock?.length
+      });
       return;
     }
     
@@ -102,7 +117,7 @@ const PlanningDisplay = ({
       const updatedValidationState = {
         ...validationState,
         isWeekValidated: true,
-        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...selectedEmployees])]
+        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...employeesToLock])]
       };
       
       setValidationState(updatedValidationState);
@@ -117,17 +132,27 @@ const PlanningDisplay = ({
     } else {
       console.log('❌ Conditions non remplies pour le verrouillage:', { lastModifiedDay, newDay });
     }
-  }, [autoLockEnabled, selectedEmployees, lastModifiedDay, validationState, selectedShop, validWeek]);
+  }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, lastModifiedDay, validationState, selectedShop, validWeek]);
 
   // Fonction de verrouillage automatique lors du changement de semaine/boutique
   const autoLockOnChange = useCallback(() => {
-    if (!autoLockEnabled || !selectedEmployees || selectedEmployees.length === 0) return;
+    // Utiliser localSelectedEmployees si selectedEmployees est vide
+    const employeesToLock = selectedEmployees && selectedEmployees.length > 0 ? selectedEmployees : localSelectedEmployees;
+    
+    if (!autoLockEnabled || !employeesToLock || employeesToLock.length === 0) {
+      console.log('❌ Verrouillage automatique ignoré lors du changement:', { 
+        autoLockEnabled, 
+        selectedEmployeesLength: selectedEmployees?.length,
+        localSelectedEmployeesLength: localSelectedEmployees?.length
+      });
+      return;
+    }
     
     // Verrouiller tous les employés sélectionnés
     const updatedValidationState = {
       ...validationState,
       isWeekValidated: true,
-      lockedEmployees: [...new Set([...validationState.lockedEmployees, ...selectedEmployees])]
+      lockedEmployees: [...new Set([...validationState.lockedEmployees, ...employeesToLock])]
     };
     
     setValidationState(updatedValidationState);
@@ -138,7 +163,7 @@ const PlanningDisplay = ({
     }
     
     console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique');
-  }, [autoLockEnabled, selectedEmployees, validationState, selectedShop, validWeek]);
+  }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, validationState, selectedShop, validWeek]);
 
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
@@ -164,15 +189,31 @@ const PlanningDisplay = ({
 
   // Fonction pour changer de jour avec verrouillage automatique
   const handleDayChange = useCallback((newDay) => {
-    console.log('🔍 handleDayChange appelé:', { currentDay, newDay, lastModifiedDay, autoLockEnabled });
+    console.log('🔍 handleDayChange appelé:', { 
+      currentDay, 
+      newDay, 
+      lastModifiedDay, 
+      autoLockEnabled,
+      selectedEmployees: selectedEmployees?.length,
+      localSelectedEmployees: localSelectedEmployees?.length
+    });
     
     // Verrouiller le jour précédent si nécessaire
     if (currentDay !== null && lastModifiedDay !== null && currentDay < newDay) {
       console.log('🔒 Verrouillage automatique lors du changement de jour:', { currentDay, newDay, lastModifiedDay });
       autoLockPreviousDay(newDay);
+    } else {
+      console.log('❌ Conditions non remplies pour le verrouillage lors du changement de jour:', { 
+        currentDay, 
+        lastModifiedDay, 
+        newDay,
+        condition1: currentDay !== null,
+        condition2: lastModifiedDay !== null,
+        condition3: currentDay < newDay
+      });
     }
     setCurrentDay(newDay);
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled]);
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled, selectedEmployees, localSelectedEmployees]);
   
   // Validation et nettoyage des données shops
   const shops = React.useMemo(() => {
@@ -408,7 +449,7 @@ const PlanningDisplay = ({
       );
       return updatedPlanning;
     });
-  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees]);
+  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay]);
 
   // Fonction pour marquer un créneau comme validé
   const markAsValidated = useCallback((employee, dayKey, slotIndex) => {
