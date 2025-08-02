@@ -77,6 +77,13 @@ const PlanningDisplay = ({
     lockedEmployees: []
   });
 
+  // Définir validWeek tout au début pour éviter les erreurs d'initialisation
+  const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+
+  // Récupérer la boutique actuelle et sa configuration
+  const currentShopData = getShopById(planningData, selectedShop);
+  const config = currentShopData?.config || { timeSlots: [] };
+
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
     if (selectedShop && validWeek) {
@@ -91,12 +98,6 @@ const PlanningDisplay = ({
       }
     }
   }, [selectedShop, validWeek]);
-  
-
-
-  // Récupérer la boutique actuelle et sa configuration
-  const currentShopData = getShopById(planningData, selectedShop);
-  const config = currentShopData?.config || { timeSlots: [] };
   
   // Validation et nettoyage des données shops
   const shops = React.useMemo(() => {
@@ -150,9 +151,6 @@ const PlanningDisplay = ({
       setLocalSelectedEmployees(selectedEmployees);
     }
   }, [selectedEmployees]);
-
-  // Définir validWeek après les useEffect
-  const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
   
   // Mettre à jour le planning global
   useEffect(() => {
