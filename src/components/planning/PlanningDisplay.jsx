@@ -77,9 +77,6 @@ const PlanningDisplay = ({
     lockedEmployees: []
   });
 
-  // Définir validWeek avant de l'utiliser dans les useEffect
-  const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
-
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
     if (selectedShop && validWeek) {
@@ -153,6 +150,9 @@ const PlanningDisplay = ({
       setLocalSelectedEmployees(selectedEmployees);
     }
   }, [selectedEmployees]);
+
+  // Définir validWeek après les useEffect
+  const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
   
   // Mettre à jour le planning global
   useEffect(() => {
