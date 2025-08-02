@@ -19,6 +19,8 @@ import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
 import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { useDeviceDetection } from '../../hooks/useDeviceDetection';
+import { exportAllDataIPad } from '../../utils/backupUtils';
 import '@/assets/styles.css';
 
 const PlanningDisplay = ({ 
@@ -85,6 +87,9 @@ const PlanningDisplay = ({
     retour: false
   });
   const fileInputRef = useRef(null);
+
+  // Détection automatique de l'appareil
+  const deviceInfo = useDeviceDetection();
 
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
   const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
@@ -755,7 +760,7 @@ const PlanningDisplay = ({
       }}>
         <h2 style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: '24px',
+          fontSize: deviceInfo.isTablet ? '28px' : '24px',
           fontWeight: 'bold',
           color: '#2c3e50',
           margin: '0',
@@ -766,13 +771,23 @@ const PlanningDisplay = ({
         </h2>
         <p style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: '20px',
+          fontSize: deviceInfo.isTablet ? '24px' : '20px',
           color: '#495057',
           margin: '8px 0 0 0',
           fontStyle: 'italic',
           fontWeight: '600'
         }}>
           {currentShopData?.name || selectedShop}
+          {deviceInfo.isIPad && (
+            <span style={{ 
+              fontSize: '14px', 
+              color: '#17a2b8', 
+              marginLeft: '10px',
+              fontWeight: 'normal'
+            }}>
+              📱 Mode iPad
+            </span>
+          )}
         </p>
       </div>
 
@@ -844,8 +859,8 @@ const PlanningDisplay = ({
                     style={{
                       backgroundColor: '#17a2b8',
                       color: 'white',
-                      padding: '8px 12px',
-                      fontSize: '12px',
+                      padding: deviceInfo.isTablet ? '12px 16px' : '8px 12px',
+                      fontSize: deviceInfo.isTablet ? '14px' : '12px',
                       border: 'none',
                       borderRadius: '4px',
                       cursor: 'pointer',
@@ -853,7 +868,8 @@ const PlanningDisplay = ({
                       fontWeight: 'bold',
                       transition: 'all 0.2s ease',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      minHeight: deviceInfo.isTablet ? '44px' : 'auto'
                     }}
                     onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#138496';
@@ -883,8 +899,8 @@ const PlanningDisplay = ({
                     style={{
                       backgroundColor: '#28a745',
                       color: 'white',
-                      padding: '8px 12px',
-                      fontSize: '12px',
+                      padding: deviceInfo.isTablet ? '12px 16px' : '8px 12px',
+                      fontSize: deviceInfo.isTablet ? '14px' : '12px',
                       border: 'none',
                       borderRadius: '4px',
                       cursor: 'pointer',
@@ -892,7 +908,8 @@ const PlanningDisplay = ({
                       fontWeight: 'bold',
                       transition: 'all 0.2s ease',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      minHeight: deviceInfo.isTablet ? '44px' : 'auto'
                     }}
                     onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#218838';
@@ -969,15 +986,16 @@ const PlanningDisplay = ({
                     style={{
                       backgroundColor: '#6f42c1',
                       color: 'white',
-                      padding: '8px 12px',
-                      fontSize: '12px',
+                      padding: deviceInfo.isTablet ? '12px 16px' : '8px 12px',
+                      fontSize: deviceInfo.isTablet ? '14px' : '12px',
                       border: 'none',
                       borderRadius: '4px',
                       cursor: 'pointer',
                       fontWeight: 'bold',
                       transition: 'all 0.2s ease',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      minHeight: deviceInfo.isTablet ? '44px' : 'auto'
                     }}
                     onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#5a32a3';
@@ -1011,15 +1029,16 @@ const PlanningDisplay = ({
                         style={{
                           backgroundColor: '#dc3545',
                           color: 'white',
-                          padding: '6px 10px',
-                          fontSize: '11px',
+                          padding: deviceInfo.isTablet ? '10px 14px' : '6px 10px',
+                          fontSize: deviceInfo.isTablet ? '13px' : '11px',
                           border: 'none',
                           borderRadius: '4px',
                           cursor: 'pointer',
                           fontWeight: 'bold',
                           transition: 'all 0.2s ease',
                           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                          flex: '1'
+                          flex: '1',
+                          minHeight: deviceInfo.isTablet ? '44px' : 'auto'
                         }}
                         onMouseOver={(e) => {
                           e.currentTarget.style.backgroundColor = '#c82333';
@@ -1097,14 +1116,15 @@ const PlanningDisplay = ({
                 style={{
                   backgroundColor: '#1e88e5',
                   color: '#fff',
-                  padding: '10px 16px',
-                  fontSize: '14px',
+                  padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
+                  fontSize: deviceInfo.isTablet ? '16px' : '14px',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  minHeight: deviceInfo.isTablet ? '48px' : 'auto'
                 }}
                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
@@ -1113,23 +1133,24 @@ const PlanningDisplay = ({
               </button>
 
               <button
-                onClick={onExport}
+                onClick={() => deviceInfo.isTablet ? exportAllDataIPad(setLocalFeedback) : onExport()}
                 style={{
                   backgroundColor: '#28a745',
                   color: '#fff',
-                  padding: '10px 16px',
-                  fontSize: '14px',
+                  padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
+                  fontSize: deviceInfo.isTablet ? '16px' : '14px',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  minHeight: deviceInfo.isTablet ? '48px' : 'auto'
                 }}
                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
               >
-                <FaDownload /> Exporter les données
+                <FaDownload /> {deviceInfo.isTablet ? 'Partager/Exporter' : 'Exporter les données'}
               </button>
 
               <button
@@ -1137,14 +1158,15 @@ const PlanningDisplay = ({
                 style={{
                   backgroundColor: '#ffc107',
                   color: '#212529',
-                  padding: '10px 16px',
-                  fontSize: '14px',
+                  padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
+                  fontSize: deviceInfo.isTablet ? '16px' : '14px',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  minHeight: deviceInfo.isTablet ? '48px' : 'auto'
                 }}
                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
@@ -1161,14 +1183,15 @@ const PlanningDisplay = ({
                   style={{
                     backgroundColor: '#1e88e5',
                     color: '#fff',
-                    padding: '10px 16px',
-                    fontSize: '14px',
+                    padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
+                    fontSize: deviceInfo.isTablet ? '16px' : '14px',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    minHeight: deviceInfo.isTablet ? '48px' : 'auto'
                   }}
                   onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                   onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}

@@ -1,8 +1,9 @@
 import { saveToLocalStorage, loadFromLocalStorage } from './localStorage';
 import { format, addMinutes, parse } from 'date-fns';
 
-export const exportAllData = (setFeedback) => {
-  console.log('exportAllData called');
+// Fonction d'export optimisée pour iPad
+export const exportAllDataIPad = async (setFeedback) => {
+  console.log('exportAllDataIPad called');
   try {
     const shops = loadFromLocalStorage('shops', []);
     const config = loadFromLocalStorage('config', {});
@@ -43,19 +44,49 @@ export const exportAllData = (setFeedback) => {
       data.shops.push(shopData);
     });
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `planning_all_shops_${format(new Date(), 'yyyy-MM-dd_HHmm')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setFeedback('Succès: Données exportées.');
+    const jsonData = JSON.stringify(data, null, 2);
+    const fileName = `planning_all_shops_${format(new Date(), 'yyyy-MM-dd_HHmm')}.json`;
+    
+    // Vérifier si l'API Web Share est disponible (iPad/iOS)
+    if (navigator.share && navigator.canShare) {
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const file = new File([blob], fileName, { type: 'application/json' });
+      
+      try {
+        await navigator.share({
+          title: 'Export Planning Klick',
+          text: 'Données de planning exportées',
+          files: [file]
+        });
+        setFeedback('Succès: Données partagées via l\'appareil.');
+      } catch (shareError) {
+        console.log('Web Share non supporté, fallback vers téléchargement:', shareError);
+        // Fallback vers téléchargement classique
+        downloadFile(jsonData, fileName);
+        setFeedback('Succès: Données exportées (téléchargement).');
+      }
+    } else {
+      // Fallback pour navigateurs non-supportés
+      downloadFile(jsonData, fileName);
+      setFeedback('Succès: Données exportées.');
+    }
+    
     console.log('Data exported successfully:', data);
   } catch (error) {
     console.error('Error exporting data:', error);
-    setFeedback('Erreur lors de l’exportation: ' + error.message);
+    setFeedback('Erreur lors de l\'exportation: ' + error.message);
   }
+};
+
+// Fonction helper pour téléchargement
+const downloadFile = (data, fileName) => {
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
 };
 
 export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig) => {
