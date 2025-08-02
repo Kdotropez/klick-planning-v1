@@ -67,7 +67,7 @@ const ValidationManager = ({
     return validationState.lockedEmployees.includes(employeeId);
   };
 
-  // Vérifier si la semaine est validée
+  // Vérifier si la semaine est validée (même si certains employés sont débloqués)
   const isWeekValidated = validationState.isWeekValidated;
 
   // Obtenir la liste des employés verrouillés avec leurs noms réels
@@ -97,6 +97,9 @@ const ValidationManager = ({
     setSelectedEmployeeToUnlock('');
   };
 
+  // Vérifier s'il y a des employés verrouillés
+  const hasLockedEmployees = validationState.lockedEmployees.length > 0;
+
   return (
     <div className="validation-manager">
       {/* Bouton de validation */}
@@ -109,17 +112,28 @@ const ValidationManager = ({
           >
             🔒 Valider la semaine
           </button>
-        ) : (
-          <div className="validation-status">
-            <span className="badge badge-success">✅ Semaine validée</span>
-            <button 
-              className="btn btn-warning btn-sm"
-              onClick={() => setShowUnlockModal(true)}
-            >
-              🔓 Débloquer employé
-            </button>
-          </div>
-        )}
+                 ) : (
+           <div className="validation-status">
+             <span className="badge badge-success">✅ Semaine validée</span>
+             {hasLockedEmployees ? (
+               <>
+                 <span className="badge badge-info">
+                   {validationState.lockedEmployees.length} employé(s) verrouillé(s)
+                 </span>
+                 <button 
+                   className="btn btn-warning btn-sm"
+                   onClick={() => setShowUnlockModal(true)}
+                 >
+                   🔓 Débloquer employé
+                 </button>
+               </>
+             ) : (
+               <span className="badge badge-warning">
+                 Tous les employés débloqués
+               </span>
+             )}
+           </div>
+         )}
       </div>
 
       
@@ -307,10 +321,20 @@ const ValidationManager = ({
           color: white;
         }
 
-        .badge-secondary {
-          background: #6c757d;
-          color: white;
-        }
+                 .badge-secondary {
+           background: #6c757d;
+           color: white;
+         }
+
+         .badge-info {
+           background: #17a2b8;
+           color: white;
+         }
+
+         .badge-warning {
+           background: #ffc107;
+           color: #212529;
+         }
 
                  .form-select {
            width: 100%;
