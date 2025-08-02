@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft, FaTools } from 'react-icons/fa';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
 import PlanningMenuBar from './PlanningMenuBar';
 import DayButtons from './DayButtons';
@@ -79,8 +80,43 @@ const PlanningDisplay = ({
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
   const [lastModifiedDay, setLastModifiedDay] = useState(null);
 
+  // États pour les menus et l'import
+  const [openMenus, setOpenMenus] = useState({
+    tools: false,
+    retour: false
+  });
+  const fileInputRef = useRef(null);
+
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
   const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+
+  // Fonctions pour les menus
+  const toggleMenu = (menuName) => {
+    setOpenMenus(prev => ({
+      ...prev,
+      [menuName]: !prev[menuName]
+    }));
+  };
+
+  const closeAllMenus = () => {
+    setOpenMenus({
+      tools: false,
+      retour: false
+    });
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file && onImport) {
+      onImport(file);
+    }
+    // Reset the input
+    event.target.value = '';
+  };
 
   // Récupérer la boutique actuelle et sa configuration
   const currentShopData = getShopById(planningData, selectedShop);
@@ -100,6 +136,21 @@ const PlanningDisplay = ({
       }
     }
   }, [selectedShop, validWeek]);
+
+  // Gestionnaire pour fermer les menus quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const target = event.target;
+      if (target && typeof target.closest === 'function' && !target.closest('.menu-button')) {
+        closeAllMenus();
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
   
   // Validation et nettoyage des données shops
   const shops = React.useMemo(() => {
@@ -689,7 +740,7 @@ const PlanningDisplay = ({
           {localFeedback}
         </p>
       )}
-
+      
       {/* Titre de la semaine - EN HAUT */}
       <div style={{
         textAlign: 'center',
@@ -723,168 +774,615 @@ const PlanningDisplay = ({
 
       {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
       {localSelectedEmployees && localSelectedEmployees.length > 0 && (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          gap: '8px', 
-          flexWrap: 'wrap',
-          padding: '10px',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px',
-          border: '1px solid #e9ecef',
-          marginBottom: '15px'
-        }}>
+        <>
           <div style={{ 
-            fontSize: '14px', 
+            fontSize: '16px', 
             fontWeight: 'bold', 
             color: '#495057',
-            marginBottom: '8px',
+            marginBottom: '10px',
             width: '100%',
             textAlign: 'center'
           }}>
             Récapitulatifs Employés
           </div>
           
-          {localSelectedEmployees.map((employeeId) => {
-            const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
-            const employeeName = employee?.name || employeeId;
-            
-            return (
-              <div key={employeeId} style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-                padding: '8px 12px',
-                backgroundColor: 'white',
-                borderRadius: '6px',
-                border: '1px solid #dee2e6',
-                minWidth: '120px',
-                textAlign: 'center'
-              }}>
-                <div style={{ 
-                  fontSize: '12px', 
-                  fontWeight: 'bold',
-                  color: '#495057',
-                  marginBottom: '4px'
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: '8px', 
+            flexWrap: 'nowrap',
+            padding: '15px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '10px',
+            border: '2px solid #e9ecef',
+            marginBottom: '15px',
+            width: '100%',
+            boxSizing: 'border-box',
+            overflowX: 'auto'
+          }}>
+            {localSelectedEmployees.map((employeeId) => {
+              const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+              const employeeName = employee?.name || employeeId;
+              
+              return (
+                <div key={employeeId} style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  padding: '12px 15px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  border: '2px solid #dee2e6',
+                  minWidth: '160px',
+                  maxWidth: '180px',
+                  textAlign: 'center',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                  flex: '0 0 auto'
                 }}>
-                  {employeeName}
+                  <div style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 'bold',
+                    color: '#495057',
+                    marginBottom: '6px',
+                    padding: '6px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    border: '1px solid #e9ecef',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {employeeName}
+                  </div>
+                  
+                  <button
+                    onClick={() => setShowRecapModal(employeeId)}
+                    style={{
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      marginBottom: '4px',
+                      fontWeight: 'bold',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#138496';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#17a2b8';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    }}
+                    title="Récapitulatif journalier"
+                  >
+                    📅 Jour: {(() => {
+                      if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                      const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
+                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                      return hours.toFixed(1);
+                    })()}h
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setSelectedEmployeeForWeeklyRecap(employeeId);
+                      setShowEmployeeWeeklyRecap(true);
+                    }}
+                    style={{
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      marginBottom: '4px',
+                      fontWeight: 'bold',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#218838';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#28a745';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    }}
+                    title="Récapitulatif hebdomadaire"
+                  >
+                    📊 Semaine: {(() => {
+                      if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                      let totalHours = 0;
+                      for (let i = 0; i < 7; i++) {
+                        const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                        totalHours += hours;
+                      }
+                      return totalHours.toFixed(1);
+                    })()}h
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setSelectedEmployeeForMonthlyRecap(employeeId);
+                      setShowEmployeeMonthlyRecap(true);
+                    }}
+                    style={{
+                      backgroundColor: '#ffc107',
+                      color: '#212529',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      marginBottom: '4px',
+                      fontWeight: 'bold',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#e0a800';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#ffc107';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    }}
+                    title="Récapitulatif mensuel"
+                  >
+                    📈 Mois: {(() => {
+                      if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                      let totalHours = 0;
+                      for (let i = 0; i < 7; i++) {
+                        const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                        totalHours += hours;
+                      }
+                      return totalHours.toFixed(1);
+                    })()}h
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setSelectedEmployeeForMonthlyDetail(employeeId);
+                      setShowEmployeeMonthlyDetail(true);
+                    }}
+                    style={{
+                      backgroundColor: '#6f42c1',
+                      color: 'white',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#5a32a3';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#6f42c1';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                    }}
+                    title="Détail mensuel complet"
+                  >
+                    📋 Détail mensuel
+                  </button>
+                  
+                  {/* Boutons de verrouillage/déverrouillage */}
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                    {validationState.lockedEmployees.includes(employeeId) ? (
+                      <button
+                        onClick={() => {
+                          const updatedValidationState = {
+                            ...validationState,
+                            lockedEmployees: validationState.lockedEmployees.filter(id => id !== employeeId)
+                          };
+                          setValidationState(updatedValidationState);
+                          if (selectedShop && validWeek) {
+                            localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
+                          }
+                        }}
+                        style={{
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          flex: '1'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#c82333';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#dc3545';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                        title="Déverrouiller l'employé"
+                      >
+                        🔓 Débloquer
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const updatedValidationState = {
+                            ...validationState,
+                            lockedEmployees: [...validationState.lockedEmployees, employeeId]
+                          };
+                          setValidationState(updatedValidationState);
+                          if (selectedShop && validWeek) {
+                            localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
+                          }
+                        }}
+                        style={{
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          flex: '1'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.backgroundColor = '#218838';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.backgroundColor = '#28a745';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                        title="Verrouiller l'employé"
+                      >
+                        🔒 Bloquer
+                      </button>
+                    )}
+                  </div>
                 </div>
-                
-                <button
-                  onClick={() => setShowRecapModal(employeeId)}
-                  style={{
-                    backgroundColor: '#17a2b8',
-                    color: 'white',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    marginBottom: '2px'
-                  }}
-                  title="Récapitulatif journalier"
-                >
-                  📅 Jour: {(() => {
-                    if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                    const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
-                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                    return hours.toFixed(1);
-                  })()}h
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setSelectedEmployeeForWeeklyRecap(employeeId);
-                    setShowEmployeeWeeklyRecap(true);
-                  }}
-                  style={{
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    marginBottom: '2px'
-                  }}
-                  title="Récapitulatif hebdomadaire"
-                >
-                  📊 Semaine: {(() => {
-                    if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                    let totalHours = 0;
-                    for (let i = 0; i < 7; i++) {
-                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                      totalHours += hours;
-                    }
-                    return totalHours.toFixed(1);
-                  })()}h
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setSelectedEmployeeForMonthlyRecap(employeeId);
-                    setShowEmployeeMonthlyRecap(true);
-                  }}
-                  style={{
-                    backgroundColor: '#ffc107',
-                    color: '#212529',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                    marginBottom: '2px'
-                  }}
-                  title="Récapitulatif mensuel"
-                >
-                  📈 Mois: {(() => {
-                    if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                    let totalHours = 0;
-                    for (let i = 0; i < 7; i++) {
-                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                      totalHours += hours;
-                    }
-                    return totalHours.toFixed(1);
-                  })()}h
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setSelectedEmployeeForMonthlyDetail(employeeId);
-                    setShowEmployeeMonthlyDetail(true);
-                  }}
-                  style={{
-                    backgroundColor: '#6f42c1',
-                    color: 'white',
-                    padding: '4px 8px',
-                    fontSize: '11px',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer'
-                  }}
-                  title="Détail mensuel complet"
-                >
-                  📋 Détail mensuel
-                </button>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {/* Carte des boutons d'actions */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: '10px', 
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            padding: '15px',
+            backgroundColor: '#ffffff',
+            borderRadius: '10px',
+            border: '2px solid #e9ecef',
+            marginBottom: '15px',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            {/* Boutons Principaux - Directement Visibles */}
+            <button
+              onClick={() => setShowGlobalDayViewModalV2(true)}
+              style={{
+                backgroundColor: '#1e88e5',
+                color: '#fff',
+                padding: '10px 16px',
+                fontSize: '14px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+            >
+              📊 Vue globale par jour
+            </button>
+
+            <button
+              onClick={onExport}
+              style={{
+                backgroundColor: '#28a745',
+                color: '#fff',
+                padding: '10px 16px',
+                fontSize: '14px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+            >
+              <FaDownload /> Exporter les données
+            </button>
+
+            <button
+              onClick={handleImportClick}
+              style={{
+                backgroundColor: '#ffc107',
+                color: '#212529',
+                padding: '10px 16px',
+                fontSize: '14px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
+            >
+              📥 Importer les données
+            </button>
+
+            {/* Menu Outils */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => toggleMenu('tools')}
+                style={{
+                  backgroundColor: '#1e88e5',
+                  color: '#fff',
+                  padding: '10px 16px',
+                  fontSize: '14px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+              >
+                <FaTools /> Outils
+                {openMenus.tools ? <FaChevronUp /> : <FaChevronDown />}
+              </button>
+              
+              {openMenus.tools && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: '0',
+                  backgroundColor: '#fff',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  zIndex: 1000,
+                  minWidth: '200px'
+                }}>
+                  <button
+                    onClick={() => {}}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    🔧 Diagnostic données
+                  </button>
+                  <button
+                    onClick={() => {}}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    🧹 Nettoyer cache
+                  </button>
+                  <button
+                    onClick={() => {}}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    📋 Logs système
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Menu Retour */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => toggleMenu('retour')}
+                style={{
+                  backgroundColor: '#1e88e5',
+                  color: '#fff',
+                  padding: '10px 16px',
+                  fontSize: '14px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+              >
+                <FaArrowLeft /> Retour
+                {openMenus.retour ? <FaChevronUp /> : <FaChevronDown />}
+              </button>
+              
+              {openMenus.retour && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: '0',
+                  backgroundColor: '#fff',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  zIndex: 1000,
+                  minWidth: '200px'
+                }}>
+                  <button
+                    onClick={onBackToStartup}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    🏠 Écran de démarrage
+                  </button>
+                  <button
+                    onClick={onBackToConfig}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    ⚙️ Configuration boutiques
+                  </button>
+                  <button
+                    onClick={onBackToEmployees}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    👥 Gestion employés
+                  </button>
+                  <button
+                    onClick={onBackToShopSelection}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    🏪 Sélection boutique
+                  </button>
+                  <button
+                    onClick={onBackToWeekSelection}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '14px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    📅 Sélection semaine
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Input file caché pour l'import */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+        </>
       )}
 
       {/* PLANNING - DIRECTEMENT APRÈS LE TITRE ET LES RÉCAPITULATIFS */}
       <div className="planning-content">
         <div className="planning-left">
-          {/* Sélecteur de boutique */}
+          {/* Sélecteur de boutique et navigation */}
           <div style={{
             textAlign: 'center',
             marginBottom: '15px',
-            padding: '10px',
+            padding: '15px',
             backgroundColor: '#ffffff',
             borderRadius: '8px',
-            border: '1px solid #dee2e6'
+            border: '1px solid #dee2e6',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '15px',
+            flexWrap: 'wrap',
+            justifyContent: 'center'
           }}>
             <select
               value={selectedShop}
@@ -903,6 +1401,79 @@ const PlanningDisplay = ({
                 <option key={shop.id} value={shop.id}>{shop.name}</option>
               ))}
             </select>
+
+            {/* Boutons de navigation semaine */}
+            <button
+              onClick={() => changeWeek('prev')}
+              style={{
+                backgroundColor: '#2196f3',
+                color: 'white',
+                padding: '8px 16px',
+                fontSize: '14px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976d2'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196f3'}
+            >
+              ← Semaine précédente
+            </button>
+
+            {/* Sélecteur de mois */}
+            <select
+              value={selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : ''}
+              onChange={(e) => changeMonth(e.target.value)}
+              style={{ 
+                padding: '8px 12px',
+                fontSize: '14px',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                minWidth: '150px',
+                backgroundColor: '#fff'
+              }}
+            >
+              {(() => {
+                const currentDate = selectedWeek ? new Date(selectedWeek) : new Date();
+                const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1);
+                const endDate = new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1);
+                
+                const months = [];
+                for (let d = new Date(startDate); d <= endDate; d.setMonth(d.getMonth() + 1)) {
+                  const monthKey = format(d, 'yyyy-MM');
+                  const monthLabel = format(d, 'MMMM yyyy', { locale: fr });
+                  months.push(
+                    <option key={monthKey} value={monthKey}>
+                      {monthLabel}
+                    </option>
+                  );
+                }
+                return months;
+              })()}
+            </select>
+
+            <button
+              onClick={() => changeWeek('next')}
+              style={{
+                backgroundColor: '#2196f3',
+                color: 'white',
+                padding: '8px 16px',
+                fontSize: '14px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976d2'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196f3'}
+            >
+              Semaine suivante →
+            </button>
           </div>
 
           <DayButtons 
@@ -950,122 +1521,7 @@ const PlanningDisplay = ({
       </div>
 
       {/* TOUT LE RESTE - SOUS LE PLANNING */}
-      <PlanningMenuBar
-        currentShop={selectedShop}
-        shops={shops}
-        currentWeek={selectedWeek}
-        changeWeek={changeWeek}
-        changeShop={changeShop}
-        changeMonth={changeMonth}
-        onBack={onBackToEmployees}
-        onBackToShop={onBackToShopSelection}
-        onBackToWeek={onBackToWeekSelection}
-        onBackToConfig={onBackToConfig}
-        onBackToStartup={onBackToStartup}
-        onExport={onExport}
-        onImport={onImport}
-        onReset={() => setShowResetModal(true)}
-        setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
-        handleManualSave={handleManualSave}
-        selectedEmployees={localSelectedEmployees}
-        currentShopEmployees={currentShopEmployees}
-        setShowRecapModal={setShowRecapModal}
-        setShowMonthlyRecapModal={setShowMonthlyRecapModal}
-        setShowEmployeeMonthlyRecap={setShowEmployeeMonthlyRecap}
-        setShowEmployeeWeeklyRecap={setShowEmployeeWeeklyRecap}
-        setShowMonthlyDetailModal={setShowMonthlyDetailModal}
-        setShowEmployeeMonthlyDetail={setShowEmployeeMonthlyDetail}
-        setSelectedEmployeeForMonthlyRecap={setSelectedEmployeeForMonthlyRecap}
-        setSelectedEmployeeForWeeklyRecap={setSelectedEmployeeForWeeklyRecap}
-        setSelectedEmployeeForMonthlyDetail={setSelectedEmployeeForMonthlyDetail}
-        calculateEmployeeDayHours={(employeeId) => {
-          if (!selectedWeek || !selectedShop || !planning) return '0.0';
-          const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
-          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-          return hours.toFixed(1);
-        }}
-        calculateEmployeeWeekHours={(employeeId) => {
-          if (!selectedWeek || !selectedShop || !planning) return '0.0';
-          let totalHours = 0;
-          for (let i = 0; i < 7; i++) {
-            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-            const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-            totalHours += hours;
-          }
-          return totalHours.toFixed(1);
-        }}
-        calculateEmployeeMonthHours={(employeeId) => {
-          if (!selectedWeek || !planningData) return '0.0';
-          // Pour l'instant, on utilise seulement la semaine actuelle
-          if (!selectedWeek || !selectedShop || !planning) return '0.0';
-          let totalHours = 0;
-          for (let i = 0; i < 7; i++) {
-            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-            const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-            totalHours += hours;
-          }
-          return totalHours.toFixed(1);
-        }}
-        calculateShopWeekHours={() => {
-          if (!selectedWeek || !selectedShop || !planning || !localSelectedEmployees) return '0.0';
-          let totalHours = 0;
-          localSelectedEmployees.forEach(employee => {
-            for (let i = 0; i < 7; i++) {
-              const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-              const hours = calculateEmployeeDailyHours(employee, dayKey, planning, config);
-              totalHours += hours;
-            }
-          });
-          return totalHours.toFixed(1);
-        }}
-        calculateGlobalMonthHours={() => {
-          if (!selectedWeek || !planningData || !selectedShop) return '0.0';
-          // Pour l'instant, on utilise seulement la semaine actuelle
-          if (!selectedWeek || !selectedShop || !planning || !localSelectedEmployees) return '0.0';
-          let totalHours = 0;
-          localSelectedEmployees.forEach(employee => {
-            for (let i = 0; i < 7; i++) {
-              const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-              const hours = calculateEmployeeDailyHours(employee, dayKey, planning, config);
-              totalHours += hours;
-            }
-          });
-          return totalHours.toFixed(1);
-        }}
-        calculateTotalSelectedEmployeesHours={() => {
-          if (!localSelectedEmployees || localSelectedEmployees.length === 0) return '0.0';
-          let totalHours = 0;
-          localSelectedEmployees.forEach(employeeId => {
-            if (!selectedWeek || !selectedShop || !planning) return;
-            let weekHours = 0;
-            for (let i = 0; i < 7; i++) {
-              const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-              const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-              weekHours += hours;
-            }
-            totalHours += weekHours;
-          });
-          return totalHours.toFixed(1);
-        }}
-        calculateTotalShopEmployeesHours={() => {
-          if (!currentShopEmployees || currentShopEmployees.length === 0 || !planning) return '0.0';
-          let totalHours = 0;
-          currentShopEmployees.forEach(employee => {
-            if (!selectedWeek || !selectedShop || !planning) return;
-            let weekHours = 0;
-            for (let i = 0; i < 7; i++) {
-              const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-              const hours = calculateEmployeeDailyHours(employee, dayKey, planning, config);
-              weekHours += hours;
-            }
-            totalHours += weekHours;
-          });
-          return totalHours.toFixed(1);
-        }}
-        getSelectedEmployeesCount={() => localSelectedEmployees?.length || 0}
-        getTotalShopEmployeesCount={() => currentShopEmployees?.length || 0}
-        showCalendarTotals={showCalendarTotals}
-      />
+
 
       {/* Modales */}
       <ResetModal

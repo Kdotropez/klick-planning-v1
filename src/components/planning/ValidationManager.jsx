@@ -136,80 +136,89 @@ const ValidationManager = ({
 
   return (
     <div className="validation-manager">
-      {/* Bouton de validation */}
-      {/* Contrôle du verrouillage automatique */}
-      <div className="auto-lock-controls" style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '5px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <strong>🔒 Verrouillage automatique :</strong>
-            <span style={{ marginLeft: '10px', fontSize: '14px', color: '#666' }}>
-              {autoLockEnabled ? 'Activé' : 'Désactivé'}
-            </span>
-          </div>
-          {onAutoLockToggle && (
-            <button
-              className={`btn btn-sm ${autoLockEnabled ? 'btn-success' : 'btn-secondary'}`}
-              onClick={onAutoLockToggle}
-              style={{ fontSize: '12px' }}
-            >
-              {autoLockEnabled ? '✅ Activé' : '❌ Désactivé'}
-            </button>
-          )}
-        </div>
-        <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-          {autoLockEnabled ? 
-            'Les modifications sont automatiquement verrouillées lors des changements de semaine/boutique/jour' :
-            'Le verrouillage automatique est désactivé - les modifications ne sont pas protégées'
-          }
-        </div>
-      </div>
+      <div className="validation-controls">
+        {/* Contrôle du verrouillage automatique - Aligné avec les autres boutons */}
+        {onAutoLockToggle && (
+          <button
+            onClick={onAutoLockToggle}
+            style={{
+              backgroundColor: autoLockEnabled ? '#28a745' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              marginRight: '10px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+            }}
+            title={autoLockEnabled ? 
+              'Verrouillage automatique activé - Cliquer pour désactiver' : 
+              'Verrouillage automatique désactivé - Cliquer pour activer'
+            }
+          >
+            {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
+          </button>
+        )}
 
-             <div className="validation-controls">
-         {isWeekValidated && (
+        {/* Bouton de validation de la semaine */}
+        {!isWeekValidated && (
+          <button
+            onClick={() => setShowValidationModal(true)}
+            style={{
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              marginRight: '10px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+            }}
+          >
+            🔒 Valider la semaine
+          </button>
+        )}
+         {isWeekValidated && hasLockedEmployees && getUnlockedEmployees().length > 0 && (
            <div className="validation-status">
-             <span className="badge badge-success">✅ Semaine validée</span>
-             {hasLockedEmployees ? (
-               <>
-                 <span className="badge badge-info">
-                   {validationState.lockedEmployees.length} employé(s) verrouillé(s)
-                 </span>
-                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                   <button 
-                     className="btn btn-warning btn-sm"
-                     onClick={() => setShowUnlockModal(true)}
-                   >
-                     🔓 Débloquer employé
-                   </button>
-                   <button 
-                     className="btn btn-danger btn-sm"
-                     onClick={unlockAllEmployees}
-                     style={{ backgroundColor: '#dc3545', borderColor: '#dc3545' }}
-                   >
-                     🔓 Débloquer tous
-                   </button>
-                   {getUnlockedEmployees().length > 0 && (
-                     <button 
-                       className="btn btn-success btn-sm"
-                       onClick={() => setShowRevalidateModal(true)}
-                     >
-                       🔒 Revalider employé
-                     </button>
-                   )}
-                 </div>
-               </>
-             ) : (
-               <>
-                 <span className="badge badge-warning">
-                   Tous les employés débloqués
-                 </span>
-                 <button 
-                   className="btn btn-success btn-sm"
-                   onClick={revalidateUnlockedEmployees}
-                 >
-                   🔒 Revalider tous les employés
-                 </button>
-               </>
-             )}
+             <button 
+               className="btn btn-success btn-sm"
+               onClick={() => setShowRevalidateModal(true)}
+             >
+               🔒 Revalider employé
+             </button>
+           </div>
+         )}
+         
+         {isWeekValidated && !hasLockedEmployees && (
+           <div className="validation-status">
+             <button 
+               className="btn btn-success btn-sm"
+               onClick={revalidateUnlockedEmployees}
+             >
+               🔒 Revalider tous les employés
+             </button>
            </div>
          )}
       </div>
