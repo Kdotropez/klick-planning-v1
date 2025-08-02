@@ -690,6 +690,7 @@ const PlanningDisplay = ({
             selectedEmployees={localSelectedEmployees}
             planning={planning}
             onValidationChange={setValidationState}
+            currentShopEmployees={currentShopEmployees}
           />
 
         </div>

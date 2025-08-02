@@ -8,7 +8,8 @@ const ValidationManager = ({
   selectedWeek, 
   selectedEmployees, 
   planning,
-  onValidationChange 
+  onValidationChange,
+  currentShopEmployees = []
 }) => {
   const [validationState, setValidationState] = useState({
     isWeekValidated: false,
@@ -69,9 +70,27 @@ const ValidationManager = ({
   // Vérifier si la semaine est validée
   const isWeekValidated = validationState.isWeekValidated;
 
-  // Obtenir la liste des employés verrouillés
+  // Obtenir la liste des employés verrouillés avec leurs noms réels
   const getLockedEmployees = () => {
-    return selectedEmployees.filter(emp => isEmployeeLocked(emp));
+    return selectedEmployees
+      .filter(emp => isEmployeeLocked(emp))
+      .map(empId => {
+        const employee = currentShopEmployees.find(emp => emp.id === empId);
+        return {
+          id: empId,
+          name: employee?.name || empId
+        };
+      });
+  };
+
+  // Débloquer tous les employés
+  const unlockAllEmployees = () => {
+    setValidationState(prev => ({
+      ...prev,
+      lockedEmployees: []
+    }));
+    setShowUnlockModal(false);
+    setSelectedEmployeeToUnlock('');
   };
 
   return (
@@ -132,42 +151,60 @@ const ValidationManager = ({
         </div>
       )}
 
-      {/* Modal de déblocage */}
-      {showUnlockModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h4>🔓 Débloquer un employé</h4>
-            <p>Sélectionnez l'employé à débloquer :</p>
-            <select 
-              value={selectedEmployeeToUnlock}
-              onChange={(e) => setSelectedEmployeeToUnlock(e.target.value)}
-              className="form-select"
-            >
-              <option value="">Choisir un employé...</option>
-              {getLockedEmployees().map(empId => (
-                <option key={empId} value={empId}>
-                  {empId}
-                </option>
-              ))}
-            </select>
-            <div className="modal-actions">
-              <button 
-                className="btn btn-warning"
-                onClick={() => unlockEmployee(selectedEmployeeToUnlock)}
-                disabled={!selectedEmployeeToUnlock}
-              >
-                🔓 Débloquer
-              </button>
-              <button 
-                className="btn btn-secondary"
-                onClick={() => setShowUnlockModal(false)}
-              >
-                ❌ Annuler
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+             {/* Modal de déblocage */}
+       {showUnlockModal && (
+         <div className="modal-overlay">
+           <div className="modal-content">
+             <h4>🔓 Débloquer des employés</h4>
+             <p>Choisissez une option :</p>
+             
+             <div className="unlock-options">
+               <button 
+                 className="btn btn-danger btn-block"
+                 onClick={unlockAllEmployees}
+               >
+                 🔓 Débloquer TOUS les employés
+               </button>
+               
+               <div className="separator">
+                 <span>OU</span>
+               </div>
+               
+               <div className="individual-unlock">
+                 <p>Sélectionnez un employé spécifique :</p>
+                 <select 
+                   value={selectedEmployeeToUnlock}
+                   onChange={(e) => setSelectedEmployeeToUnlock(e.target.value)}
+                   className="form-select"
+                 >
+                   <option value="">Choisir un employé...</option>
+                   {getLockedEmployees().map(employee => (
+                     <option key={employee.id} value={employee.id}>
+                       {employee.name}
+                     </option>
+                   ))}
+                 </select>
+                 <button 
+                   className="btn btn-warning"
+                   onClick={() => unlockEmployee(selectedEmployeeToUnlock)}
+                   disabled={!selectedEmployeeToUnlock}
+                 >
+                   🔓 Débloquer cet employé
+                 </button>
+               </div>
+             </div>
+             
+             <div className="modal-actions">
+               <button 
+                 className="btn btn-secondary"
+                 onClick={() => setShowUnlockModal(false)}
+               >
+                 ❌ Annuler
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
 
       <style jsx>{`
         .validation-manager {
@@ -271,13 +308,59 @@ const ValidationManager = ({
           color: white;
         }
 
-        .form-select {
-          width: 100%;
-          padding: 0.5rem;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          margin: 1rem 0;
-        }
+                 .form-select {
+           width: 100%;
+           padding: 0.5rem;
+           border: 1px solid #ddd;
+           border-radius: 4px;
+           margin: 1rem 0;
+         }
+
+         .unlock-options {
+           margin: 1.5rem 0;
+         }
+
+         .btn-block {
+           width: 100%;
+           margin-bottom: 1rem;
+         }
+
+         .btn-danger {
+           background: #dc3545;
+           color: white;
+         }
+
+         .separator {
+           text-align: center;
+           margin: 1rem 0;
+           position: relative;
+         }
+
+         .separator::before {
+           content: '';
+           position: absolute;
+           top: 50%;
+           left: 0;
+           right: 0;
+           height: 1px;
+           background: #ddd;
+         }
+
+         .separator span {
+           background: white;
+           padding: 0 1rem;
+           color: #666;
+           font-weight: bold;
+         }
+
+         .individual-unlock {
+           margin-top: 1rem;
+         }
+
+         .individual-unlock p {
+           margin-bottom: 0.5rem;
+           font-weight: bold;
+         }
       `}</style>
     </div>
   );
