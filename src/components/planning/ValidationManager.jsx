@@ -99,19 +99,7 @@ const ValidationManager = ({
         )}
       </div>
 
-      {/* Statut des employés verrouillés */}
-      {isWeekValidated && getLockedEmployees().length > 0 && (
-        <div className="locked-employees">
-          <h6>Employés verrouillés :</h6>
-          <div className="employee-list">
-            {getLockedEmployees().map(empId => (
-              <span key={empId} className="badge badge-secondary">
-                {empId} 🔒
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+      
 
       {/* Modal de validation */}
       {showValidationModal && (
@@ -197,22 +185,11 @@ const ValidationManager = ({
           margin-bottom: 1rem;
         }
 
-        .validation-status {
-          display: flex;
-          gap: 1rem;
-          align-items: center;
-        }
-
-        .locked-employees {
-          margin-top: 1rem;
-        }
-
-        .employee-list {
-          display: flex;
-          gap: 0.5rem;
-          flex-wrap: wrap;
-          margin-top: 0.5rem;
-        }
+                 .validation-status {
+           display: flex;
+           gap: 1rem;
+           align-items: center;
+         }
 
         .modal-overlay {
           position: fixed;
