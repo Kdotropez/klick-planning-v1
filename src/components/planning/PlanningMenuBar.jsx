@@ -52,7 +52,6 @@ const PlanningMenuBar = ({
   showCalendarTotals
 }) => {
   const [openMenus, setOpenMenus] = useState({
-    actions: false,
     tools: false,
     retour: false
   });
@@ -68,7 +67,6 @@ const PlanningMenuBar = ({
 
   const closeAllMenus = () => {
     setOpenMenus({
-      actions: false,
       tools: false,
       retour: false
     });
@@ -174,86 +172,158 @@ const PlanningMenuBar = ({
         }
       }}
     >
-             {/* Navigation Principale - Directement Visible */}
-               <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          gap: '10px', 
-          flexWrap: 'wrap',
-          alignItems: 'center'
-        }}>
-          {/* Boutons de navigation semaine */}
-          <Button
-            className="button-primary"
-            onClick={() => changeWeek('prev')}
-            style={{
-              backgroundColor: '#2196f3',
-              color: 'white',
-              padding: '8px 16px',
+      {/* Navigation Principale - Directement Visible */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        gap: '10px', 
+        flexWrap: 'wrap',
+        alignItems: 'center'
+      }}>
+        {/* Boutons de navigation semaine */}
+        <Button
+          className="button-primary"
+          onClick={() => changeWeek('prev')}
+          style={{
+            backgroundColor: '#2196f3',
+            color: 'white',
+            padding: '8px 16px',
+            fontSize: '14px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          ← Semaine précédente
+        </Button>
+
+        {/* Sélecteur de mois */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <select
+            value={currentWeek ? format(new Date(currentWeek), 'yyyy-MM') : ''}
+            onChange={(e) => changeMonth(e.target.value)}
+            style={{ 
+              padding: '8px 12px',
               fontSize: '14px',
-              border: 'none',
+              border: '1px solid #ccc',
               borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
+              minWidth: '150px'
             }}
           >
-            ← Semaine précédente
-          </Button>
-
-          {/* Sélecteur de mois */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <select
-              value={currentWeek ? format(new Date(currentWeek), 'yyyy-MM') : ''}
-              onChange={(e) => changeMonth(e.target.value)}
-              style={{ 
-                padding: '8px 12px',
-                fontSize: '14px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                minWidth: '150px'
-              }}
-            >
-              {(() => {
-                const currentDate = currentWeek ? new Date(currentWeek) : new Date();
-                const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1);
-                const endDate = new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1);
-                
-                const months = [];
-                for (let d = new Date(startDate); d <= endDate; d.setMonth(d.getMonth() + 1)) {
-                  const monthKey = format(d, 'yyyy-MM');
-                  const monthLabel = format(d, 'MMMM yyyy', { locale: fr });
-                  months.push(
-                    <option key={monthKey} value={monthKey}>
-                      {monthLabel}
-                    </option>
-                  );
-                }
-                return months;
-              })()}
-            </select>
-          </div>
-
-          <Button
-            className="button-primary"
-            onClick={() => changeWeek('next')}
-            style={{
-              backgroundColor: '#2196f3',
-              color: 'white',
-              padding: '8px 16px',
-              fontSize: '14px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            Semaine suivante →
-          </Button>
+            {(() => {
+              const currentDate = currentWeek ? new Date(currentWeek) : new Date();
+              const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1);
+              const endDate = new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1);
+              
+              const months = [];
+              for (let d = new Date(startDate); d <= endDate; d.setMonth(d.getMonth() + 1)) {
+                const monthKey = format(d, 'yyyy-MM');
+                const monthLabel = format(d, 'MMMM yyyy', { locale: fr });
+                months.push(
+                  <option key={monthKey} value={monthKey}>
+                    {monthLabel}
+                  </option>
+                );
+              }
+              return months;
+            })()}
+          </select>
         </div>
+
+        <Button
+          className="button-primary"
+          onClick={() => changeWeek('next')}
+          style={{
+            backgroundColor: '#2196f3',
+            color: 'white',
+            padding: '8px 16px',
+            fontSize: '14px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          Semaine suivante →
+        </Button>
+      </div>
+
+      {/* Boutons Principaux - Directement Visibles */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        gap: '10px', 
+        flexWrap: 'wrap',
+        alignItems: 'center'
+      }}>
+        <Button
+          className="button-primary"
+          onClick={() => setShowGlobalDayViewModalV2(true)}
+          style={{
+            backgroundColor: '#1e88e5',
+            color: '#fff',
+            padding: '10px 16px',
+            fontSize: '14px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+        >
+          📊 Vue globale par jour
+        </Button>
+
+        <Button
+          className="button-primary"
+          onClick={onExport}
+          style={{
+            backgroundColor: '#28a745',
+            color: '#fff',
+            padding: '10px 16px',
+            fontSize: '14px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+        >
+          <FaDownload /> Exporter les données
+        </Button>
+
+        <Button
+          className="button-primary"
+          onClick={handleImportClick}
+          style={{
+            backgroundColor: '#ffc107',
+            color: '#212529',
+            padding: '10px 16px',
+            fontSize: '14px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
+        >
+          📥 Importer les données
+        </Button>
+      </div>
 
       {/* Récapitulatifs des Employés - Directement Visibles */}
       <div style={{ 
@@ -382,137 +452,106 @@ const PlanningMenuBar = ({
         })}
       </div>
 
-             {/* Récapitulatifs Globaux - Dans Menu */}
-       <div style={{ 
-         display: 'flex', 
-         justifyContent: 'center', 
-         gap: '8px', 
-         flexWrap: 'wrap',
-         padding: '8px',
-         backgroundColor: '#e3f2fd',
-         borderRadius: '8px',
-         border: '1px solid #bbdefb'
-       }}>
-         <div style={{ 
-           fontSize: '13px', 
-           fontWeight: 'bold', 
-           color: '#1565c0',
-           marginBottom: '4px',
-           width: '100%',
-           textAlign: 'center'
-         }}>
-           {currentShop} - {getSelectedEmployeesCount()}/{getTotalShopEmployeesCount()} employés
-         </div>
-         
-         <div style={{
-           padding: '6px 12px',
-           backgroundColor: 'white',
-           borderRadius: '4px',
-           border: '1px solid #dee2e6',
-           fontSize: '12px',
-           color: '#495057',
-           fontWeight: 'bold'
-         }}
-         title="Total des heures des employés sélectionnés"
-         >
-           📋 Sélectionnés: {calculateTotalSelectedEmployeesHours()}h
-         </div>
-         
-         <div style={{
-           padding: '6px 12px',
-           backgroundColor: 'white',
-           borderRadius: '4px',
-           border: '1px solid #dee2e6',
-           fontSize: '12px',
-           color: '#495057',
-           fontWeight: 'bold'
-         }}
-         title="Total des heures de tous les employés de la boutique"
-         >
-           📊 Total boutique: {calculateTotalShopEmployeesHours()}h
-         </div>
-       </div>
+      {/* Récapitulatifs Globaux - Dans Menu */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        gap: '8px', 
+        flexWrap: 'wrap',
+        padding: '8px',
+        backgroundColor: '#e3f2fd',
+        borderRadius: '8px',
+        border: '1px solid #bbdefb'
+      }}>
+        <div style={{ 
+          fontSize: '13px', 
+          fontWeight: 'bold', 
+          color: '#1565c0',
+          marginBottom: '4px',
+          width: '100%',
+          textAlign: 'center'
+        }}>
+          {currentShop} - {getSelectedEmployeesCount()}/{getTotalShopEmployeesCount()} employés
+        </div>
+        
+        <div style={{
+          padding: '6px 12px',
+          backgroundColor: 'white',
+          borderRadius: '4px',
+          border: '1px solid #dee2e6',
+          fontSize: '12px',
+          color: '#495057',
+          fontWeight: 'bold'
+        }}
+        title="Total des heures des employés sélectionnés"
+        >
+          📋 Sélectionnés: {calculateTotalSelectedEmployeesHours()}h
+        </div>
+        
+        <div style={{
+          padding: '6px 12px',
+          backgroundColor: 'white',
+          borderRadius: '4px',
+          border: '1px solid #dee2e6',
+          fontSize: '12px',
+          color: '#495057',
+          fontWeight: 'bold'
+        }}
+        title="Total des heures de tous les employés de la boutique"
+        >
+          📊 Total boutique: {calculateTotalShopEmployeesHours()}h
+        </div>
+      </div>
 
-             {/* Menus Secondaires */}
-       <div style={{ 
-         display: 'flex', 
-         justifyContent: 'center', 
-         gap: '10px', 
-         flexWrap: 'wrap'
-       }}>
-                  {/* Menu Actions */}
-          <MenuButton
-            icon={<FaCog />}
-            label="Actions"
-            isOpen={openMenus.actions}
-            onClick={() => toggleMenu('actions')}
-          >
+      {/* Menus Secondaires */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        gap: '10px', 
+        flexWrap: 'wrap'
+      }}>
+        {/* Menu Outils */}
+        <MenuButton
+          icon={<FaTools />}
+          label="Outils"
+          isOpen={openMenus.tools}
+          onClick={() => toggleMenu('tools')}
+        >
+          <MenuItem onClick={() => {}}>
+            🔧 Diagnostic données
+          </MenuItem>
+          <MenuItem onClick={() => {}}>
+            🧹 Nettoyer cache
+          </MenuItem>
+          <MenuItem onClick={() => {}}>
+            📋 Logs système
+          </MenuItem>
+        </MenuButton>
 
-            <MenuItem onClick={() => {
-              setShowGlobalDayViewModalV2(true);
-              closeAllMenus();
-            }}>
-              🎨 Vue globale par jour (V2 - Nouveau design)
-            </MenuItem>
-            <MenuItem onClick={onExport}>
-              <FaDownload /> Exporter les données
-            </MenuItem>
-            <MenuItem onClick={handleImportClick}>
-              📥 Importer les données
-            </MenuItem>
-            <MenuItem onClick={onReset}>
-              🔄 Réinitialiser
-            </MenuItem>
-            <MenuItem onClick={() => setShowRecapModal('week')}>
-              📊 Récap hebdomadaire boutique ({calculateShopWeekHours()}h)
-            </MenuItem>
-            <MenuItem onClick={() => setShowMonthlyRecapModal(true)}>
-              📈 Récap mensuel boutique ({calculateGlobalMonthHours()}h)
-            </MenuItem>
-          </MenuButton>
-
-         {/* Menu Outils */}
-         <MenuButton
-           icon={<FaTools />}
-           label="Outils"
-           isOpen={openMenus.tools}
-           onClick={() => toggleMenu('tools')}
-         >
-           <MenuItem onClick={() => {}}>
-             🔧 Diagnostic données
-           </MenuItem>
-           <MenuItem onClick={() => {}}>
-             🧹 Nettoyer cache
-           </MenuItem>
-           <MenuItem onClick={() => {}}>
-             📋 Logs système
-           </MenuItem>
-         </MenuButton>
-
-         {/* Sélecteur de retour */}
-         <MenuButton
-           icon={<FaArrowLeft />}
-           label="Retour"
-           isOpen={openMenus.retour}
-           onClick={() => toggleMenu('retour')}
-         >
-           <MenuItem onClick={onBackToStartup}>
-             🏠 Écran de démarrage
-           </MenuItem>
-           <MenuItem onClick={onBackToConfig}>
-             ⚙️ Configuration boutiques
-           </MenuItem>
-           <MenuItem onClick={onBack}>
-             👥 Gestion employés
-           </MenuItem>
-           <MenuItem onClick={onBackToShop}>
-             🏪 Sélection boutique
-           </MenuItem>
-           <MenuItem onClick={onBackToWeek}>
-             📅 Sélection semaine
-           </MenuItem>
-         </MenuButton>
-       </div>
+        {/* Sélecteur de retour */}
+        <MenuButton
+          icon={<FaArrowLeft />}
+          label="Retour"
+          isOpen={openMenus.retour}
+          onClick={() => toggleMenu('retour')}
+        >
+          <MenuItem onClick={onBackToStartup}>
+            🏠 Écran de démarrage
+          </MenuItem>
+          <MenuItem onClick={onBackToConfig}>
+            ⚙️ Configuration boutiques
+          </MenuItem>
+          <MenuItem onClick={onBack}>
+            👥 Gestion employés
+          </MenuItem>
+          <MenuItem onClick={onBackToShop}>
+            🏪 Sélection boutique
+          </MenuItem>
+          <MenuItem onClick={onBackToWeek}>
+            📅 Sélection semaine
+          </MenuItem>
+        </MenuButton>
+      </div>
       
       {/* Input file caché pour l'import */}
       <input
