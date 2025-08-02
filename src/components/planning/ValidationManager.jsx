@@ -72,10 +72,14 @@ const ValidationManager = ({
 
   // Obtenir la liste des employés verrouillés avec leurs noms réels
   const getLockedEmployees = () => {
-    return selectedEmployees
-      .filter(emp => isEmployeeLocked(emp))
+    console.log('Debug - validationState:', validationState);
+    console.log('Debug - currentShopEmployees:', currentShopEmployees);
+    console.log('Debug - lockedEmployees:', validationState.lockedEmployees);
+    
+    return validationState.lockedEmployees
       .map(empId => {
         const employee = currentShopEmployees.find(emp => emp.id === empId);
+        console.log('Debug - employee found for', empId, ':', employee);
         return {
           id: empId,
           name: employee?.name || empId
