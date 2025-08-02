@@ -168,31 +168,53 @@ export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig)
         }
       });
 
-      // Verrouillage automatique de toutes les données importées
-      console.log('🔒 Début du verrouillage automatique post-importation...');
-      uniqueShops.forEach(shop => {
-        if (shop.weeks && typeof shop.weeks === 'object') {
-          Object.keys(shop.weeks).forEach(weekKey => {
-            const weekData = shop.weeks[weekKey];
-            if (Array.isArray(weekData.employees)) {
-              const employeeIds = weekData.employees.map(emp => emp.id);
-              if (employeeIds.length > 0) {
-                // Créer l'état de validation verrouillé pour cette semaine/boutique
-                const validationState = {
-                  isWeekValidated: true,
-                  validatedEmployees: employeeIds,
-                  lockedEmployees: employeeIds
-                };
-                
-                // Sauvegarder l'état de validation verrouillé
-                saveToLocalStorage(`validation_${shop.id}_${weekKey}`, validationState);
-                console.log(`🔒 Verrouillage automatique: ${shop.name} - Semaine ${weekKey} - ${employeeIds.length} employé(s)`);
-              }
-            }
-          });
-        }
-      });
-      console.log('✅ Verrouillage automatique post-importation terminé');
+             // Verrouillage automatique de toutes les données importées
+       console.log('🔒 Début du verrouillage automatique post-importation...');
+       console.log('🔍 Données à verrouiller:', uniqueShops);
+       
+       let totalLocked = 0;
+       uniqueShops.forEach(shop => {
+         console.log(`🔍 Traitement de la boutique: ${shop.name} (${shop.id})`);
+         if (shop.weeks && typeof shop.weeks === 'object') {
+           console.log(`🔍 Semaines trouvées:`, Object.keys(shop.weeks));
+           Object.keys(shop.weeks).forEach(weekKey => {
+             const weekData = shop.weeks[weekKey];
+             console.log(`🔍 Données de la semaine ${weekKey}:`, weekData);
+             if (Array.isArray(weekData.employees)) {
+               const employeeIds = weekData.employees.map(emp => emp.id);
+               console.log(`🔍 Employés trouvés pour ${weekKey}:`, employeeIds);
+               if (employeeIds.length > 0) {
+                 // Créer l'état de validation verrouillé pour cette semaine/boutique
+                 const validationState = {
+                   isWeekValidated: true,
+                   validatedEmployees: employeeIds,
+                   lockedEmployees: employeeIds
+                 };
+                 
+                 // Sauvegarder l'état de validation verrouillé
+                 const validationKey = `validation_${shop.id}_${weekKey}`;
+                 saveToLocalStorage(validationKey, validationState);
+                 
+                 // Vérifier que la sauvegarde a fonctionné
+                 const savedValidation = loadFromLocalStorage(validationKey, null);
+                 console.log(`🔒 Verrouillage automatique: ${shop.name} - Semaine ${weekKey} - ${employeeIds.length} employé(s)`);
+                 console.log(`🔍 État de validation sauvegardé:`, savedValidation);
+                 
+                 if (savedValidation && savedValidation.lockedEmployees) {
+                   totalLocked += savedValidation.lockedEmployees.length;
+                 }
+               } else {
+                 console.log(`⚠️ Aucun employé trouvé pour la semaine ${weekKey}`);
+               }
+             } else {
+               console.log(`⚠️ Données d'employés invalides pour la semaine ${weekKey}:`, weekData.employees);
+             }
+           });
+         } else {
+           console.log(`⚠️ Aucune semaine trouvée pour la boutique ${shop.name}`);
+         }
+       });
+       console.log(`✅ Verrouillage automatique post-importation terminé. Total: ${totalLocked} employés verrouillés`);
 
       setShops(uniqueShops);
       setSelectedShop(uniqueShops[0]?.id || '');

@@ -329,13 +329,14 @@ const PlanningDisplay = ({
     }
   }, [validatedData, selectedShop, validWeek]);
 
-  // Sauvegarder les données quand elles changent (désactivé temporairement pour éviter les boucles)
-  // useEffect(() => {
-  //   if (selectedShop && selectedWeek) {
-  //     const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-  //     setPlanningData(updatedPlanningData);
-  //   }
-  // }, [planning, localSelectedEmployees, selectedShop, selectedWeek]);
+  // Sauvegarder les données quand elles changent
+  useEffect(() => {
+    if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
+      console.log('💾 Sauvegarde automatique du planning:', { selectedShop, selectedWeek, planningKeys: Object.keys(planning) });
+      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+      setPlanningData(updatedPlanningData);
+    }
+  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData]);
   
   // S'assurer que la semaine commence par lundi
   const getMondayOfWeek = (dateString) => {
