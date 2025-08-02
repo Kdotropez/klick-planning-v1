@@ -273,6 +273,14 @@ const PlanningDisplay = ({
       return;
     }
     
+    console.log('Debug toggleSlot:', {
+      employee,
+      validationState,
+      lockedEmployees: validationState.lockedEmployees,
+      isLocked: validationState.lockedEmployees.includes(employee),
+      forceValue
+    });
+    
     // Vérifier si l'employé est verrouillé
     if (validationState.lockedEmployees.includes(employee) && forceValue === null) {
       setLocalFeedback(`⚠️ L'employé ${employee} est verrouillé. Utilisez le bouton "Débloquer employé" pour le modifier.`);

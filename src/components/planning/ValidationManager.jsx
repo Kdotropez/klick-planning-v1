@@ -56,7 +56,7 @@ const ValidationManager = ({
   const revalidateUnlockedEmployees = () => {
     setValidationState(prev => ({
       ...prev,
-      lockedEmployees: [...new Set([...prev.lockedEmployees, ...selectedEmployees])]
+      lockedEmployees: [...new Set([...selectedEmployees])]
     }));
   };
 
