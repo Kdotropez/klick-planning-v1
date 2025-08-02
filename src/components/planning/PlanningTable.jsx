@@ -15,7 +15,8 @@ const PlanningTable = ({
   copyMode = false,
   pasteMode = false,
   selectedSlots = [],
-  copiedSlots = null
+  copiedSlots = null,
+  lockedEmployees = []
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
@@ -141,6 +142,27 @@ const PlanningTable = ({
 
   return (
     <div className="table-container" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+      <style jsx>{`
+        .locked-employee {
+          opacity: 0.7;
+          background-color: #f8f9fa;
+        }
+        
+        .locked-employee .fixed-col.locked {
+          background-color: #e9ecef;
+          color: #6c757d;
+          font-style: italic;
+        }
+        
+        .lock-icon {
+          margin-left: 8px;
+          font-size: 12px;
+        }
+        
+        .locked-employee td {
+          cursor: not-allowed;
+        }
+      `}</style>
       <table className="planning-table">
         <thead>
           <tr>
@@ -173,10 +195,13 @@ const PlanningTable = ({
             const employeeName = employee?.name || employeeId;
             
 
+            const isLocked = lockedEmployees.includes(employeeId);
+            
             return (
-              <tr key={employeeId}>
-                <td className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)}`}>
+              <tr key={employeeId} className={isLocked ? 'locked-employee' : ''}>
+                <td className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}`}>
                   {employeeName} ({hours.toFixed(1)} h)
+                  {isLocked && <span className="lock-icon">🔒</span>}
                 </td>
                 {(config?.timeSlots || []).map((_, slotIndex) => {
                   const isChecked = employeeSlots[slotIndex] === true;

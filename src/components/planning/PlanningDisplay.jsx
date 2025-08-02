@@ -11,6 +11,7 @@ import GlobalDayViewModal from './GlobalDayViewModal';
 import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
+import ValidationManager from './ValidationManager';
 
 import EmployeeMonthlyWeeklyModal from './EmployeeMonthlyWeeklyModal';
 import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
@@ -68,6 +69,13 @@ const PlanningDisplay = ({
   
   // État pour forcer le rafraîchissement de la modale mensuelle
   const [modalForceRefresh, setModalForceRefresh] = useState(0);
+  
+  // État de validation globale
+  const [validationState, setValidationState] = useState({
+    isWeekValidated: false,
+    validatedEmployees: [],
+    lockedEmployees: []
+  });
   
 
 
@@ -265,6 +273,12 @@ const PlanningDisplay = ({
       return;
     }
     
+    // Vérifier si l'employé est verrouillé
+    if (validationState.lockedEmployees.includes(employee) && forceValue === null) {
+      setLocalFeedback(`⚠️ L'employé ${employee} est verrouillé. Utilisez le bouton "Débloquer employé" pour le modifier.`);
+      return;
+    }
+    
     const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
     const validationKey = `${employee}_${dayKey}`;
     const isSlotValidated = validatedData[validationKey]?.[slotIndex];
@@ -288,7 +302,7 @@ const PlanningDisplay = ({
       );
       return updatedPlanning;
     });
-  }, [config, mondayOfWeek, validatedData]);
+  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees]);
 
   // Fonction pour marquer un créneau comme validé
   const markAsValidated = useCallback((employee, dayKey, slotIndex) => {
@@ -669,10 +683,14 @@ const PlanningDisplay = ({
             selectedShop={selectedShop}
           />
           
-
-
-
-          
+          {/* Gestionnaire de validation */}
+          <ValidationManager
+            selectedShop={selectedShop}
+            selectedWeek={validWeek}
+            selectedEmployees={localSelectedEmployees}
+            planning={planning}
+            onValidationChange={setValidationState}
+          />
 
         </div>
 
@@ -684,6 +702,7 @@ const PlanningDisplay = ({
             planning={planning}
             onToggleSlot={toggleSlot}
             config={config}
+            lockedEmployees={validationState.lockedEmployees}
             currentDay={currentDay}
             selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
             showCalendarTotals={showCalendarTotals}
