@@ -5,11 +5,11 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 
 // import LicenseManager from './components/admin/LicenseManager';
-import { enableProtection } from './utils/protection';
-import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
-import './utils/createFullLicense';
-import './utils/licenseKeyGenerator';
-import './utils/licenseCreator';
+// import { enableProtection } from './utils/protection';
+// import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
+// import './utils/createFullLicense';
+// import './utils/licenseKeyGenerator';
+// import './utils/licenseCreator';
 import StartupScreen from './components/StartupScreen';
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
@@ -105,7 +105,7 @@ const App = () => {
 
   useEffect(() => {
     // Activer la protection propriétaire
-    enableProtection();
+    // enableProtection();
   }, []);
 
   // Vérification de la licence au démarrage
@@ -120,33 +120,10 @@ const App = () => {
     }
 
     const checkLicense = () => {
-      const license = loadLicense(); // Charger la licence existante seulement
-
-      if (!license) {
-        setLicenseError('Aucune licence active. Veuillez activer une licence.');
-        setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si pas de licence
-        return;
-      }
-      
-      if (!isLicenseValid(license)) {
-        setLicenseError('Licence expirée. Veuillez renouveler votre licence.');
-        setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si licence expirée
-        return;
-      }
-      
-      // Vérification des limites
-      const limits = checkLicenseLimits(license, planningData);
-      if (!limits.valid) {
-        setLicenseError(`Limite de licence atteinte: ${limits.message}`);
-        setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si limites atteintes
-        return;
-      }
-      
+      // Temporairement désactivé pour permettre le déploiement Vercel
       setShowLicenseModal(false);
       setLicenseError('');
+      console.log('✅ Mode sans licence activé pour déploiement Vercel');
     };
     checkLicense();
   }, []); // Supprimé planningData de la dépendance
