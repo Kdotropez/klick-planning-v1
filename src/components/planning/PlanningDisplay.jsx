@@ -845,6 +845,159 @@ const PlanningDisplay = ({
             </p>
           </div>
 
+          {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
+          {localSelectedEmployees && localSelectedEmployees.length > 0 && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: '8px', 
+              flexWrap: 'wrap',
+              padding: '10px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '8px',
+              border: '1px solid #e9ecef',
+              marginBottom: '15px'
+            }}>
+              <div style={{ 
+                fontSize: '14px', 
+                fontWeight: 'bold', 
+                color: '#495057',
+                marginBottom: '8px',
+                width: '100%',
+                textAlign: 'center'
+              }}>
+                Récapitulatifs Employés
+              </div>
+              
+              {localSelectedEmployees.map((employeeId) => {
+                const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+                const employeeName = employee?.name || employeeId;
+                
+                return (
+                  <div key={employeeId} style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    padding: '8px 12px',
+                    backgroundColor: 'white',
+                    borderRadius: '6px',
+                    border: '1px solid #dee2e6',
+                    minWidth: '120px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      fontWeight: 'bold',
+                      color: '#495057',
+                      marginBottom: '4px'
+                    }}>
+                      {employeeName}
+                    </div>
+                    
+                    <button
+                      onClick={() => setShowRecapModal(employeeId)}
+                      style={{
+                        backgroundColor: '#17a2b8',
+                        color: 'white',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        marginBottom: '2px'
+                      }}
+                      title="Récapitulatif journalier"
+                    >
+                      📅 Jour: {(() => {
+                        if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                        const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
+                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                        return hours.toFixed(1);
+                      })()}h
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setSelectedEmployeeForWeeklyRecap(employeeId);
+                        setShowEmployeeWeeklyRecap(true);
+                      }}
+                      style={{
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        marginBottom: '2px'
+                      }}
+                      title="Récapitulatif hebdomadaire"
+                    >
+                      📊 Semaine: {(() => {
+                        if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                        let totalHours = 0;
+                        for (let i = 0; i < 7; i++) {
+                          const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                          totalHours += hours;
+                        }
+                        return totalHours.toFixed(1);
+                      })()}h
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setSelectedEmployeeForMonthlyRecap(employeeId);
+                        setShowEmployeeMonthlyRecap(true);
+                      }}
+                      style={{
+                        backgroundColor: '#ffc107',
+                        color: '#212529',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        marginBottom: '2px'
+                      }}
+                      title="Récapitulatif mensuel"
+                    >
+                      📈 Mois: {(() => {
+                        if (!selectedWeek || !selectedShop || !planning) return '0.0';
+                        let totalHours = 0;
+                        for (let i = 0; i < 7; i++) {
+                          const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+                          totalHours += hours;
+                        }
+                        return totalHours.toFixed(1);
+                      })()}h
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setSelectedEmployeeForMonthlyDetail(employeeId);
+                        setShowEmployeeMonthlyDetail(true);
+                      }}
+                      style={{
+                        backgroundColor: '#6f42c1',
+                        color: 'white',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer'
+                      }}
+                      title="Détail mensuel complet"
+                    >
+                      📋 Détail mensuel
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Sélecteur de boutique */}
           <div style={{
             textAlign: 'center',
