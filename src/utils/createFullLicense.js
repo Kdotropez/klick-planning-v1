@@ -6,7 +6,7 @@ import { createLicense, saveLicense, LICENSE_TYPES } from './licenseManager.js';
 // Créer une licence complète illimitée pour Nicolas Lefevre
 const createFullLicense = () => {
   const fullLicense = createLicense(
-    LICENSE_TYPES.FULL,    // Type complet
+    LICENSE_TYPES.UNLIMITED,    // Type illimité
     36500,                 // 100 ans (pratiquement illimité)
     'Nicolas Lefevre',     // Votre nom
     'nicolas@planning-app.com'  // Votre email
