@@ -5,11 +5,11 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 
 // import LicenseManager from './components/admin/LicenseManager';
-import { enableProtection } from './utils/protection.js';
-import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager.js';
-import './utils/createFullLicense.js';
-import './utils/licenseKeyGenerator.js';
-import './utils/licenseCreator.js';
+import { enableProtection } from './utils/protection';
+import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
+import './utils/createFullLicense';
+import './utils/licenseKeyGenerator';
+import './utils/licenseCreator';
 import StartupScreen from './components/StartupScreen';
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
