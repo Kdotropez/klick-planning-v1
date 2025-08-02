@@ -563,6 +563,49 @@ const EmployeeMonthlyDetailModal = ({
     return `Semaine du ${format(mondayOfWeek, 'd MMMM', { locale: fr })} au ${format(sundayOfWeek, 'd MMMM yyyy', { locale: fr })}`;
   };
 
+  // Identifier les jours hors mois qui ont des données de planning
+  const getDaysOutsideMonth = () => {
+    const daysOutsideMonth = [];
+    
+    if (!planningData?.shops) return daysOutsideMonth;
+    
+    planningData.shops.forEach(shop => {
+      if (shop && shop.weeks) {
+        Object.keys(shop.weeks).forEach(weekKey => {
+          const weekData = shop.weeks[weekKey];
+          if (weekData && weekData.planning && weekData.planning[selectedEmployeeForMonthlyDetail]) {
+            Object.keys(weekData.planning[selectedEmployeeForMonthlyDetail]).forEach(dayStr => {
+              const dayDate = new Date(dayStr);
+              const monthStart = startOfMonth(new Date(selectedWeek));
+              const monthEnd = endOfMonth(new Date(selectedWeek));
+              
+              // Si le jour est en dehors du mois (avant OU après) ET a des créneaux sélectionnés
+              if (dayDate < monthStart || dayDate > monthEnd) {
+                const slots = weekData.planning[selectedEmployeeForMonthlyDetail][dayStr];
+                if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                  const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: slots } }, config);
+                  daysOutsideMonth.push({
+                    date: dayStr,
+                    shopName: shop.name || shop.id,
+                    hours: hours,
+                    dayName: format(dayDate, 'EEEE', { locale: fr }),
+                    dayDate: format(dayDate, 'dd/MM/yyyy', { locale: fr }),
+                    isBeforeMonth: dayDate < monthStart
+                  });
+                }
+              }
+            });
+          }
+        });
+      }
+    });
+    
+    // Trier par date pour avoir un ordre chronologique
+    return daysOutsideMonth.sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  const daysOutsideMonth = getDaysOutsideMonth();
+
      return (
      <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
        <div className="modal-content" style={{ 
@@ -614,6 +657,116 @@ const EmployeeMonthlyDetailModal = ({
                  <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '20px' }}>
                    Mois de {format(firstDayOfMonth, 'MMMM yyyy', { locale: fr })}
                  </p>
+                 
+                 {/* Tableau explicatif des jours hors mois */}
+                 {daysOutsideMonth.length > 0 && (
+                   <div style={{ 
+                     marginBottom: '20px', 
+                     padding: '15px', 
+                     backgroundColor: '#fff3cd', 
+                     border: '1px solid #ffeaa7', 
+                     borderRadius: '8px',
+                     fontFamily: 'Roboto, sans-serif'
+                   }}>
+                     <h4 style={{ 
+                       margin: '0 0 10px 0', 
+                       color: '#856404', 
+                       fontSize: '14px', 
+                       fontWeight: 'bold',
+                       textAlign: 'center'
+                     }}>
+                       ⚠️ Jours hors mois non comptabilisés dans le total
+                     </h4>
+                     <table style={{ 
+                       width: '100%', 
+                       borderCollapse: 'collapse', 
+                       fontSize: '11px',
+                       fontFamily: 'Roboto, sans-serif'
+                     }}>
+                       <thead>
+                         <tr style={{ backgroundColor: '#f8f9fa' }}>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Jour</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Date</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Boutique</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Heures</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {daysOutsideMonth.map((day, index) => (
+                           <tr key={index} style={{ 
+                             backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                             borderLeft: day.isBeforeMonth ? '4px solid #ffc107' : '4px solid #17a2b8'
+                           }}>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>
+                               {day.dayName}
+                               <span style={{ 
+                                 fontSize: '9px', 
+                                 color: day.isBeforeMonth ? '#856404' : '#0c5460',
+                                 marginLeft: '4px',
+                                 fontWeight: 'bold'
+                               }}>
+                                 {day.isBeforeMonth ? '←' : '→'}
+                               </span>
+                             </td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.dayDate}</td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.shopName}</td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>
+                               {day.hours.toFixed(1)} h
+                             </td>
+                           </tr>
+                         ))}
+                         <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
+                           <td colSpan="3" style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'right' }}>
+                             Total hors mois :
+                           </td>
+                           <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                             {daysOutsideMonth.reduce((total, day) => total + day.hours, 0).toFixed(1)} h
+                           </td>
+                         </tr>
+                       </tbody>
+                     </table>
+                     <div style={{ 
+                       marginTop: '10px', 
+                       fontSize: '10px', 
+                       color: '#856404',
+                       display: 'flex',
+                       justifyContent: 'space-between',
+                       alignItems: 'center'
+                     }}>
+                       <span style={{ display: 'flex', alignItems: 'center' }}>
+                         <span style={{ 
+                           display: 'inline-block', 
+                           width: '12px', 
+                           height: '12px', 
+                           backgroundColor: '#ffc107', 
+                           marginRight: '4px',
+                           borderRadius: '2px'
+                         }}></span>
+                         Jours du mois précédent
+                       </span>
+                       <span style={{ display: 'flex', alignItems: 'center' }}>
+                         <span style={{ 
+                           display: 'inline-block', 
+                           width: '12px', 
+                           height: '12px', 
+                           backgroundColor: '#17a2b8', 
+                           marginRight: '4px',
+                           borderRadius: '2px'
+                         }}></span>
+                         Jours du mois suivant
+                       </span>
+                     </div>
+                     <p style={{ 
+                       margin: '10px 0 0 0', 
+                       fontSize: '11px', 
+                       color: '#856404', 
+                       textAlign: 'center',
+                       fontStyle: 'italic'
+                     }}>
+                       Ces heures ne sont pas incluses dans le total mensuel affiché ci-dessous
+                     </p>
+                   </div>
+                 )}
         
                                    <table style={{ 
                      fontFamily: 'Roboto, sans-serif', 

@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 
 // Structure de données v2.0
 export const createNewPlanningData = () => ({
@@ -71,7 +71,8 @@ export const addEmployee = (planningData, employee) => {
   const newEmployee = {
     id: `emp_${Date.now()}`,
     name: employee.name,
-    canWorkIn: employee.canWorkIn || []
+    canWorkIn: employee.canWorkIn || [],
+    mainShop: employee.mainShop || null // Boutique principale
   };
   
   // Ajouter l'employé à toutes les boutiques (l'affectation se fera plus tard)
@@ -469,15 +470,188 @@ export const getAllEmployees = (planningData) => {
       if (!employeesMap.has(emp.id)) {
         employeesMap.set(emp.id, emp);
       } else {
-        // Fusionner les boutiques autorisées
+        // Fusionner les boutiques autorisées et garder la boutique principale
         const existing = employeesMap.get(emp.id);
         const mergedCanWorkIn = [...new Set([...existing.canWorkIn, ...emp.canWorkIn])];
-        employeesMap.set(emp.id, { ...existing, canWorkIn: mergedCanWorkIn });
+        const mainShop = existing.mainShop || emp.mainShop; // Garder la première boutique principale trouvée
+        employeesMap.set(emp.id, { ...existing, canWorkIn: mergedCanWorkIn, mainShop });
       }
     });
   });
   
   return Array.from(employeesMap.values());
+};
+
+// Fonction utilitaire pour vérifier si un employé est en congés
+export const isEmployeeOnLeave = (employeeId, dateString, planningData) => {
+  // Trouver l'employé et ses boutiques assignées
+  const employee = getEmployeeById(planningData, employeeId);
+  if (!employee || !employee.canWorkIn || employee.canWorkIn.length === 0) {
+    console.log(`❌ ${employeeId}: Pas d'employé ou pas de boutiques assignées`);
+    return false;
+  }
+
+  console.log(`🔍 Vérification congé pour ${employeeId} le ${dateString} dans les boutiques:`, employee.canWorkIn);
+
+  // Vérifier si l'employé a des créneaux dans AUCUNE de ses boutiques assignées
+  let hasAnySlots = false;
+  
+  for (const shopId of employee.canWorkIn) {
+    // Charger le planning de cette boutique pour cette semaine
+    const weekKey = getWeekKeyFromDate(dateString);
+    const weekData = getWeekPlanning(planningData, shopId, weekKey);
+    const shopPlanning = weekData.planning;
+    
+    console.log(`📊 ${employeeId} - Boutique ${shopId} - Semaine ${weekKey}:`, {
+      hasWeekData: !!weekData,
+      hasPlanning: !!shopPlanning,
+      hasEmployeeData: !!(shopPlanning && shopPlanning[employeeId])
+    });
+    
+    if (shopPlanning && shopPlanning[employeeId]) {
+      const dayKey = getDayKeyFromDate(dateString);
+      const daySlots = shopPlanning[employeeId][dayKey];
+      
+      console.log(`📅 ${employeeId} - Jour ${dayKey}:`, {
+        daySlots,
+        isArray: Array.isArray(daySlots),
+        hasSlots: !!(daySlots && Array.isArray(daySlots) && daySlots.some(slot => slot))
+      });
+      
+      if (daySlots && Array.isArray(daySlots) && daySlots.some(slot => slot)) {
+        // L'employé a des créneaux dans cette boutique
+        console.log(`✅ ${employeeId} a des créneaux dans ${shopId} le ${dateString}`);
+        hasAnySlots = true;
+        break;
+      }
+    }
+  }
+  
+  // L'employé est en congés s'il n'a aucun créneau dans aucune de ses boutiques
+  const isOnLeave = !hasAnySlots;
+  console.log(`🏖️ ${employeeId} le ${dateString}: ${isOnLeave ? 'EN CONGÉ' : 'A DES CRÉNEAUX'}`);
+  return isOnLeave;
+};
+
+// Fonction utilitaire pour obtenir la clé de semaine à partir d'une date
+const getWeekKeyFromDate = (dateString) => {
+  const date = new Date(dateString);
+  const monday = startOfWeek(date, { weekStartsOn: 1 }); // Lundi
+  return format(monday, 'yyyy-MM-dd');
+};
+
+// Fonction utilitaire pour obtenir la clé de jour à partir d'une date
+const getDayKeyFromDate = (dateString) => {
+  const date = new Date(dateString);
+  return format(date, 'yyyy-MM-dd');
+};
+
+// Fonction pour obtenir les employés d'une boutique principale
+export const getEmployeesByMainShop = (planningData, shopId) => {
+  return getAllEmployees(planningData).filter(emp => emp.mainShop === shopId);
+};
+
+// Fonction pour déterminer automatiquement la boutique principale d'un employé
+export const determineEmployeeMainShop = (planningData, employeeId) => {
+  const employee = getEmployeeById(planningData, employeeId);
+  if (!employee || !employee.canWorkIn || employee.canWorkIn.length === 0) {
+    return null;
+  }
+
+  // Si l'employé n'a qu'une seule boutique, c'est sa boutique principale
+  if (employee.canWorkIn.length === 1) {
+    return employee.canWorkIn[0];
+  }
+
+  // Analyser la présence de l'employé dans chaque boutique
+  const shopPresence = {};
+  
+  employee.canWorkIn.forEach(shopId => {
+    shopPresence[shopId] = {
+      shopId,
+      totalDays: 0,
+      totalSlots: 0,
+      weeksWithData: 0
+    };
+  });
+
+  // Parcourir toutes les semaines de toutes les boutiques
+  planningData.shops.forEach(shop => {
+    if (employee.canWorkIn.includes(shop.id)) {
+      Object.keys(shop.weeks || {}).forEach(weekKey => {
+        const weekData = shop.weeks[weekKey];
+        if (weekData && weekData.planning && weekData.planning[employeeId]) {
+          const employeePlanning = weekData.planning[employeeId];
+          let weekHasData = false;
+          let weekSlots = 0;
+          
+          // Compter les créneaux pour cette semaine
+          Object.keys(employeePlanning).forEach(dayKey => {
+            const daySlots = employeePlanning[dayKey];
+            if (Array.isArray(daySlots)) {
+              const daySlotsCount = daySlots.filter(slot => slot).length;
+              if (daySlotsCount > 0) {
+                weekHasData = true;
+                weekSlots += daySlotsCount;
+              }
+            }
+          });
+          
+          if (weekHasData) {
+            shopPresence[shop.id].weeksWithData += 1;
+            shopPresence[shop.id].totalSlots += weekSlots;
+            shopPresence[shop.id].totalDays += Object.keys(employeePlanning).length;
+          }
+        }
+      });
+    }
+  });
+
+  // Déterminer la boutique principale basée sur la présence
+  let mainShop = null;
+  let maxPresence = 0;
+
+  Object.values(shopPresence).forEach(presence => {
+    // Score basé sur le nombre de semaines avec données ET le nombre total de créneaux
+    const score = (presence.weeksWithData * 10) + presence.totalSlots;
+    
+    if (score > maxPresence) {
+      maxPresence = score;
+      mainShop = presence.shopId;
+    }
+  });
+
+  return mainShop;
+};
+
+// Fonction pour mettre à jour la boutique principale d'un employé
+export const updateEmployeeMainShop = (planningData, employeeId, mainShopId) => {
+  return {
+    ...planningData,
+    shops: planningData.shops.map(shop => ({
+      ...shop,
+      employees: shop.employees.map(emp => 
+        emp.id === employeeId 
+          ? { ...emp, mainShop: mainShopId }
+          : emp
+      )
+    }))
+  };
+};
+
+// Fonction pour mettre à jour automatiquement toutes les boutiques principales
+export const updateAllMainShops = (planningData) => {
+  const allEmployees = getAllEmployees(planningData);
+  let updatedPlanningData = { ...planningData };
+
+  allEmployees.forEach(employee => {
+    const mainShop = determineEmployeeMainShop(planningData, employee.id);
+    if (mainShop && mainShop !== employee.mainShop) {
+      updatedPlanningData = updateEmployeeMainShop(updatedPlanningData, employee.id, mainShop);
+    }
+  });
+
+  return updatedPlanningData;
 };
 
 export const getWeekPlanning = (planningData, shopId, weekKey) => {
