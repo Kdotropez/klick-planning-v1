@@ -6,7 +6,7 @@ import CopyrightNotice from './components/common/CopyrightNotice';
 
 // import LicenseManager from './components/admin/LicenseManager';
 import { enableProtection } from './utils/protection';
-import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManagerVercel';
+// import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManagerVercel';
 // import './utils/createFullLicense';
 // import './utils/licenseKeyGenerator';
 // import './utils/licenseCreator';
@@ -29,6 +29,63 @@ import {
 import './App.css';
 
 const App = () => {
+  // Fonctions de licence intégrées (Vercel-compatible)
+  const loadLicense = () => {
+    try {
+      const stored = localStorage.getItem('planning_license');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      return null;
+    } catch (error) {
+      console.error('Erreur lors du chargement de la licence:', error);
+      return null;
+    }
+  };
+
+  const isLicenseValid = (license) => {
+    if (!license) return false;
+    
+    try {
+      const now = new Date();
+      const expiryDate = new Date(license.expiryDate);
+      
+      return license.isActive && expiryDate > now;
+    } catch (error) {
+      console.error('Erreur lors de la vérification de la licence:', error);
+      return false;
+    }
+  };
+
+  const checkLicenseLimits = (license, currentData) => {
+    if (!license) {
+      return { valid: false, message: 'Aucune licence trouvée' };
+    }
+    
+    try {
+      // Limites simplifiées
+      const maxShops = license.type === 'unlimited' ? 999 : 3;
+      const maxEmployees = license.type === 'unlimited' ? 999 : 10;
+      
+      const currentShops = currentData.shops?.length || 0;
+      const currentEmployees = currentData.shops?.reduce((total, shop) => 
+        total + (shop.employees?.length || 0), 0) || 0;
+      
+      if (currentShops > maxShops) {
+        return { valid: false, message: `Limite de boutiques atteinte (${maxShops})` };
+      }
+      
+      if (currentEmployees > maxEmployees) {
+        return { valid: false, message: `Limite d'employés atteinte (${maxEmployees})` };
+      }
+      
+      return { valid: true, message: 'Limites respectées' };
+    } catch (error) {
+      console.error('Erreur lors de la vérification des limites:', error);
+      return { valid: false, message: 'Erreur de vérification des limites' };
+    }
+  };
+
   // États de l'application
   const [mode, setMode] = useState('startup'); // 'startup', 'new', 'imported', 'week-selection', 'planning'
   const [planningData, setPlanningData] = useState(createNewPlanningData());
