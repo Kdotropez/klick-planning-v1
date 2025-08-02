@@ -7,7 +7,6 @@ import DayButtons from './DayButtons';
 import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
-import GlobalDayViewModal from './GlobalDayViewModal';
 import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
@@ -43,7 +42,6 @@ const PlanningDisplay = ({
   setFeedback 
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
-  const [showGlobalDayViewModal, setShowGlobalDayViewModal] = useState(false);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showRecapModal, setShowRecapModal] = useState(null);
@@ -376,7 +374,6 @@ const PlanningDisplay = ({
     
     setShowEmployeeMonthlyDetail(false);
     setShowRecapModal(null);
-    setShowGlobalDayViewModal(false);
     setShowResetModal(false);
     setSelectedEmployeeForMonthlyRecap('');
     setSelectedEmployeeForWeeklyRecap('');
@@ -598,7 +595,6 @@ const PlanningDisplay = ({
     setShowMonthlyDetailModal(false);
     setShowEmployeeMonthlyDetail(false);
     setShowRecapModal(null);
-    setShowGlobalDayViewModal(false);
     setShowResetModal(false);
     setSelectedEmployeeForMonthlyRecap('');
     setSelectedEmployeeForWeeklyRecap('');
@@ -714,8 +710,7 @@ const PlanningDisplay = ({
         onExport={onExport}
         onImport={onImport}
         onReset={() => setShowResetModal(true)}
-        setShowGlobalDayViewModal={setShowGlobalDayViewModal}
-        setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+                 setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
         handleManualSave={handleManualSave}
         selectedEmployees={localSelectedEmployees}
         currentShopEmployees={currentShopEmployees}
@@ -945,15 +940,7 @@ const PlanningDisplay = ({
         currentShop={selectedShop}
       />
 
-      <GlobalDayViewModal
-        showGlobalDayViewModal={showGlobalDayViewModal}
-        setShowGlobalDayViewModal={setShowGlobalDayViewModal}
-        planning={planning}
-        config={config}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        selectedEmployees={localSelectedEmployees}
-      />
+      
 
       {/* Version 2 de la modale globale */}
       <GlobalDayViewModalV2
