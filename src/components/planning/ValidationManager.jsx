@@ -18,7 +18,9 @@ const ValidationManager = ({
   });
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [showRevalidateModal, setShowRevalidateModal] = useState(false);
   const [selectedEmployeeToUnlock, setSelectedEmployeeToUnlock] = useState('');
+  const [selectedEmployeeToRevalidate, setSelectedEmployeeToRevalidate] = useState('');
 
   // Charger l'état de validation
   useEffect(() => {
@@ -60,6 +62,14 @@ const ValidationManager = ({
     }));
   };
 
+  // Revalider un employé spécifique
+  const revalidateEmployee = (employeeId) => {
+    setValidationState(prev => ({
+      ...prev,
+      lockedEmployees: [...new Set([...prev.lockedEmployees, employeeId])]
+    }));
+  };
+
   // Débloquer un employé spécifique
   const unlockEmployee = (employeeId) => {
     setValidationState(prev => ({
@@ -88,6 +98,20 @@ const ValidationManager = ({
       .map(empId => {
         const employee = currentShopEmployees.find(emp => emp.id === empId);
         console.log('Debug - employee found for', empId, ':', employee);
+        return {
+          id: empId,
+          name: employee?.name || empId
+        };
+      });
+  };
+
+  // Obtenir la liste des employés débloqués avec leurs noms réels
+  const getUnlockedEmployees = () => {
+    const unlockedEmployeeIds = selectedEmployees.filter(empId => !validationState.lockedEmployees.includes(empId));
+    
+    return unlockedEmployeeIds
+      .map(empId => {
+        const employee = currentShopEmployees.find(emp => emp.id === empId);
         return {
           id: empId,
           name: employee?.name || empId
@@ -134,20 +158,28 @@ const ValidationManager = ({
                  >
                    🔓 Débloquer employé
                  </button>
+                 {getUnlockedEmployees().length > 0 && (
+                   <button 
+                     className="btn btn-success btn-sm"
+                     onClick={() => setShowRevalidateModal(true)}
+                   >
+                     🔒 Revalider employé
+                   </button>
+                 )}
                </>
-                           ) : (
-                <>
-                  <span className="badge badge-warning">
-                    Tous les employés débloqués
-                  </span>
-                  <button 
-                    className="btn btn-success btn-sm"
-                    onClick={revalidateUnlockedEmployees}
-                  >
-                    🔒 Revalider tous les employés
-                  </button>
-                </>
-              )}
+             ) : (
+               <>
+                 <span className="badge badge-warning">
+                   Tous les employés débloqués
+                 </span>
+                 <button 
+                   className="btn btn-success btn-sm"
+                   onClick={revalidateUnlockedEmployees}
+                 >
+                   🔒 Revalider tous les employés
+                 </button>
+               </>
+             )}
            </div>
          )}
       </div>
@@ -239,6 +271,58 @@ const ValidationManager = ({
            </div>
          </div>
        )}
+
+        {/* Modal de revalidation */}
+        {showRevalidateModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h4>🔒 Revalider un employé</h4>
+              <p>Sélectionnez un employé à revalider :</p>
+              
+              <div className="revalidate-options">
+                <div className="individual-revalidate">
+                  <select 
+                    value={selectedEmployeeToRevalidate}
+                    onChange={(e) => setSelectedEmployeeToRevalidate(e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">Choisir un employé...</option>
+                    {getUnlockedEmployees().map(employee => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button 
+                    className="btn btn-success"
+                    onClick={() => {
+                      if (selectedEmployeeToRevalidate) {
+                        revalidateEmployee(selectedEmployeeToRevalidate);
+                        setShowRevalidateModal(false);
+                        setSelectedEmployeeToRevalidate('');
+                      }
+                    }}
+                    disabled={!selectedEmployeeToRevalidate}
+                  >
+                    🔒 Revalider cet employé
+                  </button>
+                </div>
+              </div>
+              
+              <div className="modal-actions">
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowRevalidateModal(false);
+                    setSelectedEmployeeToRevalidate('');
+                  }}
+                >
+                  ❌ Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       <style jsx>{`
         .validation-manager {
