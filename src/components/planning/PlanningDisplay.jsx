@@ -77,12 +77,60 @@ const PlanningDisplay = ({
     lockedEmployees: []
   });
 
+  // État pour le verrouillage automatique
+  const [autoLockEnabled, setAutoLockEnabled] = useState(true);
+  const [lastModifiedDay, setLastModifiedDay] = useState(null);
+
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
   const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
 
   // Récupérer la boutique actuelle et sa configuration
   const currentShopData = getShopById(planningData, selectedShop);
   const config = currentShopData?.config || { timeSlots: [] };
+
+  // Fonction de verrouillage automatique
+  const autoLockPreviousDay = useCallback((newDay) => {
+    if (!autoLockEnabled || !selectedEmployees || selectedEmployees.length === 0) return;
+    
+    // Si on a modifié un jour précédent, le verrouiller
+    if (lastModifiedDay !== null && lastModifiedDay < newDay) {
+      const updatedValidationState = {
+        ...validationState,
+        isWeekValidated: true,
+        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...selectedEmployees])]
+      };
+      
+      setValidationState(updatedValidationState);
+      
+      // Sauvegarder l'état de validation
+      if (selectedShop && validWeek) {
+        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
+      }
+      
+      console.log(`🔒 Verrouillage automatique du jour ${lastModifiedDay} lors du passage au jour ${newDay}`);
+    }
+  }, [autoLockEnabled, selectedEmployees, lastModifiedDay, validationState, selectedShop, validWeek]);
+
+  // Fonction de verrouillage automatique lors du changement de semaine/boutique
+  const autoLockOnChange = useCallback(() => {
+    if (!autoLockEnabled || !selectedEmployees || selectedEmployees.length === 0) return;
+    
+    // Verrouiller tous les employés sélectionnés
+    const updatedValidationState = {
+      ...validationState,
+      isWeekValidated: true,
+      lockedEmployees: [...new Set([...validationState.lockedEmployees, ...selectedEmployees])]
+    };
+    
+    setValidationState(updatedValidationState);
+    
+    // Sauvegarder l'état de validation
+    if (selectedShop && validWeek) {
+      localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
+    }
+    
+    console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique');
+  }, [autoLockEnabled, selectedEmployees, validationState, selectedShop, validWeek]);
 
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
@@ -98,6 +146,13 @@ const PlanningDisplay = ({
       }
     }
   }, [selectedShop, validWeek]);
+
+  // Effet pour le verrouillage automatique lors du changement de jour
+  useEffect(() => {
+    if (currentDay !== null && lastModifiedDay !== null && currentDay > lastModifiedDay) {
+      autoLockPreviousDay(currentDay);
+    }
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay]);
   
   // Validation et nettoyage des données shops
   const shops = React.useMemo(() => {
@@ -314,6 +369,11 @@ const PlanningDisplay = ({
       return;
     }
     
+    // Verrouillage automatique : enregistrer le jour modifié
+    if (forceValue === null) {
+      setLastModifiedDay(dayIndex);
+    }
+    
     setPlanning(prev => {
       const updatedPlanning = { ...prev };
       if (!updatedPlanning[employee]) {
@@ -368,11 +428,17 @@ const PlanningDisplay = ({
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
 
   const changeWeek = (direction) => {
+    // Verrouillage automatique avant de changer de semaine
+    autoLockOnChange();
+    
     const currentDate = new Date(validWeek);
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + (direction === 'next' ? 7 : -7));
     const newWeek = format(newDate, 'yyyy-MM-dd');
     setSelectedWeek(newWeek);
+    
+    // Réinitialiser le jour modifié
+    setLastModifiedDay(null);
   };
 
   const changeMonth = (monthKey) => {
@@ -390,6 +456,9 @@ const PlanningDisplay = ({
   };
 
   const changeShop = (newShop) => {
+    // Verrouillage automatique avant de changer de boutique
+    autoLockOnChange();
+    
     try {
       // Sauvegarder le planning actuel avant de changer de boutique
       if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
@@ -427,6 +496,9 @@ const PlanningDisplay = ({
     setSelectedEmployeeForMonthlyDetail('');
     // Réinitialiser le feedback
     setLocalFeedback('');
+    
+    // Réinitialiser le jour modifié
+    setLastModifiedDay(null);
   };
 
   const handleEmployeeToggle = (employee) => {
@@ -716,6 +788,8 @@ const PlanningDisplay = ({
             planning={planning}
             onValidationChange={setValidationState}
             currentShopEmployees={currentShopEmployees}
+            autoLockEnabled={autoLockEnabled}
+            onAutoLockToggle={() => setAutoLockEnabled(!autoLockEnabled)}
           />
 
         </div>

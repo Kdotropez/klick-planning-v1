@@ -9,7 +9,9 @@ const ValidationManager = ({
   selectedEmployees, 
   planning,
   onValidationChange,
-  currentShopEmployees = []
+  currentShopEmployees = [],
+  autoLockEnabled = true,
+  onAutoLockToggle = null
 }) => {
   const [validationState, setValidationState] = useState({
     isWeekValidated: false,
@@ -135,6 +137,33 @@ const ValidationManager = ({
   return (
     <div className="validation-manager">
       {/* Bouton de validation */}
+      {/* Contrôle du verrouillage automatique */}
+      <div className="auto-lock-controls" style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '5px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <strong>🔒 Verrouillage automatique :</strong>
+            <span style={{ marginLeft: '10px', fontSize: '14px', color: '#666' }}>
+              {autoLockEnabled ? 'Activé' : 'Désactivé'}
+            </span>
+          </div>
+          {onAutoLockToggle && (
+            <button
+              className={`btn btn-sm ${autoLockEnabled ? 'btn-success' : 'btn-secondary'}`}
+              onClick={onAutoLockToggle}
+              style={{ fontSize: '12px' }}
+            >
+              {autoLockEnabled ? '✅ Activé' : '❌ Désactivé'}
+            </button>
+          )}
+        </div>
+        <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+          {autoLockEnabled ? 
+            'Les modifications sont automatiquement verrouillées lors des changements de semaine/boutique/jour' :
+            'Le verrouillage automatique est désactivé - les modifications ne sont pas protégées'
+          }
+        </div>
+      </div>
+
       <div className="validation-controls">
         {!isWeekValidated ? (
           <button 
