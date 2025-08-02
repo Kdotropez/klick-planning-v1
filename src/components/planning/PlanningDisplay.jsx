@@ -766,12 +766,13 @@ const PlanningDisplay = ({
         </h2>
         <p style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: '16px',
-          color: '#6c757d',
-          margin: '5px 0 0 0',
-          fontStyle: 'italic'
+          fontSize: '20px',
+          color: '#495057',
+          margin: '8px 0 0 0',
+          fontStyle: 'italic',
+          fontWeight: '600'
         }}>
-          {selectedShop}
+          {currentShopData?.name || selectedShop}
         </p>
       </div>
 
