@@ -90,7 +90,12 @@ const PlanningDisplay = ({
 
   // Fonction de verrouillage automatique
   const autoLockPreviousDay = useCallback((newDay) => {
-    if (!autoLockEnabled || !selectedEmployees || selectedEmployees.length === 0) return;
+    console.log('🔍 autoLockPreviousDay appelé:', { autoLockEnabled, selectedEmployees, lastModifiedDay, newDay });
+    
+    if (!autoLockEnabled || !selectedEmployees || selectedEmployees.length === 0) {
+      console.log('❌ Verrouillage automatique ignoré:', { autoLockEnabled, selectedEmployeesLength: selectedEmployees?.length });
+      return;
+    }
     
     // Si on a modifié un jour précédent, le verrouiller
     if (lastModifiedDay !== null && lastModifiedDay < newDay) {
@@ -108,6 +113,9 @@ const PlanningDisplay = ({
       }
       
       console.log(`🔒 Verrouillage automatique du jour ${lastModifiedDay} lors du passage au jour ${newDay}`);
+      console.log('📊 État de validation mis à jour:', updatedValidationState);
+    } else {
+      console.log('❌ Conditions non remplies pour le verrouillage:', { lastModifiedDay, newDay });
     }
   }, [autoLockEnabled, selectedEmployees, lastModifiedDay, validationState, selectedShop, validWeek]);
 
@@ -153,6 +161,18 @@ const PlanningDisplay = ({
       autoLockPreviousDay(currentDay);
     }
   }, [currentDay, lastModifiedDay, autoLockPreviousDay]);
+
+  // Fonction pour changer de jour avec verrouillage automatique
+  const handleDayChange = useCallback((newDay) => {
+    console.log('🔍 handleDayChange appelé:', { currentDay, newDay, lastModifiedDay, autoLockEnabled });
+    
+    // Verrouiller le jour précédent si nécessaire
+    if (currentDay !== null && lastModifiedDay !== null && currentDay < newDay) {
+      console.log('🔒 Verrouillage automatique lors du changement de jour:', { currentDay, newDay, lastModifiedDay });
+      autoLockPreviousDay(newDay);
+    }
+    setCurrentDay(newDay);
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled]);
   
   // Validation et nettoyage des données shops
   const shops = React.useMemo(() => {
@@ -371,6 +391,7 @@ const PlanningDisplay = ({
     
     // Verrouillage automatique : enregistrer le jour modifié
     if (forceValue === null) {
+      console.log('📝 Mise à jour lastModifiedDay:', { dayIndex, previousLastModifiedDay: lastModifiedDay });
       setLastModifiedDay(dayIndex);
     }
     
@@ -772,7 +793,7 @@ const PlanningDisplay = ({
           <DayButtons 
             days={days} 
             currentDay={currentDay} 
-            setCurrentDay={setCurrentDay}
+            setCurrentDay={handleDayChange}
             planning={planning}
             config={config}
             selectedEmployees={localSelectedEmployees}
