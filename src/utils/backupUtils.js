@@ -168,10 +168,36 @@ export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig)
         }
       });
 
+      // Verrouillage automatique de toutes les données importées
+      console.log('🔒 Début du verrouillage automatique post-importation...');
+      uniqueShops.forEach(shop => {
+        if (shop.weeks && typeof shop.weeks === 'object') {
+          Object.keys(shop.weeks).forEach(weekKey => {
+            const weekData = shop.weeks[weekKey];
+            if (Array.isArray(weekData.employees)) {
+              const employeeIds = weekData.employees.map(emp => emp.id);
+              if (employeeIds.length > 0) {
+                // Créer l'état de validation verrouillé pour cette semaine/boutique
+                const validationState = {
+                  isWeekValidated: true,
+                  validatedEmployees: employeeIds,
+                  lockedEmployees: employeeIds
+                };
+                
+                // Sauvegarder l'état de validation verrouillé
+                saveToLocalStorage(`validation_${shop.id}_${weekKey}`, validationState);
+                console.log(`🔒 Verrouillage automatique: ${shop.name} - Semaine ${weekKey} - ${employeeIds.length} employé(s)`);
+              }
+            }
+          });
+        }
+      });
+      console.log('✅ Verrouillage automatique post-importation terminé');
+
       setShops(uniqueShops);
       setSelectedShop(uniqueShops[0]?.id || '');
       setConfig(data.config || {});
-      setFeedback('Succès: Données importées.');
+      setFeedback('Succès: Données importées et verrouillées automatiquement.');
       console.log('Data imported successfully:', uniqueShops);
     } catch (error) {
       console.error('Error importing data:', error);

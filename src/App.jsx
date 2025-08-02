@@ -233,13 +233,41 @@ const App = () => {
       const importedData = await importPlanningData(file);
       setPlanningData(importedData);
       
+      // Verrouillage automatique de toutes les données importées
+      console.log('🔒 Début du verrouillage automatique post-importation...');
+      if (importedData.shops && Array.isArray(importedData.shops)) {
+        importedData.shops.forEach(shop => {
+          if (shop.weeks && typeof shop.weeks === 'object') {
+            Object.keys(shop.weeks).forEach(weekKey => {
+              const weekData = shop.weeks[weekKey];
+              if (Array.isArray(weekData.employees)) {
+                const employeeIds = weekData.employees.map(emp => emp.id);
+                if (employeeIds.length > 0) {
+                  // Créer l'état de validation verrouillé pour cette semaine/boutique
+                  const validationState = {
+                    isWeekValidated: true,
+                    validatedEmployees: employeeIds,
+                    lockedEmployees: employeeIds
+                  };
+                  
+                  // Sauvegarder l'état de validation verrouillé
+                  localStorage.setItem(`validation_${shop.id}_${weekKey}`, JSON.stringify(validationState));
+                  console.log(`🔒 Verrouillage automatique: ${shop.name} - Semaine ${weekKey} - ${employeeIds.length} employé(s)`);
+                }
+              }
+            });
+          }
+        });
+      }
+      console.log('✅ Verrouillage automatique post-importation terminé');
+      
       // Sélectionner la première boutique par défaut
       if (importedData.shops && importedData.shops.length > 0) {
         setSelectedShop(importedData.shops[0].id);
       }
       
       setMode('week-selection'); // Passer par le sélecteur de semaine
-      setFeedback('Import réussi !');
+      setFeedback('Import réussi ! Toutes les données ont été verrouillées automatiquement.');
     } catch (error) {
       setFeedback(`Erreur d'import : ${error.message}`);
     }
