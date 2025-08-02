@@ -267,7 +267,7 @@ const EmployeeWeeklyRecapModal = ({
   if (!config?.timeSlots?.length) {
     return (
       <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-        <div className="modal-content">
+        <div className="modal-content" style={{ width: '95%', maxWidth: '1200px' }}>
           <button
             className="modal-close"
             onClick={() => {
@@ -304,7 +304,7 @@ const EmployeeWeeklyRecapModal = ({
 
   return (
     <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-      <div className="modal-content">
+      <div className="modal-content" style={{ width: '95%', maxWidth: '1200px' }}>
         <button
           className="modal-close"
           onClick={() => {

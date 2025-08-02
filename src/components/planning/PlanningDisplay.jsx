@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft, FaTools } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
 import PlanningMenuBar from './PlanningMenuBar';
 import DayButtons from './DayButtons';
@@ -82,7 +82,6 @@ const PlanningDisplay = ({
 
   // États pour les menus et l'import
   const [openMenus, setOpenMenus] = useState({
-    tools: false,
     retour: false
   });
   const fileInputRef = useRef(null);
@@ -92,15 +91,19 @@ const PlanningDisplay = ({
 
   // Fonctions pour les menus
   const toggleMenu = (menuName) => {
-    setOpenMenus(prev => ({
-      ...prev,
-      [menuName]: !prev[menuName]
-    }));
+    console.log('Toggle menu:', menuName);
+    setOpenMenus(prev => {
+      const newState = {
+        ...prev,
+        [menuName]: !prev[menuName]
+      };
+      console.log('New menu state:', newState);
+      return newState;
+    });
   };
 
   const closeAllMenus = () => {
     setOpenMenus({
-      tools: false,
       retour: false
     });
   };
@@ -141,7 +144,7 @@ const PlanningDisplay = ({
   useEffect(() => {
     const handleClickOutside = (event) => {
       const target = event.target;
-      if (target && typeof target.closest === 'function' && !target.closest('.menu-button')) {
+      if (target && typeof target.closest === 'function' && !target.closest('.menu-button') && !target.closest('.retour-menu')) {
         closeAllMenus();
       }
     };
@@ -746,9 +749,9 @@ const PlanningDisplay = ({
         textAlign: 'center',
         marginBottom: '20px',
         padding: '15px',
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#f0f8ff',
         borderRadius: '10px',
-        border: '2px solid #e9ecef'
+        border: '2px solid #b3d9ff'
       }}>
         <h2 style={{
           fontFamily: 'Roboto, sans-serif',
@@ -792,9 +795,9 @@ const PlanningDisplay = ({
             gap: '8px', 
             flexWrap: 'nowrap',
             padding: '15px',
-            backgroundColor: '#f8f9fa',
+            backgroundColor: '#fff5f5',
             borderRadius: '10px',
-            border: '2px solid #e9ecef',
+            border: '2px solid #fed7d7',
             marginBottom: '15px',
             width: '100%',
             boxSizing: 'border-box',
@@ -810,9 +813,9 @@ const PlanningDisplay = ({
                   flexDirection: 'column',
                   gap: '6px',
                   padding: '12px 15px',
-                  backgroundColor: 'white',
+                  backgroundColor: '#fef7ff',
                   borderRadius: '8px',
-                  border: '2px solid #dee2e6',
+                  border: '2px solid #e9d5ff',
                   minWidth: '160px',
                   maxWidth: '180px',
                   textAlign: 'center',
@@ -825,9 +828,9 @@ const PlanningDisplay = ({
                     color: '#495057',
                     marginBottom: '6px',
                     padding: '6px',
-                    backgroundColor: '#f8f9fa',
+                    backgroundColor: '#f3e8ff',
                     borderRadius: '4px',
-                    border: '1px solid #e9ecef',
+                    border: '1px solid #d8b4fe',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis'
@@ -864,10 +867,10 @@ const PlanningDisplay = ({
                     title="Récapitulatif journalier"
                   >
                     📅 Jour: {(() => {
-                      if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                      const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
-                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                      return hours.toFixed(1);
+          if (!selectedWeek || !selectedShop || !planning) return '0.0';
+          const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
+          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+          return hours.toFixed(1);
                     })()}h
                   </button>
                   
@@ -903,14 +906,14 @@ const PlanningDisplay = ({
                     title="Récapitulatif hebdomadaire"
                   >
                     📊 Semaine: {(() => {
-                      if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                      let totalHours = 0;
-                      for (let i = 0; i < 7; i++) {
-                        const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                        totalHours += hours;
-                      }
-                      return totalHours.toFixed(1);
+          if (!selectedWeek || !selectedShop || !planning) return '0.0';
+          let totalHours = 0;
+          for (let i = 0; i < 7; i++) {
+            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+            const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+            totalHours += hours;
+          }
+          return totalHours.toFixed(1);
                     })()}h
                   </button>
                   
@@ -946,14 +949,14 @@ const PlanningDisplay = ({
                     title="Récapitulatif mensuel"
                   >
                     📈 Mois: {(() => {
-                      if (!selectedWeek || !selectedShop || !planning) return '0.0';
-                      let totalHours = 0;
-                      for (let i = 0; i < 7; i++) {
-                        const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-                        totalHours += hours;
-                      }
-                      return totalHours.toFixed(1);
+          if (!selectedWeek || !selectedShop || !planning) return '0.0';
+          let totalHours = 0;
+          for (let i = 0; i < 7; i++) {
+            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+            const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+            totalHours += hours;
+          }
+          return totalHours.toFixed(1);
                     })()}h
                   </button>
                   
@@ -1071,88 +1074,25 @@ const PlanningDisplay = ({
                 </div>
               );
             })}
-          </div>
 
-          {/* Carte des boutons d'actions */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '10px', 
-            flexWrap: 'wrap',
-            alignItems: 'center',
+            {/* Boutons d'actions intégrés dans le conteneur des récapitulatifs */}
+          <div style={{
+              display: 'flex', 
+              justifyContent: 'center', 
+              gap: '10px', 
+              flexWrap: 'wrap',
+              alignItems: 'center',
             padding: '15px',
-            backgroundColor: '#ffffff',
+              backgroundColor: '#f0fff4',
             borderRadius: '10px',
-            border: '2px solid #e9ecef',
-            marginBottom: '15px',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}>
-            {/* Boutons Principaux - Directement Visibles */}
-            <button
-              onClick={() => setShowGlobalDayViewModalV2(true)}
-              style={{
-                backgroundColor: '#1e88e5',
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-            >
-              📊 Vue globale par jour
-            </button>
-
-            <button
-              onClick={onExport}
-              style={{
-                backgroundColor: '#28a745',
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
-            >
-              <FaDownload /> Exporter les données
-            </button>
-
-            <button
-              onClick={handleImportClick}
-              style={{
-                backgroundColor: '#ffc107',
-                color: '#212529',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
-            >
-              📥 Importer les données
-            </button>
-
-            {/* Menu Outils */}
-            <div style={{ position: 'relative' }}>
+              border: '2px solid #9ae6b4',
+              marginTop: '15px',
+              width: '100%',
+              boxSizing: 'border-box'
+            }}>
+              {/* Boutons Principaux - Directement Visibles */}
               <button
-                onClick={() => toggleMenu('tools')}
+                onClick={() => setShowGlobalDayViewModalV2(true)}
                 style={{
                   backgroundColor: '#1e88e5',
                   color: '#fff',
@@ -1168,80 +1108,13 @@ const PlanningDisplay = ({
                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
               >
-                <FaTools /> Outils
-                {openMenus.tools ? <FaChevronUp /> : <FaChevronDown />}
+                📊 Vue globale par jour
               </button>
-              
-              {openMenus.tools && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: '0',
-                  backgroundColor: '#fff',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  zIndex: 1000,
-                  minWidth: '200px'
-                }}>
-                  <button
-                    onClick={() => {}}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    🔧 Diagnostic données
-                  </button>
-                  <button
-                    onClick={() => {}}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    🧹 Nettoyer cache
-                  </button>
-                  <button
-                    onClick={() => {}}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    📋 Logs système
-                  </button>
-                </div>
-              )}
-            </div>
 
-            {/* Menu Retour */}
-            <div style={{ position: 'relative' }}>
               <button
-                onClick={() => toggleMenu('retour')}
+                onClick={onExport}
                 style={{
-                  backgroundColor: '#1e88e5',
+                  backgroundColor: '#28a745',
                   color: '#fff',
                   padding: '10px 16px',
                   fontSize: '14px',
@@ -1252,118 +1125,164 @@ const PlanningDisplay = ({
                   alignItems: 'center',
                   gap: '8px'
                 }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
               >
-                <FaArrowLeft /> Retour
-                {openMenus.retour ? <FaChevronUp /> : <FaChevronDown />}
+                <FaDownload /> Exporter les données
               </button>
-              
-              {openMenus.retour && (
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: '0',
-                  backgroundColor: '#fff',
-                  border: '1px solid #ccc',
+
+              <button
+                onClick={handleImportClick}
+                style={{
+                  backgroundColor: '#ffc107',
+                  color: '#212529',
+                  padding: '10px 16px',
+                  fontSize: '14px',
+                  border: 'none',
                   borderRadius: '4px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  zIndex: 1000,
-                  minWidth: '200px'
-                }}>
-                  <button
-                    onClick={onBackToStartup}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    🏠 Écran de démarrage
-                  </button>
-                  <button
-                    onClick={onBackToConfig}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    ⚙️ Configuration boutiques
-                  </button>
-                  <button
-                    onClick={onBackToEmployees}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    👥 Gestion employés
-                  </button>
-                  <button
-                    onClick={onBackToShopSelection}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    🏪 Sélection boutique
-                  </button>
-                  <button
-                    onClick={onBackToWeekSelection}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: '14px'
-                    }}
-                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    📅 Sélection semaine
-                  </button>
-                </div>
-              )}
-            </div>
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
+              >
+                📥 Importer les données
+              </button>
+
+
+
+              {/* Menu Retour */}
+              <div style={{ position: 'relative' }} className="retour-menu">
+                <button
+                  onClick={() => toggleMenu('retour')}
+                  style={{
+                    backgroundColor: '#1e88e5',
+                    color: '#fff',
+                    padding: '10px 16px',
+                    fontSize: '14px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+                >
+                  <FaArrowLeft /> Retour
+                  {openMenus.retour ? <FaChevronUp /> : <FaChevronDown />}
+                </button>
+                
+                {openMenus.retour && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '0',
+                    backgroundColor: '#fff',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    zIndex: 1000,
+                    minWidth: '200px',
+                    marginBottom: '5px'
+                  }}>
+                    <button
+                      onClick={onBackToStartup}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '14px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      🏠 Écran de démarrage
+                    </button>
+                    <button
+                      onClick={onBackToConfig}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '14px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      ⚙️ Configuration boutiques
+                    </button>
+                    <button
+                      onClick={onBackToEmployees}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '14px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      👥 Gestion employés
+                    </button>
+                    <button
+                      onClick={onBackToShopSelection}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '14px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      🏪 Sélection boutique
+                    </button>
+                    <button
+                      onClick={onBackToWeekSelection}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '14px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      📅 Sélection semaine
+                    </button>
+                  </div>
+                )}
+              </div>
           </div>
 
-          {/* Input file caché pour l'import */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
+            {/* Input file caché pour l'import */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+          </div>
         </>
       )}
 
@@ -1375,9 +1294,9 @@ const PlanningDisplay = ({
             textAlign: 'center',
             marginBottom: '15px',
             padding: '15px',
-            backgroundColor: '#ffffff',
+            backgroundColor: '#fffaf0',
             borderRadius: '8px',
-            border: '1px solid #dee2e6',
+            border: '1px solid #fbd38d',
             display: 'flex',
             alignItems: 'center',
             gap: '15px',

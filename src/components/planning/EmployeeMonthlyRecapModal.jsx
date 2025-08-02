@@ -237,7 +237,7 @@ const EmployeeMonthlyRecapModal = ({
   if (!config?.timeSlots?.length || !Array.isArray(shops) || shops.length === 0) {
     return (
       <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-        <div className="modal-content">
+        <div className="modal-content" style={{ width: '95%', maxWidth: '1200px' }}>
           <button
             className="modal-close"
             onClick={() => {
@@ -274,7 +274,7 @@ const EmployeeMonthlyRecapModal = ({
 
   return (
     <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-      <div className="modal-content">
+      <div className="modal-content" style={{ width: '95%', maxWidth: '1200px' }}>
         <button
           className="modal-close"
           onClick={() => {
