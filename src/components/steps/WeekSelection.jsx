@@ -109,6 +109,17 @@ const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, pl
         return weeks;
     };
 
+    // Obtenir la semaine courante
+    const getCurrentWeek = () => {
+        const today = new Date();
+        const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+        return {
+            key: format(currentWeekStart, 'yyyy-MM-dd'),
+            display: `Lundi ${format(currentWeekStart, 'd MMMM', { locale: fr })} au Dimanche ${format(addDays(currentWeekStart, 6), 'd MMMM yyyy', { locale: fr })}`,
+            isCurrent: true
+        };
+    };
+
     const handleWeekSelect = (weekKey) => {
         setCurrentWeek(weekKey);
         setFeedback('');
@@ -179,6 +190,44 @@ const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, pl
                     {feedback}
                 </p>
             )}
+            
+            {/* Section Semaine Courante */}
+            <div className="current-week" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '30px' }}>
+                <h3 style={{ fontFamily: 'Roboto, sans-serif', fontSize: '18px', marginBottom: '15px', color: '#2196F3', fontWeight: 'bold' }}>
+                    📅 Semaine Courante
+                </h3>
+                <table style={{ fontFamily: 'Roboto, sans-serif', width: '100%', maxWidth: '600px', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ backgroundColor: '#2196F3', color: 'white' }}>
+                            <th style={{ border: '2px solid #1976D2', padding: '12px', fontWeight: '700', fontSize: '16px' }}>
+                                Semaine Actuelle
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            style={{
+                                backgroundColor: currentWeek === getCurrentWeek().key ? '#4CAF50' : '#E3F2FD',
+                                cursor: 'pointer',
+                                border: '2px solid #2196F3'
+                            }}
+                            onClick={() => handleWeekSelect(getCurrentWeek().key)}
+                        >
+                            <td style={{
+                                border: '2px solid #2196F3',
+                                padding: '12px',
+                                textAlign: 'center',
+                                color: currentWeek === getCurrentWeek().key ? '#fff' : '#1976D2',
+                                fontWeight: currentWeek === getCurrentWeek().key ? 'bold' : 'normal',
+                                fontSize: '15px'
+                            }}>
+                                {getCurrentWeek().display}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
             <div className="month-selector" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
                 <h3 style={{ fontFamily: 'Roboto, sans-serif', fontSize: '16px', marginBottom: '10px' }}>Mois pour semaines du mois</h3>
                 <input
