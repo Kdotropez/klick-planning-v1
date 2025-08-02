@@ -5,11 +5,11 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 
 // import LicenseManager from './components/admin/LicenseManager';
-import { enableProtection } from './utils/protection';
-import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
-import './utils/createFullLicense';
-import './utils/licenseKeyGenerator';
-import './utils/licenseCreator';
+// import { enableProtection } from './utils/protection';
+// import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManager';
+// import './utils/createFullLicense';
+// import './utils/licenseKeyGenerator';
+// import './utils/licenseCreator';
 import StartupScreen from './components/StartupScreen';
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
@@ -105,7 +105,7 @@ const App = () => {
 
   useEffect(() => {
     // Activer la protection propriétaire
-    enableProtection();
+    // enableProtection();
   }, []);
 
   // Vérification de la licence au démarrage
