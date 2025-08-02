@@ -10,10 +10,5 @@
       "dest": "/",
       "status": 200
     }
-  ],
-  "functions": {
-    "src/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  }
+  ]
 } 
