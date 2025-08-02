@@ -193,30 +193,34 @@ const PlanningDisplay = ({
     // Utiliser localSelectedEmployees si selectedEmployees est vide
     const employeesToLock = selectedEmployees && selectedEmployees.length > 0 ? selectedEmployees : localSelectedEmployees;
     
-    if (!autoLockEnabled || !employeesToLock || employeesToLock.length === 0) {
+    if (autoLockEnabled && employeesToLock && employeesToLock.length > 0) {
+      console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique:', { 
+        autoLockEnabled, 
+        employeesToLockLength: employeesToLock?.length
+      });
+      
+      // Verrouiller tous les employés sélectionnés
+      const updatedValidationState = {
+        ...validationState,
+        isWeekValidated: true,
+        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...employeesToLock])]
+      };
+      
+      setValidationState(updatedValidationState);
+      
+      // Sauvegarder l'état de validation
+      if (selectedShop && validWeek) {
+        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
+      }
+      
+      console.log('📊 État de validation mis à jour:', updatedValidationState);
+    } else {
       console.log('❌ Verrouillage automatique ignoré lors du changement:', { 
         autoLockEnabled, 
         selectedEmployeesLength: selectedEmployees?.length,
         localSelectedEmployeesLength: localSelectedEmployees?.length
       });
-      return;
     }
-    
-    // Verrouiller tous les employés sélectionnés
-    const updatedValidationState = {
-      ...validationState,
-      isWeekValidated: true,
-      lockedEmployees: [...new Set([...validationState.lockedEmployees, ...employeesToLock])]
-    };
-    
-    setValidationState(updatedValidationState);
-    
-    // Sauvegarder l'état de validation
-    if (selectedShop && validWeek) {
-      localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-    }
-    
-    console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique');
   }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, validationState, selectedShop, validWeek]);
 
   // Fonction pour changer de jour avec verrouillage automatique
@@ -257,9 +261,9 @@ const PlanningDisplay = ({
       localSelectedEmployees: localSelectedEmployees?.length
     });
     
-    // Si on a modifié un jour et qu'on change vers un jour suivant, verrouiller
-    if (lastModifiedDay !== null && lastModifiedDay < newDay && autoLockEnabled && localSelectedEmployees && localSelectedEmployees.length > 0) {
-      console.log('🔒 Verrouillage immédiat lors du changement de jour:', { lastModifiedDay, newDay });
+    // Verrouiller TOUJOURS lors du changement de jour si le verrouillage automatique est activé
+    if (autoLockEnabled && localSelectedEmployees && localSelectedEmployees.length > 0) {
+      console.log('🔒 Verrouillage automatique lors du changement de jour:', { currentDay, newDay });
       
       const updatedValidationState = {
         ...validationState,
@@ -278,7 +282,7 @@ const PlanningDisplay = ({
     }
     
     setCurrentDay(newDay);
-  }, [currentDay, lastModifiedDay, autoLockEnabled, localSelectedEmployees, validationState, selectedShop, validWeek]);
+  }, [currentDay, autoLockEnabled, localSelectedEmployees, validationState, selectedShop, validWeek]);
 
   // Effet pour le verrouillage automatique lors du changement de jour
   useEffect(() => {
@@ -466,6 +470,15 @@ const PlanningDisplay = ({
       console.log('📝 Mise à jour lastModifiedDay:', { dayIndex, previousLastModifiedDay: lastModifiedDay });
       setLastModifiedDay(dayIndex);
       console.log('✅ lastModifiedDay mis à jour vers:', dayIndex);
+      
+      // Vérifier si l'employé est maintenant verrouillé
+      setTimeout(() => {
+        console.log('🔍 Vérification du verrouillage après modification:', {
+          employee,
+          lockedEmployees: validationState.lockedEmployees,
+          isLocked: validationState.lockedEmployees.includes(employee)
+        });
+      }, 100);
     }
     
     setPlanning(prev => {
