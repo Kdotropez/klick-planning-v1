@@ -21,7 +21,6 @@ import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { exportAllDataIPad } from '../../utils/backupUtils';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
 
@@ -66,6 +65,7 @@ const PlanningDisplay = ({
   
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
+  const [activeMenu, setActiveMenu] = useState(null);
 
   const [showCalendarTotals, setShowCalendarTotals] = useState(false);
   const [localFeedback, setLocalFeedback] = useState('');
@@ -118,13 +118,11 @@ const PlanningDisplay = ({
   };
 
   const closeAllMenus = () => {
-    setOpenMenus({
-      retour: false
-    });
+    setActiveMenu(null);
   };
 
   const handleImportClick = () => {
-    fileInputRef.current?.click();
+    onImport();
   };
 
   const handleFileChange = (event) => {
@@ -134,6 +132,11 @@ const PlanningDisplay = ({
     }
     // Reset the input
     event.target.value = '';
+  };
+
+  const handleExport = () => {
+    console.log('Export simple appelé');
+    onExport();
   };
 
   // Récupérer la boutique actuelle et sa configuration
@@ -160,41 +163,11 @@ const PlanningDisplay = ({
           console.error('Erreur lors du chargement de la validation:', error);
         }
       } else {
-        // Si pas d'état sauvegardé, verrouiller automatiquement tous les employés
-        if (localSelectedEmployees && localSelectedEmployees.length > 0) {
-          const initialValidationState = {
-            isWeekValidated: true,
-            validatedEmployees: localSelectedEmployees,
-            lockedEmployees: localSelectedEmployees
-          };
-          setValidationState(initialValidationState);
-          localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(initialValidationState));
-          console.log('🔒 Verrouillage automatique initial pour tous les employés');
-        }
+        // Si pas d'état sauvegardé, ne pas verrouiller automatiquement
+        console.log('✅ Aucun verrouillage automatique - employés libres');
       }
     }
   }, [selectedShop, validWeek, localSelectedEmployees]);
-
-  // Effet pour forcer le verrouillage automatique au chargement initial
-  useEffect(() => {
-    if (selectedShop && validWeek && localSelectedEmployees && localSelectedEmployees.length > 0) {
-      // Vérifier si tous les employés sont verrouillés
-      const allEmployeesLocked = localSelectedEmployees.every(emp => 
-        validationState.lockedEmployees.includes(emp)
-      );
-      
-      if (!allEmployeesLocked) {
-        console.log('🔒 Forçage du verrouillage automatique au chargement');
-        const updatedValidationState = {
-          isWeekValidated: true,
-          validatedEmployees: localSelectedEmployees,
-          lockedEmployees: [...new Set([...validationState.lockedEmployees, ...localSelectedEmployees])]
-        };
-        setValidationState(updatedValidationState);
-        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-      }
-    }
-  }, [selectedShop, validWeek, localSelectedEmployees, validationState.lockedEmployees]);
 
   // Gestionnaire pour fermer les menus quand on clique ailleurs
   useEffect(() => {
@@ -244,17 +217,7 @@ const PlanningDisplay = ({
   const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
   const [planning, setPlanning] = useState(weekData.planning || {});
   
-
-  
-
-
-
-
-
-  
-
-  
-  // Fonction de verrouillage automatique
+  // Fonction de verrouillage automatique lors du changement de jour
   const autoLockPreviousDay = useCallback((newDay) => {
     console.log('🔍 autoLockPreviousDay appelé:', { 
       autoLockEnabled, 
@@ -300,51 +263,20 @@ const PlanningDisplay = ({
     }
   }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, lastModifiedDay, validationState, selectedShop, validWeek]);
 
-  // Fonction de verrouillage automatique lors du changement de semaine/boutique
-  const autoLockOnChange = useCallback(() => {
-    // Utiliser localSelectedEmployees si selectedEmployees est vide
-    const employeesToLock = selectedEmployees && selectedEmployees.length > 0 ? selectedEmployees : localSelectedEmployees;
-    
-    if (autoLockEnabled && employeesToLock && employeesToLock.length > 0) {
-      console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique:', { 
-        autoLockEnabled, 
-        employeesToLockLength: employeesToLock?.length
-      });
-      
-      // Verrouiller tous les employés sélectionnés
-      const updatedValidationState = {
-        ...validationState,
-        isWeekValidated: true,
-        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...employeesToLock])]
-      };
-      
-      setValidationState(updatedValidationState);
-      
-      // Sauvegarder l'état de validation
-      if (selectedShop && validWeek) {
-        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-      }
-      
-      console.log('📊 État de validation mis à jour:', updatedValidationState);
-    } else {
-      console.log('❌ Verrouillage automatique ignoré lors du changement:', { 
-        autoLockEnabled, 
-        selectedEmployeesLength: selectedEmployees?.length,
-        localSelectedEmployeesLength: localSelectedEmployees?.length
-      });
-    }
-  }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, validationState, selectedShop, validWeek]);
-
   // Fonction pour changer de jour avec verrouillage automatique
   const handleDayChange = useCallback((newDay) => {
-    console.log('🔍 handleDayChange appelé:', { 
-      currentDay, 
-      newDay, 
-      lastModifiedDay, 
-      autoLockEnabled,
-      selectedEmployees: selectedEmployees?.length,
-      localSelectedEmployees: localSelectedEmployees?.length
-    });
+    console.log('🔍 handleDayChange appelé:', { currentDay, newDay, lastModifiedDay });
+    
+    // Sauvegarde silencieuse du planning actuel avant le changement de jour
+    if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
+      try {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        console.log('💾 Sauvegarde silencieuse lors du changement de jour');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde silencieuse:', error);
+      }
+    }
     
     // Verrouiller le jour précédent si nécessaire
     if (currentDay !== null && lastModifiedDay !== null && currentDay < newDay) {
@@ -361,58 +293,7 @@ const PlanningDisplay = ({
       });
     }
     setCurrentDay(newDay);
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled, selectedEmployees, localSelectedEmployees]);
-
-  // Fonction de verrouillage automatique simplifiée - verrouiller immédiatement lors du changement de jour
-  const handleDayChangeWithLock = useCallback((newDay) => {
-    console.log('🔍 handleDayChangeWithLock appelé:', { 
-      currentDay, 
-      newDay, 
-      lastModifiedDay, 
-      autoLockEnabled,
-      localSelectedEmployees: localSelectedEmployees?.length
-    });
-    
-    // Sauvegarde silencieuse du planning actuel avant le changement de jour
-    if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
-      try {
-        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-        setPlanningData(updatedPlanningData);
-        console.log('💾 Sauvegarde silencieuse lors du changement de jour');
-      } catch (error) {
-        console.error('Erreur lors de la sauvegarde silencieuse:', error);
-      }
-    }
-    
-    // Verrouiller TOUJOURS lors du changement de jour si le verrouillage automatique est activé
-    if (autoLockEnabled && localSelectedEmployees && localSelectedEmployees.length > 0) {
-      console.log('🔒 Verrouillage automatique lors du changement de jour:', { currentDay, newDay });
-      
-      const updatedValidationState = {
-        ...validationState,
-        isWeekValidated: true,
-        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...localSelectedEmployees])]
-      };
-      
-      setValidationState(updatedValidationState);
-      
-      // Sauvegarder l'état de validation
-      if (selectedShop && validWeek) {
-        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-      }
-      
-      console.log('📊 État de validation mis à jour:', updatedValidationState);
-    }
-    
-    setCurrentDay(newDay);
-  }, [currentDay, autoLockEnabled, localSelectedEmployees, validationState, selectedShop, validWeek, planning, planningData, setPlanningData]);
-
-  // Effet pour le verrouillage automatique lors du changement de jour
-  useEffect(() => {
-    if (currentDay !== null && lastModifiedDay !== null && currentDay > lastModifiedDay) {
-      autoLockPreviousDay(currentDay);
-    }
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay]);
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay, selectedShop, selectedWeek, planning, planningData, localSelectedEmployees, setPlanningData]);
 
   // Mettre à jour les employés sélectionnés globalement
   useEffect(() => {
@@ -452,16 +333,6 @@ const PlanningDisplay = ({
     }
   }, [validatedData, selectedShop, validWeek]);
 
-  // Sauvegarder les données quand elles changent
-  // Sauvegarde automatique du planning - DÉSACTIVÉE pour éviter les boucles infinies
-  // useEffect(() => {
-  //   if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
-  //     console.log('💾 Sauvegarde automatique du planning:', { selectedShop, selectedWeek, planningKeys: Object.keys(planning) });
-  //     const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-  //     setPlanningData(updatedPlanningData);
-  //   }
-  // }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData]);
-  
   // S'assurer que la semaine commence par lundi
   const getMondayOfWeek = (dateString) => {
     const date = new Date(dateString);
@@ -659,9 +530,6 @@ const PlanningDisplay = ({
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
 
   const changeWeek = (direction) => {
-    // Verrouillage automatique avant de changer de semaine
-    autoLockOnChange();
-    
     const currentDate = new Date(validWeek);
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + (direction === 'next' ? 7 : -7));
@@ -687,9 +555,6 @@ const PlanningDisplay = ({
   };
 
   const changeToSpecificWeek = (weekDate) => {
-    // Verrouillage automatique avant de changer de semaine
-    autoLockOnChange();
-    
     setSelectedWeek(weekDate);
     
     // Réinitialiser le jour modifié
@@ -697,9 +562,6 @@ const PlanningDisplay = ({
   };
 
   const changeShop = (newShop) => {
-    // Verrouillage automatique avant de changer de boutique
-    autoLockOnChange();
-    
     try {
       // Sauvegarder le planning actuel avant de changer de boutique
       if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
@@ -989,7 +851,7 @@ const PlanningDisplay = ({
         </button>
         
         <button
-          onClick={() => deviceInfo.isTablet ? exportAllDataIPad(setLocalFeedback) : onExport()}
+          onClick={handleExport}
           style={{
             background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
             color: 'white',
@@ -1779,7 +1641,7 @@ const PlanningDisplay = ({
           <DayButtons 
             days={days} 
             currentDay={currentDay} 
-            setCurrentDay={handleDayChangeWithLock}
+            setCurrentDay={handleDayChange}
             planning={planning}
             config={config}
             selectedEmployees={localSelectedEmployees}
@@ -1787,17 +1649,89 @@ const PlanningDisplay = ({
             selectedShop={selectedShop}
           />
           
-          {/* Gestionnaire de validation */}
-          <ValidationManager
-            selectedShop={selectedShop}
-            selectedWeek={validWeek}
-            selectedEmployees={localSelectedEmployees}
-            planning={planning}
-            onValidationChange={setValidationState}
-            currentShopEmployees={currentShopEmployees}
-            autoLockEnabled={autoLockEnabled}
-            onAutoLockToggle={() => setAutoLockEnabled(!autoLockEnabled)}
-          />
+          {/* Boutons de déverrouillage simples */}
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            border: '2px solid #dee2e6',
+            borderRadius: '8px',
+            padding: '15px',
+            margin: '10px 0',
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap'
+          }}>
+            <button
+              onClick={() => {
+                const newState = {
+                  isWeekValidated: false,
+                  validatedEmployees: [],
+                  lockedEmployees: []
+                };
+                setValidationState(newState);
+                localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(newState));
+              }}
+              style={{
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🔓 Déverrouiller tous
+            </button>
+            
+            <button
+              onClick={() => {
+                const newState = {
+                  isWeekValidated: true,
+                  validatedEmployees: localSelectedEmployees,
+                  lockedEmployees: localSelectedEmployees
+                };
+                setValidationState(newState);
+                localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(newState));
+              }}
+              style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🔒 Verrouiller tous
+            </button>
+            
+            <div style={{ fontSize: '12px', color: '#6c757d', alignSelf: 'center' }}>
+              {validationState.lockedEmployees.length} employé(s) verrouillé(s)
+            </div>
+            
+            <button
+              onClick={() => setAutoLockEnabled(!autoLockEnabled)}
+              style={{
+                backgroundColor: autoLockEnabled ? '#28a745' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              title={autoLockEnabled ? 
+                'Désactiver le verrouillage automatique lors du changement de jour' : 
+                'Activer le verrouillage automatique lors du changement de jour'
+              }
+            >
+              {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
+            </button>
+          </div>
           
 
         </div>

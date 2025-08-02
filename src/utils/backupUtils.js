@@ -2,50 +2,68 @@ import { saveToLocalStorage, loadFromLocalStorage } from './localStorage';
 import { format, addMinutes, parse } from 'date-fns';
 
 // Fonction d'export optimisée pour iPad
-export const exportAllDataIPad = async (setFeedback) => {
+export const exportAllDataIPad = async (setFeedback, planningData = null) => {
   console.log('exportAllDataIPad called');
   try {
-    const shops = loadFromLocalStorage('shops', []);
-    const config = loadFromLocalStorage('config', {});
-    const data = { shops: [], config };
-
-    if (!Array.isArray(shops)) {
-      throw new Error('Les boutiques ne sont pas un tableau valide');
-    }
-
-    shops.forEach(shop => {
-      const shopData = {
-        id: shop.id,
-        name: shop.name,
-        hours: shop.hours,
-        employees: loadFromLocalStorage(`employees_${shop.id}`, []),
-        weeks: {}
+    // Utiliser planningData si fourni, sinon fallback vers localStorage
+    let data;
+    
+    if (planningData && planningData.shops) {
+      // Utiliser les données actuelles du planning
+      data = {
+        shops: planningData.shops,
+        config: planningData.config || {},
+        exportDate: new Date().toISOString()
       };
-      const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${shop.id}_`));
-      storageKeys.forEach(key => {
-        const weekKey = key.replace(`planning_${shop.id}_`, '');
-        const weekPlanning = loadFromLocalStorage(key, {});
-        const weekEmployees = [];
-        const selectedEmployees = loadFromLocalStorage(`selected_employees_${shop.id}_${weekKey}`, []);
-        if (Array.isArray(selectedEmployees)) {
-          selectedEmployees.forEach(employee => {
-            const schedule = {};
-            if (weekPlanning[employee]) {
-              Object.keys(weekPlanning[employee]).forEach(dayKey => {
-                const slots = weekPlanning[employee][dayKey];
-                schedule[dayKey] = convertSlotsToTimeRanges(slots, config.timeSlots, config.interval);
-              });
-              weekEmployees.push({ id: employee, schedule });
-            }
-          });
-          shopData.weeks[weekKey] = { timeSlots: config.timeSlots, employees: weekEmployees };
-        }
+      console.log('Utilisation des données planningData actuelles:', data);
+    } else {
+      // Fallback vers l'ancien système localStorage
+      const shops = loadFromLocalStorage('shops', []);
+      const config = loadFromLocalStorage('config', {});
+      data = { shops: [], config };
+
+      if (!Array.isArray(shops)) {
+        throw new Error('Les boutiques ne sont pas un tableau valide');
+      }
+
+      shops.forEach(shop => {
+        const shopData = {
+          id: shop.id,
+          name: shop.name,
+          hours: shop.hours,
+          employees: loadFromLocalStorage(`employees_${shop.id}`, []),
+          weeks: {}
+        };
+        const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${shop.id}_`));
+        storageKeys.forEach(key => {
+          const weekKey = key.replace(`planning_${shop.id}_`, '');
+          const weekPlanning = loadFromLocalStorage(key, {});
+          const weekEmployees = [];
+          const selectedEmployees = loadFromLocalStorage(`selected_employees_${shop.id}_${weekKey}`, []);
+          if (Array.isArray(selectedEmployees)) {
+            selectedEmployees.forEach(employee => {
+              const schedule = {};
+              if (weekPlanning[employee]) {
+                Object.keys(weekPlanning[employee]).forEach(dayKey => {
+                  const slots = weekPlanning[employee][dayKey];
+                  schedule[dayKey] = convertSlotsToTimeRanges(slots, config.timeSlots, config.interval);
+                });
+                weekEmployees.push({ id: employee, schedule });
+              }
+            });
+            shopData.weeks[weekKey] = { timeSlots: config.timeSlots, employees: weekEmployees };
+          }
+        });
+        data.shops.push(shopData);
       });
-      data.shops.push(shopData);
-    });
+      console.log('Utilisation des données localStorage (fallback):', data);
+    }
 
     const jsonData = JSON.stringify(data, null, 2);
     const fileName = `planning_all_shops_${format(new Date(), 'yyyy-MM-dd_HHmm')}.json`;
+    
+    console.log('Données à exporter:', data);
+    console.log('Taille des données:', jsonData.length, 'caractères');
     
     // Vérifier si l'API Web Share est disponible (iPad/iOS)
     if (navigator.share && navigator.canShare) {
@@ -66,9 +84,19 @@ export const exportAllDataIPad = async (setFeedback) => {
         setFeedback('Succès: Données exportées (téléchargement).');
       }
     } else {
-      // Fallback pour navigateurs non-supportés
-      downloadFile(jsonData, fileName);
-      setFeedback('Succès: Données exportées.');
+      // Sur ordinateur, essayer d'ouvrir WhatsApp Web
+      try {
+        const whatsappUrl = `https://wa.me/?text=Planning%20Klick%20-%20Export%20du%20${format(new Date(), 'dd/MM/yyyy')}%20à%20${format(new Date(), 'HH:mm')}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Télécharger aussi le fichier
+        downloadFile(jsonData, fileName);
+        setFeedback('Succès: WhatsApp Web ouvert + fichier téléchargé. Envoyez le fichier manuellement.');
+      } catch (error) {
+        // Fallback pour navigateurs non-supportés
+        downloadFile(jsonData, fileName);
+        setFeedback('Succès: Données exportées (téléchargement).');
+      }
     }
     
     console.log('Data exported successfully:', data);
@@ -107,7 +135,7 @@ export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig)
 
       // Vérification robuste pour data.shops
       if (!Array.isArray(data.shops)) {
-        console.warn('importAllData: data.shops n’est pas un tableau, initialisation à []');
+        console.warn('importAllData: data.shops n\'est pas un tableau, initialisation à []');
         data.shops = [];
       }
 
@@ -199,62 +227,17 @@ export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig)
         }
       });
 
-             // Verrouillage automatique de toutes les données importées
-       console.log('🔒 Début du verrouillage automatique post-importation...');
-       console.log('🔍 Données à verrouiller:', uniqueShops);
-       
-       let totalLocked = 0;
-       uniqueShops.forEach(shop => {
-         console.log(`🔍 Traitement de la boutique: ${shop.name} (${shop.id})`);
-         if (shop.weeks && typeof shop.weeks === 'object') {
-           console.log(`🔍 Semaines trouvées:`, Object.keys(shop.weeks));
-           Object.keys(shop.weeks).forEach(weekKey => {
-             const weekData = shop.weeks[weekKey];
-             console.log(`🔍 Données de la semaine ${weekKey}:`, weekData);
-             if (Array.isArray(weekData.employees)) {
-               const employeeIds = weekData.employees.map(emp => emp.id);
-               console.log(`🔍 Employés trouvés pour ${weekKey}:`, employeeIds);
-               if (employeeIds.length > 0) {
-                 // Créer l'état de validation verrouillé pour cette semaine/boutique
-                 const validationState = {
-                   isWeekValidated: true,
-                   validatedEmployees: employeeIds,
-                   lockedEmployees: employeeIds
-                 };
-                 
-                 // Sauvegarder l'état de validation verrouillé
-                 const validationKey = `validation_${shop.id}_${weekKey}`;
-                 saveToLocalStorage(validationKey, validationState);
-                 
-                 // Vérifier que la sauvegarde a fonctionné
-                 const savedValidation = loadFromLocalStorage(validationKey, null);
-                 console.log(`🔒 Verrouillage automatique: ${shop.name} - Semaine ${weekKey} - ${employeeIds.length} employé(s)`);
-                 console.log(`🔍 État de validation sauvegardé:`, savedValidation);
-                 
-                 if (savedValidation && savedValidation.lockedEmployees) {
-                   totalLocked += savedValidation.lockedEmployees.length;
-                 }
-               } else {
-                 console.log(`⚠️ Aucun employé trouvé pour la semaine ${weekKey}`);
-               }
-             } else {
-               console.log(`⚠️ Données d'employés invalides pour la semaine ${weekKey}:`, weekData.employees);
-             }
-           });
-         } else {
-           console.log(`⚠️ Aucune semaine trouvée pour la boutique ${shop.name}`);
-         }
-       });
-       console.log(`✅ Verrouillage automatique post-importation terminé. Total: ${totalLocked} employés verrouillés`);
+      // VERROUILLAGE AUTOMATIQUE DÉSACTIVÉ - Les données sont importées sans verrouillage automatique
+      console.log('✅ Import terminé sans verrouillage automatique');
 
       setShops(uniqueShops);
       setSelectedShop(uniqueShops[0]?.id || '');
       setConfig(data.config || {});
-      setFeedback('Succès: Données importées et verrouillées automatiquement.');
+      setFeedback('Succès: Données importées.');
       console.log('Data imported successfully:', uniqueShops);
     } catch (error) {
       console.error('Error importing data:', error);
-      setFeedback('Erreur lors de l’importation: ' + error.message);
+      setFeedback('Erreur lors de l\'importation: ' + error.message);
     }
   };
   input.click();

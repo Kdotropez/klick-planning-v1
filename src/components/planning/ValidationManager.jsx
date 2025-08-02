@@ -38,8 +38,10 @@ const ValidationManager = ({
   // Sauvegarder l'état de validation
   useEffect(() => {
     if (selectedShop && selectedWeek) {
+      console.log('💾 Sauvegarde de l\'état de validation:', validationState);
       saveToLocalStorage(`validation_${selectedShop}_${selectedWeek}`, validationState);
       if (onValidationChange) {
+        console.log('🔄 Propagation de l\'état vers le parent');
         onValidationChange(validationState);
       }
     }
@@ -123,20 +125,80 @@ const ValidationManager = ({
 
   // Débloquer tous les employés
   const unlockAllEmployees = () => {
-    setValidationState(prev => ({
-      ...prev,
-      lockedEmployees: []
-    }));
+    console.log('🔓 unlockAllEmployees appelé');
+    console.log('🔓 État avant déverrouillage:', validationState);
+    
+    // Forcer le déverrouillage complet
+    const newState = {
+      isWeekValidated: false, // Réinitialiser la validation de semaine
+      validatedEmployees: [], // Vider les employés validés
+      lockedEmployees: [] // Vider les employés verrouillés
+    };
+    
+    console.log('🔓 Nouvel état après déverrouillage:', newState);
+    setValidationState(newState);
+    
+    // Forcer la sauvegarde immédiate
+    if (selectedShop && selectedWeek) {
+      console.log('🔓 Sauvegarde forcée du nouvel état');
+      saveToLocalStorage(`validation_${selectedShop}_${selectedWeek}`, newState);
+      if (onValidationChange) {
+        console.log('🔓 Propagation forcée vers le parent');
+        onValidationChange(newState);
+      }
+    }
+    
     setShowUnlockModal(false);
     setSelectedEmployeeToUnlock('');
+    console.log('🔓 Déverrouillage de tous les employés terminé');
   };
 
   // Vérifier s'il y a des employés verrouillés
   const hasLockedEmployees = validationState.lockedEmployees.length > 0;
 
   return (
-    <div className="validation-manager">
-      <div className="validation-controls">
+    <div className="validation-manager" style={{
+      backgroundColor: '#f8f9fa',
+      border: '2px solid #dee2e6',
+      borderRadius: '8px',
+      padding: '15px',
+      margin: '10px 0',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+    }}>
+      <h4 style={{ margin: '0 0 10px 0', color: '#495057', fontSize: '16px' }}>
+        🔒 Gestion du verrouillage
+      </h4>
+      <div className="validation-controls" style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '10px',
+        alignItems: 'center'
+      }}>
+        {console.log('🔍 ValidationManager rendu - État:', validationState)}
+        {console.log('🔍 Employés verrouillés:', validationState.lockedEmployees)}
+        {console.log('🔍 Semaine validée:', validationState.isWeekValidated)}
+        
+        {/* Bouton de test */}
+        <button
+          onClick={() => {
+            console.log('🔍 Bouton de test cliqué !');
+            alert('Bouton de test fonctionne !');
+          }}
+          style={{
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '6px 12px',
+            fontSize: '12px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            marginRight: '10px'
+          }}
+        >
+          🧪 Test
+        </button>
+        
         {/* Contrôle du verrouillage automatique - Aligné avec les autres boutons */}
         {onAutoLockToggle && (
           <button
@@ -221,6 +283,36 @@ const ValidationManager = ({
              </button>
            </div>
          )}
+
+        {/* Bouton de déverrouillage - toujours visible si des employés sont verrouillés */}
+        {hasLockedEmployees && (
+          <button
+            onClick={() => setShowUnlockModal(true)}
+            style={{
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              marginRight: '10px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+            }}
+          >
+            🔓 Déverrouiller
+          </button>
+        )}
       </div>
 
       
