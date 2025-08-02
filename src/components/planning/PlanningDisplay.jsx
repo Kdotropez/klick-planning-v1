@@ -88,6 +88,60 @@ const PlanningDisplay = ({
   const currentShopData = getShopById(planningData, selectedShop);
   const config = currentShopData?.config || { timeSlots: [] };
 
+  // Charger l'état de validation depuis le localStorage
+  useEffect(() => {
+    if (selectedShop && validWeek) {
+      const savedValidation = localStorage.getItem(`validation_${selectedShop}_${validWeek}`);
+      if (savedValidation) {
+        try {
+          const parsedValidation = JSON.parse(savedValidation);
+          setValidationState(parsedValidation);
+        } catch (error) {
+          console.error('Erreur lors du chargement de la validation:', error);
+        }
+      }
+    }
+  }, [selectedShop, validWeek]);
+  
+  // Validation et nettoyage des données shops
+  const shops = React.useMemo(() => {
+    if (!planningData?.shops || !Array.isArray(planningData.shops)) {
+      return [];
+    }
+    
+    return planningData.shops
+      .filter(shop => shop && typeof shop === 'object' && shop.id && shop.name)
+      .map(shop => ({
+        id: String(shop.id),
+        name: String(shop.name),
+        canWorkIn: Array.isArray(shop.canWorkIn) ? shop.canWorkIn.map(String) : [],
+        employees: Array.isArray(shop.employees) ? shop.employees
+          .filter(emp => emp && typeof emp === 'object' && emp.id && emp.name)
+          .map(emp => ({
+            id: String(emp.id),
+            name: String(emp.name),
+            canWorkIn: Array.isArray(emp.canWorkIn) ? emp.canWorkIn.map(String) : [],
+            ...(emp.color && { color: String(emp.color) }),
+            ...(emp.role && { role: String(emp.role) })
+          })) : [],
+        weeks: shop.weeks && typeof shop.weeks === 'object' ? shop.weeks : {},
+        config: shop.config && typeof shop.config === 'object' ? shop.config : {}
+      }));
+  }, [planningData?.shops]);
+  
+  // État pour les employés de la boutique actuelle
+  const [currentShopEmployees, setCurrentShopEmployees] = useState([]);
+
+  // Récupérer le planning de la semaine actuelle
+  const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
+  const [planning, setPlanning] = useState(weekData.planning || {});
+  
+  // Initialiser localSelectedEmployees avec les employés sélectionnés globaux si weekData est vide
+  const initialSelectedEmployees = weekData.selectedEmployees && weekData.selectedEmployees.length > 0 
+    ? weekData.selectedEmployees 
+    : selectedEmployees;
+  const [localSelectedEmployees, setLocalSelectedEmployees] = useState(initialSelectedEmployees);
+  
   // Fonction de verrouillage automatique
   const autoLockPreviousDay = useCallback((newDay) => {
     console.log('🔍 autoLockPreviousDay appelé:', { 
@@ -165,28 +219,6 @@ const PlanningDisplay = ({
     console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique');
   }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, validationState, selectedShop, validWeek]);
 
-  // Charger l'état de validation depuis le localStorage
-  useEffect(() => {
-    if (selectedShop && validWeek) {
-      const savedValidation = localStorage.getItem(`validation_${selectedShop}_${validWeek}`);
-      if (savedValidation) {
-        try {
-          const parsedValidation = JSON.parse(savedValidation);
-          setValidationState(parsedValidation);
-        } catch (error) {
-          console.error('Erreur lors du chargement de la validation:', error);
-        }
-      }
-    }
-  }, [selectedShop, validWeek]);
-
-  // Effet pour le verrouillage automatique lors du changement de jour
-  useEffect(() => {
-    if (currentDay !== null && lastModifiedDay !== null && currentDay > lastModifiedDay) {
-      autoLockPreviousDay(currentDay);
-    }
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay]);
-
   // Fonction pour changer de jour avec verrouillage automatique
   const handleDayChange = useCallback((newDay) => {
     console.log('🔍 handleDayChange appelé:', { 
@@ -214,47 +246,13 @@ const PlanningDisplay = ({
     }
     setCurrentDay(newDay);
   }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled, selectedEmployees, localSelectedEmployees]);
-  
-  // Validation et nettoyage des données shops
-  const shops = React.useMemo(() => {
-    if (!planningData?.shops || !Array.isArray(planningData.shops)) {
-      return [];
+
+  // Effet pour le verrouillage automatique lors du changement de jour
+  useEffect(() => {
+    if (currentDay !== null && lastModifiedDay !== null && currentDay > lastModifiedDay) {
+      autoLockPreviousDay(currentDay);
     }
-    
-    return planningData.shops
-      .filter(shop => shop && typeof shop === 'object' && shop.id && shop.name)
-      .map(shop => ({
-        id: String(shop.id),
-        name: String(shop.name),
-        canWorkIn: Array.isArray(shop.canWorkIn) ? shop.canWorkIn.map(String) : [],
-        employees: Array.isArray(shop.employees) ? shop.employees
-          .filter(emp => emp && typeof emp === 'object' && emp.id && emp.name)
-          .map(emp => ({
-            id: String(emp.id),
-            name: String(emp.name),
-            canWorkIn: Array.isArray(emp.canWorkIn) ? emp.canWorkIn.map(String) : [],
-            ...(emp.color && { color: String(emp.color) }),
-            ...(emp.role && { role: String(emp.role) })
-          })) : [],
-        weeks: shop.weeks && typeof shop.weeks === 'object' ? shop.weeks : {},
-        config: shop.config && typeof shop.config === 'object' ? shop.config : {}
-      }));
-  }, [planningData?.shops]);
-  
-  // État pour les employés de la boutique actuelle
-  const [currentShopEmployees, setCurrentShopEmployees] = useState([]);
-
-  // Récupérer le planning de la semaine actuelle
-  const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
-  const [planning, setPlanning] = useState(weekData.planning || {});
-  
-  // Initialiser localSelectedEmployees avec les employés sélectionnés globaux si weekData est vide
-  const initialSelectedEmployees = weekData.selectedEmployees && weekData.selectedEmployees.length > 0 
-    ? weekData.selectedEmployees 
-    : selectedEmployees;
-  const [localSelectedEmployees, setLocalSelectedEmployees] = useState(initialSelectedEmployees);
-  
-
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay]);
 
   // Mettre à jour les employés sélectionnés globalement
   useEffect(() => {
