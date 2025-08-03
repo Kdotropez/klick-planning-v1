@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
@@ -20,6 +20,7 @@ import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
 import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
+import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -71,6 +72,9 @@ const PlanningDisplay = ({
   // État pour la modale de notes
   const [showNotesModal, setShowNotesModal] = useState(false);
   
+  // État pour la page des statistiques de la boutique
+  const [showShopStatsPage, setShowShopStatsPage] = useState(false);
+  
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
   const [activeMenu, setActiveMenu] = useState(null);
@@ -117,6 +121,40 @@ const PlanningDisplay = ({
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
   const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
 
+  // Fonction pour calculer le total des heures de la boutique pour le mois
+  const calculateShopMonthlyTotal = () => {
+    let totalHours = 0;
+    const currentDate = new Date(selectedWeek);
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Dernier jour du mois
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    
+    // Parcourir tous les jours du mois (1er au dernier jour)
+    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+      const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+      
+      // Trouver la semaine qui contient ce jour
+      const dayDate = new Date(year, month, day);
+      const weekStart = startOfWeek(dayDate, { weekStartsOn: 1 });
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      
+      // Utiliser getWeekPlanning pour normaliser les données
+      const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
+      const selectedEmployeesForShop = weekData.selectedEmployees || [];
+      const weekPlanning = weekData.planning || {};
+      
+      // Calculer les heures pour chaque employé
+      selectedEmployeesForShop.forEach(employee => {
+        const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning, config);
+        totalHours += hours;
+      });
+    }
+    
+    return totalHours.toFixed(1);
+  };
+
   // Fonctions pour les menus
   const toggleMenu = (menuName) => {
     console.log('Toggle menu:', menuName);
@@ -160,9 +198,36 @@ const PlanningDisplay = ({
       '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
       '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
       '20:00', '20:30', '21:00', '21:30'
-    ]
+    ],
+    interval: 30,
+    startTime: '08:00',
+    endTime: '21:30'
   };
-  const config = currentShopData?.config || defaultConfig;
+  
+  // Validation et nettoyage de la configuration
+  let config = currentShopData?.config || defaultConfig;
+  
+  // S'assurer que la configuration est valide
+  if (!config || !Array.isArray(config.timeSlots) || config.timeSlots.length === 0) {
+    console.warn('Configuration des tranches horaires invalide, utilisation de la configuration par défaut:', { 
+      currentShopData, 
+      originalConfig: config 
+    });
+    config = defaultConfig;
+  }
+  
+  // Nettoyer les tranches horaires pour s'assurer qu'elles sont toutes des chaînes valides
+  if (config.timeSlots) {
+    config.timeSlots = config.timeSlots.filter(slot => 
+      slot && typeof slot === 'string' && slot.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    );
+    
+    // Si après nettoyage il n'y a plus de tranches, utiliser la configuration par défaut
+    if (config.timeSlots.length === 0) {
+      console.warn('Aucune tranche horaire valide trouvée, utilisation de la configuration par défaut');
+      config = defaultConfig;
+    }
+  }
 
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
@@ -225,6 +290,9 @@ const PlanningDisplay = ({
   
   // État pour les employés de la boutique actuelle
   const [currentShopEmployees, setCurrentShopEmployees] = useState([]);
+  
+  // État pour tous les employés de toutes les boutiques
+  const [allEmployees, setAllEmployees] = useState([]);
 
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
@@ -414,6 +482,9 @@ const PlanningDisplay = ({
           ...(emp.role && { role: String(emp.role) })
         }));
       
+      // Mettre à jour tous les employés de toutes les boutiques
+      setAllEmployees(validShopEmployees);
+      
       // Filtrer les employés qui peuvent travailler dans cette boutique
       const shopEmployees = validShopEmployees.filter(emp => 
         emp.canWorkIn && emp.canWorkIn.includes(selectedShop)
@@ -453,8 +524,17 @@ const PlanningDisplay = ({
   }, [selectedShop, selectedWeek, planningData, forceRefresh]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
-    if (!(config?.timeSlots?.length || 0)) {
-      setLocalFeedback('Erreur: Configuration des tranches horaires non valide.');
+    // Validation robuste de la configuration des tranches horaires
+    if (!config || !Array.isArray(config.timeSlots) || config.timeSlots.length === 0) {
+      setLocalFeedback('Erreur: Configuration des tranches horaires non valide. Veuillez reconfigurer la boutique.');
+      console.error('toggleSlot: Configuration invalide:', { config, timeSlots: config?.timeSlots });
+      return;
+    }
+    
+    // Validation de l'index du slot
+    if (slotIndex < 0 || slotIndex >= config.timeSlots.length) {
+      setLocalFeedback(`Erreur: Index de créneau invalide (${slotIndex}). Configuration: ${config.timeSlots.length} créneaux.`);
+      console.error('toggleSlot: Index de slot invalide:', { slotIndex, timeSlotsLength: config.timeSlots.length });
       return;
     }
     
@@ -465,7 +545,8 @@ const PlanningDisplay = ({
       isLocked: validationState.lockedEmployees.includes(employee),
       forceValue,
       validationStateType: typeof validationState,
-      lockedEmployeesType: typeof validationState.lockedEmployees
+      lockedEmployeesType: typeof validationState.lockedEmployees,
+      config: { timeSlotsLength: config.timeSlots.length, interval: config.interval }
     });
     
     // Vérifier si l'employé est verrouillé
@@ -509,6 +590,22 @@ const PlanningDisplay = ({
       if (!Array.isArray(updatedPlanning[employee][dayKey])) {
         updatedPlanning[employee][dayKey] = Array(config.timeSlots.length).fill(false);
       }
+      
+      // S'assurer que le tableau a la bonne taille
+      if (updatedPlanning[employee][dayKey].length !== config.timeSlots.length) {
+        console.warn('Redimensionnement du tableau de slots:', {
+          oldLength: updatedPlanning[employee][dayKey].length,
+          newLength: config.timeSlots.length,
+          employee,
+          dayKey
+        });
+        const newSlots = Array(config.timeSlots.length).fill(false);
+        for (let i = 0; i < Math.min(updatedPlanning[employee][dayKey].length, config.timeSlots.length); i++) {
+          newSlots[i] = updatedPlanning[employee][dayKey][i];
+        }
+        updatedPlanning[employee][dayKey] = newSlots;
+      }
+      
       updatedPlanning[employee][dayKey] = updatedPlanning[employee][dayKey].map((val, idx) =>
         idx === slotIndex ? (forceValue !== null ? forceValue : !val) : val
       );
@@ -653,7 +750,7 @@ const PlanningDisplay = ({
 
   const handleReset = (resetType, employeeName = null) => {
     try {
-      if (resetType === 'all') {
+    if (resetType === 'all') {
         // Effacer tous les clics de la semaine
         const emptyPlanning = {};
         const updatedPlanningData = saveWeekPlanning(
@@ -667,12 +764,12 @@ const PlanningDisplay = ({
         setPlanning(emptyPlanning);
         setLocalSelectedEmployees([]);
         setFeedback('✅ Tous les clics de la semaine ont été effacés');
-      } else if (resetType === 'employee' && employeeName) {
-        // Effacer les clics d'un employé spécifique
+    } else if (resetType === 'employee' && employeeName) {
+      // Effacer les clics d'un employé spécifique
         const currentWeekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
         const newPlanning = { ...currentWeekData.planning };
         
-        // Supprimer toutes les entrées pour cet employé
+      // Supprimer toutes les entrées pour cet employé
         if (newPlanning[employeeName]) {
           delete newPlanning[employeeName];
         }
@@ -685,9 +782,9 @@ const PlanningDisplay = ({
           currentWeekData.selectedEmployees || []
         );
         setPlanningData(updatedPlanningData);
-        setPlanning(newPlanning);
+      setPlanning(newPlanning);
         setFeedback(`✅ Clics de ${employeeName} ont été effacés`);
-      } else if (resetType === 'week') {
+    } else if (resetType === 'week') {
         const emptyPlanning = {};
         const updatedPlanningData = saveWeekPlanning(
           planningData,
@@ -698,9 +795,9 @@ const PlanningDisplay = ({
         );
         setPlanningData(updatedPlanningData);
         setPlanning(emptyPlanning);
-        setLocalSelectedEmployees([]);
+      setLocalSelectedEmployees([]);
         setFeedback('✅ Semaine réinitialisée');
-      } else if (resetType === 'clicks') {
+    } else if (resetType === 'clicks') {
         const emptyPlanning = {};
         const updatedPlanningData = saveWeekPlanning(
           planningData,
@@ -753,9 +850,9 @@ const PlanningDisplay = ({
         if (!window.confirm(confirmMessage)) {
           console.log('❌ Copie annulée par l\'utilisateur');
           setLocalFeedback('❌ Copie annulée. Les données existantes sont préservées.');
-          return;
-        }
-        
+        return;
+      }
+      
         console.log('✅ Utilisateur a confirmé l\'écrasement des données existantes');
       }
       
@@ -914,6 +1011,21 @@ const PlanningDisplay = ({
         selectedShop={selectedShop}
         selectedWeek={selectedWeek}
         onBack={() => setShowCopyPastePage(false)}
+      />
+    );
+  }
+
+  // Si la page des statistiques est active, afficher seulement cette page
+  if (showShopStatsPage) {
+    return (
+      <ShopStatsPage
+        planningData={planningData}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        config={config}
+        shops={shops}
+        employees={allEmployees}
+        onBack={() => setShowShopStatsPage(false)}
       />
     );
   }
@@ -1096,9 +1208,9 @@ const PlanningDisplay = ({
         
         <button
           onClick={() => {
-            console.log('🚨🚨🚨 PlanningDisplay: BOUTIQUE MOIS BUTTON CLICKED 🚨🚨🚨');
-            setShowMonthlyRecapModal(true);
-            console.log('🚨🚨🚨 PlanningDisplay: showMonthlyRecapModal set to true 🚨🚨🚨');
+            console.log('🚨🚨🚨 PlanningDisplay: SHOP STATS BUTTON CLICKED 🚨🚨🚨');
+            setShowShopStatsPage(true);
+            console.log('🚨🚨🚨 PlanningDisplay: showShopStatsPage set to true 🚨🚨🚨');
           }}
           style={{
             background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
@@ -1130,7 +1242,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 152, 0, 0.4)';
           }}
         >
-          📊 Mois Boutique
+          📊 Statistiques Boutique
         </button>
         
         <button
@@ -1638,12 +1750,188 @@ const PlanningDisplay = ({
                     })()}h
                   </button>
                   
+                  {(() => {
+                    // FORCER l'affichage des boutons séparés pour VALOU et ANGELIQUE
+                    if (employeeName === 'VALOU' || employeeName === 'ANGELIQUE') {
+                      console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId})`);
+                      
+                      // Calculer les heures pour chaque boutique
+                      const allShops = planningData?.shops || [];
+                      const shopsWithHours = [];
+                      
+                      allShops.forEach(shop => {
+                        let shopHours = 0;
+                        
+                        // Calculer les heures du mois pour cette boutique
+                        if (selectedWeek && planningData) {
+                          const currentDate = new Date(selectedWeek);
+                          const year = currentDate.getFullYear();
+                          const month = currentDate.getMonth();
+                          const firstDayOfMonth = new Date(year, month, 1);
+                          const lastDayOfMonth = new Date(year, month + 1, 0);
+                          
+                          // Parcourir tous les jours du mois
+                          for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                            const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                            
+                            // Calculer les heures pour cette boutique spécifique
+                            if (shop.weeks) {
+                              Object.keys(shop.weeks).forEach(weekKey => {
+                                const weekData = shop.weeks[weekKey];
+                                if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                  const slots = weekData.planning[employeeId][dayKey];
+                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                    shopHours += hours;
+                                  }
+                                }
+                              });
+                            }
+                          }
+                        }
+                        
+                        if (shopHours > 0) {
+                          shopsWithHours.push({
+                            id: shop.id,
+                            name: shop.name,
+                            hours: shopHours
+                          });
+                        }
+                      });
+                      
+                      console.log(`Shops with hours for ${employeeName}:`, shopsWithHours);
+                      
+                      if (shopsWithHours.length > 1) {
+                        return (
+                          <div style={{ width: '100%' }}>
+                            {shopsWithHours.map((shop, shopIndex) => (
                   <button
+                                key={shop.id}
                     onClick={() => {
-                      console.log('🚨🚨🚨 PlanningDisplay: MOIS BUTTON CLICKED for employee', employeeId, '🚨🚨🚨');
-                      setSelectedEmployeeForMonthlyRecap(employeeId);
-                      setShowEmployeeMonthlyRecap(true);
-                      console.log('🚨🚨🚨 PlanningDisplay: showEmployeeMonthlyRecap set to true 🚨🚨🚨');
+                                  console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeName, 'Boutique:', shop.name, 'Heures:', shop.hours);
+                                  setSelectedEmployeeForMonthlyRecap(employeeId);
+                                  setShowEmployeeMonthlyRecap(true);
+                                }}
+                                style={{
+                                  backgroundColor: '#1e88e5',
+                                  color: '#fff',
+                                  padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                  fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  marginBottom: shopIndex < shopsWithHours.length - 1 ? '4px' : '6px',
+                                  fontWeight: '600',
+                                  transition: 'all 0.3s ease',
+                                  boxShadow: '0 2px 6px rgba(30, 136, 229, 0.3)',
+                                  whiteSpace: 'nowrap',
+                                  width: '100%',
+                                  letterSpacing: '0.5px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#1565c0';
+                                  e.currentTarget.style.transform = 'translateY(-1px)';
+                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#1e88e5';
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
+                                }}
+                                title={`Récapitulatif mensuel - ${shop.name}`}
+                              >
+                                📈 {shop.name}: {shop.hours.toFixed(1)}h
+                              </button>
+                            ))}
+                            {/* Bouton total global séparé */}
+                            <button
+                              onClick={() => {
+                                console.log('Bouton MOIS RÉEL TOTAL GLOBAL cliqué pour employé:', employeeName);
+                                setSelectedEmployeeForMonthlyRecap(employeeId);
+                                setShowEmployeeMonthlyRecap(true);
+                              }}
+                              style={{
+                                backgroundColor: '#28a745',
+                                color: '#fff',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                marginTop: '4px',
+                                fontWeight: '600',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
+                                whiteSpace: 'nowrap',
+                                width: '100%',
+                                letterSpacing: '0.5px'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.backgroundColor = '#218838';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.backgroundColor = '#28a745';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(40, 167, 69, 0.3)';
+                              }}
+                              title="Récapitulatif mensuel global"
+                            >
+                              📈 TOTAL GLOBAL: {(() => {
+                                if (!selectedWeek || !planningData) return '0.0';
+                                
+                                // Calculer les heures du mois complet sur toutes les boutiques
+                                const currentDate = new Date(selectedWeek);
+                                const year = currentDate.getFullYear();
+                                const month = currentDate.getMonth();
+                                
+                                // Premier jour du mois
+                                const firstDayOfMonth = new Date(year, month, 1);
+                                // Dernier jour du mois
+                                const lastDayOfMonth = new Date(year, month + 1, 0);
+                                
+                                let totalHours = 0;
+                                
+                                // Parcourir tous les jours du mois
+                                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                                  
+                                  // Calculer les heures pour toutes les boutiques où l'employé travaille
+                                  if (planningData.shops) {
+                                    planningData.shops.forEach(shop => {
+                                      if (shop.weeks) {
+                                        Object.keys(shop.weeks).forEach(weekKey => {
+                                          const weekData = shop.weeks[weekKey];
+                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                            const slots = weekData.planning[employeeId][dayKey];
+                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                              totalHours += hours;
+                                            }
+                                          }
+                                        });
+                                      }
+                                    });
+                                  }
+                                }
+                                
+                                return totalHours.toFixed(1);
+                              })()}h
+                            </button>
+                          </div>
+                        );
+                      }
+                    }
+                    
+                    // Pour tous les autres employés, bouton normal
+                    return (
+                      <button
+                        onClick={() => {
+                          console.log('🚨🚨🚨 PlanningDisplay: MOIS BUTTON CLICKED for employee', employeeId, '🚨🚨🚨');
+                          setSelectedEmployeeForMonthlyRecap(employeeId);
+                          setShowEmployeeMonthlyRecap(true);
+                          console.log('🚨🚨🚨 PlanningDisplay: showEmployeeMonthlyRecap set to true 🚨🚨🚨');
                     }}
                     style={{
                       backgroundColor: '#f57c00',
@@ -1714,6 +2002,8 @@ const PlanningDisplay = ({
           return totalHours.toFixed(1);
                     })()}h
                   </button>
+                    );
+                  })()}
                   
                   <button
                     onClick={() => {
@@ -2263,16 +2553,16 @@ const PlanningDisplay = ({
       )}
 
       {showMonthlyRecapModal && (
-              <MonthlyRecapModals
-          showMonthlyRecapModal={showMonthlyRecapModal}
-          setShowMonthlyRecapModal={setShowMonthlyRecapModal}
-          config={config}
-          selectedShop={selectedShop}
-          selectedWeek={validWeek}
-          selectedEmployees={localSelectedEmployees}
-          shops={shops}
+      <MonthlyRecapModals
+        showMonthlyRecapModal={showMonthlyRecapModal}
+        setShowMonthlyRecapModal={setShowMonthlyRecapModal}
+        config={config}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        selectedEmployees={localSelectedEmployees}
+        shops={shops}
           planningData={planningData}
-        />
+      />
       )}
 
       {/* Temporairement désactivé pour éviter les problèmes d'affichage */}

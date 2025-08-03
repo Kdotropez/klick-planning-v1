@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, addDays, startOfMonth, endOfMonth, startOfWeek } from 'date-fns';
+import { format, addDays, startOfMonth, endOfMonth, startOfWeek, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -137,6 +137,54 @@ const EmployeeMonthlyRecapModal = ({
       totalHours += parseFloat(calculateShopWeeklyHours(shopId, week));
     });
     return totalHours.toFixed(1);
+  };
+
+  // Fonction pour obtenir les jours hors mois (fragmentés)
+  const getDaysOutsideMonth = () => {
+    const daysOutsideMonth = [];
+    const selectedShopData = planningData.shops.find(shop => shop.id === selectedShop);
+    if (!selectedShopData || !selectedShopData.weeks) return daysOutsideMonth;
+    
+    // Trouver les semaines qui chevauchent le mois sélectionné
+    const monthStart = startOfMonth(new Date(selectedWeek));
+    const monthEnd = endOfMonth(new Date(selectedWeek));
+    
+    Object.keys(selectedShopData.weeks).forEach(weekKey => {
+      const weekStart = new Date(weekKey);
+      const weekEnd = addDays(weekStart, 6);
+      
+      // Vérifier si cette semaine chevauche le mois sélectionné
+      const overlapsMonth = (weekStart <= monthEnd && weekEnd >= monthStart);
+      
+      if (overlapsMonth) {
+        const weekData = selectedShopData.weeks[weekKey];
+        if (weekData && weekData.planning && weekData.planning[selectedEmployeeForMonthlyRecap]) {
+          Object.keys(weekData.planning[selectedEmployeeForMonthlyRecap]).forEach(dayStr => {
+            const dayDate = new Date(dayStr);
+            
+            // Si le jour est en dehors du mois (avant OU après) ET a des créneaux sélectionnés
+            if (dayDate < monthStart || dayDate > monthEnd) {
+              const slots = weekData.planning[selectedEmployeeForMonthlyRecap][dayStr];
+              if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, dayStr, { [selectedEmployeeForMonthlyRecap]: { [dayStr]: slots } }, config);
+                daysOutsideMonth.push({
+                  date: dayStr,
+                  shopName: selectedShopData.name || selectedShopData.id,
+                  hours: hours,
+                  dayName: format(dayDate, 'EEEE', { locale: fr }),
+                  dayDate: format(dayDate, 'dd/MM/yyyy', { locale: fr }),
+                  isBeforeMonth: dayDate < monthStart,
+                  weekKey: weekKey
+                });
+              }
+            }
+          });
+        }
+      }
+    });
+    
+    // Trier par date pour avoir un ordre chronologique
+    return daysOutsideMonth.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
   const exportToPDF = () => {
@@ -385,6 +433,136 @@ const EmployeeMonthlyRecapModal = ({
             </table>
           );
         })()}
+        
+        {/* Tableau des jours hors mois (fragmentés) */}
+        {(() => {
+          const daysOutsideMonth = getDaysOutsideMonth();
+          if (daysOutsideMonth.length === 0) return null;
+          
+          return (
+            <div style={{ marginTop: '20px' }}>
+              <h4 style={{ 
+                fontFamily: 'Roboto, sans-serif', 
+                textAlign: 'center', 
+                color: '#856404',
+                marginBottom: '10px',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}>
+                Jours hors mois non comptabilisés dans le total
+              </h4>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse', 
+                fontSize: '11px',
+                fontFamily: 'Roboto, sans-serif'
+              }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8f9fa' }}>
+                    <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Jour</th>
+                    <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Date</th>
+                    <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Boutique</th>
+                    <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Heures</th>
+                    <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {daysOutsideMonth.map((day, index) => (
+                    <tr key={index} style={{ 
+                      backgroundColor: day.isBeforeMonth ? '#fff3cd' : '#e3f2fd',
+                      borderLeft: day.isBeforeMonth ? '4px solid #ffc107' : '4px solid #17a2b8'
+                    }}>
+                      <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>
+                        {day.dayName}
+                        <span style={{ 
+                          fontSize: '9px', 
+                          color: day.isBeforeMonth ? '#856404' : '#0c5460',
+                          marginLeft: '4px',
+                          fontWeight: 'bold'
+                        }}>
+                          {day.isBeforeMonth ? '←' : '→'}
+                        </span>
+                      </td>
+                      <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.dayDate}</td>
+                      <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.shopName}</td>
+                      <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>
+                        {day.hours.toFixed(1)} h
+                      </td>
+                      <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontSize: '10px' }}>
+                        <span style={{ 
+                          padding: '2px 6px', 
+                          borderRadius: '4px', 
+                          fontWeight: 'bold',
+                          color: 'white',
+                          backgroundColor: day.isBeforeMonth ? '#28a745' : '#007bff'
+                        }}>
+                          {day.isBeforeMonth ? '✓ Payé' : '⏳ Fragmenté'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
+                    <td colSpan="3" style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'right' }}>
+                      Total hors mois :
+                    </td>
+                    <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                      {daysOutsideMonth.reduce((total, day) => total + day.hours, 0).toFixed(1)} h
+                    </td>
+                    <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#6c757d' }}>
+                        {daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h payées / {daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h fragmentées
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style={{ 
+                marginTop: '10px', 
+                fontSize: '10px', 
+                color: '#856404',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: '12px', 
+                    height: '12px', 
+                    backgroundColor: '#fff3cd', 
+                    border: '1px solid #ffc107',
+                    marginRight: '4px',
+                    borderRadius: '2px'
+                  }}></span>
+                  <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ Heures déjà payées</span>
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ 
+                    display: 'inline-block', 
+                    width: '12px', 
+                    height: '12px', 
+                    backgroundColor: '#e3f2fd', 
+                    border: '1px solid #17a2b8',
+                    marginRight: '4px',
+                    borderRadius: '2px'
+                  }}></span>
+                  <span style={{ color: '#007bff', fontWeight: 'bold' }}>⏳ Semaine fragmentée (report août)</span>
+                </span>
+              </div>
+              <p style={{ 
+                margin: '10px 0 0 0', 
+                fontSize: '11px', 
+                color: '#856404', 
+                textAlign: 'center',
+                fontStyle: 'italic'
+              }}>
+                Ces heures proviennent de semaines fragmentées à cheval sur deux mois. 
+                Même une semaine complète de 35h peut être divisée entre deux paies.
+              </p>
+            </div>
+          );
+        })()}
+        
         <div className="button-group" style={{ display: 'flex', justifyContent: 'center', marginTop: '15px' }}>
           <Button className="button-pdf" onClick={exportToPDF}>
             Exporter en PDF

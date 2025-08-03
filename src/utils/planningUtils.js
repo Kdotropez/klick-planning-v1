@@ -14,6 +14,12 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
     return 0;
   }
   
+  // Validation supplémentaire de la configuration des tranches horaires
+  if (config.timeSlots.length === 0) {
+    console.warn(`calculateEmployeeDailyHours: Configuration des tranches horaires vide pour ${employeeId} on ${dayKey}`, { config });
+    return 0;
+  }
+  
   // Chercher les données de l'employé dans le planning
   const employeeData = planning[employeeId];
   if (!employeeData || !employeeData[dayKey]) {
@@ -34,12 +40,22 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
     console.log(`calculateEmployeeDailyHours: No selected slots for ${employeeId} on ${dayKey}`, { slots });
     return 0;
   }
+  
   const interval = config.interval || 30;
   let totalMinutes = 0;
   let inShift = false;
   let shiftStartIndex = null;
 
-  for (let i = 0; i < slots.length; i++) {
+  for (let i = 0; i < slots.length && i < config.timeSlots.length; i++) {
+    // Validation de chaque tranche horaire
+    if (!config.timeSlots[i] || typeof config.timeSlots[i] !== 'string') {
+      console.warn(`calculateEmployeeDailyHours: timeSlots[${i}] invalide pour ${employeeId} on ${dayKey}`, { 
+        timeSlot: config.timeSlots[i], 
+        timeSlotType: typeof config.timeSlots[i] 
+      });
+      continue;
+    }
+    
     if (slots[i] && !inShift) {
       inShift = true;
       shiftStartIndex = i;
@@ -86,7 +102,14 @@ export const getTimeSlotsWithBreaks = (employee, dayKey, weekPlanning, config) =
   const employeeData = weekPlanning[employee];
   const slots = employeeData?.[dayKey] || [];
   console.log(`getTimeSlotsWithBreaks: Slots for ${employee} on ${dayKey}`, JSON.stringify(slots, null, 2));
+  
+  // Validation robuste de la configuration des tranches horaires
   const timeSlots = config?.timeSlots || [];
+  if (!Array.isArray(timeSlots) || timeSlots.length === 0) {
+    console.warn(`getTimeSlotsWithBreaks: Configuration des tranches horaires invalide pour ${employee} on ${dayKey}`, { config, timeSlots });
+    return { status: 'Configuration invalide ⚠️', ranges: [], breaks: [], hours: 0, columns: ['ENTRÉE'], values: ['Configuration invalide ⚠️'] };
+  }
+  
   const ranges = [];
   let currentRange = null;
   let breaks = [];
@@ -96,10 +119,17 @@ export const getTimeSlotsWithBreaks = (employee, dayKey, weekPlanning, config) =
   }
 
   for (let i = 0; i < slots.length && i < timeSlots.length; i++) {
-    if (!timeSlots[i]) {
-      console.warn(`getTimeSlotsWithBreaks: timeSlots[${i}] is undefined for ${employee} on ${dayKey}`);
+    // Validation robuste de chaque tranche horaire
+    if (!timeSlots[i] || typeof timeSlots[i] !== 'string') {
+      console.warn(`getTimeSlotsWithBreaks: timeSlots[${i}] est invalide pour ${employee} on ${dayKey}`, { 
+        timeSlot: timeSlots[i], 
+        timeSlotType: typeof timeSlots[i],
+        timeSlotsLength: timeSlots.length,
+        slotsLength: slots.length
+      });
       continue;
     }
+    
     if (slots[i]) {
       if (!currentRange) {
         currentRange = { 

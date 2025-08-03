@@ -114,6 +114,31 @@ const PlanningTable = ({
   // Validation de selectedWeek
   const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
   
+  // Validation de la configuration des tranches horaires
+  const validTimeSlots = config?.timeSlots && Array.isArray(config.timeSlots) && config.timeSlots.length > 0 
+    ? config.timeSlots.filter(slot => slot && typeof slot === 'string')
+    : [];
+  
+  if (validTimeSlots.length === 0) {
+    console.warn('PlanningTable: Configuration des tranches horaires invalide:', { config, timeSlots: config?.timeSlots });
+    return (
+      <div className="table-container">
+        <div style={{ 
+          padding: '20px', 
+          textAlign: 'center', 
+          color: '#e53935', 
+          backgroundColor: '#ffebee',
+          border: '1px solid #e53935',
+          borderRadius: '4px'
+        }}>
+          <h3>⚠️ Configuration des tranches horaires invalide</h3>
+          <p>La configuration des tranches horaires de cette boutique n'est pas valide.</p>
+          <p>Veuillez reconfigurer la boutique dans les paramètres.</p>
+        </div>
+      </div>
+    );
+  }
+  
   const days = Array.from({ length: 7 }, (_, i) => ({
     name: format(addDays(new Date(validWeek), i), 'EEEE', { locale: fr }),
     date: format(addDays(new Date(validWeek), i), 'd MMMM', { locale: fr }),
@@ -189,7 +214,7 @@ const PlanningTable = ({
         <thead>
           <tr>
             <th className="fixed-col header">DE</th>
-            {(config?.timeSlots || []).map((slot, index) => (
+            {validTimeSlots.map((slot, index) => (
               <th key={slot.start || slot} className="scrollable-col header">
                 {typeof slot === 'string' ? slot : slot.start}
               </th>
@@ -197,10 +222,10 @@ const PlanningTable = ({
           </tr>
           <tr>
             <th className="fixed-col header">À</th>
-            {(config?.timeSlots || []).map((slot, index) => (
+            {validTimeSlots.map((slot, index) => (
               <th key={slot.start || slot} className="scrollable-col header">
-                {index < (config?.timeSlots?.length || 0) - 1
-                  ? (typeof config.timeSlots[index + 1] === 'string' ? config.timeSlots[index + 1] : config.timeSlots[index + 1]?.start || '')
+                {index < validTimeSlots.length - 1
+                  ? (typeof validTimeSlots[index + 1] === 'string' ? validTimeSlots[index + 1] : validTimeSlots[index + 1]?.start || '')
                   : getEndTime(typeof slot === 'string' ? slot : slot.start, config?.interval || 30)}
               </th>
             ))}
@@ -209,7 +234,7 @@ const PlanningTable = ({
         <tbody>
           {(selectedEmployees || []).map((employeeId, employeeIndex) => {
             const dayKey = format(addDays(new Date(validWeek), currentDay), 'yyyy-MM-dd');
-            const employeeSlots = planning?.[employeeId]?.[dayKey] || Array(config?.timeSlots?.length || 0).fill(false);
+            const employeeSlots = planning?.[employeeId]?.[dayKey] || Array(validTimeSlots.length).fill(false);
             const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
             
             // Trouver l'employé dans currentShopEmployees pour récupérer son nom
@@ -225,7 +250,7 @@ const PlanningTable = ({
                   {employeeName} ({hours.toFixed(1)} h)
                   {isLocked && <span className="lock-icon">🔒</span>}
                 </td>
-                {(config?.timeSlots || []).map((_, slotIndex) => {
+                {validTimeSlots.map((_, slotIndex) => {
                   const isChecked = employeeSlots[slotIndex] === true;
                   const slotStyle = getSlotStyle(employeeId, currentDay, slotIndex);
 

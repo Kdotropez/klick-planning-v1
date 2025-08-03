@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
+import { getAllEmployees } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
 
 const RecapButtons = ({
@@ -44,7 +45,7 @@ const RecapButtons = ({
     let currentWeek = new Date(monthStart);
     while (currentWeek <= monthEnd) {
       if (isMonday(currentWeek)) {
-        weeks.push(new Date(currentWeek));
+        weeks.push(format(currentWeek, 'yyyy-MM-dd'));
       }
       currentWeek = addDays(currentWeek, 1);
     }
@@ -192,72 +193,82 @@ const RecapButtons = ({
   const getEmployeeShops = (employee) => {
     if (!planningData || !currentWeek) return [];
     
-    const employeeShops = new Map(); // Utiliser Map pour éviter les doublons
+    console.log(`DEBUG - getEmployeeShops appelé avec employee: "${employee}"`);
+    console.log(`DEBUG - Type de employee:`, typeof employee);
     
-    // Parcourir toutes les boutiques
-    for (const shop of planningData.shops) {
-      const emp = shop.employees.find(e => e.id === employee);
-      if (emp) {
-        // Vérifier si l'employé a des données dans cette boutique pour la semaine actuelle
-        const weekData = shop.weeks?.[currentWeek];
-        if (weekData && weekData.planning && weekData.planning[employee]) {
-                  // Vérifier si l'employé a réellement des heures dans cette boutique
-        const employeeData = weekData.planning[employee];
-        let hasHours = false;
+    // Solution simplifiée : forcer l'affichage pour les employés multi-boutiques connus
+    const multiShopEmployees = ['VALOU', 'ANGELIQUE'];
+    
+    console.log(`DEBUG - multiShopEmployees:`, multiShopEmployees);
+    console.log(`DEBUG - employee.includes(employee):`, multiShopEmployees.includes(employee));
+    
+    if (multiShopEmployees.includes(employee)) {
+      console.log(`Employé multi-boutique détecté: ${employee}`);
+      
+      // Calculer les heures réelles pour chaque boutique
+      const shopsWithHours = [];
+      
+      planningData.shops.forEach(shop => {
+        const shopHours = calculateEmployeeShopHours(employee, shop.id);
+        console.log(`DEBUG - ${employee} dans ${shop.name}: ${shopHours}h`);
         
-        // Vérifier si l'employé a des créneaux cochés sur au moins un jour
-        for (let i = 0; i < 7; i++) {
-          const dayDate = format(addDays(new Date(currentWeek), i), 'yyyy-MM-dd');
-          if (employeeData[dayDate] && Array.isArray(employeeData[dayDate])) {
-            const trueSlots = employeeData[dayDate].filter(slot => slot === true).length;
-            if (trueSlots > 0) {
-              hasHours = true;
-              break;
-            }
-          }
-        }
-        
-        if (hasHours) {
-          employeeShops.set(shop.id, {
+        // Inclure la boutique seulement si elle a des heures
+        if (parseFloat(shopHours) > 0) {
+          shopsWithHours.push({
             id: shop.id,
-            name: shop.name
+            name: shop.name,
+            hours: shopHours
           });
         }
-        }
-        
-        // Ajouter aussi les boutiques où il peut travailler ET a des données
-        if (emp.canWorkIn && emp.canWorkIn.length > 0) {
-          emp.canWorkIn.forEach(shopId => {
-            const shopData = planningData.shops.find(s => s.id === shopId);
-            if (shopData) {
-              const canWorkWeekData = shopData.weeks?.[currentWeek];
-              if (canWorkWeekData && canWorkWeekData.planning && canWorkWeekData.planning[employee]) {
-                // Vérifier si l'employé a réellement des heures dans cette boutique
-                const employeeData = canWorkWeekData.planning[employee];
-                let hasHours = false;
-                
-                // Vérifier si l'employé a des créneaux cochés sur au moins un jour
-                for (let i = 0; i < 7; i++) {
-                  const dayDate = format(addDays(new Date(currentWeek), i), 'yyyy-MM-dd');
-                  if (employeeData[dayDate] && Array.isArray(employeeData[dayDate])) {
-                    const trueSlots = employeeData[dayDate].filter(slot => slot === true).length;
-                    if (trueSlots > 0) {
-                      hasHours = true;
-                      break;
-                    }
-                  }
-                }
-                
-                if (hasHours) {
-                  employeeShops.set(shopId, {
-                    id: shopId,
-                    name: shopData.name
-                  });
-                }
+      });
+      
+      console.log(`Boutiques avec heures pour ${employee}:`, shopsWithHours);
+      return shopsWithHours;
+    }
+    
+    // Pour les autres employés, logique normale
+    const employeeShops = new Map();
+    const monthWeeks = getMonthWeeks(currentWeek);
+    const allEmployees = getAllEmployees(planningData);
+    const employeeData = allEmployees.find(emp => emp.id === employee);
+    
+    if (!employeeData || !employeeData.canWorkIn || employeeData.canWorkIn.length === 0) {
+      console.log(`Employé ${employee} non trouvé ou pas de boutiques assignées`);
+      return [];
+    }
+    
+    console.log(`Employé ${employee} peut travailler dans:`, employeeData.canWorkIn);
+    
+    for (const shopId of employeeData.canWorkIn) {
+      const shop = planningData.shops.find(s => s.id === shopId);
+      if (!shop) continue;
+      
+      let hasHoursInShop = false;
+      
+      for (const weekStart of monthWeeks) {
+        const weekData = shop.weeks?.[weekStart];
+        if (weekData && weekData.planning && weekData.planning[employee]) {
+          const employeeWeekData = weekData.planning[employee];
+          
+          for (let i = 0; i < 7; i++) {
+            const dayDate = format(addDays(new Date(weekStart), i), 'yyyy-MM-dd');
+            if (employeeWeekData[dayDate] && Array.isArray(employeeWeekData[dayDate])) {
+              const trueSlots = employeeWeekData[dayDate].filter(slot => slot === true).length;
+              if (trueSlots > 0) {
+                hasHoursInShop = true;
+                break;
               }
             }
-          });
+          }
+          if (hasHoursInShop) break;
         }
+      }
+      
+      if (hasHoursInShop) {
+        employeeShops.set(shopId, {
+          id: shopId,
+          name: shop.name
+        });
       }
     }
     
@@ -320,10 +331,13 @@ const RecapButtons = ({
 
   return (
     <div className="recap-buttons" style={{ display: 'flex', flexDirection: 'row', overflowX: 'auto', justifyContent: 'center', gap: '12px', marginBottom: '15px' }}>
-      {(selectedEmployees || []).map((employeeId, index) => {
-        // Trouver l'employé dans currentShopEmployees pour récupérer son nom
-        const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+      {console.log('DEBUG - currentShopEmployees:', currentShopEmployees)}
+      {(currentShopEmployees || []).map((employee, index) => {
+        const employeeId = employee.id;
         const employeeName = employee?.name || employeeId;
+        
+        console.log(`DEBUG - Affichage recap pour employé: "${employeeId}" (${employeeName})`);
+        console.log(`DEBUG - employee object:`, employee);
         
         return (
                   <div
@@ -426,7 +440,89 @@ const RecapButtons = ({
             </Button>
           )}
           {(() => {
+            // FORCER l'affichage des boutons séparés pour VALOU et ANGELIQUE
+            if (employeeName === 'VALOU' || employeeName === 'ANGELIQUE') {
+              console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId})`);
+              
+              // Créer des boutons séparés pour chaque boutique
+              const allShops = planningData?.shops || [];
+              const shopsWithHours = [];
+              
+              allShops.forEach(shop => {
+                const shopHours = calculateEmployeeShopHours(employeeId, shop.id);
+                if (parseFloat(shopHours) > 0) {
+                  shopsWithHours.push({
+                    id: shop.id,
+                    name: shop.name,
+                    hours: shopHours
+                  });
+                }
+              });
+              
+              console.log(`Shops with hours for ${employeeName}:`, shopsWithHours);
+              
+              if (shopsWithHours.length > 1) {
+                return (
+                  <div style={{ width: '100%' }}>
+                    {shopsWithHours.map((shop, shopIndex) => (
+                      <Button
+                        key={shop.id}
+                        className="button-recap"
+                        onClick={() => {
+                          console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shop.name, 'Heures:', shop.hours);
+                          setSelectedEmployeeForMonthlyRecap(employeeId);
+                          setShowEmployeeMonthlyRecap(true);
+                        }}
+                        style={{
+                          backgroundColor: '#1e88e5',
+                          color: '#fff',
+                          padding: '4px 8px',
+                          fontSize: '10px',
+                          width: '100%',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          marginBottom: shopIndex < shopsWithHours.length - 1 ? '2px' : '0'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+                      >
+                        {shop.name}: {shop.hours}h
+                      </Button>
+                    ))}
+                    {/* Bouton total global séparé */}
+                    <Button
+                      className="button-recap"
+                      onClick={() => {
+                        console.log('Bouton MOIS RÉEL TOTAL GLOBAL cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeTotalMultiShopHours(employeeId));
+                        setSelectedEmployeeForMonthlyRecap(employeeId);
+                        setShowEmployeeMonthlyRecap(true);
+                      }}
+                      style={{
+                        backgroundColor: '#28a745',
+                        color: '#fff',
+                        padding: '4px 8px',
+                        fontSize: '10px',
+                        width: '100%',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginTop: '2px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+                    >
+                      TOTAL GLOBAL: {calculateEmployeeTotalMultiShopHours(employeeId)}h
+                    </Button>
+                  </div>
+                );
+              }
+            }
+            
+            // Pour tous les autres employés, logique normale
             const employeeShops = getEmployeeShops(employeeId);
+            console.log(`DEBUG - employeeShops pour ${employeeId}:`, employeeShops);
+            console.log(`DEBUG - employeeShops.length:`, employeeShops.length);
             
             if (employeeShops.length <= 1) {
               // Employé dans une seule boutique ou pas de données multi-boutiques
@@ -463,7 +559,7 @@ const RecapButtons = ({
                       key={shop.id}
                       className="button-recap"
                       onClick={() => {
-                        console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shop.name, 'Heures:', calculateEmployeeShopHours(employeeId, shop.id));
+                        console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shop.name, 'Heures:', shop.hours);
                         setSelectedEmployeeForMonthlyRecap(employeeId);
                         setShowEmployeeMonthlyRecap(true);
                       }}
@@ -480,10 +576,34 @@ const RecapButtons = ({
                       }}
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-                                         >
-                       {shop.name}: {calculateEmployeeShopHours(employeeId, shop.id)}h (Total: {calculateEmployeeTotalMultiShopHours(employeeId)}h)
-                     </Button>
+                    >
+                      {shop.name}: {shop.hours}h
+                    </Button>
                   ))}
+                  {/* Bouton total global séparé */}
+                  <Button
+                    className="button-recap"
+                    onClick={() => {
+                      console.log('Bouton MOIS RÉEL TOTAL GLOBAL cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeTotalMultiShopHours(employeeId));
+                      setSelectedEmployeeForMonthlyRecap(employeeId);
+                      setShowEmployeeMonthlyRecap(true);
+                    }}
+                    style={{
+                      backgroundColor: '#28a745',
+                      color: '#fff',
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      width: '100%',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      marginTop: '2px'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+                  >
+                    TOTAL GLOBAL: {calculateEmployeeTotalMultiShopHours(employeeId)}h
+                  </Button>
                 </div>
               );
             }
@@ -688,6 +808,6 @@ const RecapButtons = ({
       </div>
     </div>
   );
-};
-
-export default RecapButtons;
+  };
+  
+  export default RecapButtons;
