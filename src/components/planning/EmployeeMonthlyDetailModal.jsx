@@ -569,34 +569,45 @@ const EmployeeMonthlyDetailModal = ({
     
     if (!planningData?.shops) return daysOutsideMonth;
     
-    planningData.shops.forEach(shop => {
-      if (shop && shop.weeks) {
-        Object.keys(shop.weeks).forEach(weekKey => {
-          const weekData = shop.weeks[weekKey];
-          if (weekData && weekData.planning && weekData.planning[selectedEmployeeForMonthlyDetail]) {
-            Object.keys(weekData.planning[selectedEmployeeForMonthlyDetail]).forEach(dayStr => {
-              const dayDate = new Date(dayStr);
-              const monthStart = startOfMonth(new Date(selectedWeek));
-              const monthEnd = endOfMonth(new Date(selectedWeek));
-              
-              // Si le jour est en dehors du mois (avant OU après) ET a des créneaux sélectionnés
-              if (dayDate < monthStart || dayDate > monthEnd) {
-                const slots = weekData.planning[selectedEmployeeForMonthlyDetail][dayStr];
-                if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                  const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: slots } }, config);
-                  daysOutsideMonth.push({
-                    date: dayStr,
-                    shopName: shop.name || shop.id,
-                    hours: hours,
-                    dayName: format(dayDate, 'EEEE', { locale: fr }),
-                    dayDate: format(dayDate, 'dd/MM/yyyy', { locale: fr }),
-                    isBeforeMonth: dayDate < monthStart
-                  });
-                }
+    // Ne regarder que la boutique sélectionnée
+    const selectedShopData = planningData.shops.find(shop => shop.id === selectedShop);
+    if (!selectedShopData || !selectedShopData.weeks) return daysOutsideMonth;
+    
+    // Trouver les semaines qui chevauchent le mois sélectionné
+    const monthStart = startOfMonth(new Date(selectedWeek));
+    const monthEnd = endOfMonth(new Date(selectedWeek));
+    
+    Object.keys(selectedShopData.weeks).forEach(weekKey => {
+      const weekStart = new Date(weekKey);
+      const weekEnd = addDays(weekStart, 6);
+      
+      // Vérifier si cette semaine chevauche le mois sélectionné
+      const overlapsMonth = (weekStart <= monthEnd && weekEnd >= monthStart);
+      
+      if (overlapsMonth) {
+        const weekData = selectedShopData.weeks[weekKey];
+        if (weekData && weekData.planning && weekData.planning[selectedEmployeeForMonthlyDetail]) {
+          Object.keys(weekData.planning[selectedEmployeeForMonthlyDetail]).forEach(dayStr => {
+            const dayDate = new Date(dayStr);
+            
+            // Si le jour est en dehors du mois (avant OU après) ET a des créneaux sélectionnés
+            if (dayDate < monthStart || dayDate > monthEnd) {
+              const slots = weekData.planning[selectedEmployeeForMonthlyDetail][dayStr];
+              if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: slots } }, config);
+                daysOutsideMonth.push({
+                  date: dayStr,
+                  shopName: selectedShopData.name || selectedShopData.id,
+                  hours: hours,
+                  dayName: format(dayDate, 'EEEE', { locale: fr }),
+                  dayDate: format(dayDate, 'dd/MM/yyyy', { locale: fr }),
+                  isBeforeMonth: dayDate < monthStart,
+                  weekKey: weekKey
+                });
               }
-            });
-          }
-        });
+            }
+          });
+        }
       }
     });
     
@@ -689,12 +700,13 @@ const EmployeeMonthlyDetailModal = ({
                            <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Date</th>
                            <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Boutique</th>
                            <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Heures</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Statut</th>
                          </tr>
                        </thead>
                        <tbody>
                          {daysOutsideMonth.map((day, index) => (
                            <tr key={index} style={{ 
-                             backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                             backgroundColor: day.isBeforeMonth ? '#fff3cd' : '#e3f2fd',
                              borderLeft: day.isBeforeMonth ? '4px solid #ffc107' : '4px solid #17a2b8'
                            }}>
                              <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>
@@ -713,6 +725,17 @@ const EmployeeMonthlyDetailModal = ({
                              <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>
                                {day.hours.toFixed(1)} h
                              </td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontSize: '10px' }}>
+                               <span style={{ 
+                                 padding: '2px 6px', 
+                                 borderRadius: '4px', 
+                                 fontWeight: 'bold',
+                                 color: 'white',
+                                 backgroundColor: day.isBeforeMonth ? '#28a745' : '#007bff'
+                               }}>
+                                 {day.isBeforeMonth ? '✓ Payé' : '⏳ Fragmenté'}
+                               </span>
+                             </td>
                            </tr>
                          ))}
                          <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
@@ -721,6 +744,11 @@ const EmployeeMonthlyDetailModal = ({
                            </td>
                            <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
                              {daysOutsideMonth.reduce((total, day) => total + day.hours, 0).toFixed(1)} h
+                           </td>
+                           <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                             <span style={{ fontSize: '10px', color: '#6c757d' }}>
+                               {daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h payées / {daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h fragmentées
+                             </span>
                            </td>
                          </tr>
                        </tbody>
@@ -738,22 +766,24 @@ const EmployeeMonthlyDetailModal = ({
                            display: 'inline-block', 
                            width: '12px', 
                            height: '12px', 
-                           backgroundColor: '#ffc107', 
+                           backgroundColor: '#fff3cd', 
+                           border: '1px solid #ffc107',
                            marginRight: '4px',
                            borderRadius: '2px'
                          }}></span>
-                         Jours du mois précédent
+                         <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ Heures déjà payées</span>
                        </span>
                        <span style={{ display: 'flex', alignItems: 'center' }}>
                          <span style={{ 
                            display: 'inline-block', 
                            width: '12px', 
                            height: '12px', 
-                           backgroundColor: '#17a2b8', 
+                           backgroundColor: '#e3f2fd', 
+                           border: '1px solid #17a2b8',
                            marginRight: '4px',
                            borderRadius: '2px'
                          }}></span>
-                         Jours du mois suivant
+                         <span style={{ color: '#007bff', fontWeight: 'bold' }}>⏳ Semaine fragmentée (report août)</span>
                        </span>
                      </div>
                      <p style={{ 
@@ -763,7 +793,8 @@ const EmployeeMonthlyDetailModal = ({
                        textAlign: 'center',
                        fontStyle: 'italic'
                      }}>
-                       Ces heures ne sont pas incluses dans le total mensuel affiché ci-dessous
+                       Ces heures proviennent de semaines fragmentées à cheval sur deux mois. 
+                       Même une semaine complète de 35h peut être divisée entre deux paies.
                      </p>
                    </div>
                  )}

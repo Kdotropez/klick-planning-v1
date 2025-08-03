@@ -99,7 +99,15 @@ const WeeklyPlanningPrint = ({
       } else {
         // Fin d'une période
         if (currentPeriod !== null) {
-          periods.push(currentPeriod);
+          // Calculer l'heure de fin en ajoutant l'intervalle
+          const startMinutes = parseInt(currentPeriod.start.split(':')[0]) * 60 + parseInt(currentPeriod.start.split(':')[1]);
+          const endMinutes = parseInt(currentPeriod.end.split(':')[0]) * 60 + parseInt(currentPeriod.end.split(':')[1]) + config.interval;
+          const endTimeFormatted = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
+          
+          periods.push({
+            start: currentPeriod.start,
+            end: endTimeFormatted
+          });
           currentPeriod = null;
         }
       }
@@ -107,7 +115,15 @@ const WeeklyPlanningPrint = ({
     
     // Ajouter la dernière période si elle existe
     if (currentPeriod !== null) {
-      periods.push(currentPeriod);
+      // Calculer l'heure de fin en ajoutant l'intervalle
+      const startMinutes = parseInt(currentPeriod.start.split(':')[0]) * 60 + parseInt(currentPeriod.start.split(':')[1]);
+      const endMinutes = parseInt(currentPeriod.end.split(':')[0]) * 60 + parseInt(currentPeriod.end.split(':')[1]) + config.interval;
+      const endTimeFormatted = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
+      
+      periods.push({
+        start: currentPeriod.start,
+        end: endTimeFormatted
+      });
     }
     
     // Si aucune période trouvée mais des créneaux actifs, créer une période simple
@@ -402,21 +418,21 @@ const WeeklyPlanningPrint = ({
                  }}>
                    Jour
                  </th>
-                                                    {shopEmployees.map((employee, empIndex) => (
-                   <th key={empIndex} style={{
-                     border: '1px solid #333',
-                     padding: '10px',
-                     textAlign: 'center',
-                     fontWeight: 'bold',
-                     fontSize: `${fontSizes.base}px`,
-                     flex: 1,
-                     display: 'flex',
-                     alignItems: 'center',
-                     justifyContent: 'center'
-                   }}>
-                     <div>{employee.name}</div>
-                   </th>
-                 ))}
+                                                                                                                                                                                                                   {shopEmployees.map((employee, empIndex) => (
+                     <th key={empIndex} style={{
+                       border: '1px solid #333',
+                       padding: '10px',
+                       textAlign: 'center',
+                       fontWeight: 'bold',
+                       fontSize: `${fontSizes.base}px`,
+                       flex: 1,
+                       display: 'flex',
+                       alignItems: 'center',
+                       justifyContent: 'center'
+                     }}>
+                       {employee.name}
+                     </th>
+                   ))}
                </tr>
              </thead>
                                         <tbody style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -442,59 +458,91 @@ const WeeklyPlanningPrint = ({
                        {format(day, 'dd/MM', { locale: fr })}
                      </div>
                    </td>
-                    {shopEmployees.map((employee, empIndex) => {
-                      const status = getEmployeeStatus(employee.id, day);
-                      const schedule = getEmployeeSchedule(employee.id, day);
-                      
-                      let backgroundColor = '#ffffff';
-                      let color = '#333';
-                      
-                      if (status === 'Non présent') {
-                        backgroundColor = '#e2e3e5';
-                        color = '#495057';
-                      } else if (status === 'Repos') {
-                        backgroundColor = '#f8d7da';
-                        color = '#721c24';
-                      } else if (status === 'Demi-journée') {
-                        backgroundColor = '#fff3cd';
-                        color = '#856404';
-                      } else if (status === 'Présent') {
-                        backgroundColor = '#d4edda';
-                        color = '#155724';
-                      }
+                                         {shopEmployees.map((employee, empIndex) => {
+                       const status = getEmployeeStatus(employee.id, day);
+                       const schedule = getEmployeeSchedule(employee.id, day);
+                       
+                       let backgroundColor = '#ffffff';
+                       let color = '#333';
+                       
+                       if (status === 'Non présent') {
+                         backgroundColor = '#e2e3e5';
+                         color = '#495057';
+                       } else if (status === 'Repos') {
+                         backgroundColor = '#f8d7da';
+                         color = '#721c24';
+                       } else if (status === 'Demi-journée') {
+                         backgroundColor = '#fff3cd';
+                         color = '#856404';
+                       } else if (status === 'Présent') {
+                         backgroundColor = '#d4edda';
+                         color = '#155724';
+                       }
 
-                      return (
-                                                                          <td key={empIndex} style={{
+                       return (
+                         <td key={empIndex} style={{
                            border: '1px solid #333',
-                           padding: '10px',
-                           textAlign: 'center',
-                           fontSize: `${fontSizes.small}px`,
+                           padding: '0',
                            backgroundColor,
                            color,
                            flex: 1,
                            display: 'flex',
-                           flexDirection: 'column',
-                           justifyContent: 'center',
-                           alignItems: 'center'
+                           flexDirection: 'row'
                          }}>
-                           <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: `${fontSizes.base}px` }}>
-                             {status}
-                           </div>
-                           {schedule.hours > 0 && (
-                             <>
-                               {schedule.periods.map((period, periodIndex) => (
-                                 <div key={periodIndex} style={{ fontSize: `${fontSizes.small}px`, marginBottom: '2px' }}>
-                                   {period.start} - {period.end}
+                           {/* Partie principale (2/3) - Données existantes */}
+                           <div style={{
+                             flex: '2',
+                             padding: '10px',
+                             textAlign: 'center',
+                             fontSize: `${fontSizes.small}px`,
+                             display: 'flex',
+                             flexDirection: 'column',
+                             justifyContent: 'center',
+                             alignItems: 'center',
+                             borderRight: '1px solid #333'
+                           }}>
+                             <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: `${fontSizes.base}px` }}>
+                               {status}
+                             </div>
+                             {schedule.hours > 0 && (
+                               <>
+                                 {schedule.periods.map((period, periodIndex) => (
+                                   <div key={periodIndex} style={{ fontSize: `${fontSizes.small}px`, marginBottom: '2px' }}>
+                                     {period.start} - {period.end}
+                                   </div>
+                                 ))}
+                                 <div style={{ fontSize: `${fontSizes.small}px`, fontWeight: 'bold', marginTop: '2px' }}>
+                                   {schedule.hours}h
                                  </div>
-                               ))}
-                               <div style={{ fontSize: `${fontSizes.small}px`, fontWeight: 'bold', marginTop: '2px' }}>
-                                 {schedule.hours}h
-                               </div>
-                             </>
-                           )}
+                               </>
+                             )}
+                           </div>
+                           
+                                                       {/* Partie heures supplémentaires (1/3) */}
+                            <div style={{
+                              flex: '1',
+                              padding: '5px',
+                              textAlign: 'center',
+                              fontSize: `${fontSizes.small}px`,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              backgroundColor: '#fff3cd',
+                              borderLeft: '1px solid #ffeaa7'
+                            }}>
+                              <div style={{ 
+                                fontSize: `${fontSizes.small}px`,
+                                color: '#856404',
+                                fontStyle: 'italic',
+                                minHeight: '20px'
+                              }}>
+                                --.-- H
+                              </div>
+                            </div>
                          </td>
-                      );
-                    })}
+                       );
+                     })}
                     
                   </tr>
                 ))}
@@ -519,29 +567,53 @@ const WeeklyPlanningPrint = ({
                    }}>
                      Total Heures
                    </td>
-                  {shopEmployees.map((employee, empIndex) => {
-                    let totalEmployeeHours = 0;
-                    weekDays.forEach(day => {
-                      totalEmployeeHours += getEmployeeHours(employee.id, day);
-                    });
+                                     {shopEmployees.map((employee, empIndex) => {
+                     let totalEmployeeHours = 0;
+                     weekDays.forEach(day => {
+                       totalEmployeeHours += getEmployeeHours(employee.id, day);
+                     });
 
-                                         return (
+                     return (
                        <td key={empIndex} style={{
                          border: '1px solid #333',
-                         padding: '10px',
+                         padding: '0',
                          textAlign: 'center',
                          fontWeight: 'bold',
                          fontSize: `${fontSizes.base}px`,
                          backgroundColor: '#e9ecef',
                          flex: 1,
                          display: 'flex',
-                         alignItems: 'center',
-                         justifyContent: 'center'
+                         flexDirection: 'row'
                        }}>
-                         {totalEmployeeHours.toFixed(1)}h
+                         {/* Partie principale (2/3) - Total heures normales */}
+                         <div style={{
+                           flex: '2',
+                           padding: '10px',
+                           display: 'flex',
+                           alignItems: 'center',
+                           justifyContent: 'center',
+                           borderRight: '1px solid #333'
+                         }}>
+                           {totalEmployeeHours.toFixed(1)}h
+                         </div>
+                         
+                                                   {/* Partie heures supplémentaires (1/3) - Total heures supp. */}
+                          <div style={{
+                            flex: '1',
+                            padding: '5px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#fff3cd',
+                            borderLeft: '1px solid #ffeaa7',
+                            fontSize: `${fontSizes.small}px`,
+                            color: '#856404'
+                          }}>
+                            --.-- H
+                          </div>
                        </td>
                      );
-                  })}
+                   })}
                   
                 </tr>
               </tbody>
@@ -627,31 +699,73 @@ const WeeklyPlanningPrint = ({
                 </div>
               </div>
              
-                                                       <h4 style={{ margin: '15px 0 10px 0', fontSize: `${fontSizes.base}px` }}>Informations sur les horaires :</h4>
-             <div style={{ fontSize: `${fontSizes.small}px`, lineHeight: '1.4' }}>
-                <p style={{ margin: '0 0 5px 0' }}>
-                  <strong>Format des horaires :</strong> Chaque ligne = une période de travail (ex: 09:00 - 12:00)
-                </p>
-                <p style={{ margin: '0 0 5px 0' }}>
-                  <strong>Pauses :</strong> Les espaces entre les périodes représentent les pauses
-                </p>
-                <p style={{ margin: '0 0 5px 0' }}>
-                  <strong>Heures travaillées :</strong> Total des heures effectuées par jour
-                </p>
-                                 <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Demi-journée :</strong> Moins de 4 heures de travail
+                                                                                                               <h4 style={{ margin: '15px 0 10px 0', fontSize: `${fontSizes.base}px` }}>Informations sur les horaires :</h4>
+              <div style={{ fontSize: `${fontSizes.small}px`, lineHeight: '1.4' }}>
+                 <p style={{ margin: '0 0 5px 0' }}>
+                   <strong>Structure des colonnes :</strong> Chaque colonne employé est divisée en 2 parties
                  </p>
                  <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Présent :</strong> 4 heures ou plus de travail
+                   <strong>Partie principale (2/3) :</strong> Statut, horaires normaux et heures travaillées
+                 </p>
+                                   <p style={{ margin: '0 0 5px 0' }}>
+                    <strong>Partie heures supplémentaires (1/3) :</strong> Zone jaune avec "--.-- H" pour noter les heures supp.
+                  </p>
+                 <p style={{ margin: '0 0 5px 0' }}>
+                   <strong>Format des horaires :</strong> Chaque ligne = une période de travail (ex: 09:00 - 12:00)
                  </p>
                  <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Repos :</strong> Employé en congé/vacances dans sa boutique principale
+                   <strong>Pauses :</strong> Les espaces entre les périodes représentent les pauses
                  </p>
-                 <p style={{ margin: '0' }}>
-                   <strong>Non présent :</strong> Employé qui ne travaille pas dans cette boutique (pas sa boutique principale)
+                 <p style={{ margin: '0 0 5px 0' }}>
+                   <strong>Heures travaillées :</strong> Total des heures effectuées par jour
                  </p>
-              </div>
+                                  <p style={{ margin: '0 0 5px 0' }}>
+                    <strong>Demi-journée :</strong> Moins de 4 heures de travail
+                  </p>
+                  <p style={{ margin: '0 0 5px 0' }}>
+                    <strong>Présent :</strong> 4 heures ou plus de travail
+                  </p>
+                  <p style={{ margin: '0 0 5px 0' }}>
+                    <strong>Repos :</strong> Employé en congé/vacances dans sa boutique principale
+                  </p>
+                  <p style={{ margin: '0' }}>
+                    <strong>Non présent :</strong> Employé qui ne travaille pas dans cette boutique (pas sa boutique principale)
+                  </p>
+               </div>
            </div>
+
+            {/* Zone de notes pour heures supplémentaires */}
+            <div style={{
+              marginTop: '20px',
+              padding: '12px',
+              backgroundColor: '#fff3cd',
+              borderRadius: '6px',
+              border: '1px solid #ffeaa7',
+              fontSize: `${fontSizes.small}px`,
+              color: '#856404',
+              flexShrink: 0
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: `${fontSizes.base}px` }}>📝 Notes - Heures Supplémentaires :</h4>
+              <div style={{ 
+                border: '1px solid #ffeaa7', 
+                backgroundColor: 'white', 
+                minHeight: '60px', 
+                padding: '8px',
+                fontSize: `${fontSizes.small}px`,
+                lineHeight: '1.4'
+              }}>
+                <p style={{ margin: '0 0 5px 0', fontStyle: 'italic', color: '#856404' }}>
+                  Espace pour noter les heures supplémentaires, congés exceptionnels, ou remarques importantes :
+                </p>
+                <div style={{ 
+                  borderTop: '1px dashed #ffeaa7', 
+                  paddingTop: '8px',
+                  minHeight: '40px'
+                }}>
+                  {/* Zone pour écrire manuellement */}
+                </div>
+              </div>
+            </div>
 
                                 {/* Pied de page */}
            <div style={{

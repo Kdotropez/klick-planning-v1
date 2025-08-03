@@ -19,6 +19,7 @@ import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
 import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
 import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import CopyPastePage from './CopyPastePage';
+import NotesModal from './NotesModal';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -66,6 +67,9 @@ const PlanningDisplay = ({
   
   // État pour la page copier-coller avancé
   const [showCopyPastePage, setShowCopyPastePage] = useState(false);
+  
+  // État pour la modale de notes
+  const [showNotesModal, setShowNotesModal] = useState(false);
   
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
@@ -1235,6 +1239,41 @@ const PlanningDisplay = ({
         </button>
         
         <button
+          onClick={() => setShowNotesModal(true)}
+          style={{
+            background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 4px 12px rgba(255, 193, 7, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #e0a800 0%, #b8860b 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(255, 193, 7, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 193, 7, 0.4)';
+          }}
+        >
+          📝 Notes
+        </button>
+        
+        <button
           onClick={() => setShowResetModal(true)}
           style={{
             background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
@@ -2373,6 +2412,20 @@ const PlanningDisplay = ({
           </div>
         </div>
       )}
+
+      {/* Modale de notes */}
+      <NotesModal
+        showNotesModal={showNotesModal}
+        setShowNotesModal={setShowNotesModal}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        employees={currentShopEmployees}
+        planningData={planningData}
+        onSaveNotes={(notes) => {
+          console.log('Notes sauvegardées:', notes);
+          setFeedback('✅ Notes sauvegardées avec succès');
+        }}
+      />
     </div>
   );
 };
