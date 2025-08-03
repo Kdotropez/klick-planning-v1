@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
+import { getWeekPlanning } from '../../utils/planningDataManager';
 import '@/assets/styles.css';
 
 const MonthlyRecapModals = ({
@@ -13,7 +14,8 @@ const MonthlyRecapModals = ({
   selectedShop,
   selectedWeek,
   selectedEmployees,
-  shops
+  shops,
+  planningData
 }) => {
   // Ne rien afficher si la modale n'est pas visible
   if (!showMonthlyRecapModal) {
@@ -43,9 +45,10 @@ const MonthlyRecapModals = ({
       const weekStart = startOfWeek(dayDate, { weekStartsOn: 1 });
       const weekKey = format(weekStart, 'yyyy-MM-dd');
       
-      // Charger les données de la semaine
-      const selectedEmployeesForShop = loadFromLocalStorage(`selected_employees_${selectedShop}_${weekKey}`, []);
-      const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, {});
+      // Utiliser getWeekPlanning pour normaliser les données
+      const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
+      const selectedEmployeesForShop = weekData.selectedEmployees || [];
+      const weekPlanning = weekData.planning || {};
       
       // Calculer les heures pour chaque employé
       selectedEmployeesForShop.forEach(employee => {
@@ -79,8 +82,9 @@ const MonthlyRecapModals = ({
       const weekStart = startOfWeek(dayDate, { weekStartsOn: 1 });
       const weekKey = format(weekStart, 'yyyy-MM-dd');
       
-      // Charger les données de la semaine
-      const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, {});
+      // Utiliser getWeekPlanning pour normaliser les données
+      const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
+      const weekPlanning = weekData.planning || {};
       
       // Calculer les heures pour l'employé
       const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning, config);

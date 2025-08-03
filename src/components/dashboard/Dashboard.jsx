@@ -3,6 +3,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from 'da
 import { fr } from 'date-fns/locale';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getAllEmployees, isEmployeeOnLeave, getEmployeesByMainShop, determineEmployeeMainShop, updateAllMainShops } from '../../utils/planningDataManager';
+import WeeklyPlanningPrint from './WeeklyPlanningPrint';
 
 const Dashboard = ({ 
   selectedShop, 
@@ -12,7 +13,10 @@ const Dashboard = ({
   planningData,
   onShopChange,
   onWeekChange,
-  onMonthChange
+  onMonthChange,
+  shops,
+  employees,
+  config
 }) => {
   const [dashboardData, setDashboardData] = useState({
     totalLeaveDays: 0,
@@ -22,6 +26,7 @@ const Dashboard = ({
     shopStats: [],
     monthStats: []
   });
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Calcul des employés de la boutique (en dehors du useMemo pour être accessible dans le JSX)
   const shopEmployees = useMemo(() => {
@@ -304,6 +309,48 @@ const Dashboard = ({
             </select>
           </div>
         </div>
+        
+        {/* Bouton d'impression du planning hebdomadaire */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginTop: '20px',
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '10px',
+          border: '2px solid #dee2e6'
+        }}>
+          <button
+            onClick={() => setShowPrintModal(true)}
+            style={{
+              background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+              color: 'white',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '600',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 12px rgba(0, 123, 255, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #0056b3 0%, #004085 100%)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 123, 255, 0.6)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
+            }}
+          >
+            🖨️ Imprimer Planning Hebdomadaire
+          </button>
+        </div>
       </div>
 
       <p className="dashboard-subtitle">
@@ -457,6 +504,19 @@ const Dashboard = ({
            </div>
          </div>
        </div>
+      
+      {/* Modale d'impression du planning hebdomadaire */}
+      {showPrintModal && (
+        <WeeklyPlanningPrint
+          selectedShop={selectedShop}
+          selectedWeek={selectedWeek}
+          planningData={planningData}
+          shops={shops}
+          employees={employees}
+          config={config}
+          onClose={() => setShowPrintModal(false)}
+        />
+      )}
     </div>
   );
 };

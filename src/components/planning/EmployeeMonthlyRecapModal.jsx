@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
+import { getWeekPlanning } from '../../utils/planningDataManager';
 import '@/assets/styles.css';
 
 const EmployeeMonthlyRecapModal = ({
@@ -71,46 +72,60 @@ const EmployeeMonthlyRecapModal = ({
 
   const calculateTotalHours = () => {
     let totalHours = 0;
-    const weeks = getMonthWeeks(selectedWeek);
+    
+    // Calculer seulement pour les jours du mois (1er au dernier jour)
+    const start = startOfMonth(new Date(selectedWeek));
+    const end = endOfMonth(new Date(selectedWeek));
     
     // Ne calculer que pour la boutique actuelle
     const currentShop = shops.find(shop => shop.id === selectedShop);
     if (currentShop) {
-      weeks.forEach(week => {
-        const weekKey = format(week, 'yyyy-MM-dd');
-        // Utiliser planningData au lieu de localStorage
-        const shopData = planningData?.shops?.find(s => s.id === currentShop.id);
-        if (!shopData?.weeks?.[weekKey]) return;
+      // Parcourir chaque jour du mois
+      let currentDay = start;
+      while (currentDay <= end) {
+        const dayKey = format(currentDay, 'yyyy-MM-dd');
         
-        const weekData = shopData.weeks[weekKey];
-        if (!weekData.selectedEmployees?.includes(selectedEmployeeForMonthlyRecap)) return;
+        // Trouver la semaine qui contient ce jour
+        const weekStart = startOfWeek(currentDay, { weekStartsOn: 1 });
+        const weekKey = format(weekStart, 'yyyy-MM-dd');
         
-        const weekPlanning = weekData.planning || {};
-        for (let i = 0; i < 7; i++) {
-          const day = format(addDays(week, i), 'yyyy-MM-dd');
-          const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, weekPlanning, config);
+        // Utiliser getWeekPlanning pour normaliser les données
+        const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
+        if (weekData.selectedEmployees?.includes(selectedEmployeeForMonthlyRecap)) {
+          const weekPlanning = weekData.planning || {};
+          const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, dayKey, weekPlanning, config);
           totalHours += hours;
         }
-      });
+        
+        currentDay = addDays(currentDay, 1);
+      }
     }
     return totalHours.toFixed(1);
   };
 
   const calculateShopWeeklyHours = (shopId, week) => {
     const weekKey = format(week, 'yyyy-MM-dd');
-    // Utiliser planningData au lieu de localStorage
-    const shopData = planningData?.shops?.find(s => s.id === shopId);
-    if (!shopData?.weeks?.[weekKey]) return 0;
     
-    const weekData = shopData.weeks[weekKey];
+    // Utiliser getWeekPlanning pour normaliser les données
+    const weekData = getWeekPlanning(planningData, shopId, weekKey);
     if (!weekData.selectedEmployees?.includes(selectedEmployeeForMonthlyRecap)) return 0;
     
     const weekPlanning = weekData.planning || {};
     let weekHours = 0;
+    
+    // Calculer seulement pour les jours de cette semaine qui appartiennent au mois
+    const start = startOfMonth(new Date(selectedWeek));
+    const end = endOfMonth(new Date(selectedWeek));
+    
     for (let i = 0; i < 7; i++) {
       const day = format(addDays(week, i), 'yyyy-MM-dd');
-      const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, weekPlanning, config);
-      weekHours += hours;
+      const dayDate = new Date(day);
+      
+      // Ne calculer que si le jour appartient au mois
+      if (dayDate >= start && dayDate <= end) {
+        const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, weekPlanning, config);
+        weekHours += hours;
+      }
     }
     return weekHours.toFixed(1);
   };

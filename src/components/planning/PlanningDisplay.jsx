@@ -18,6 +18,7 @@ import EmployeeMonthlyWeeklyModal from './EmployeeMonthlyWeeklyModal';
 import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
 import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
 import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
+import CopyPastePage from './CopyPastePage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -62,6 +63,9 @@ const PlanningDisplay = ({
 
   // État pour le tableau de bord
   const [showDashboard, setShowDashboard] = useState(false);
+  
+  // État pour la page copier-coller avancé
+  const [showCopyPastePage, setShowCopyPastePage] = useState(false);
   
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
@@ -644,28 +648,70 @@ const PlanningDisplay = ({
   };
 
   const handleReset = (resetType, employeeName = null) => {
-    if (resetType === 'all') {
-      // Effacer tous les clics
-      setPlanning({});
-      setFeedback('Tous les clics réinitialisés');
-    } else if (resetType === 'employee' && employeeName) {
-      // Effacer les clics d'un employé spécifique
-      const newPlanning = { ...planning };
-      // Supprimer toutes les entrées pour cet employé
-      Object.keys(newPlanning).forEach(key => {
-        if (key.startsWith(employeeName + '_')) {
-          delete newPlanning[key];
+    try {
+      if (resetType === 'all') {
+        // Effacer tous les clics de la semaine
+        const emptyPlanning = {};
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          emptyPlanning,
+          []
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(emptyPlanning);
+        setLocalSelectedEmployees([]);
+        setFeedback('✅ Tous les clics de la semaine ont été effacés');
+      } else if (resetType === 'employee' && employeeName) {
+        // Effacer les clics d'un employé spécifique
+        const currentWeekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
+        const newPlanning = { ...currentWeekData.planning };
+        
+        // Supprimer toutes les entrées pour cet employé
+        if (newPlanning[employeeName]) {
+          delete newPlanning[employeeName];
         }
-      });
-      setPlanning(newPlanning);
-      setFeedback(`Clics de ${employeeName} réinitialisés`);
-    } else if (resetType === 'week') {
-      setPlanning({});
-      setLocalSelectedEmployees([]);
-      setFeedback('Semaine réinitialisée');
-    } else if (resetType === 'clicks') {
-      setPlanning({});
-      setFeedback('Clics réinitialisés');
+        
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          newPlanning,
+          currentWeekData.selectedEmployees || []
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(newPlanning);
+        setFeedback(`✅ Clics de ${employeeName} ont été effacés`);
+      } else if (resetType === 'week') {
+        const emptyPlanning = {};
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          emptyPlanning,
+          []
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(emptyPlanning);
+        setLocalSelectedEmployees([]);
+        setFeedback('✅ Semaine réinitialisée');
+      } else if (resetType === 'clicks') {
+        const emptyPlanning = {};
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          emptyPlanning,
+          localSelectedEmployees
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(emptyPlanning);
+        setFeedback('✅ Clics réinitialisés');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la réinitialisation:', error);
+      setFeedback('❌ Erreur lors de la réinitialisation');
     }
   };
 
@@ -855,6 +901,19 @@ const PlanningDisplay = ({
     );
   }
 
+  // Si la page copier-coller est active, afficher seulement cette page
+  if (showCopyPastePage) {
+    return (
+      <CopyPastePage
+        planningData={planningData}
+        setPlanningData={setPlanningData}
+        selectedShop={selectedShop}
+        selectedWeek={selectedWeek}
+        onBack={() => setShowCopyPastePage(false)}
+      />
+    );
+  }
+
   return (
     <div className="planning-display" style={{
       width: '100%',
@@ -949,9 +1008,9 @@ const PlanningDisplay = ({
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        gap: deviceInfo.isTablet ? '25px' : '20px',
+        gap: deviceInfo.isTablet ? '15px' : '12px',
         flexWrap: 'nowrap',
-        padding: deviceInfo.isTablet ? '30px 35px' : '25px 30px',
+        padding: deviceInfo.isTablet ? '20px 25px' : '15px 20px',
         background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
         borderRadius: deviceInfo.isTablet ? '24px' : '20px',
         border: '2px solid #dee2e6',
@@ -966,18 +1025,18 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '18px 28px' : '16px 24px',
-            fontSize: deviceInfo.isTablet ? '18px' : '16px',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
             border: 'none',
-            borderRadius: '16px',
+            borderRadius: '12px',
             cursor: 'pointer',
-            fontWeight: '800',
+            fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 6px 16px rgba(25, 118, 210, 0.4)',
+            boxShadow: '0 4px 12px rgba(25, 118, 210, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '60px' : '52px',
-            minWidth: deviceInfo.isTablet ? '200px' : '180px',
-            letterSpacing: '1px',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
@@ -993,7 +1052,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
           }}
         >
-          📊 Vue globale par jour
+          📊 Vue Jour
         </button>
         
         <button
@@ -1001,18 +1060,18 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '18px 28px' : '16px 24px',
-            fontSize: deviceInfo.isTablet ? '18px' : '16px',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
             border: 'none',
-            borderRadius: '16px',
+            borderRadius: '12px',
             cursor: 'pointer',
-            fontWeight: '800',
+            fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 6px 16px rgba(123, 31, 162, 0.4)',
+            boxShadow: '0 4px 12px rgba(123, 31, 162, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '60px' : '52px',
-            minWidth: deviceInfo.isTablet ? '200px' : '180px',
-            letterSpacing: '1px',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
@@ -1028,7 +1087,46 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(123, 31, 162, 0.4)';
           }}
         >
-          📈 Tableau de Bord
+          📈 Dashboard
+        </button>
+        
+        <button
+          onClick={() => {
+            console.log('🚨🚨🚨 PlanningDisplay: BOUTIQUE MOIS BUTTON CLICKED 🚨🚨🚨');
+            setShowMonthlyRecapModal(true);
+            console.log('🚨🚨🚨 PlanningDisplay: showMonthlyRecapModal set to true 🚨🚨🚨');
+          }}
+          style={{
+            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 4px 12px rgba(255, 152, 0, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(255, 152, 0, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 152, 0, 0.4)';
+          }}
+        >
+          📊 Mois Boutique
         </button>
         
         <button
@@ -1036,18 +1134,18 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '18px 28px' : '16px 24px',
-            fontSize: deviceInfo.isTablet ? '18px' : '16px',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
             border: 'none',
-            borderRadius: '16px',
+            borderRadius: '12px',
             cursor: 'pointer',
-            fontWeight: '800',
+            fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 6px 16px rgba(46, 125, 50, 0.4)',
+            boxShadow: '0 4px 12px rgba(46, 125, 50, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '60px' : '52px',
-            minWidth: deviceInfo.isTablet ? '200px' : '180px',
-            letterSpacing: '1px',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
@@ -1063,7 +1161,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(46, 125, 50, 0.4)';
           }}
         >
-          ⬇️ Exporter les données
+          ⬇️ Exporter
         </button>
         
         <button
@@ -1071,18 +1169,18 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '18px 28px' : '16px 24px',
-            fontSize: deviceInfo.isTablet ? '18px' : '16px',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
             border: 'none',
-            borderRadius: '16px',
+            borderRadius: '12px',
             cursor: 'pointer',
-            fontWeight: '800',
+            fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 6px 16px rgba(245, 124, 0, 0.4)',
+            boxShadow: '0 4px 12px rgba(245, 124, 0, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '60px' : '52px',
-            minWidth: deviceInfo.isTablet ? '200px' : '180px',
-            letterSpacing: '1px',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
@@ -1098,7 +1196,77 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 124, 0, 0.4)';
           }}
         >
-          📥 Importer les données
+          📥 Importer
+        </button>
+        
+        <button
+          onClick={() => setShowCopyPastePage(true)}
+          style={{
+            background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 4px 12px rgba(23, 162, 184, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #138496 0%, #0f6674 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(23, 162, 184, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 162, 184, 0.4)';
+          }}
+        >
+          📋 Copier-Coller
+        </button>
+        
+        <button
+          onClick={() => setShowResetModal(true)}
+          style={{
+            background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 4px 12px rgba(220, 53, 69, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #c82333 0%, #a71e2a 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(220, 53, 69, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(220, 53, 69, 0.4)';
+          }}
+        >
+          🗑️ Effacer
         </button>
         
         <button
@@ -1106,18 +1274,18 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '18px 28px' : '16px 24px',
-            fontSize: deviceInfo.isTablet ? '18px' : '16px',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
             border: 'none',
-            borderRadius: '16px',
+            borderRadius: '12px',
             cursor: 'pointer',
-            fontWeight: '800',
+            fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 6px 16px rgba(108, 117, 125, 0.4)',
+            boxShadow: '0 4px 12px rgba(108, 117, 125, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '60px' : '52px',
-            minWidth: deviceInfo.isTablet ? '200px' : '180px',
-            letterSpacing: '1px',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
@@ -1433,9 +1601,10 @@ const PlanningDisplay = ({
                   
                   <button
                     onClick={() => {
-                      console.log('🚨🚨🚨 PlanningDisplay: MOIS BUTTON CLICKED 🚨🚨🚨');
-                      setShowMonthlyRecapModal(true);
-                      console.log('🚨🚨🚨 PlanningDisplay: showMonthlyRecapModal set to true 🚨🚨🚨');
+                      console.log('🚨🚨🚨 PlanningDisplay: MOIS BUTTON CLICKED for employee', employeeId, '🚨🚨🚨');
+                      setSelectedEmployeeForMonthlyRecap(employeeId);
+                      setShowEmployeeMonthlyRecap(true);
+                      console.log('🚨🚨🚨 PlanningDisplay: showEmployeeMonthlyRecap set to true 🚨🚨🚨');
                     }}
                     style={{
                       backgroundColor: '#f57c00',
@@ -2046,21 +2215,25 @@ const PlanningDisplay = ({
               onShopChange={changeShop}
               onWeekChange={changeToSpecificWeek}
               onMonthChange={changeMonth}
+              shops={shops}
+              employees={currentShopEmployees}
+              config={config}
             />
           </div>
         </div>
       )}
 
       {showMonthlyRecapModal && (
-      <MonthlyRecapModals
-        showMonthlyRecapModal={showMonthlyRecapModal}
-        setShowMonthlyRecapModal={setShowMonthlyRecapModal}
-        config={config}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        selectedEmployees={localSelectedEmployees}
-        shops={shops}
-      />
+              <MonthlyRecapModals
+          showMonthlyRecapModal={showMonthlyRecapModal}
+          setShowMonthlyRecapModal={setShowMonthlyRecapModal}
+          config={config}
+          selectedShop={selectedShop}
+          selectedWeek={validWeek}
+          selectedEmployees={localSelectedEmployees}
+          shops={shops}
+          planningData={planningData}
+        />
       )}
 
       {/* Temporairement désactivé pour éviter les problèmes d'affichage */}
