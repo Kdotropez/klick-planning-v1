@@ -431,7 +431,7 @@ const LicenseManager = () => {
   );
 };
 
-const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onSelectCashRegister }) => {
+const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
 
   const handleFileUpload = (event) => {
@@ -592,31 +592,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
               🆕 Nouveau planning
             </Button>
             
-            <Button 
-              onClick={onSelectCashRegister}
-              style={{
-                padding: '20px 40px',
-                fontSize: '1.3rem',
-                background: 'linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 15px rgba(255, 107, 53, 0.3)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 107, 53, 0.4)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 107, 53, 0.3)';
-              }}
-            >
-              💰 Caisse Enregistreuse
-            </Button>
+
             
             <div style={{
               display: 'flex',
