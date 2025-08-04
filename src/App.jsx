@@ -12,7 +12,7 @@ import { enableProtection } from './utils/protection';
 // import './utils/licenseCreator';
 import MainStartupScreen from './components/MainStartupScreen';
 import StartupScreen from './components/StartupScreen';
-import CashRegisterApp from './components/CashRegisterApp';
+
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
 import EmployeeManagement from './components/steps/EmployeeManagement';
@@ -353,9 +353,7 @@ const App = () => {
     setMode('startup'); // Retour à l'écran de démarrage du planning
   };
 
-  const handleSelectCashRegister = () => {
-    setMode('cash-register');
-  };
+
 
   const handleBackToMain = () => {
     setMode('main-startup');
@@ -516,7 +514,6 @@ const App = () => {
       <ErrorBoundary>
         <MainStartupScreen 
           onSelectPlanning={handleSelectPlanning}
-          onSelectCashRegister={handleSelectCashRegister}
         />
         <CopyrightNotice />
       </ErrorBoundary>
@@ -531,7 +528,7 @@ const App = () => {
             onImportPlanning={handleImportPlanning}
             onExit={handleExit}
             onClearLocalStorage={handleClearLocalStorage}
-            onSelectCashRegister={handleSelectCashRegister}
+
           />
         <CopyrightNotice />
         {/* <LicenseModal
@@ -662,16 +659,7 @@ const App = () => {
     );
   }
 
-  if (mode === 'cash-register') {
-    return (
-      <ErrorBoundary>
-        <CashRegisterApp 
-          onBackToMain={handleBackToMain}
-        />
-        <CopyrightNotice />
-      </ErrorBoundary>
-    );
-  }
+
 
   if (mode === 'planning') {
     return (
