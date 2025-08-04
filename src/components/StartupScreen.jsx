@@ -494,168 +494,256 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#f5f5f5',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      position: 'relative'
     }}>
+      
+      {/* Background Pattern */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%)',
+        pointerEvents: 'none'
+      }}></div>
+
       {/* Header */}
       <div style={{
-        backgroundColor: 'white',
-        padding: '20px 30px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+        padding: '30px 40px',
+        textAlign: 'center',
+        color: 'white',
+        position: 'relative',
+        zIndex: 1
       }}>
         <button
           onClick={onBackToMain}
           style={{
-            background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+            position: 'absolute',
+            top: '30px',
+            left: '40px',
+            background: 'rgba(255, 255, 255, 0.2)',
             color: 'white',
-            padding: '12px 24px',
-            border: 'none',
-            borderRadius: '8px',
+            padding: '12px 20px',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '25px',
             cursor: 'pointer',
             fontWeight: '600',
             fontSize: '14px',
-            transition: 'all 0.3s ease'
+            transition: 'all 0.3s ease',
+            backdropFilter: 'blur(10px)'
           }}
           onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #495057 0%, #343a40 100%)';
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
           }}
           onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #6c757d 0%, #495057 100%)';
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+            e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
           ⬅️ Retour
         </button>
-        
+
         <h1 style={{
-          color: '#333',
-          fontSize: '2.2rem',
-          margin: '0',
-          fontWeight: '700'
+          fontSize: '3.5rem',
+          fontWeight: '800',
+          margin: '0 0 15px 0',
+          textShadow: '0 4px 8px rgba(0,0,0,0.3)',
+          letterSpacing: '3px',
+          background: 'linear-gradient(45deg, #ffffff, #f0f0f0)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text'
         }}>
-          Planning App
+          📅 Klick Planning
         </h1>
-        
-        <div style={{ width: '100px' }}></div>
+        <p style={{
+          fontSize: '1.4rem',
+          margin: '0',
+          opacity: '0.9',
+          fontWeight: '400',
+          textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+        }}>
+          Gestion professionnelle des plannings
+        </p>
       </div>
 
       {/* Main Content */}
       <div style={{
         flex: 1,
         display: 'flex',
-        flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '40px 20px'
+        padding: '40px',
+        position: 'relative',
+        zIndex: 1
       }}>
         <div style={{
-          backgroundColor: 'white',
-          padding: '40px',
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          padding: '50px 40px',
+          borderRadius: '25px',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.2)',
           textAlign: 'center',
-          maxWidth: '600px',
-          width: '100%'
+          maxWidth: '700px',
+          width: '100%',
+          border: '1px solid rgba(255, 255, 255, 0.3)'
         }}>
+          
+          <div style={{
+            fontSize: '80px',
+            marginBottom: '30px',
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))'
+          }}>
+            🚀
+          </div>
+          
+          <h2 style={{
+            fontSize: '2.2rem',
+            fontWeight: '700',
+            color: '#333',
+            margin: '0 0 20px 0',
+            letterSpacing: '1px'
+          }}>
+            Commencer votre projet
+          </h2>
+          
+          <p style={{
+            fontSize: '1.1rem',
+            color: '#666',
+            margin: '0 0 40px 0',
+            lineHeight: '1.6'
+          }}>
+            Créez un nouveau planning ou importez un planning existant pour commencer
+          </p>
           
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '15px'
+            gap: '20px',
+            alignItems: 'center'
           }}>
             <Button 
               onClick={onNewPlanning}
               style={{
-                padding: '20px 40px',
-                fontSize: '1.3rem',
-                background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                padding: '25px 50px',
+                fontSize: '1.4rem',
+                background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
                 color: 'white',
                 border: 'none',
-                borderRadius: '10px',
+                borderRadius: '15px',
                 cursor: 'pointer',
-                fontWeight: '600',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 15px rgba(0, 123, 255, 0.3)'
+                fontWeight: '700',
+                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 8px 25px rgba(40, 167, 69, 0.3)',
+                minWidth: '300px',
+                position: 'relative',
+                overflow: 'hidden'
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 123, 255, 0.4)';
+                e.currentTarget.style.transform = 'translateY(-5px) scale(1.02)';
+                e.currentTarget.style.boxShadow = '0 15px 35px rgba(40, 167, 69, 0.4)';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 123, 255, 0.3)';
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(40, 167, 69, 0.3)';
               }}
             >
-              🆕 Nouveau planning
+              <span style={{ fontSize: '1.6rem', marginRight: '10px' }}>✨</span>
+              Créer un nouveau planning
             </Button>
             
 
             
             <div style={{
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: '10px'
+              gap: '20px',
+              margin: '20px 0'
             }}>
-              <span style={{ color: '#666' }}>ou</span>
-              
-              <label style={{
-                padding: '20px 40px',
-                fontSize: '1.3rem',
-                background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                display: 'inline-block',
-                fontWeight: '600',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 15px rgba(40, 167, 69, 0.3)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.4)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.3)';
-              }}
-              >
-                📁 Importer planning
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                />
-              </label>
+              <div style={{
+                flex: 1,
+                height: '1px',
+                background: 'linear-gradient(90deg, transparent, #ddd, transparent)'
+              }}></div>
+              <span style={{ 
+                color: '#666', 
+                fontSize: '1.1rem',
+                fontWeight: '500',
+                padding: '0 20px'
+              }}>ou</span>
+              <div style={{
+                flex: 1,
+                height: '1px',
+                background: 'linear-gradient(90deg, transparent, #ddd, transparent)'
+              }}></div>
             </div>
+            
+            <label style={{
+              padding: '20px 40px',
+              fontSize: '1.2rem',
+              background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              display: 'inline-block',
+              fontWeight: '600',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 6px 20px rgba(108, 117, 125, 0.3)',
+              minWidth: '250px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-3px)';
+              e.currentTarget.style.boxShadow = '0 10px 25px rgba(108, 117, 125, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(108, 117, 125, 0.3)';
+            }}
+            >
+              <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>📁</span>
+              Importer un planning
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+              />
+            </label>
           </div>
 
           <div style={{
-            marginTop: '30px',
-            paddingTop: '20px',
-            borderTop: '1px solid #eee',
+            marginTop: '40px',
+            paddingTop: '30px',
+            borderTop: '1px solid rgba(0,0,0,0.1)',
             display: 'flex',
             justifyContent: 'center',
-            gap: '15px',
+            gap: '12px',
             flexWrap: 'wrap'
           }}>
             <Button
               onClick={onExit}
               style={{
-                padding: '12px 24px',
-                fontSize: '1rem',
-                background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
-                color: 'white',
-                border: 'none',
+                padding: '10px 20px',
+                fontSize: '0.9rem',
+                background: 'rgba(108, 117, 125, 0.1)',
+                color: '#666',
+                border: '1px solid rgba(108, 117, 125, 0.2)',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '500',
                 transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(108, 117, 125, 0.2)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(108, 117, 125, 0.1)';
               }}
             >
               🚪 Quitter
@@ -664,15 +752,21 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
             <Button
               onClick={onClearLocalStorage}
               style={{
-                padding: '12px 24px',
-                fontSize: '1rem',
-                background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-                color: 'white',
-                border: 'none',
+                padding: '10px 20px',
+                fontSize: '0.9rem',
+                background: 'rgba(220, 53, 69, 0.1)',
+                color: '#dc3545',
+                border: '1px solid rgba(220, 53, 69, 0.2)',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '500',
                 transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(220, 53, 69, 0.2)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(220, 53, 69, 0.1)';
               }}
             >
               🗑️ Effacer données
@@ -681,16 +775,21 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
             <Button
               onClick={() => setShowLicenseManager(true)}
               style={{
-                padding: '12px 24px',
-                fontSize: '1rem',
-                background: 'linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%)',
-                color: 'white',
-                border: 'none',
+                padding: '10px 20px',
+                fontSize: '0.9rem',
+                background: 'rgba(156, 39, 176, 0.1)',
+                color: '#9C27B0',
+                border: '1px solid rgba(156, 39, 176, 0.2)',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '500',
-                transition: 'all 0.3s ease',
-                opacity: '0.8'
+                transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(156, 39, 176, 0.2)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'rgba(156, 39, 176, 0.1)';
               }}
             >
               🗝️ Licences
@@ -701,15 +800,56 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
 
       {/* Footer */}
       <div style={{
-        backgroundColor: 'white',
-        padding: '15px 30px',
-        borderTop: '1px solid #eee',
+        padding: '20px 40px',
         textAlign: 'center',
-        color: '#666',
-        fontSize: '0.9rem'
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: '0.9rem',
+        position: 'relative',
+        zIndex: 1
       }}>
-        <p style={{ margin: '0' }}>
-          Importez un fichier de sauvegarde (.json) depuis votre clé USB
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '30px',
+          flexWrap: 'wrap',
+          marginBottom: '10px'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '0.9rem'
+          }}>
+            <span style={{ fontSize: '1rem' }}>⚡</span>
+            <span>Performance optimisée</span>
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '0.9rem'
+          }}>
+            <span style={{ fontSize: '1rem' }}>🔒</span>
+            <span>Sécurisé et fiable</span>
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '0.9rem'
+          }}>
+            <span style={{ fontSize: '1rem' }}>📱</span>
+            <span>Interface responsive</span>
+          </div>
+        </div>
+        
+        <p style={{
+          margin: '0',
+          fontSize: '0.85rem',
+          opacity: '0.7'
+        }}>
+          Importez un fichier de sauvegarde (.json) depuis votre clé USB pour restaurer vos données
         </p>
       </div>
     </div>
