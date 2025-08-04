@@ -75,6 +75,9 @@ const PlanningDisplay = ({
   // État pour la page des statistiques de la boutique
   const [showShopStatsPage, setShowShopStatsPage] = useState(false);
   
+  // État pour la page de gestion boutique
+  const [showGestionBoutique, setShowGestionBoutique] = useState(false);
+  
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
   const [activeMenu, setActiveMenu] = useState(null);
@@ -1243,6 +1246,41 @@ const PlanningDisplay = ({
           }}
         >
           📊 Statistiques Boutique
+        </button>
+        
+        <button
+          onClick={() => setShowGestionBoutique(true)}
+          style={{
+            background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 4px 12px rgba(40, 167, 69, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #1e7e34 0%, #155724 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(40, 167, 69, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
+          }}
+        >
+          🏪 Gestion Boutique
         </button>
         
         <button
@@ -2716,6 +2754,191 @@ const PlanningDisplay = ({
           setFeedback('✅ Notes sauvegardées avec succès');
         }}
       />
+
+      {/* Page de Gestion Boutique */}
+      {showGestionBoutique && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '40px',
+            borderRadius: '16px',
+            maxWidth: '900px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px',
+              borderBottom: '2px solid #e0e0e0',
+              paddingBottom: '20px'
+            }}>
+              <h1 style={{
+                color: '#333',
+                margin: '0',
+                fontSize: '28px',
+                fontWeight: 'bold'
+              }}>
+                🏪 Gestion Boutique
+              </h1>
+              <button
+                onClick={() => setShowGestionBoutique(false)}
+                style={{
+                  background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                  color: 'white',
+                  padding: '12px 24px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px'
+                }}
+              >
+                ✕ Fermer
+              </button>
+            </div>
+
+            {/* Sélecteur de module */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '20px',
+              marginBottom: '40px',
+              flexWrap: 'wrap'
+            }}>
+              <button
+                onClick={() => setShowShopStatsPage(true)}
+                style={{
+                  padding: '20px 30px',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                  minWidth: '200px'
+                }}
+              >
+                📅 Statistiques Planning
+              </button>
+              <button
+                onClick={() => {
+                  setShowShopStatsPage(true);
+                  setShowGestionBoutique(false);
+                }}
+                style={{
+                  padding: '20px 30px',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                  minWidth: '200px'
+                }}
+              >
+                📊 Statistiques CA
+              </button>
+              <button
+                style={{
+                  padding: '20px 30px',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                  minWidth: '200px'
+                }}
+              >
+                💰 Caisse Enregistreuse
+              </button>
+            </div>
+
+            {/* Contenu du module sélectionné */}
+            <div style={{ minHeight: '300px', textAlign: 'center' }}>
+              <h2 style={{ color: '#333', marginBottom: '20px' }}>Sélectionnez un module</h2>
+              <p style={{ color: '#666', fontSize: '16px', marginBottom: '30px' }}>
+                Choisissez le module que vous souhaitez utiliser :
+              </p>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '20px',
+                marginBottom: '30px'
+              }}>
+                <div style={{
+                  background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => setShowShopStatsPage(true)}
+                >
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>📅 Statistiques Planning</h3>
+                  <p style={{ margin: '0', opacity: '0.9' }}>Analyser les heures et la rentabilité</p>
+                </div>
+
+                <div style={{
+                  background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => {
+                  setShowShopStatsPage(true);
+                  setShowGestionBoutique(false);
+                }}
+                >
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>📊 Statistiques CA</h3>
+                  <p style={{ margin: '0', opacity: '0.9' }}>Import et gestion des données CA</p>
+                </div>
+
+                <div style={{
+                  background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                >
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>💰 Caisse Enregistreuse</h3>
+                  <p style={{ margin: '0', opacity: '0.9' }}>Gestion des ventes et paiements</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
