@@ -519,34 +519,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
         position: 'relative',
         zIndex: 1
       }}>
-        <button
-          onClick={onBackToMain}
-          style={{
-            position: 'absolute',
-            top: '30px',
-            left: '40px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            color: 'white',
-            padding: '12px 20px',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-            borderRadius: '25px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '14px',
-            transition: 'all 0.3s ease',
-            backdropFilter: 'blur(10px)'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-            e.currentTarget.style.transform = 'translateY(-2px)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-            e.currentTarget.style.transform = 'translateY(0)';
-          }}
-        >
-          ⬅️ Retour
-        </button>
+
 
         <h1 style={{
           fontSize: '3.5rem',
@@ -568,7 +541,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
           fontWeight: '400',
           textShadow: '0 2px 4px rgba(0,0,0,0.2)'
         }}>
-          Gestion professionnelle des plannings
+          Gestion professionnelle de planning multi-boutiques avec employés communs
         </p>
       </div>
 
@@ -609,7 +582,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
             margin: '0 0 20px 0',
             letterSpacing: '1px'
           }}>
-            Commencer votre projet
+            Gestion Multi-Boutiques
           </h2>
           
           <p style={{
@@ -618,7 +591,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
             margin: '0 0 40px 0',
             lineHeight: '1.6'
           }}>
-            Créez un nouveau planning ou importez un planning existant pour commencer
+            Créez un nouveau planning multi-boutiques ou importez un planning existant pour gérer vos employés communs
           </p>
           
           <div style={{
@@ -851,6 +824,16 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
         }}>
           Importez un fichier de sauvegarde (.json) depuis votre clé USB pour restaurer vos données
         </p>
+        
+        <div style={{
+          marginTop: '15px',
+          paddingTop: '15px',
+          borderTop: '1px solid rgba(255,255,255,0.2)',
+          fontSize: '0.8rem',
+          opacity: '0.6'
+        }}>
+          © 2025 Nicolas Lefevre - Tous droits réservés
+        </div>
       </div>
     </div>
   );

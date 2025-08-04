@@ -256,6 +256,16 @@ const MainStartupScreen = ({ onSelectPlanning }) => {
         }}>
           Sélectionnez le module que vous souhaitez utiliser pour commencer
         </p>
+        
+        <div style={{
+          marginTop: '20px',
+          paddingTop: '20px',
+          borderTop: '1px solid rgba(255,255,255,0.2)',
+          fontSize: '0.9rem',
+          opacity: '0.7'
+        }}>
+          © 2025 Nicolas Lefevre - Tous droits réservés
+        </div>
       </div>
     </div>
   );
