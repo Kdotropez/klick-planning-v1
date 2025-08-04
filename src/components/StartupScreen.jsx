@@ -135,189 +135,303 @@ const LicenseManager = () => {
   const clearUsedKeys = () => {
     if (resetUsedKeys()) {
       setUsedKeys([]);
-      setMessage('Clés utilisées réinitialisées !');
+      setMessage('Clés utilisées effacées !');
+    } else {
+      setMessage('Erreur lors de l\'effacement');
     }
   };
 
   const createNicolasLicenseAdmin = () => {
-    const license = createLicense(
-      LICENSE_TYPES.UNLIMITED,
-      36500,
-      'Nicolas Lefevre',
-      'nicolas.lefevre@example.com'
-    );
-    if (saveLicense(license)) {
-      setCurrentLicense(license);
-      setMessage('Licence Nicolas créée avec succès !');
+    const adminLicense = createLicense('unlimited', 365, 'Nicolas Admin', 'admin@klick.com');
+    if (saveLicense(adminLicense)) {
+      setCurrentLicense(adminLicense);
+      setMessage('Licence admin créée avec succès !');
+    } else {
+      setMessage('Erreur lors de la création de la licence admin');
     }
   };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <h3>📋 Créer une nouvelle licence</h3>
-        <div style={{ marginBottom: '10px' }}>
-          <input
-            type="text"
-            placeholder="Nom du client"
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
-            style={{ width: '100%', padding: '8px', marginBottom: '5px' }}
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <input
-            type="email"
-            placeholder="Email du client"
-            value={clientEmail}
-            onChange={(e) => setClientEmail(e.target.value)}
-            style={{ width: '100%', padding: '8px', marginBottom: '5px' }}
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <select
-            value={licenseType}
-            onChange={(e) => setLicenseType(e.target.value)}
-            style={{ width: '100%', padding: '8px', marginBottom: '5px' }}
-          >
-            <option value="provisional">Provisoire</option>
-            <option value="unlimited">Illimitée</option>
-          </select>
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <input
-            type="number"
-            placeholder="Durée en jours"
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value) || 7)}
-            style={{ width: '100%', padding: '8px', marginBottom: '5px' }}
-          />
-        </div>
-        <button
-          onClick={createNewLicense}
-          style={{
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            marginRight: '10px'
-          }}
-        >
-          Créer licence
-        </button>
-        <button
-          onClick={generateKey}
-          style={{
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
-        >
-          Générer clé
-        </button>
-      </div>
-
-      {generatedKey && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3>🔑 Clé générée</h3>
-          <div style={{ 
-            backgroundColor: '#f8f9fa', 
-            padding: '10px', 
-            borderRadius: '5px',
-            fontFamily: 'monospace',
-            marginBottom: '10px'
-          }}>
-            {generatedKey}
-          </div>
-          <button
-            onClick={() => copyToClipboard(generatedKey)}
-            style={{
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '5px',
-              cursor: 'pointer'
-            }}
-          >
-            Copier
-          </button>
-        </div>
-      )}
-
-      {currentLicense && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3>📄 Licence actuelle</h3>
-          <div style={{ 
-            backgroundColor: '#e9ecef', 
-            padding: '15px', 
-            borderRadius: '5px',
-            fontSize: '14px'
-          }}>
-            <p><strong>Client:</strong> {currentLicense.clientName}</p>
-            <p><strong>Email:</strong> {currentLicense.email}</p>
-            <p><strong>Type:</strong> {currentLicense.type}</p>
-            <p><strong>Expire le:</strong> {new Date(currentLicense.expiryDate).toLocaleDateString()}</p>
-            <p><strong>Statut:</strong> {currentLicense.isActive ? '✅ Actif' : '❌ Inactif'}</p>
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginBottom: '20px' }}>
-        <h3>🗑️ Clés utilisées ({usedKeys.length})</h3>
-        <button
-          onClick={clearUsedKeys}
-          style={{
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
-        >
-          Réinitialiser
-        </button>
-      </div>
-
-      <div style={{ marginBottom: '20px' }}>
-        <h3>👑 Admin</h3>
-        <button
-          onClick={createNicolasLicenseAdmin}
-          style={{
-            backgroundColor: '#ffc107',
-            color: 'black',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
-        >
-          Créer licence Nicolas
-        </button>
-      </div>
-
+    <div style={{ padding: '20px' }}>
+      <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
+        🗝️ Gestionnaire de Licences
+      </h2>
+      
       {message && (
         <div style={{
-          backgroundColor: '#d4edda',
-          color: '#155724',
           padding: '10px',
+          marginBottom: '20px',
+          backgroundColor: message.includes('succès') ? '#d4edda' : '#f8d7da',
+          color: message.includes('succès') ? '#155724' : '#721c24',
           borderRadius: '5px',
-          marginTop: '10px'
+          textAlign: 'center'
         }}>
           {message}
         </div>
       )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        {/* Création de licence */}
+        <div style={{
+          padding: '20px',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          backgroundColor: '#f8f9fa'
+        }}>
+          <h3 style={{ marginBottom: '15px' }}>Créer une nouvelle licence</h3>
+          
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Nom du client:</label>
+            <input
+              type="text"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+          
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Email:</label>
+            <input
+              type="email"
+              value={clientEmail}
+              onChange={(e) => setClientEmail(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+          
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Type de licence:</label>
+            <select
+              value={licenseType}
+              onChange={(e) => setLicenseType(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            >
+              <option value="provisional">Provisoire</option>
+              <option value="unlimited">Illimitée</option>
+            </select>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Durée (jours):</label>
+            <input
+              type="number"
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+          
+          <button
+            onClick={createNewLicense}
+            style={{
+              width: '100%',
+              padding: '10px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Créer la licence
+          </button>
+        </div>
+
+        {/* Génération de clé */}
+        <div style={{
+          padding: '20px',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          backgroundColor: '#f8f9fa'
+        }}>
+          <h3 style={{ marginBottom: '15px' }}>Générer une clé</h3>
+          
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Type:</label>
+            <select
+              value={licenseType}
+              onChange={(e) => setLicenseType(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            >
+              <option value="provisional">Provisoire</option>
+              <option value="unlimited">Illimitée</option>
+            </select>
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px' }}>Durée (jours):</label>
+            <input
+              type="number"
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px'
+              }}
+            />
+          </div>
+          
+          <button
+            onClick={generateKey}
+            style={{
+              width: '100%',
+              padding: '10px',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginBottom: '10px'
+            }}
+          >
+            Générer la clé
+          </button>
+          
+          {generatedKey && (
+            <div>
+              <p style={{ marginBottom: '5px' }}>Clé générée:</p>
+              <div style={{
+                padding: '8px',
+                backgroundColor: '#e9ecef',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                wordBreak: 'break-all'
+              }}>
+                {generatedKey}
+              </div>
+              <button
+                onClick={() => copyToClipboard(generatedKey)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  marginTop: '10px'
+                }}
+              >
+                Copier
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Licence actuelle */}
+      {currentLicense && (
+        <div style={{
+          marginTop: '20px',
+          padding: '20px',
+          border: '1px solid #28a745',
+          borderRadius: '8px',
+          backgroundColor: '#d4edda'
+        }}>
+          <h3 style={{ marginBottom: '15px' }}>Licence actuelle</h3>
+          <p><strong>Client:</strong> {currentLicense.clientName}</p>
+          <p><strong>Email:</strong> {currentLicense.email}</p>
+          <p><strong>Type:</strong> {currentLicense.type}</p>
+          <p><strong>Expire le:</strong> {new Date(currentLicense.expiryDate).toLocaleDateString()}</p>
+          <p><strong>Statut:</strong> {currentLicense.isActive ? 'Active' : 'Inactive'}</p>
+        </div>
+      )}
+
+      {/* Clés utilisées */}
+      <div style={{
+        marginTop: '20px',
+        padding: '20px',
+        border: '1px solid #ddd',
+        borderRadius: '8px',
+        backgroundColor: '#f8f9fa'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h3 style={{ margin: '0' }}>Clés utilisées ({usedKeys.length})</h3>
+          <button
+            onClick={clearUsedKeys}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Effacer
+          </button>
+        </div>
+        
+        {usedKeys.length > 0 ? (
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {usedKeys.map((key, index) => (
+              <div key={index} style={{
+                padding: '5px',
+                backgroundColor: '#e9ecef',
+                marginBottom: '5px',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px'
+              }}>
+                {key}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: '#666', fontStyle: 'italic' }}>Aucune clé utilisée</p>
+        )}
+      </div>
+
+      {/* Bouton admin */}
+      <div style={{ marginTop: '20px', textAlign: 'center' }}>
+        <button
+          onClick={createNicolasLicenseAdmin}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: '#9C27B0',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Créer licence admin Nicolas
+        </button>
+      </div>
     </div>
   );
 };
 
-const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage }) => {
+const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onSelectCashRegister }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
 
   const handleFileUpload = (event) => {
@@ -329,7 +443,6 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
 
   // Si le gestionnaire de licences est affiché
   if (showLicenseManager) {
-    console.log('Affichage du gestionnaire de licences');
     return (
       <div style={{
         position: 'fixed',
@@ -372,159 +485,256 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
           >
             ×
           </button>
-          <div style={{ padding: '20px' }}>
-            <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
-              🗝️ Gestionnaire de Licences
-            </h2>
-            <p style={{ textAlign: 'center', marginBottom: '20px' }}>
-              Le gestionnaire se charge...
-            </p>
-            <LicenseManager />
-          </div>
+          <LicenseManager />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="startup-screen" style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
+    <div style={{
       minHeight: '100vh',
       backgroundColor: '#f5f5f5',
-      padding: '20px'
+      display: 'flex',
+      flexDirection: 'column'
     }}>
+      {/* Header */}
       <div style={{
         backgroundColor: 'white',
-        padding: '40px',
-        borderRadius: '10px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        textAlign: 'center',
-        maxWidth: '500px',
-        width: '100%'
+        padding: '20px 30px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
+        <button
+          onClick={onBackToMain}
+          style={{
+            background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+            color: 'white',
+            padding: '12px 24px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '14px',
+            transition: 'all 0.3s ease'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #495057 0%, #343a40 100%)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #6c757d 0%, #495057 100%)';
+          }}
+        >
+          ⬅️ Retour
+        </button>
+        
         <h1 style={{
           color: '#333',
-          marginBottom: '30px',
-          fontSize: '2.5rem'
+          fontSize: '2.2rem',
+          margin: '0',
+          fontWeight: '700'
         }}>
           Planning App
         </h1>
         
+        <div style={{ width: '100px' }}></div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '40px 20px'
+      }}>
         <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '20px'
+          backgroundColor: 'white',
+          padding: '40px',
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          textAlign: 'center',
+          maxWidth: '600px',
+          width: '100%'
         }}>
-          <Button 
-            onClick={onNewPlanning}
-            style={{
-              padding: '15px 30px',
-              fontSize: '1.1rem',
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer'
-            }}
-          >
-            Nouveau planning
-          </Button>
           
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            gap: '10px'
+            gap: '15px'
           }}>
-            <span style={{ color: '#666' }}>ou</span>
+            <Button 
+              onClick={onNewPlanning}
+              style={{
+                padding: '20px 40px',
+                fontSize: '1.3rem',
+                background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(0, 123, 255, 0.3)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 123, 255, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 123, 255, 0.3)';
+              }}
+            >
+              🆕 Nouveau planning
+            </Button>
             
-            <label style={{
-              padding: '15px 30px',
-              fontSize: '1.1rem',
-              backgroundColor: '#28a745',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              display: 'inline-block'
+            <Button 
+              onClick={onSelectCashRegister}
+              style={{
+                padding: '20px 40px',
+                fontSize: '1.3rem',
+                background: 'linear-gradient(135deg, #ff6b35 0%, #e55a2b 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(255, 107, 53, 0.3)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 107, 53, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 107, 53, 0.3)';
+              }}
+            >
+              💰 Caisse Enregistreuse
+            </Button>
+            
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '10px'
             }}>
-              Importer planning
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-              />
-            </label>
+              <span style={{ color: '#666' }}>ou</span>
+              
+              <label style={{
+                padding: '20px 40px',
+                fontSize: '1.3rem',
+                background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                display: 'inline-block',
+                fontWeight: '600',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(40, 167, 69, 0.3)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.3)';
+              }}
+              >
+                📁 Importer planning
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: '30px',
+            paddingTop: '20px',
+            borderTop: '1px solid #eee',
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '15px',
+            flexWrap: 'wrap'
+          }}>
+            <Button
+              onClick={onExit}
+              style={{
+                padding: '12px 24px',
+                fontSize: '1rem',
+                background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              🚪 Quitter
+            </Button>
+            
+            <Button
+              onClick={onClearLocalStorage}
+              style={{
+                padding: '12px 24px',
+                fontSize: '1rem',
+                background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              🗑️ Effacer données
+            </Button>
+
+            <Button
+              onClick={() => setShowLicenseManager(true)}
+              style={{
+                padding: '12px 24px',
+                fontSize: '1rem',
+                background: 'linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                transition: 'all 0.3s ease',
+                opacity: '0.8'
+              }}
+            >
+              🗝️ Licences
+            </Button>
           </div>
         </div>
-        
-        <p style={{
-          marginTop: '30px',
-          color: '#666',
-          fontSize: '0.9rem'
-        }}>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '15px 30px',
+        borderTop: '1px solid #eee',
+        textAlign: 'center',
+        color: '#666',
+        fontSize: '0.9rem'
+      }}>
+        <p style={{ margin: '0' }}>
           Importez un fichier de sauvegarde (.json) depuis votre clé USB
         </p>
-
-        <div style={{
-          marginTop: '30px',
-          paddingTop: '20px',
-          borderTop: '1px solid #eee',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px'
-        }}>
-          <Button
-            onClick={onExit}
-            style={{
-              padding: '10px 20px',
-              fontSize: '1rem',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer'
-            }}
-          >
-            Quitter l'application
-          </Button>
-          
-          <Button
-            onClick={onClearLocalStorage}
-            style={{
-              padding: '10px 20px',
-              fontSize: '1rem',
-              backgroundColor: '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer'
-            }}
-          >
-            🗑️ Effacer toutes les données
-          </Button>
-
-          {/* Bouton secret pour accéder au gestionnaire de licences */}
-          <Button
-            onClick={() => setShowLicenseManager(true)}
-            style={{
-              padding: '10px 20px',
-              fontSize: '1rem',
-              backgroundColor: '#9C27B0',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              opacity: '0.8'
-            }}
-          >
-            🗝️ Gestionnaire de Licences
-          </Button>
-        </div>
       </div>
     </div>
   );

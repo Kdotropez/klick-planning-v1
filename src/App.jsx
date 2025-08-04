@@ -10,7 +10,9 @@ import { enableProtection } from './utils/protection';
 // import './utils/createFullLicense';
 // import './utils/licenseKeyGenerator';
 // import './utils/licenseCreator';
+import MainStartupScreen from './components/MainStartupScreen';
 import StartupScreen from './components/StartupScreen';
+import CashRegisterApp from './components/CashRegisterApp';
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
 import EmployeeManagement from './components/steps/EmployeeManagement';
@@ -87,7 +89,7 @@ const App = () => {
   };
 
   // États de l'application
-  const [mode, setMode] = useState('startup'); // 'startup', 'new', 'imported', 'week-selection', 'planning'
+  const [mode, setMode] = useState('main-startup'); // 'main-startup', 'startup', 'new', 'imported', 'week-selection', 'planning', 'cash-register'
   const [planningData, setPlanningData] = useState(createNewPlanningData());
   const [currentStep, setCurrentStep] = useState(1); // 1: création boutiques, 2: config, 3: employés, 4: affectation
   const [currentShopIndex, setCurrentShopIndex] = useState(0);
@@ -104,6 +106,7 @@ const App = () => {
   const [licenseError, setLicenseError] = useState('');
   const [showLicenseManager, setShowLicenseManager] = useState(false);
 
+  // Charger les données depuis localStorage au démarrage
   useEffect(() => {
     try {
       // Charger les données depuis localStorage si elles existent
@@ -146,6 +149,7 @@ const App = () => {
     }
   }, []);
 
+  // Sauvegarder les données dans localStorage
   useEffect(() => {
     // Sauvegarder les données dans localStorage
     if (mode !== 'startup') {
@@ -344,6 +348,19 @@ const App = () => {
     }
   };
 
+  // Nouvelles fonctions de navigation pour les modules
+  const handleSelectPlanning = () => {
+    setMode('startup'); // Retour à l'écran de démarrage du planning
+  };
+
+  const handleSelectCashRegister = () => {
+    setMode('cash-register');
+  };
+
+  const handleBackToMain = () => {
+    setMode('main-startup');
+  };
+
   // Gestion des employés
   const handleEmployeeUpdate = (employeeData) => {
     if (employeeData.type === 'updateShops') {
@@ -494,15 +511,28 @@ const App = () => {
   };
 
   // Rendu conditionnel
+  if (mode === 'main-startup') {
+    return (
+      <ErrorBoundary>
+        <MainStartupScreen 
+          onSelectPlanning={handleSelectPlanning}
+          onSelectCashRegister={handleSelectCashRegister}
+        />
+        <CopyrightNotice />
+      </ErrorBoundary>
+    );
+  }
+
   if (mode === 'startup') {
     return (
       <ErrorBoundary>
-        <StartupScreen 
-          onNewPlanning={handleNewPlanning}
-          onImportPlanning={handleImportPlanning}
-          onExit={handleExit}
-          onClearLocalStorage={handleClearLocalStorage}
-        />
+                  <StartupScreen
+            onNewPlanning={handleNewPlanning}
+            onImportPlanning={handleImportPlanning}
+            onExit={handleExit}
+            onClearLocalStorage={handleClearLocalStorage}
+            onSelectCashRegister={handleSelectCashRegister}
+          />
         <CopyrightNotice />
         {/* <LicenseModal
           isOpen={showLicenseModal}
@@ -632,6 +662,17 @@ const App = () => {
     );
   }
 
+  if (mode === 'cash-register') {
+    return (
+      <ErrorBoundary>
+        <CashRegisterApp 
+          onBackToMain={handleBackToMain}
+        />
+        <CopyrightNotice />
+      </ErrorBoundary>
+    );
+  }
+
   if (mode === 'planning') {
     return (
       <ErrorBoundary>
@@ -647,29 +688,35 @@ const App = () => {
             </p>
           )}
           
-                     <PlanningDisplay
-             planningData={planningData}
-             setPlanningData={setPlanningData}
-             selectedShop={selectedShop}
-             setSelectedShop={setSelectedShop}
-             selectedWeek={selectedWeek}
-             setSelectedWeek={setSelectedWeek}
-             selectedEmployees={selectedEmployees}
-             setSelectedEmployees={setSelectedEmployees}
-             planning={planning}
-             setPlanning={setPlanning}
-             onExport={handleExport}
-             onImport={handleImportPlanning}
-             onReset={handleReset}
-             onBackToStartup={handleBackToStartup}
-             onBackToEmployees={handleBackToEmployees}
-             onBackToShopSelection={handleBackToShopSelection}
-             onBackToWeekSelection={handleBackToWeekSelection}
-             onBackToConfig={handleBackToConfig}
-             setFeedback={setFeedback}
-           />
+                      <PlanningDisplay
+              planningData={planningData}
+              setPlanningData={setPlanningData}
+              selectedShop={selectedShop}
+              setSelectedShop={setSelectedShop}
+              selectedWeek={selectedWeek}
+              setSelectedWeek={setSelectedWeek}
+              selectedEmployees={selectedEmployees}
+              setSelectedEmployees={setSelectedEmployees}
+              planning={planning}
+              setPlanning={setPlanning}
+              onExport={handleExport}
+              onImport={handleImportPlanning}
+              onReset={handleReset}
+              onBackToStartup={handleBackToStartup}
+              onBackToEmployees={handleBackToEmployees}
+              onBackToShopSelection={handleBackToShopSelection}
+              onBackToWeekSelection={handleBackToWeekSelection}
+              onBackToConfig={handleBackToConfig}
+              setFeedback={setFeedback}
+            />
           <CopyrightNotice />
         </div>
+        {/* <LicenseModal
+          isOpen={showLicenseModal}
+          onClose={() => setShowLicenseModal(false)}
+          error={licenseError}
+          onLicenseValid={handleLicenseValid}
+        /> */}
       </ErrorBoundary>
     );
   }
