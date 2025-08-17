@@ -1,5 +1,5 @@
 import { loadFromLocalStorage } from './localStorage';
-import { parse, differenceInMinutes, format, addDays, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
+import { parse, differenceInMinutes, format, addDays, addMinutes, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) => {
@@ -78,14 +78,16 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
 
   if (inShift && shiftStartIndex !== null) {
     const startTime = config.timeSlots[shiftStartIndex];
-    const endTime = config.timeSlots[config.timeSlots.length - 1];
-    if (startTime && endTime) {
+    // Fin de journée: inclure la DERNIÈRE tranche (ajouter l'intervalle à la dernière heure de début)
+    const lastIndex = Math.min(slots.length, config.timeSlots.length) - 1;
+    const lastStartTime = config.timeSlots[lastIndex];
+    if (startTime && lastStartTime) {
       try {
         const start = parse(startTime, 'HH:mm', new Date());
-        const end = parse(endTime, 'HH:mm', new Date());
+        const end = addMinutes(parse(lastStartTime, 'HH:mm', new Date()), interval);
         totalMinutes += differenceInMinutes(end, start);
       } catch (e) {
-        console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, endTime, error: e });
+        console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, lastStartTime, error: e });
       }
     }
   }

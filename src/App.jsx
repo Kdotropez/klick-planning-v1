@@ -26,6 +26,7 @@ import {
   addEmployee, 
   updateEmployeeShops,
   exportPlanningData,
+  exportPlanningToExcel,
   importPlanningData
 } from './utils/planningDataManager';
 import './App.css';
@@ -469,8 +470,20 @@ const App = () => {
 
   // Gestion du planning
   const handleExport = () => {
-    exportPlanningData(planningData);
-    setFeedback('Export réussi !');
+    try {
+      // Essayer d'abord l'export Excel
+      const result = exportPlanningToExcel(planningData);
+      if (result === true) {
+        setFeedback('📊 Export Excel réussi !');
+      } else {
+        setFeedback('📄 Export JSON réussi !');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
+      // Fallback vers JSON
+      exportPlanningData(planningData);
+      setFeedback('📄 Export JSON réussi !');
+    }
   };
 
   const handleReset = () => {
