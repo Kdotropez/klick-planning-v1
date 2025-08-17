@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, addDays, startOfWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
@@ -95,6 +95,9 @@ const PlanningDisplay = ({
   
   // État pour forcer le rafraîchissement de la modale mensuelle
   const [modalForceRefresh, setModalForceRefresh] = useState(0);
+  
+  // État pour suivre les modifications non sauvegardées
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // État de validation globale
   const [validationState, setValidationState] = useState({
@@ -613,16 +616,20 @@ const PlanningDisplay = ({
         idx === slotIndex ? (forceValue !== null ? forceValue : !val) : val
       );
       
-      // SAUVEGARDE AUTOMATIQUE IMMÉDIATE (DÉSACTIVÉE TEMPORAIREMENT POUR ÉVITER LES CONFLITS)
-      // if (selectedShop && selectedWeek) {
-      //   try {
-      //     const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
-      //     setPlanningData(updatedPlanningData);
-      //     console.log('💾 Sauvegarde automatique après modification');
-      //   } catch (error) {
-      //     console.error('Erreur lors de la sauvegarde automatique:', error);
-      //   }
-      // }
+      // SAUVEGARDE AUTOMATIQUE IMMÉDIATE
+      if (selectedShop && selectedWeek) {
+        try {
+          const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
+          setPlanningData(updatedPlanningData);
+          setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde
+          console.log('💾 Sauvegarde automatique après modification');
+        } catch (error) {
+          console.error('Erreur lors de la sauvegarde automatique:', error);
+          setHasUnsavedChanges(true); // Marquer comme non sauvegardé en cas d'erreur
+        }
+      } else {
+        setHasUnsavedChanges(true); // Marquer comme non sauvegardé si pas de sauvegarde automatique
+      }
       
       return updatedPlanning;
     });
@@ -662,11 +669,23 @@ const PlanningDisplay = ({
       const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
       setPlanningData(updatedPlanningData);
       saveToLocalStorage('planningData', updatedPlanningData);
+      setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
       setLocalFeedback('💾 Planning sauvegardé manuellement');
     }
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
 
   const changeWeek = (direction) => {
+    // Sauvegarder les modifications actuelles avant de changer de semaine
+    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+      try {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        console.log('💾 Sauvegarde automatique avant changement de semaine');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde avant changement de semaine:', error);
+      }
+    }
+    
     const currentDate = new Date(validWeek);
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + (direction === 'next' ? 7 : -7));
@@ -692,6 +711,17 @@ const PlanningDisplay = ({
   };
 
   const changeToSpecificWeek = (weekDate) => {
+    // Sauvegarder les modifications actuelles avant de changer de semaine
+    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+      try {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        console.log('💾 Sauvegarde automatique avant changement vers semaine spécifique');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde avant changement vers semaine spécifique:', error);
+      }
+    }
+    
     setSelectedWeek(weekDate);
     
     // Réinitialiser le jour modifié
@@ -819,15 +849,16 @@ const PlanningDisplay = ({
     }
   };
 
-  // Fonction pour copier les données d'une semaine vers la semaine suivante (version corrigée)
-  const copyWeekToNextWeek = useCallback(() => {
+  // Fonction pour copier les données d'une semaine vers une autre semaine
+  const copyWeekToWeek = useCallback((sourceWeek, destinationWeek) => {
     try {
-      console.log('🔄 Début de la copie de semaine vers la semaine suivante');
+      console.log(`🔄 Début de la copie de semaine ${sourceWeek} vers ${destinationWeek}`);
       
-      // Semaine source : 28/07 au 3/08 (2025-07-28)
-      const sourceWeek = '2025-07-28';
-      // Semaine destination : 4/08 au 10/08 (2025-08-04)
-      const destinationWeek = '2025-08-04';
+      // Vérifier que les semaines sont valides
+      if (!sourceWeek || !destinationWeek) {
+        setLocalFeedback('❌ Veuillez spécifier les semaines source et destination');
+        return;
+      }
       
       // VÉRIFIER SI LA SEMAINE DESTINATION CONTIENT DÉJÀ DES DONNÉES
       const destinationWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[destinationWeek];
@@ -848,7 +879,9 @@ const PlanningDisplay = ({
       
       // Si la semaine destination contient des données, demander confirmation
       if (existingClicksCount > 0) {
-        const confirmMessage = `⚠️ La semaine du 4/08 au 10/08 contient déjà ${existingClicksCount} cliques.\n\nVoulez-vous vraiment écraser ces données ?\n\nCette action ne peut pas être annulée.`;
+        const destinationWeekStart = format(new Date(destinationWeek), 'dd/MM');
+        const destinationWeekEnd = format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+        const confirmMessage = `⚠️ La semaine du ${destinationWeekStart} au ${destinationWeekEnd} contient déjà ${existingClicksCount} cliques.\n\nVoulez-vous vraiment écraser ces données ?\n\nCette action ne peut pas être annulée.`;
         
         if (!window.confirm(confirmMessage)) {
           console.log('❌ Copie annulée par l\'utilisateur');
@@ -879,7 +912,9 @@ const PlanningDisplay = ({
       
       if (!sourcePlanning || Object.keys(sourcePlanning).length === 0) {
         console.log('⚠️ Aucun planning source à copier');
-        setLocalFeedback('⚠️ Aucun planning à copier. Assurez-vous d\'avoir des cliques sur la semaine du 28/07 au 3/08.');
+        const sourceWeekStart = format(new Date(sourceWeek), 'dd/MM');
+        const sourceWeekEnd = format(new Date(new Date(sourceWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+        setLocalFeedback(`⚠️ Aucun planning à copier. Assurez-vous d'avoir des cliques sur la semaine du ${sourceWeekStart} au ${sourceWeekEnd}.`);
         return;
       }
       
@@ -961,7 +996,7 @@ const PlanningDisplay = ({
         // Forcer le rafraîchissement pour déclencher le useEffect qui charge le planning
         setForceRefresh(prev => prev + 1);
         
-        setLocalFeedback(`✅ Planning copié vers la semaine du 4/08 au 10/08. Navigation automatique en cours...`);
+        setLocalFeedback(`✅ Planning copié vers la semaine du ${format(new Date(destinationWeek), 'dd/MM')} au ${format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM')}. Navigation automatique en cours...`);
       } else {
         console.log('❌ Échec de la copie - données non trouvées dans localStorage');
         setLocalFeedback('❌ Échec de la copie. Veuillez réessayer.');
@@ -972,6 +1007,15 @@ const PlanningDisplay = ({
       setLocalFeedback('❌ Erreur lors de la copie des données');
     }
   }, [selectedShop, setSelectedWeek, planningData, setPlanningData]);
+
+
+
+  // Fonction pour copier vers la semaine suivante (compatibilité)
+  const copyWeekToNextWeek = useCallback(() => {
+    const sourceWeek = selectedWeek;
+    const destinationWeek = format(addDays(parseISO(selectedWeek), 7), 'yyyy-MM-dd');
+    copyWeekToWeek(sourceWeek, destinationWeek);
+  }, [selectedWeek, copyWeekToWeek]);
 
   if (!currentShopData) {
     return (
@@ -1386,6 +1430,53 @@ const PlanningDisplay = ({
           }}
         >
           📋 Copier-Coller
+        </button>
+        
+        <button
+          onClick={handleManualSave}
+          style={{
+            background: hasUnsavedChanges 
+              ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
+              : 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
+            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            border: 'none',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: hasUnsavedChanges 
+              ? '0 4px 12px rgba(220, 53, 69, 0.4)' 
+              : '0 4px 12px rgba(40, 167, 69, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '45px' : '38px',
+            minWidth: deviceInfo.isTablet ? '120px' : '100px',
+            letterSpacing: '0.5px',
+            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = hasUnsavedChanges 
+              ? 'linear-gradient(135deg, #c82333 0%, #a71e2a 100%)' 
+              : 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = hasUnsavedChanges 
+              ? '0 10px 24px rgba(220, 53, 69, 0.6)' 
+              : '0 10px 24px rgba(40, 167, 69, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = hasUnsavedChanges 
+              ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
+              : 'linear-gradient(135deg, #28a745 0%, #218838 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = hasUnsavedChanges 
+              ? '0 6px 16px rgba(220, 53, 69, 0.4)' 
+              : '0 6px 16px rgba(40, 167, 69, 0.4)';
+          }}
+        >
+          {hasUnsavedChanges ? '⚠️' : '💾'} Sauvegarder
         </button>
         
         <button
@@ -2461,9 +2552,9 @@ const PlanningDisplay = ({
                 cursor: 'pointer',
                 fontWeight: 'bold'
               }}
-              title="Copier les données de la semaine du 28/07 au 3/08 vers la semaine du 4/08 au 10/08"
+              title="Copier les données de la semaine actuelle vers la semaine suivante"
             >
-              📋 Copier semaine
+              📋 Copier → Semaine +1
             </button>
           </div>
           

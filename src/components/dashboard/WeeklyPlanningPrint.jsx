@@ -40,10 +40,15 @@ const WeeklyPlanningPrint = ({
    // Obtenir les tailles de police dynamiques
    const fontSizes = calculateDynamicFontSize();
 
-  // Obtenir les données de la semaine
-  const weekStart = startOfWeek(new Date(selectedWeek), { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(new Date(selectedWeek), { weekStartsOn: 1 });
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+     // Obtenir les données de la semaine
+   const weekStart = startOfWeek(new Date(selectedWeek), { weekStartsOn: 1 });
+   const weekEnd = endOfWeek(new Date(selectedWeek), { weekStartsOn: 1 });
+   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+   
+   // Debug pour voir les jours de la semaine
+   if (!window.debugInfo) window.debugInfo = [];
+   window.debugInfo.push(`📅 Semaine affichée: ${format(weekStart, 'dd/MM/yyyy')} au ${format(weekEnd, 'dd/MM/yyyy')}`);
+   window.debugInfo.push(`📅 Jours de la semaine: ${weekDays.map(day => format(day, 'dd/MM/yyyy')).join(', ')}`);
 
   // Obtenir tous les employés (pas seulement ceux de la boutique)
   const shopEmployees = employees;
@@ -174,53 +179,103 @@ const WeeklyPlanningPrint = ({
     const dayKey = format(day, 'yyyy-MM-dd');
     const weekKey = format(weekStart, 'yyyy-MM-dd');
     
-    // Vérifier si c'est la boutique principale de l'employé (même logique que Dashboard)
     const employee = employees.find(emp => emp.id === employeeId);
-    const determinedMainShop = employee?.mainShop || determineEmployeeMainShop(planningData, employeeId);
-    const isMainShop = determinedMainShop === selectedShop;
     const canWorkInThisShop = employee?.canWorkIn?.includes(selectedShop);
     
-    // Debug pour voir les boutiques principales
-    console.log(`getEmployeeStatus for ${employee?.name} (${employeeId}):`, {
-      mainShop: employee?.mainShop,
-      determinedMainShop,
-      selectedShop,
-      isMainShop,
-      canWorkInThisShop
-    });
+         // Debug simplifié - seulement pour CHRISTINE, MANON, YHONNA, VALOU, ANGELIQUE
+     if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
+       // Stocker les informations de debug dans une variable globale
+       if (!window.debugInfo) window.debugInfo = [];
+       window.debugInfo.push(`🔍 ${employee?.name} ${dayKey}: canWorkIn=${JSON.stringify(employee?.canWorkIn)}, selectedShop=${selectedShop}, worksInMultipleShops=${employee?.canWorkIn && employee.canWorkIn.length > 1}`);
+       
+       // Debug spécial pour le 23 août
+       if (dayKey === '2025-08-23') {
+         window.debugInfo.push(`🎯 ${employee?.name} 23/08 SPÉCIAL: canWorkIn=${JSON.stringify(employee?.canWorkIn)}, selectedShop=${selectedShop}`);
+       }
+     }
     
+         // Si l'employé ne peut pas travailler dans cette boutique, c'est "Non présent"
+     if (!canWorkInThisShop) {
+       if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA') {
+         if (!window.debugInfo) window.debugInfo = [];
+         window.debugInfo.push(`❌ ${employee?.name} ne peut pas travailler dans ${selectedShop} → Non présent`);
+       }
+       return 'Non présent';
+     }
+    
+    // Vérifier si l'employé travaille dans plusieurs boutiques
+    const worksInMultipleShops = employee?.canWorkIn && employee.canWorkIn.length > 1;
+    
+    // Vérifier si l'employé travaille dans cette boutique ce jour-là
     const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
-    if (!weekData.planning || !weekData.planning[employeeId] || !weekData.planning[employeeId][dayKey]) {
-      // Si l'employé ne peut pas travailler dans cette boutique, c'est "Non présent"
-      if (!canWorkInThisShop) {
-        return 'Non présent';
-      }
-      // Si c'est sa boutique principale mais pas d'heures, c'est "Repos"
-      if (isMainShop) {
-        return 'Repos';
-      }
-      // Sinon, c'est "Non présent" (pas sa boutique principale)
-      return 'Non présent';
+    const hasDataInThisShop = weekData.planning && 
+                             weekData.planning[employeeId] && 
+                             weekData.planning[employeeId][dayKey];
+    
+         if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
+       if (!window.debugInfo) window.debugInfo = [];
+       window.debugInfo.push(`📊 ${employee?.name} ${dayKey}: hasDataInThisShop=${hasDataInThisShop}, worksInMultipleShops=${worksInMultipleShops}`);
+     }
+    
+    // Calculer les heures travaillées dans cette boutique
+    let hours = 0;
+    if (hasDataInThisShop) {
+      const slots = weekData.planning[employeeId][dayKey];
+      hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
     }
     
-    const slots = weekData.planning[employeeId][dayKey];
-    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+    if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
+      if (!window.debugInfo) window.debugInfo = [];
+      window.debugInfo.push(`⏰ ${employee?.name} ${dayKey}: ${hours}h dans ${selectedShop}`);
+    }
     
-    if (hours === 0) {
-      // Si l'employé ne peut pas travailler dans cette boutique, c'est "Non présent"
-      if (!canWorkInThisShop) {
-        return 'Non présent';
+    // Si l'employé a des heures dans cette boutique
+    if (hours > 0) {
+      if (hours < 4) {
+        return 'Demi-journée';
+      } else {
+        return 'Présent';
       }
-      // Si c'est sa boutique principale mais pas d'heures, c'est "Repos"
-      if (isMainShop) {
-        return 'Repos';
+    }
+    
+    // Si l'employé n'a pas d'heures dans cette boutique (0h ou pas de données)
+    if (worksInMultipleShops) {
+      // Pour les employés multi-boutiques, vérifier s'ils travaillent dans d'autres boutiques
+      const worksInAnyShop = employee.canWorkIn.some(shopId => {
+        if (shopId === selectedShop) return false; // Ignorer la boutique actuelle
+        const otherShopWeekData = getWeekPlanning(planningData, shopId, weekKey);
+        const hasData = otherShopWeekData.planning && 
+               otherShopWeekData.planning[employeeId] && 
+               otherShopWeekData.planning[employeeId][dayKey];
+        const otherHours = hasData ? calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: otherShopWeekData.planning[employeeId][dayKey] } }, config) : 0;
+        
+        // Debug détaillé pour VALOU
+        if (employee?.name === 'VALOU' && (dayKey === '2025-08-21' || dayKey === '2025-08-24')) {
+          if (!window.debugInfo) window.debugInfo = [];
+          window.debugInfo.push(`🔍 VALOU ${dayKey} - Boutique ${shopId}: hasData=${hasData}, hours=${otherHours}`);
+        }
+        
+        return hasData && otherHours > 0;
+      });
+      
+      // Debug spécial pour VALOU le jeudi et dimanche
+      if (employee?.name === 'VALOU' && (dayKey === '2025-08-21' || dayKey === '2025-08-24')) {
+        if (!window.debugInfo) window.debugInfo = [];
+        window.debugInfo.push(`🎯 VALOU ${dayKey} RÉSULTAT: worksInAnyShop=${worksInAnyShop} → ${worksInAnyShop ? 'Non présent' : 'Repos'}`);
       }
-      // Sinon, c'est "Non présent" (pas sa boutique principale)
-      return 'Non présent';
-    } else if (hours < 4) {
-      return 'Demi-journée';
+      
+      if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
+        if (!window.debugInfo) window.debugInfo = [];
+        window.debugInfo.push(`🔄 ${employee?.name} ${dayKey}: multi-boutique avec 0h, travaille dans une autre boutique: ${worksInAnyShop} → ${worksInAnyShop ? 'Non présent' : 'Repos'}`);
+      }
+      return worksInAnyShop ? 'Non présent' : 'Repos';
     } else {
-      return 'Présent';
+      // Pour les employés mono-boutique, c'est "Repos" (congé)
+      if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
+        if (!window.debugInfo) window.debugInfo = [];
+        window.debugInfo.push(`🏖️ ${employee?.name} ${dayKey}: mono-boutique avec 0h → Repos`);
+      }
+      return 'Repos';
     }
   };
 
@@ -327,21 +382,57 @@ const WeeklyPlanningPrint = ({
             >
               🖨️ Imprimer PDF
             </button>
-            <button
-              onClick={onClose}
-              style={{
-                backgroundColor: '#dc3545',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '600'
-              }}
-            >
-              ❌ Fermer
-            </button>
+                         <button
+               onClick={() => {
+                 if (window.debugInfo) {
+                   // Créer un fichier texte téléchargeable
+                   const debugText = window.debugInfo.join('\n');
+                   const blob = new Blob([debugText], { type: 'text/plain' });
+                   const url = URL.createObjectURL(blob);
+                   const a = document.createElement('a');
+                   a.href = url;
+                   a.download = 'debug-info.txt';
+                   document.body.appendChild(a);
+                   a.click();
+                   document.body.removeChild(a);
+                   URL.revokeObjectURL(url);
+                   
+                   // Afficher aussi dans la console
+                   console.log('=== DEBUG INFO ===');
+                   console.log(debugText);
+                   console.log('==================');
+                 } else {
+                   alert('Aucune info de debug disponible');
+                 }
+               }}
+               style={{
+                 backgroundColor: '#17a2b8',
+                 color: 'white',
+                 border: 'none',
+                 padding: '10px 20px',
+                 borderRadius: '6px',
+                 cursor: 'pointer',
+                 fontSize: '14px',
+                 fontWeight: '600'
+               }}
+             >
+               📄 Debug (Télécharger)
+             </button>
+             <button
+               onClick={onClose}
+               style={{
+                 backgroundColor: '#dc3545',
+                 color: 'white',
+                 border: 'none',
+                 padding: '10px 20px',
+                 borderRadius: '6px',
+                 cursor: 'pointer',
+                 fontSize: '14px',
+                 fontWeight: '600'
+               }}
+             >
+               ❌ Fermer
+             </button>
           </div>
         </div>
 
@@ -465,19 +556,19 @@ const WeeklyPlanningPrint = ({
                        let backgroundColor = '#ffffff';
                        let color = '#333';
                        
-                       if (status === 'Non présent') {
-                         backgroundColor = '#e2e3e5';
-                         color = '#495057';
-                       } else if (status === 'Repos') {
-                         backgroundColor = '#f8d7da';
-                         color = '#721c24';
-                       } else if (status === 'Demi-journée') {
-                         backgroundColor = '#fff3cd';
-                         color = '#856404';
-                       } else if (status === 'Présent') {
-                         backgroundColor = '#d4edda';
-                         color = '#155724';
-                       }
+                                               if (status === 'Non présent') {
+                          backgroundColor = '#f8f9fa';
+                          color = '#000000';
+                        } else if (status === 'Repos') {
+                          backgroundColor = '#ffe6e6';
+                          color = '#000000';
+                        } else if (status === 'Demi-journée') {
+                          backgroundColor = '#fff8dc';
+                          color = '#000000';
+                        } else if (status === 'Présent') {
+                          backgroundColor = '#e8f5e8';
+                          color = '#000000';
+                        }
 
                        return (
                          <td key={empIndex} style={{
@@ -669,70 +760,7 @@ const WeeklyPlanningPrint = ({
              </div>
           </div>
 
-                     {/* Informations supplémentaires */}
-           <div style={{
-             marginTop: '20px',
-             padding: '12px',
-             backgroundColor: '#f8f9fa',
-             borderRadius: '6px',
-             fontSize: `${fontSizes.small}px`,
-             color: '#666',
-             flexShrink: 0
-           }}>
-                          <h4 style={{ margin: '0 0 10px 0', fontSize: `${fontSizes.base}px` }}>Légende :</h4>
-             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '15px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '15px', height: '15px', backgroundColor: '#d4edda', border: '1px solid #333' }}></div>
-                  <span>Présent</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '15px', height: '15px', backgroundColor: '#fff3cd', border: '1px solid #333' }}></div>
-                  <span>Demi-journée</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '15px', height: '15px', backgroundColor: '#f8d7da', border: '1px solid #333' }}></div>
-                  <span>Repos</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '15px', height: '15px', backgroundColor: '#e2e3e5', border: '1px solid #333' }}></div>
-                  <span>Non présent</span>
-                </div>
-              </div>
-             
-                                                                                                               <h4 style={{ margin: '15px 0 10px 0', fontSize: `${fontSizes.base}px` }}>Informations sur les horaires :</h4>
-              <div style={{ fontSize: `${fontSizes.small}px`, lineHeight: '1.4' }}>
-                 <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Structure des colonnes :</strong> Chaque colonne employé est divisée en 2 parties
-                 </p>
-                 <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Partie principale (2/3) :</strong> Statut, horaires normaux et heures travaillées
-                 </p>
-                                   <p style={{ margin: '0 0 5px 0' }}>
-                    <strong>Partie heures supplémentaires (1/3) :</strong> Zone jaune avec "--.-- H" pour noter les heures supp.
-                  </p>
-                 <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Format des horaires :</strong> Chaque ligne = une période de travail (ex: 09:00 - 12:00)
-                 </p>
-                 <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Pauses :</strong> Les espaces entre les périodes représentent les pauses
-                 </p>
-                 <p style={{ margin: '0 0 5px 0' }}>
-                   <strong>Heures travaillées :</strong> Total des heures effectuées par jour
-                 </p>
-                                  <p style={{ margin: '0 0 5px 0' }}>
-                    <strong>Demi-journée :</strong> Moins de 4 heures de travail
-                  </p>
-                  <p style={{ margin: '0 0 5px 0' }}>
-                    <strong>Présent :</strong> 4 heures ou plus de travail
-                  </p>
-                  <p style={{ margin: '0 0 5px 0' }}>
-                    <strong>Repos :</strong> Employé en congé/vacances dans sa boutique principale
-                  </p>
-                  <p style={{ margin: '0' }}>
-                    <strong>Non présent :</strong> Employé qui ne travaille pas dans cette boutique (pas sa boutique principale)
-                  </p>
-               </div>
-           </div>
+                     
 
             {/* Zone de notes pour heures supplémentaires */}
             <div style={{
