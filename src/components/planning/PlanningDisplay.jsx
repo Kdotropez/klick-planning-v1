@@ -530,6 +530,17 @@ const PlanningDisplay = ({
   }, [selectedShop, selectedWeek, planningData, forceRefresh]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
+    // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
+    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+      try {
+        const backupKey = `backup_${selectedShop}_${selectedWeek}_${Date.now()}`;
+        localStorage.setItem(backupKey, JSON.stringify(planning));
+        console.log('🛡️ Sauvegarde de sécurité créée:', backupKey);
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde de sécurité:', error);
+      }
+    }
+    
     // Validation robuste de la configuration des tranches horaires
     if (!config || !Array.isArray(config.timeSlots) || config.timeSlots.length === 0) {
       setLocalFeedback('Erreur: Configuration des tranches horaires non valide. Veuillez reconfigurer la boutique.');
@@ -673,6 +684,94 @@ const PlanningDisplay = ({
       setLocalFeedback('💾 Planning sauvegardé manuellement');
     }
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
+
+  // Fonction pour restaurer les données de sauvegarde
+  const restoreFromBackup = useCallback(() => {
+    if (selectedShop && selectedWeek) {
+      const backupKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith(`backup_${selectedShop}_${selectedWeek}_`)
+      );
+      
+      if (backupKeys.length > 0) {
+        // Prendre la sauvegarde la plus récente
+        const latestBackupKey = backupKeys.sort().pop();
+        const backupData = localStorage.getItem(latestBackupKey);
+        
+        if (backupData) {
+          try {
+            const restoredPlanning = JSON.parse(backupData);
+            setPlanning(restoredPlanning);
+            setLocalFeedback('🔄 Données restaurées depuis la sauvegarde de sécurité');
+            console.log('🔄 Restauration depuis:', latestBackupKey);
+          } catch (error) {
+            console.error('Erreur lors de la restauration:', error);
+            setLocalFeedback('❌ Erreur lors de la restauration des données');
+          }
+        }
+      } else {
+        setLocalFeedback('❌ Aucune sauvegarde de sécurité trouvée');
+      }
+    }
+  }, [selectedShop, selectedWeek]);
+
+  // Fonction de sauvegarde automatique JSON
+  const createAutoBackupJSON = useCallback(() => {
+    if (planningData && Object.keys(planningData.shops || {}).length > 0) {
+      try {
+        const exportData = {
+          ...planningData,
+          exportDate: new Date().toISOString(),
+          autoBackup: true,
+          backupType: 'periodic',
+          selectedShop: selectedShop,
+          selectedWeek: selectedWeek,
+          currentPlanning: planning
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+          type: 'application/json'
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `planning_auto_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(url);
+        console.log('💾 Sauvegarde JSON automatique créée');
+        setLocalFeedback('💾 Sauvegarde JSON automatique créée');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde JSON automatique:', error);
+        setLocalFeedback('❌ Erreur lors de la sauvegarde JSON automatique');
+      }
+    }
+  }, [planningData, selectedShop, selectedWeek, planning]);
+
+  // État pour la prochaine sauvegarde automatique
+  const [nextAutoBackup, setNextAutoBackup] = useState(null);
+
+  // Sauvegarde automatique JSON toutes les 5 minutes
+  useEffect(() => {
+    if (planningData && Object.keys(planningData.shops || {}).length > 0) {
+      // Calculer la prochaine sauvegarde
+      const now = new Date();
+      const nextBackup = new Date(now.getTime() + 5 * 60 * 1000); // +5 minutes
+      setNextAutoBackup(nextBackup);
+      
+      const autoBackupInterval = setInterval(() => {
+        createAutoBackupJSON();
+        // Mettre à jour la prochaine sauvegarde
+        const newNextBackup = new Date(new Date().getTime() + 5 * 60 * 1000);
+        setNextAutoBackup(newNextBackup);
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return () => clearInterval(autoBackupInterval);
+    }
+  }, [planningData, createAutoBackupJSON]);
 
   const changeWeek = (direction) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
@@ -1167,20 +1266,39 @@ const PlanningDisplay = ({
         </p>
       </div>
 
+      {/* Indicateur de sauvegarde automatique */}
+      {nextAutoBackup && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '10px',
+          padding: '8px 16px',
+          background: 'linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%)',
+          borderRadius: '8px',
+          border: '1px solid #c3e6cb',
+          fontSize: '12px',
+          color: '#155724',
+          fontWeight: '500'
+        }}>
+          <span style={{ marginRight: '8px' }}>💾</span>
+          Sauvegarde automatique JSON dans {Math.max(0, Math.floor((nextAutoBackup - new Date()) / 1000 / 60))} min
+        </div>
+      )}
+
       {/* Menu Actions - Juste après le titre */}
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        gap: deviceInfo.isTablet ? '15px' : '12px',
-        flexWrap: 'nowrap',
-        padding: deviceInfo.isTablet ? '20px 25px' : '15px 20px',
+        gap: deviceInfo.isTablet ? '8px' : '6px',
+        flexWrap: 'wrap',
+        padding: deviceInfo.isTablet ? '12px 15px' : '10px 12px',
         background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-        borderRadius: deviceInfo.isTablet ? '24px' : '20px',
+        borderRadius: deviceInfo.isTablet ? '16px' : '12px',
         border: '2px solid #dee2e6',
-        marginBottom: deviceInfo.isTablet ? '30px' : '25px',
+        marginBottom: deviceInfo.isTablet ? '20px' : '15px',
         width: '100%',
         boxSizing: 'border-box',
-        boxShadow: '0 6px 24px rgba(0,0,0,0.1)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
         overflowX: 'auto'
       }}>
         <button
@@ -1188,34 +1306,34 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(25, 118, 210, 0.4)',
+            boxShadow: '0 2px 8px rgba(25, 118, 210, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.background = 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)';
-            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 10px 24px rgba(25, 118, 210, 0.6)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(25, 118, 210, 0.6)';
           }}
           onMouseOut={(e) => {
             e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)';
             e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(25, 118, 210, 0.4)';
           }}
         >
-          📊 Vue Jour
+          Vue Jour
         </button>
         
         <button
@@ -1223,34 +1341,34 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(123, 31, 162, 0.4)',
+            boxShadow: '0 2px 8px rgba(123, 31, 162, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.background = 'linear-gradient(135deg, #4a148c 0%, #311b92 100%)';
-            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 10px 24px rgba(123, 31, 162, 0.6)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(123, 31, 162, 0.6)';
           }}
           onMouseOut={(e) => {
             e.currentTarget.style.background = 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)';
             e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(123, 31, 162, 0.4)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(123, 31, 162, 0.4)';
           }}
         >
-          📈 Dashboard
+          Dashboard
         </button>
         
         <button
@@ -1262,34 +1380,34 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(255, 152, 0, 0.4)',
+            boxShadow: '0 2px 8px rgba(255, 152, 0, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.background = 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)';
-            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 10px 24px rgba(255, 152, 0, 0.6)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 152, 0, 0.6)';
           }}
           onMouseOut={(e) => {
             e.currentTarget.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
             e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 152, 0, 0.4)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 152, 0, 0.4)';
           }}
         >
-          📊 Statistiques Boutique
+          Stats
         </button>
         
         <button
@@ -1297,19 +1415,19 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(40, 167, 69, 0.4)',
+            boxShadow: '0 2px 8px rgba(40, 167, 69, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
@@ -1324,7 +1442,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
           }}
         >
-          🏪 Gestion Boutique
+          Gestion
         </button>
         
         <button
@@ -1332,19 +1450,19 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(46, 125, 50, 0.4)',
+            boxShadow: '0 2px 8px rgba(46, 125, 50, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
@@ -1359,7 +1477,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(46, 125, 50, 0.4)';
           }}
         >
-          ⬇️ Exporter
+          Export
         </button>
         
         <button
@@ -1394,7 +1512,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 124, 0, 0.4)';
           }}
         >
-          📥 Importer
+          Import
         </button>
         
         <button
@@ -1402,19 +1520,19 @@ const PlanningDisplay = ({
           style={{
             background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
-            boxShadow: '0 4px 12px rgba(23, 162, 184, 0.4)',
+            boxShadow: '0 2px 8px rgba(23, 162, 184, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
@@ -1429,7 +1547,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 162, 184, 0.4)';
           }}
         >
-          📋 Copier-Coller
+          Copier
         </button>
         
         <button
@@ -1439,21 +1557,21 @@ const PlanningDisplay = ({
               ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
               : 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
             color: 'white',
-            padding: deviceInfo.isTablet ? '12px 20px' : '10px 16px',
-            fontSize: deviceInfo.isTablet ? '14px' : '12px',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
             border: 'none',
-            borderRadius: '12px',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontWeight: '600',
             transition: 'all 0.3s ease',
             boxShadow: hasUnsavedChanges 
-              ? '0 4px 12px rgba(220, 53, 69, 0.4)' 
-              : '0 4px 12px rgba(40, 167, 69, 0.4)',
+              ? '0 2px 8px rgba(220, 53, 69, 0.4)' 
+              : '0 2px 8px rgba(40, 167, 69, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '45px' : '38px',
-            minWidth: deviceInfo.isTablet ? '120px' : '100px',
-            letterSpacing: '0.5px',
-            textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
             position: 'relative',
             overflow: 'hidden'
           }}
@@ -1476,7 +1594,7 @@ const PlanningDisplay = ({
               : '0 6px 16px rgba(40, 167, 69, 0.4)';
           }}
         >
-          {hasUnsavedChanges ? '⚠️' : '💾'} Sauvegarder
+          {hasUnsavedChanges ? '⚠️' : ''} Sauvegarder
         </button>
         
         <button
@@ -1511,7 +1629,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 193, 7, 0.4)';
           }}
         >
-          📝 Notes
+          Notes
         </button>
         
         <button
@@ -1546,7 +1664,7 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(220, 53, 69, 0.4)';
           }}
         >
-          🗑️ Effacer
+          Effacer
         </button>
         
         <button
@@ -1581,7 +1699,79 @@ const PlanningDisplay = ({
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(108, 117, 125, 0.4)';
           }}
         >
-          ⬅️ Retour
+          Retour
+        </button>
+        
+        {/* Bouton de restauration temporaire */}
+        <button
+          onClick={restoreFromBackup}
+          style={{
+            background: 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(253, 126, 20, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #e55a00 0%, #cc4a00 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(253, 126, 20, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(253, 126, 20, 0.4)';
+          }}
+        >
+          🔄 Restaurer
+        </button>
+        
+        {/* Bouton de sauvegarde JSON manuelle */}
+        <button
+          onClick={createAutoBackupJSON}
+          style={{
+            background: 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(32, 201, 151, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(32, 201, 151, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(32, 201, 151, 0.4)';
+          }}
+        >
+          💾 JSON
         </button>
       </div>
 
