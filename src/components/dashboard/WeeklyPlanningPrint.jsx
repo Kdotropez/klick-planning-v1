@@ -17,25 +17,25 @@ const WeeklyPlanningPrint = ({
 }) => {
      const printRef = useRef();
 
-   // Fonction pour calculer la taille de police dynamique
-   const calculateDynamicFontSize = () => {
-     const containerWidth = printRef.current?.clientWidth || 800;
-     const containerHeight = printRef.current?.clientHeight || 600;
-     
-     // Calculer la taille de base en fonction de la taille du conteneur
-     let baseFontSize = Math.min(containerWidth / 50, containerHeight / 40);
-     
-     // Limiter la taille entre 12px et 20px pour une meilleure lisibilité
-     baseFontSize = Math.max(12, Math.min(20, baseFontSize));
-     
-     return {
-       base: baseFontSize,
-       small: baseFontSize * 0.85,
-       large: baseFontSize * 1.3,
-       header: baseFontSize * 1.5,
-       title: baseFontSize * 2.0
-     };
-   };
+       // Fonction pour calculer la taille de police dynamique
+    const calculateDynamicFontSize = () => {
+      const containerWidth = printRef.current?.clientWidth || 800;
+      const containerHeight = printRef.current?.clientHeight || 600;
+      
+      // Calculer la taille de base en fonction de la largeur du conteneur (plus important pour les cellules)
+      let baseFontSize = Math.min(containerWidth / 80, containerHeight / 60);
+      
+      // Limiter la taille entre 8px et 18px pour une meilleure adaptation
+      baseFontSize = Math.max(8, Math.min(18, baseFontSize));
+      
+      return {
+        base: baseFontSize,
+        small: Math.max(6, baseFontSize * 0.75), // Plus petit pour les horaires
+        large: Math.max(10, baseFontSize * 1.2), // Plus grand pour le total
+        header: Math.max(12, baseFontSize * 1.4),
+        title: Math.max(16, baseFontSize * 1.8)
+      };
+    };
 
    // Obtenir les tailles de police dynamiques
    const fontSizes = calculateDynamicFontSize();
@@ -241,8 +241,11 @@ const WeeklyPlanningPrint = ({
     // Si l'employé n'a pas d'heures dans cette boutique (0h ou pas de données)
     if (worksInMultipleShops) {
       // Pour les employés multi-boutiques, vérifier s'ils travaillent dans d'autres boutiques
-      const worksInAnyShop = employee.canWorkIn.some(shopId => {
-        if (shopId === selectedShop) return false; // Ignorer la boutique actuelle
+      let workingShop = null;
+      
+      for (const shopId of employee.canWorkIn) {
+        if (shopId === selectedShop) continue; // Ignorer la boutique actuelle
+        
         const otherShopWeekData = getWeekPlanning(planningData, shopId, weekKey);
         const hasData = otherShopWeekData.planning && 
                otherShopWeekData.planning[employeeId] && 
@@ -255,20 +258,30 @@ const WeeklyPlanningPrint = ({
           window.debugInfo.push(`🔍 VALOU ${dayKey} - Boutique ${shopId}: hasData=${hasData}, hours=${otherHours}`);
         }
         
-        return hasData && otherHours > 0;
-      });
+        if (hasData && otherHours > 0) {
+          workingShop = shopId;
+          break; // Trouvé la boutique où elle travaille
+        }
+      }
       
       // Debug spécial pour VALOU le jeudi et dimanche
       if (employee?.name === 'VALOU' && (dayKey === '2025-08-21' || dayKey === '2025-08-24')) {
         if (!window.debugInfo) window.debugInfo = [];
-        window.debugInfo.push(`🎯 VALOU ${dayKey} RÉSULTAT: worksInAnyShop=${worksInAnyShop} → ${worksInAnyShop ? 'Non présent' : 'Repos'}`);
+        window.debugInfo.push(`🎯 VALOU ${dayKey} RÉSULTAT: workingShop=${workingShop} → ${workingShop ? workingShop : 'Repos'}`);
       }
       
       if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
         if (!window.debugInfo) window.debugInfo = [];
-        window.debugInfo.push(`🔄 ${employee?.name} ${dayKey}: multi-boutique avec 0h, travaille dans une autre boutique: ${worksInAnyShop} → ${worksInAnyShop ? 'Non présent' : 'Repos'}`);
+        window.debugInfo.push(`🔄 ${employee?.name} ${dayKey}: multi-boutique avec 0h, travaille dans une autre boutique: ${workingShop} → ${workingShop ? workingShop : 'Repos'}`);
       }
-      return worksInAnyShop ? 'Non présent' : 'Repos';
+      
+      if (workingShop) {
+        // Retourner le nom de la boutique où elle travaille
+        const shopName = shops.find(shop => shop.id === workingShop)?.name || workingShop;
+        return shopName;
+      } else {
+        return 'Repos';
+      }
     } else {
       // Pour les employés mono-boutique, c'est "Repos" (congé)
       if (employee?.name === 'CHRISTINE' || employee?.name === 'MANON' || employee?.name === 'YHONNA' || employee?.name === 'VALOU' || employee?.name === 'ANGELIQUE') {
@@ -298,8 +311,8 @@ const WeeklyPlanningPrint = ({
       // Convertir en image PNG de haute qualité
       const imgData = canvas.toDataURL('image/png', 1.0);
       
-      // Créer le PDF en mode portrait A4
-      const pdf = new jsPDF('portrait', 'mm', 'a4');
+             // Créer le PDF en mode paysage A4
+       const pdf = new jsPDF('landscape', 'mm', 'a4');
       
       // Calculer les dimensions pour un rendu fidèle
       const pageWidth = pdf.internal.pageSize.getWidth();
@@ -556,19 +569,26 @@ const WeeklyPlanningPrint = ({
                        let backgroundColor = '#ffffff';
                        let color = '#333';
                        
-                                               if (status === 'Non présent') {
-                          backgroundColor = '#f8f9fa';
-                          color = '#000000';
-                        } else if (status === 'Repos') {
-                          backgroundColor = '#ffe6e6';
-                          color = '#000000';
-                        } else if (status === 'Demi-journée') {
-                          backgroundColor = '#fff8dc';
-                          color = '#000000';
-                        } else if (status === 'Présent') {
-                          backgroundColor = '#e8f5e8';
-                          color = '#000000';
-                        }
+                       // Vérifier si le statut est un nom de boutique (pour les employés multi-boutiques)
+                       const isShopName = shops.some(shop => shop.name === status);
+                       
+                       if (isShopName) {
+                         // Couleur spéciale pour les employés travaillant dans une autre boutique
+                         backgroundColor = '#e3f2fd';
+                         color = '#1565c0';
+                       } else if (status === 'Non présent') {
+                         backgroundColor = '#f8f9fa';
+                         color = '#000000';
+                       } else if (status === 'Repos') {
+                         backgroundColor = '#ffe6e6';
+                         color = '#000000';
+                       } else if (status === 'Demi-journée') {
+                         backgroundColor = '#fff8dc';
+                         color = '#000000';
+                       } else if (status === 'Présent') {
+                         backgroundColor = '#e8f5e8';
+                         color = '#000000';
+                       }
 
                        return (
                          <td key={empIndex} style={{
@@ -580,33 +600,45 @@ const WeeklyPlanningPrint = ({
                            display: 'flex',
                            flexDirection: 'row'
                          }}>
-                           {/* Partie principale (2/3) - Données existantes */}
-                           <div style={{
-                             flex: '2',
-                             padding: '10px',
-                             textAlign: 'center',
-                             fontSize: `${fontSizes.small}px`,
-                             display: 'flex',
-                             flexDirection: 'column',
-                             justifyContent: 'center',
-                             alignItems: 'center',
-                             borderRight: '1px solid #333'
-                           }}>
-                             <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: `${fontSizes.base}px` }}>
-                               {status}
-                             </div>
-                             {schedule.hours > 0 && (
-                               <>
-                                 {schedule.periods.map((period, periodIndex) => (
-                                   <div key={periodIndex} style={{ fontSize: `${fontSizes.small}px`, marginBottom: '2px' }}>
-                                     {period.start} - {period.end}
-                                   </div>
-                                 ))}
-                                 <div style={{ fontSize: `${fontSizes.small}px`, fontWeight: 'bold', marginTop: '2px' }}>
-                                   {schedule.hours}h
+                                                       {/* Partie principale (2/3) - Données existantes */}
+                            <div style={{
+                              flex: '2',
+                              padding: '6px',
+                              textAlign: 'center',
+                              fontSize: `${fontSizes.small}px`,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              borderRight: '1px solid #333',
+                              height: `${Math.max(60, fontSizes.small * 4)}px`, // Hauteur adaptative basée sur la police
+                              minHeight: '60px',
+                              maxHeight: '100px'
+                            }}>
+                                                         {schedule.hours > 0 ? (
+                              // Si l'employé a des horaires, afficher TOUJOURS sur 3 lignes fixes
+                              <>
+                                {/* Ligne 1: Première période ou arrivée */}
+                                <div style={{ fontSize: `${fontSizes.small}px`, marginBottom: '2px', fontWeight: 'bold', color: '#333', height: `${Math.max(16, fontSizes.small * 1.5)}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                  {schedule.periods.length > 0 ? `${schedule.periods[0].start} - ${schedule.periods[0].end}` : '--:-- - --:--'}
+                                </div>
+                                
+                                {/* Ligne 2: Deuxième période si elle existe, sinon vide */}
+                                <div style={{ fontSize: `${fontSizes.small}px`, marginBottom: '2px', fontWeight: 'bold', color: '#333', height: `${Math.max(16, fontSizes.small * 1.5)}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                  {schedule.periods.length > 1 ? `${schedule.periods[1].start} - ${schedule.periods[1].end}` : ''}
+                                </div>
+                                
+                                                                 {/* Ligne 3: Total heures */}
+                                 <div style={{ fontSize: `${fontSizes.small}px`, fontWeight: 'bold', marginTop: '2px', color: '#1565c0', height: `${Math.max(16, fontSizes.small * 1.5)}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                   ({schedule.hours}h)
                                  </div>
-                               </>
-                             )}
+                              </>
+                            ) : (
+                              // Si pas d'horaires, afficher le statut (Repos, nom de boutique, etc.)
+                              <div style={{ fontWeight: 'bold', fontSize: `${fontSizes.base}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                {status}
+                              </div>
+                            )}
                            </div>
                            
                                                        {/* Partie heures supplémentaires (1/3) */}
