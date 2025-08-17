@@ -178,6 +178,12 @@ const App = () => {
 
   // Vérification de la licence au démarrage
   useEffect(() => {
+    // Si des données de planning sont déjà chargées, ne pas bloquer l'UI
+    if (planningData?.shops && planningData.shops.length > 0) {
+      setShowLicenseModal(false);
+      setLicenseError('');
+      return;
+    }
     // Check for admin mode first
     const urlParams = new URLSearchParams(window.location.search);
     const adminMode = urlParams.get('admin');
@@ -193,14 +199,19 @@ const App = () => {
       if (!license) {
         setLicenseError('Aucune licence active. Veuillez activer une licence.');
         setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si pas de licence
+        // Ne pas forcer startup si des données locales existent
+        if (!planningData?.shops || planningData.shops.length === 0) {
+          setMode('startup');
+        }
         return;
       }
       
       if (!isLicenseValid(license)) {
         setLicenseError('Licence expirée. Veuillez renouveler votre licence.');
         setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si licence expirée
+        if (!planningData?.shops || planningData.shops.length === 0) {
+          setMode('startup');
+        }
         return;
       }
       
@@ -209,7 +220,9 @@ const App = () => {
       if (!limits.valid) {
         setLicenseError(`Limite de licence atteinte: ${limits.message}`);
         setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si limites atteintes
+        if (!planningData?.shops || planningData.shops.length === 0) {
+          setMode('startup');
+        }
         return;
       }
       
