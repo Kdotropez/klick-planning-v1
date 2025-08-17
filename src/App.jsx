@@ -230,7 +230,7 @@ const App = () => {
       setLicenseError('');
     };
     checkLicense();
-  }, []); // Supprimé planningData de la dépendance
+  }, [planningData]);
 
   // Gestion du démarrage
   const handleNewPlanning = () => {
