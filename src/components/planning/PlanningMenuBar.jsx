@@ -54,7 +54,8 @@ const PlanningMenuBar = ({
   calculateTotalShopEmployeesHours,
   getSelectedEmployeesCount,
   getTotalShopEmployeesCount,
-  showCalendarTotals
+  showCalendarTotals,
+  onCreateJSONBackup
 }) => {
   const [openMenus, setOpenMenus] = useState({
     tools: false,
@@ -281,6 +282,27 @@ const PlanningMenuBar = ({
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
             >
               💾 Sauvegarder
+            </Button>
+
+            <Button
+              className="button-primary"
+              onClick={onCreateJSONBackup}
+              style={{
+                backgroundColor: '#20c997',
+                color: '#fff',
+                padding: '10px 16px',
+                fontSize: '14px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#20c997'}
+            >
+              📦 JSON
             </Button>
 
             <Button

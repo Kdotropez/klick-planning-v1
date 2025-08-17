@@ -95,6 +95,7 @@ const App = () => {
   const [currentStep, setCurrentStep] = useState(1); // 1: création boutiques, 2: config, 3: employés, 4: affectation
   const [currentShopIndex, setCurrentShopIndex] = useState(0);
   const [feedback, setFeedback] = useState('');
+  const [restoredInfo, setRestoredInfo] = useState('');
 
   // États pour le planning (quand on est en mode planning)
   const [selectedShop, setSelectedShop] = useState('');
@@ -126,27 +127,32 @@ const App = () => {
           // Sélectionner automatiquement la première boutique
           setSelectedShop(savedData.shops[0].id);
           console.log('Données valides chargées, passage en mode week-selection');
+          setRestoredInfo('🔄 Données restaurées depuis le stockage local');
         } else {
           console.log('Données corrompues détectées, nettoyage du localStorage');
           localStorage.clear();
           setMode('startup');
+          setRestoredInfo('');
         }
       } else if (savedData && savedData.version === "2.0" && (!savedData.shops || savedData.shops.length === 0)) {
         // Données vides ou corrompues, nettoyer et retourner à l'écran de démarrage
         console.log('Données vides détectées, nettoyage du localStorage');
         localStorage.clear();
         setMode('startup');
+        setRestoredInfo('');
       } else {
         // Aucune donnée ou format incorrect, nettoyer et retourner à l'écran de démarrage
         console.log('Aucune donnée valide trouvée, nettoyage du localStorage');
         localStorage.clear();
         setMode('startup');
+        setRestoredInfo('');
       }
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       console.log('Nettoyage du localStorage suite à l\'erreur');
       localStorage.clear();
       setMode('startup');
+      setRestoredInfo('');
     }
   }, []);
 
@@ -629,6 +635,29 @@ const App = () => {
               {feedback}
             </p>
           )}
+          {restoredInfo && (
+            <div style={{
+              margin: '0 0 10px 0',
+              padding: '10px 14px',
+              backgroundColor: '#e3f2fd',
+              color: '#0d47a1',
+              border: '1px solid #90caf9',
+              borderRadius: '6px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontFamily: 'Roboto, sans-serif'
+            }}>
+              <span>{restoredInfo}</span>
+              <button onClick={() => setRestoredInfo('')} style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#0d47a1',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}>✕</button>
+            </div>
+          )}
           
           <WeekSelection
             onNext={(week) => {
@@ -687,6 +716,39 @@ const App = () => {
             }}>
               {feedback}
             </p>
+          )}
+          {restoredInfo && (
+            <div style={{
+              margin: '0 0 10px 0',
+              padding: '10px 14px',
+              backgroundColor: '#e3f2fd',
+              color: '#0d47a1',
+              border: '1px solid #90caf9',
+              borderRadius: '6px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontFamily: 'Roboto, sans-serif'
+            }}>
+              <span>{restoredInfo}</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { setMode('week-selection'); }} style={{
+                  backgroundColor: '#1976d2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 10px',
+                  cursor: 'pointer'
+                }}>Revenir à la sélection</button>
+                <button onClick={() => setRestoredInfo('')} style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#0d47a1',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}>✕</button>
+              </div>
+            </div>
           )}
           
                       <PlanningDisplay

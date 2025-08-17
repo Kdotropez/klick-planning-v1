@@ -708,12 +708,19 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(() => {
-    if (selectedShop && selectedWeek) {
-      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-      setPlanningData(updatedPlanningData);
-      saveToLocalStorage('planningData', updatedPlanningData);
-      setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
-      setLocalFeedback('💾 Planning sauvegardé manuellement');
+    try {
+      if (selectedShop && selectedWeek) {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        saveToLocalStorage('planningData', updatedPlanningData);
+        setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
+        setLocalFeedback('💾 Planning sauvegardé manuellement');
+      } else {
+        setLocalFeedback('❌ Sélectionnez une boutique et une semaine avant de sauvegarder');
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde manuelle:', error);
+      setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
 
@@ -1380,6 +1387,7 @@ const PlanningDisplay = ({
             onReset={() => setShowResetModal(true)}
             setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
             handleManualSave={handleManualSave}
+            onCreateJSONBackup={createAutoBackupJSON}
             onOpenDashboard={() => setShowDashboard(true)}
             onOpenShopStats={() => setShowShopStatsPage(true)}
             onOpenGestion={() => setShowGestionBoutique(true)}
