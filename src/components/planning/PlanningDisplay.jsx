@@ -2053,10 +2053,11 @@ const PlanningDisplay = ({
       {showEmployeeRecap && localSelectedEmployees && localSelectedEmployees.length > 0 && (
         <>
           <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '12px', 
-            flexWrap: 'nowrap',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            alignItems: 'stretch',
+            justifyItems: 'center',
+            gap: '16px',
             padding: '20px',
             background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
             borderRadius: '16px',
@@ -2064,7 +2065,7 @@ const PlanningDisplay = ({
             marginBottom: '20px',
             width: '100%',
             boxSizing: 'border-box',
-            overflowX: 'auto',
+            overflowX: 'visible',
             boxShadow: '0 4px 20px rgba(254, 215, 215, 0.3)'
           }}>
             {localSelectedEmployees.map((employeeId) => {
@@ -2080,14 +2081,14 @@ const PlanningDisplay = ({
                   background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
                   borderRadius: '16px',
                   border: '2px solid #e3f2fd',
-                  minWidth: '220px',
-                  maxWidth: '260px',
+                  width: '100%',
+                  maxWidth: '100%',
                   textAlign: 'center',
                   boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
-                  flex: '0 0 auto',
                   transition: 'all 0.3s ease',
                   position: 'relative',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  boxSizing: 'border-box'
                 }}>
                   <div style={{ 
                     fontSize: deviceInfo.isTablet ? '18px' : '16px', 
