@@ -671,7 +671,7 @@ export const exportPlanningToExcel = (planningData) => {
                 'T1': `${dnh.t1.toFixed(1)} h`,
                 'T2': `${dnh.t2.toFixed(1)} h`
               });
-            } else {
+                } else {
               data.push({
                 'Jour': dayLabel,
                 'BOUTIQUE': '-',
@@ -1166,7 +1166,7 @@ export const exportPlanningToExcel = (planningData) => {
     
     // Exporter le fichier (tolérant aux erreurs liées au style)
     try {
-      XLSX.writeFile(wb, `planning_detaille_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
+    XLSX.writeFile(wb, `planning_detaille_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
     } catch (e) {
       console.warn('writeFile (xlsx-js-style) a échoué, tentative fallback simple (xlsx):', e);
       try {
