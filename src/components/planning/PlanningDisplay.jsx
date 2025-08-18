@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, startOfWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
@@ -12,16 +12,20 @@ import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
+import Dashboard from '../dashboard/Dashboard';
 
 import EmployeeMonthlyWeeklyModal from './EmployeeMonthlyWeeklyModal';
 import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
 import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
 import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
+import CopyPastePage from './CopyPastePage';
+import NotesModal from './NotesModal';
+import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { exportAllDataIPad } from '../../utils/backupUtils';
 import '@/assets/styles.css';
+import '../dashboard/Dashboard.css';
 
 const PlanningDisplay = ({ 
   planningData, 
@@ -59,9 +63,30 @@ const PlanningDisplay = ({
   const [showEmployeeMonthlyDetail, setShowEmployeeMonthlyDetail] = useState(false);
   const [selectedEmployeeForMonthlyDetail, setSelectedEmployeeForMonthlyDetail] = useState('');
 
+  // État pour le tableau de bord
+  const [showDashboard, setShowDashboard] = useState(false);
+  
+  // État pour la page copier-coller avancé
+  const [showCopyPastePage, setShowCopyPastePage] = useState(false);
+  
+  // État pour la modale de notes
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  
+  // État pour la page des statistiques de la boutique
+  const [showShopStatsPage, setShowShopStatsPage] = useState(false);
+  
+  // État pour la page de gestion boutique
+  const [showGestionBoutique, setShowGestionBoutique] = useState(false);
+  
+  // État pour afficher/masquer le récapitulatif employé
+  const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
+  const [activeMenu, setActiveMenu] = useState(null);
 
   const [showCalendarTotals, setShowCalendarTotals] = useState(false);
   const [localFeedback, setLocalFeedback] = useState('');
+  
+  // État local pour les employés sélectionnés
+  const [localSelectedEmployees, setLocalSelectedEmployees] = useState(selectedEmployees || []);
   
   // États pour la protection des données validées
   const [validatedData, setValidatedData] = useState({});
@@ -70,6 +95,9 @@ const PlanningDisplay = ({
   
   // État pour forcer le rafraîchissement de la modale mensuelle
   const [modalForceRefresh, setModalForceRefresh] = useState(0);
+  
+  // État pour suivre les modifications non sauvegardées
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // État de validation globale
   const [validationState, setValidationState] = useState({
@@ -81,6 +109,25 @@ const PlanningDisplay = ({
   // État pour le verrouillage automatique
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
   const [lastModifiedDay, setLastModifiedDay] = useState(null);
+  
+  // État pour forcer le rafraîchissement
+  const [forceRefresh, setForceRefresh] = useState(0);
+
+  // Mode de barre d'outils (smart/classic) avec persistance
+  const [toolbarMode, setToolbarMode] = useState(() => {
+    try {
+      return localStorage.getItem('planning_toolbar_mode') || 'classic';
+    } catch (_) {
+      return 'classic';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('planning_toolbar_mode', toolbarMode);
+    } catch (_) {}
+  }, [toolbarMode]);
+  
+
 
   // États pour les menus et l'import
   const [openMenus, setOpenMenus] = useState({
@@ -93,6 +140,40 @@ const PlanningDisplay = ({
 
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
   const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+
+  // Fonction pour calculer le total des heures de la boutique pour le mois
+  const calculateShopMonthlyTotal = () => {
+    let totalHours = 0;
+    const currentDate = new Date(selectedWeek);
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    // Dernier jour du mois
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    
+    // Parcourir tous les jours du mois (1er au dernier jour)
+    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+      const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+      
+      // Trouver la semaine qui contient ce jour
+      const dayDate = new Date(year, month, day);
+      const weekStart = startOfWeek(dayDate, { weekStartsOn: 1 });
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      
+      // Utiliser getWeekPlanning pour normaliser les données
+      const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
+      const selectedEmployeesForShop = weekData.selectedEmployees || [];
+      const weekPlanning = weekData.planning || {};
+      
+      // Calculer les heures pour chaque employé
+      selectedEmployeesForShop.forEach(employee => {
+        const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning, config);
+        totalHours += hours;
+      });
+    }
+    
+    return totalHours.toFixed(1);
+  };
 
   // Fonctions pour les menus
   const toggleMenu = (menuName) => {
@@ -108,13 +189,29 @@ const PlanningDisplay = ({
   };
 
   const closeAllMenus = () => {
-    setOpenMenus({
-      retour: false
-    });
+    setActiveMenu(null);
   };
 
   const handleImportClick = () => {
-    fileInputRef.current?.click();
+    // Créer un input file caché pour l'import
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
+    
+    input.onchange = (event) => {
+      const file = event.target.files?.[0];
+      if (file && onImport) {
+        onImport(file);
+        setLocalFeedback('📥 Fichier importé avec succès');
+      } else {
+        setLocalFeedback('❌ Erreur lors de l\'import');
+      }
+    };
+    
+    document.body.appendChild(input);
+    input.click();
+    document.body.removeChild(input);
   };
 
   const handleFileChange = (event) => {
@@ -126,9 +223,49 @@ const PlanningDisplay = ({
     event.target.value = '';
   };
 
+  const handleExport = () => {
+    console.log('Export simple appelé');
+    onExport();
+  };
+
   // Récupérer la boutique actuelle et sa configuration
   const currentShopData = getShopById(planningData, selectedShop);
-  const config = currentShopData?.config || { timeSlots: [] };
+  const defaultConfig = {
+    timeSlots: [
+      '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+      '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
+      '20:00', '20:30', '21:00', '21:30'
+    ],
+    interval: 30,
+    startTime: '08:00',
+    endTime: '21:30'
+  };
+  
+  // Validation et nettoyage de la configuration
+  let config = currentShopData?.config || defaultConfig;
+  
+  // S'assurer que la configuration est valide
+  if (!config || !Array.isArray(config.timeSlots) || config.timeSlots.length === 0) {
+    console.warn('Configuration des tranches horaires invalide, utilisation de la configuration par défaut:', { 
+      currentShopData, 
+      originalConfig: config 
+    });
+    config = defaultConfig;
+  }
+  
+  // Nettoyer les tranches horaires pour s'assurer qu'elles sont toutes des chaînes valides
+  if (config.timeSlots) {
+    config.timeSlots = config.timeSlots.filter(slot => 
+      slot && typeof slot === 'string' && slot.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    );
+    
+    // Si après nettoyage il n'y a plus de tranches, utiliser la configuration par défaut
+    if (config.timeSlots.length === 0) {
+      console.warn('Aucune tranche horaire valide trouvée, utilisation de la configuration par défaut');
+      config = defaultConfig;
+    }
+  }
 
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
@@ -141,9 +278,12 @@ const PlanningDisplay = ({
         } catch (error) {
           console.error('Erreur lors du chargement de la validation:', error);
         }
+      } else {
+        // Si pas d'état sauvegardé, ne pas verrouiller automatiquement
+        console.log('✅ Aucun verrouillage automatique - employés libres');
       }
     }
-  }, [selectedShop, validWeek]);
+  }, [selectedShop, validWeek, localSelectedEmployees]);
 
   // Gestionnaire pour fermer les menus quand on clique ailleurs
   useEffect(() => {
@@ -188,18 +328,15 @@ const PlanningDisplay = ({
   
   // État pour les employés de la boutique actuelle
   const [currentShopEmployees, setCurrentShopEmployees] = useState([]);
+  
+  // État pour tous les employés de toutes les boutiques
+  const [allEmployees, setAllEmployees] = useState([]);
 
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
   const [planning, setPlanning] = useState(weekData.planning || {});
   
-  // Initialiser localSelectedEmployees avec les employés sélectionnés globaux si weekData est vide
-  const initialSelectedEmployees = weekData.selectedEmployees && weekData.selectedEmployees.length > 0 
-    ? weekData.selectedEmployees 
-    : selectedEmployees;
-  const [localSelectedEmployees, setLocalSelectedEmployees] = useState(initialSelectedEmployees);
-  
-  // Fonction de verrouillage automatique
+  // Fonction de verrouillage automatique lors du changement de jour
   const autoLockPreviousDay = useCallback((newDay) => {
     console.log('🔍 autoLockPreviousDay appelé:', { 
       autoLockEnabled, 
@@ -245,51 +382,20 @@ const PlanningDisplay = ({
     }
   }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, lastModifiedDay, validationState, selectedShop, validWeek]);
 
-  // Fonction de verrouillage automatique lors du changement de semaine/boutique
-  const autoLockOnChange = useCallback(() => {
-    // Utiliser localSelectedEmployees si selectedEmployees est vide
-    const employeesToLock = selectedEmployees && selectedEmployees.length > 0 ? selectedEmployees : localSelectedEmployees;
-    
-    if (autoLockEnabled && employeesToLock && employeesToLock.length > 0) {
-      console.log('🔒 Verrouillage automatique lors du changement de semaine/boutique:', { 
-        autoLockEnabled, 
-        employeesToLockLength: employeesToLock?.length
-      });
-      
-      // Verrouiller tous les employés sélectionnés
-      const updatedValidationState = {
-        ...validationState,
-        isWeekValidated: true,
-        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...employeesToLock])]
-      };
-      
-      setValidationState(updatedValidationState);
-      
-      // Sauvegarder l'état de validation
-      if (selectedShop && validWeek) {
-        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-      }
-      
-      console.log('📊 État de validation mis à jour:', updatedValidationState);
-    } else {
-      console.log('❌ Verrouillage automatique ignoré lors du changement:', { 
-        autoLockEnabled, 
-        selectedEmployeesLength: selectedEmployees?.length,
-        localSelectedEmployeesLength: localSelectedEmployees?.length
-      });
-    }
-  }, [autoLockEnabled, selectedEmployees, localSelectedEmployees, validationState, selectedShop, validWeek]);
-
   // Fonction pour changer de jour avec verrouillage automatique
   const handleDayChange = useCallback((newDay) => {
-    console.log('🔍 handleDayChange appelé:', { 
-      currentDay, 
-      newDay, 
-      lastModifiedDay, 
-      autoLockEnabled,
-      selectedEmployees: selectedEmployees?.length,
-      localSelectedEmployees: localSelectedEmployees?.length
-    });
+    console.log('🔍 handleDayChange appelé:', { currentDay, newDay, lastModifiedDay });
+    
+    // Sauvegarde silencieuse du planning actuel avant le changement de jour
+    if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
+      try {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        console.log('💾 Sauvegarde silencieuse lors du changement de jour');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde silencieuse:', error);
+      }
+    }
     
     // Verrouiller le jour précédent si nécessaire
     if (currentDay !== null && lastModifiedDay !== null && currentDay < newDay) {
@@ -306,47 +412,7 @@ const PlanningDisplay = ({
       });
     }
     setCurrentDay(newDay);
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay, autoLockEnabled, selectedEmployees, localSelectedEmployees]);
-
-  // Fonction de verrouillage automatique simplifiée - verrouiller immédiatement lors du changement de jour
-  const handleDayChangeWithLock = useCallback((newDay) => {
-    console.log('🔍 handleDayChangeWithLock appelé:', { 
-      currentDay, 
-      newDay, 
-      lastModifiedDay, 
-      autoLockEnabled,
-      localSelectedEmployees: localSelectedEmployees?.length
-    });
-    
-    // Verrouiller TOUJOURS lors du changement de jour si le verrouillage automatique est activé
-    if (autoLockEnabled && localSelectedEmployees && localSelectedEmployees.length > 0) {
-      console.log('🔒 Verrouillage automatique lors du changement de jour:', { currentDay, newDay });
-      
-      const updatedValidationState = {
-        ...validationState,
-        isWeekValidated: true,
-        lockedEmployees: [...new Set([...validationState.lockedEmployees, ...localSelectedEmployees])]
-      };
-      
-      setValidationState(updatedValidationState);
-      
-      // Sauvegarder l'état de validation
-      if (selectedShop && validWeek) {
-        localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-      }
-      
-      console.log('📊 État de validation mis à jour:', updatedValidationState);
-    }
-    
-    setCurrentDay(newDay);
-  }, [currentDay, autoLockEnabled, localSelectedEmployees, validationState, selectedShop, validWeek]);
-
-  // Effet pour le verrouillage automatique lors du changement de jour
-  useEffect(() => {
-    if (currentDay !== null && lastModifiedDay !== null && currentDay > lastModifiedDay) {
-      autoLockPreviousDay(currentDay);
-    }
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay]);
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay, selectedShop, selectedWeek, planning, planningData, localSelectedEmployees, setPlanningData]);
 
   // Mettre à jour les employés sélectionnés globalement
   useEffect(() => {
@@ -386,16 +452,6 @@ const PlanningDisplay = ({
     }
   }, [validatedData, selectedShop, validWeek]);
 
-  // Sauvegarder les données quand elles changent
-  // Sauvegarde automatique du planning - DÉSACTIVÉE pour éviter les boucles infinies
-  // useEffect(() => {
-  //   if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
-  //     console.log('💾 Sauvegarde automatique du planning:', { selectedShop, selectedWeek, planningKeys: Object.keys(planning) });
-  //     const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-  //     setPlanningData(updatedPlanningData);
-  //   }
-  // }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData]);
-  
   // S'assurer que la semaine commence par lundi
   const getMondayOfWeek = (dateString) => {
     const date = new Date(dateString);
@@ -441,6 +497,13 @@ const PlanningDisplay = ({
 
   // Gérer le changement de boutique et de semaine de manière unifiée
   useEffect(() => {
+    console.log('🔄 useEffect déclenché - Changement de boutique/semaine:', {
+      selectedShop,
+      selectedWeek,
+      forceRefresh,
+      planningDataKeys: planningData ? Object.keys(planningData) : 'null'
+    });
+    
     if (selectedShop && selectedWeek) {
       // 1. Récupérer les données de la boutique actuelle (recalculer à chaque changement)
       const currentShopData = getShopById(planningData, selectedShop);
@@ -457,6 +520,9 @@ const PlanningDisplay = ({
           ...(emp.role && { role: String(emp.role) })
         }));
       
+      // Mettre à jour tous les employés de toutes les boutiques
+      setAllEmployees(validShopEmployees);
+      
       // Filtrer les employés qui peuvent travailler dans cette boutique
       const shopEmployees = validShopEmployees.filter(emp => 
         emp.canWorkIn && emp.canWorkIn.includes(selectedShop)
@@ -468,8 +534,13 @@ const PlanningDisplay = ({
       setCurrentShopEmployees(shopEmployees);
       
       // 2. Récupérer le planning existant pour cette boutique/semaine
+      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek, planningData });
       const weekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
+      console.log('🔍 Résultat getWeekPlanning:', weekData);
+      
+      // Charger le planning depuis les données sauvegardées
       setPlanning(weekData.planning || {});
+      console.log('📥 Planning chargé depuis les données sauvegardées:', weekData.planning);
       
       // 3. Gérer les employés sélectionnés
       if (weekData.selectedEmployees && weekData.selectedEmployees.length > 0) {
@@ -488,11 +559,31 @@ const PlanningDisplay = ({
         }
       }
     }
-  }, [selectedShop, selectedWeek, planningData]);
+  }, [selectedShop, selectedWeek, planningData, forceRefresh]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
-    if (!(config?.timeSlots?.length || 0)) {
-      setLocalFeedback('Erreur: Configuration des tranches horaires non valide.');
+    // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
+    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+      try {
+        const backupKey = `backup_${selectedShop}_${selectedWeek}_${Date.now()}`;
+        localStorage.setItem(backupKey, JSON.stringify(planning));
+        console.log('🛡️ Sauvegarde de sécurité créée:', backupKey);
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde de sécurité:', error);
+      }
+    }
+    
+    // Validation robuste de la configuration des tranches horaires
+    if (!config || !Array.isArray(config.timeSlots) || config.timeSlots.length === 0) {
+      setLocalFeedback('Erreur: Configuration des tranches horaires non valide. Veuillez reconfigurer la boutique.');
+      console.error('toggleSlot: Configuration invalide:', { config, timeSlots: config?.timeSlots });
+      return;
+    }
+    
+    // Validation de l'index du slot
+    if (slotIndex < 0 || slotIndex >= config.timeSlots.length) {
+      setLocalFeedback(`Erreur: Index de créneau invalide (${slotIndex}). Configuration: ${config.timeSlots.length} créneaux.`);
+      console.error('toggleSlot: Index de slot invalide:', { slotIndex, timeSlotsLength: config.timeSlots.length });
       return;
     }
     
@@ -503,7 +594,8 @@ const PlanningDisplay = ({
       isLocked: validationState.lockedEmployees.includes(employee),
       forceValue,
       validationStateType: typeof validationState,
-      lockedEmployeesType: typeof validationState.lockedEmployees
+      lockedEmployeesType: typeof validationState.lockedEmployees,
+      config: { timeSlotsLength: config.timeSlots.length, interval: config.interval }
     });
     
     // Vérifier si l'employé est verrouillé
@@ -547,9 +639,41 @@ const PlanningDisplay = ({
       if (!Array.isArray(updatedPlanning[employee][dayKey])) {
         updatedPlanning[employee][dayKey] = Array(config.timeSlots.length).fill(false);
       }
+      
+      // S'assurer que le tableau a la bonne taille
+      if (updatedPlanning[employee][dayKey].length !== config.timeSlots.length) {
+        console.warn('Redimensionnement du tableau de slots:', {
+          oldLength: updatedPlanning[employee][dayKey].length,
+          newLength: config.timeSlots.length,
+          employee,
+          dayKey
+        });
+        const newSlots = Array(config.timeSlots.length).fill(false);
+        for (let i = 0; i < Math.min(updatedPlanning[employee][dayKey].length, config.timeSlots.length); i++) {
+          newSlots[i] = updatedPlanning[employee][dayKey][i];
+        }
+        updatedPlanning[employee][dayKey] = newSlots;
+      }
+      
       updatedPlanning[employee][dayKey] = updatedPlanning[employee][dayKey].map((val, idx) =>
         idx === slotIndex ? (forceValue !== null ? forceValue : !val) : val
       );
+      
+      // SAUVEGARDE AUTOMATIQUE IMMÉDIATE
+      if (selectedShop && selectedWeek) {
+        try {
+          const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
+          setPlanningData(updatedPlanningData);
+          setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde
+          console.log('💾 Sauvegarde automatique après modification');
+        } catch (error) {
+          console.error('Erreur lors de la sauvegarde automatique:', error);
+          setHasUnsavedChanges(true); // Marquer comme non sauvegardé en cas d'erreur
+        }
+      } else {
+        setHasUnsavedChanges(true); // Marquer comme non sauvegardé si pas de sauvegarde automatique
+      }
+      
       return updatedPlanning;
     });
   }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay]);
@@ -584,17 +708,145 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(() => {
-    if (selectedShop && selectedWeek) {
-      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-      setPlanningData(updatedPlanningData);
-      saveToLocalStorage('planningData', updatedPlanningData);
-      setLocalFeedback('💾 Planning sauvegardé manuellement');
+    try {
+      if (selectedShop && selectedWeek) {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        saveToLocalStorage('planningData', updatedPlanningData);
+        setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
+        setLocalFeedback('💾 Planning sauvegardé manuellement');
+      } else {
+        setLocalFeedback('❌ Sélectionnez une boutique et une semaine avant de sauvegarder');
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde manuelle:', error);
+      setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
 
+  // Fonction pour restaurer les données de sauvegarde
+  const restoreFromBackup = useCallback(() => {
+    if (selectedShop && selectedWeek) {
+      const backupKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith(`backup_${selectedShop}_${selectedWeek}_`)
+      );
+      
+      if (backupKeys.length > 0) {
+        // Prendre la sauvegarde la plus récente
+        const latestBackupKey = backupKeys.sort().pop();
+        const backupData = localStorage.getItem(latestBackupKey);
+        
+        if (backupData) {
+          try {
+            const restoredPlanning = JSON.parse(backupData);
+            setPlanning(restoredPlanning);
+            setLocalFeedback(`🔄 Données restaurées depuis: ${latestBackupKey}`);
+            console.log('🔄 Restauration depuis:', latestBackupKey);
+          } catch (error) {
+            console.error('Erreur lors de la restauration:', error);
+            setLocalFeedback('❌ Erreur lors de la restauration des données');
+          }
+        }
+      } else {
+        // Chercher dans toutes les sauvegardes disponibles
+        const allBackupKeys = Object.keys(localStorage).filter(key => 
+          key.startsWith('backup_')
+        );
+        
+        if (allBackupKeys.length > 0) {
+          const latestBackupKey = allBackupKeys.sort().pop();
+          const backupData = localStorage.getItem(latestBackupKey);
+          
+          if (backupData) {
+            try {
+              const restoredPlanning = JSON.parse(backupData);
+              setPlanning(restoredPlanning);
+              setLocalFeedback(`🔄 Données restaurées depuis: ${latestBackupKey}`);
+              console.log('🔄 Restauration depuis:', latestBackupKey);
+            } catch (error) {
+              console.error('Erreur lors de la restauration:', error);
+              setLocalFeedback('❌ Erreur lors de la restauration des données');
+            }
+          }
+        } else {
+          setLocalFeedback('❌ Aucune sauvegarde de sécurité trouvée dans localStorage');
+        }
+      }
+    } else {
+      setLocalFeedback('❌ Veuillez sélectionner une boutique et une semaine');
+    }
+  }, [selectedShop, selectedWeek]);
+
+  // Fonction de sauvegarde automatique JSON
+  const createAutoBackupJSON = useCallback(() => {
+    if (planningData && Object.keys(planningData.shops || {}).length > 0) {
+      try {
+        const exportData = {
+          ...planningData,
+          exportDate: new Date().toISOString(),
+          autoBackup: true,
+          backupType: 'periodic',
+          selectedShop: selectedShop,
+          selectedWeek: selectedWeek,
+          currentPlanning: planning
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+          type: 'application/json'
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `planning_auto_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(url);
+        console.log('💾 Sauvegarde JSON automatique créée');
+        setLocalFeedback('💾 Sauvegarde JSON automatique créée');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde JSON automatique:', error);
+        setLocalFeedback('❌ Erreur lors de la sauvegarde JSON automatique');
+      }
+    }
+  }, [planningData, selectedShop, selectedWeek, planning]);
+
+  // État pour la prochaine sauvegarde automatique
+  const [nextAutoBackup, setNextAutoBackup] = useState(null);
+
+  // Sauvegarde automatique JSON toutes les 5 minutes
+  useEffect(() => {
+    if (planningData && Object.keys(planningData.shops || {}).length > 0) {
+      // Calculer la prochaine sauvegarde
+      const now = new Date();
+      const nextBackup = new Date(now.getTime() + 5 * 60 * 1000); // +5 minutes
+      setNextAutoBackup(nextBackup);
+      
+      const autoBackupInterval = setInterval(() => {
+        createAutoBackupJSON();
+        // Mettre à jour la prochaine sauvegarde
+        const newNextBackup = new Date(new Date().getTime() + 5 * 60 * 1000);
+        setNextAutoBackup(newNextBackup);
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return () => clearInterval(autoBackupInterval);
+    }
+  }, [planningData, createAutoBackupJSON]);
+
   const changeWeek = (direction) => {
-    // Verrouillage automatique avant de changer de semaine
-    autoLockOnChange();
+    // Sauvegarder les modifications actuelles avant de changer de semaine
+    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+      try {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        console.log('💾 Sauvegarde automatique avant changement de semaine');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde avant changement de semaine:', error);
+      }
+    }
     
     const currentDate = new Date(validWeek);
     const newDate = new Date(currentDate);
@@ -620,10 +872,25 @@ const PlanningDisplay = ({
     setSelectedWeek(newWeek);
   };
 
-  const changeShop = (newShop) => {
-    // Verrouillage automatique avant de changer de boutique
-    autoLockOnChange();
+  const changeToSpecificWeek = (weekDate) => {
+    // Sauvegarder les modifications actuelles avant de changer de semaine
+    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+      try {
+        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        setPlanningData(updatedPlanningData);
+        console.log('💾 Sauvegarde automatique avant changement vers semaine spécifique');
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde avant changement vers semaine spécifique:', error);
+      }
+    }
     
+    setSelectedWeek(weekDate);
+    
+    // Réinitialiser le jour modifié
+    setLastModifiedDay(null);
+  };
+
+  const changeShop = (newShop) => {
     try {
       // Sauvegarder le planning actuel avant de changer de boutique
       if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
@@ -677,32 +944,240 @@ const PlanningDisplay = ({
   };
 
   const handleReset = (resetType, employeeName = null) => {
+    try {
     if (resetType === 'all') {
-      // Effacer tous les clics
-      setPlanning({});
-      setFeedback('Tous les clics réinitialisés');
+        // Effacer tous les clics de la semaine
+        const emptyPlanning = {};
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          emptyPlanning,
+          []
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(emptyPlanning);
+        setLocalSelectedEmployees([]);
+        setFeedback('✅ Tous les clics de la semaine ont été effacés');
     } else if (resetType === 'employee' && employeeName) {
       // Effacer les clics d'un employé spécifique
-      const newPlanning = { ...planning };
+        const currentWeekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
+        const newPlanning = { ...currentWeekData.planning };
+        
       // Supprimer toutes les entrées pour cet employé
-      Object.keys(newPlanning).forEach(key => {
-        if (key.startsWith(employeeName + '_')) {
-          delete newPlanning[key];
+        if (newPlanning[employeeName]) {
+          delete newPlanning[employeeName];
         }
-      });
+        
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          newPlanning,
+          currentWeekData.selectedEmployees || []
+        );
+        setPlanningData(updatedPlanningData);
       setPlanning(newPlanning);
-      setFeedback(`Clics de ${employeeName} réinitialisés`);
+        setFeedback(`✅ Clics de ${employeeName} ont été effacés`);
     } else if (resetType === 'week') {
-      setPlanning({});
+        const emptyPlanning = {};
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          emptyPlanning,
+          []
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(emptyPlanning);
       setLocalSelectedEmployees([]);
-      setFeedback('Semaine réinitialisée');
+        setFeedback('✅ Semaine réinitialisée');
     } else if (resetType === 'clicks') {
-      setPlanning({});
-      setFeedback('Clics réinitialisés');
+        const emptyPlanning = {};
+        const updatedPlanningData = saveWeekPlanning(
+          planningData,
+          selectedShop,
+          selectedWeek,
+          emptyPlanning,
+          localSelectedEmployees
+        );
+        setPlanningData(updatedPlanningData);
+        setPlanning(emptyPlanning);
+        setFeedback('✅ Clics réinitialisés');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la réinitialisation:', error);
+      setFeedback('❌ Erreur lors de la réinitialisation');
     }
   };
 
+  // Fonction pour copier les données d'une semaine vers une autre semaine
+  const copyWeekToWeek = useCallback((sourceWeek, destinationWeek) => {
+    try {
+      console.log(`🔄 Début de la copie de semaine ${sourceWeek} vers ${destinationWeek}`);
+      
+      // Vérifier que les semaines sont valides
+      if (!sourceWeek || !destinationWeek) {
+        setLocalFeedback('❌ Veuillez spécifier les semaines source et destination');
+        return;
+      }
+      
+      // VÉRIFIER SI LA SEMAINE DESTINATION CONTIENT DÉJÀ DES DONNÉES
+      const destinationWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[destinationWeek];
+      const existingDestinationPlanning = destinationWeekData?.planning || {};
+      
+      // Compter les cliques existants dans la semaine destination
+      let existingClicksCount = 0;
+      Object.keys(existingDestinationPlanning).forEach(empId => {
+        Object.keys(existingDestinationPlanning[empId]).forEach(dayKey => {
+          const daySlots = existingDestinationPlanning[empId][dayKey];
+          if (daySlots && Array.isArray(daySlots)) {
+            existingClicksCount += daySlots.filter(slot => slot === true).length;
+          }
+        });
+      });
+      
+      console.log(`🔍 Semaine destination (${destinationWeek}) contient ${existingClicksCount} cliques existants`);
+      
+      // Si la semaine destination contient des données, demander confirmation
+      if (existingClicksCount > 0) {
+        const destinationWeekStart = format(new Date(destinationWeek), 'dd/MM');
+        const destinationWeekEnd = format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+        const confirmMessage = `⚠️ La semaine du ${destinationWeekStart} au ${destinationWeekEnd} contient déjà ${existingClicksCount} cliques.\n\nVoulez-vous vraiment écraser ces données ?\n\nCette action ne peut pas être annulée.`;
+        
+        if (!window.confirm(confirmMessage)) {
+          console.log('❌ Copie annulée par l\'utilisateur');
+          setLocalFeedback('❌ Copie annulée. Les données existantes sont préservées.');
+        return;
+      }
+      
+        console.log('✅ Utilisateur a confirmé l\'écrasement des données existantes');
+      }
+      
+      // Récupérer les données de la semaine source depuis planningData
+      const sourceWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[sourceWeek];
+      const sourcePlanning = sourceWeekData?.planning || {};
+      const sourceSelectedEmployees = sourceWeekData?.selectedEmployees || [];
+      
+      console.log('📊 Planning source à copier (semaine 28/07):', sourcePlanning);
+      console.log('📊 Structure détaillée du planning source:', JSON.stringify(sourcePlanning, null, 2));
+      
+      // Afficher les clés des employés et des jours
+      if (sourcePlanning) {
+        Object.keys(sourcePlanning).forEach(empId => {
+          console.log(`👤 Employé ${empId}:`, Object.keys(sourcePlanning[empId]));
+          Object.keys(sourcePlanning[empId]).forEach(dayKey => {
+            console.log(`  📅 Jour ${dayKey}:`, sourcePlanning[empId][dayKey]);
+          });
+        });
+      }
+      
+      if (!sourcePlanning || Object.keys(sourcePlanning).length === 0) {
+        console.log('⚠️ Aucun planning source à copier');
+        const sourceWeekStart = format(new Date(sourceWeek), 'dd/MM');
+        const sourceWeekEnd = format(new Date(new Date(sourceWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+        setLocalFeedback(`⚠️ Aucun planning à copier. Assurez-vous d'avoir des cliques sur la semaine du ${sourceWeekStart} au ${sourceWeekEnd}.`);
+        return;
+      }
+      
+      // TRANSFORMATION DES CLÉS DE DATES : Créer un nouveau planning avec les clés de la semaine destination
+      const transformedPlanning = {};
+      
+      // Générer les dates de la semaine destination (4/08 au 10/08)
+      const destinationDates = [];
+      const startDate = new Date(destinationWeek);
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        destinationDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      // Générer les dates de la semaine source (28/07 au 3/08)
+      const sourceDates = [];
+      const sourceStartDate = new Date(sourceWeek);
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(sourceStartDate);
+        date.setDate(sourceStartDate.getDate() + i);
+        sourceDates.push(date.toISOString().split('T')[0]);
+      }
+      
+      console.log('📅 Dates source:', sourceDates);
+      console.log('📅 Dates destination:', destinationDates);
+      
+      // Transformer le planning en remplaçant les clés de dates
+      Object.keys(sourcePlanning).forEach(empId => {
+        transformedPlanning[empId] = {};
+        
+        // Copier les données de chaque jour en transformant les clés
+        sourceDates.forEach((sourceDate, index) => {
+          const destinationDate = destinationDates[index];
+          if (sourcePlanning[empId][sourceDate]) {
+            transformedPlanning[empId][destinationDate] = [...sourcePlanning[empId][sourceDate]];
+            console.log(`🔄 Copie ${sourceDate} → ${destinationDate} pour ${empId}`);
+          }
+        });
+      });
+      
+      console.log('🔄 Planning transformé:', transformedPlanning);
+      
+      // 1. Copier le planning transformé vers localStorage
+      localStorage.setItem(`planning_${selectedShop}_${destinationWeek}`, JSON.stringify(transformedPlanning));
+      
+      // 2. Copier aussi les employés sélectionnés de la semaine source
+      if (sourceSelectedEmployees && sourceSelectedEmployees.length > 0) {
+        localStorage.setItem(`selected_employees_${selectedShop}_${destinationWeek}`, JSON.stringify(sourceSelectedEmployees));
+        console.log('👥 Employés sélectionnés copiés:', sourceSelectedEmployees);
+      }
+      
+      // 3. IMPORTANT : Mettre à jour la structure planningData pour que getWeekPlanning puisse la lire
+      console.log('🔧 Avant saveWeekPlanning - planningData:', planningData);
+      console.log('🔧 Paramètres saveWeekPlanning:', {
+        selectedShop,
+        destinationWeek,
+        transformedPlanning,
+        sourceSelectedEmployees
+      });
+      
+      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, destinationWeek, transformedPlanning, sourceSelectedEmployees);
+      console.log('🔧 Après saveWeekPlanning - updatedPlanningData:', updatedPlanningData);
+      
+      setPlanningData(updatedPlanningData);
+      
+      console.log('✅ Planning transformé copié vers localStorage ET planningData');
+      
+      // Vérifier que la copie a bien fonctionné
+      const verifyCopy = localStorage.getItem(`planning_${selectedShop}_${destinationWeek}`);
+      if (verifyCopy) {
+        const copiedData = JSON.parse(verifyCopy);
+        console.log('🔍 Vérification de la copie - données copiées:', copiedData);
+        
+        // Naviguer vers la semaine de destination
+        console.log('🔄 Navigation vers la semaine:', destinationWeek);
+        setSelectedWeek(destinationWeek);
+        
+        // Forcer le rafraîchissement pour déclencher le useEffect qui charge le planning
+        setForceRefresh(prev => prev + 1);
+        
+        setLocalFeedback(`✅ Planning copié vers la semaine du ${format(new Date(destinationWeek), 'dd/MM')} au ${format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM')}. Navigation automatique en cours...`);
+      } else {
+        console.log('❌ Échec de la copie - données non trouvées dans localStorage');
+        setLocalFeedback('❌ Échec de la copie. Veuillez réessayer.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la copie:', error);
+      setLocalFeedback('❌ Erreur lors de la copie des données');
+    }
+  }, [selectedShop, setSelectedWeek, planningData, setPlanningData]);
 
+
+
+  // Fonction pour copier vers la semaine suivante (compatibilité)
+  const copyWeekToNextWeek = useCallback(() => {
+    const sourceWeek = selectedWeek;
+    const destinationWeek = format(addDays(parseISO(selectedWeek), 7), 'yyyy-MM-dd');
+    copyWeekToWeek(sourceWeek, destinationWeek);
+  }, [selectedWeek, copyWeekToWeek]);
 
   if (!currentShopData) {
     return (
@@ -736,8 +1211,47 @@ const PlanningDisplay = ({
     );
   }
 
+  // Si la page copier-coller est active, afficher seulement cette page
+  if (showCopyPastePage) {
+    return (
+      <CopyPastePage
+        planningData={planningData}
+        setPlanningData={setPlanningData}
+        selectedShop={selectedShop}
+        selectedWeek={selectedWeek}
+        onBack={() => setShowCopyPastePage(false)}
+      />
+    );
+  }
+
+  // Si la page des statistiques est active, afficher seulement cette page
+  if (showShopStatsPage) {
+    return (
+      <ShopStatsPage
+        planningData={planningData}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        config={config}
+        shops={shops}
+        employees={allEmployees}
+        onBack={() => setShowShopStatsPage(false)}
+      />
+    );
+  }
+
   return (
-    <div className="planning-display">
+    <div className="planning-display" style={{
+      width: '100%',
+      minHeight: '100vh',
+      padding: deviceInfo.isTablet ? '30px' : '20px',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: deviceInfo.isTablet ? '25px' : '20px',
+      overflow: 'auto',
+      maxWidth: '100vw',
+      margin: '0 auto'
+    }}>
       {localFeedback && (
         <p style={{ 
           fontFamily: 'Roboto, sans-serif', 
@@ -752,38 +1266,62 @@ const PlanningDisplay = ({
       {/* Titre de la semaine - EN HAUT */}
       <div style={{
         textAlign: 'center',
-        marginBottom: '20px',
-        padding: '15px',
-        backgroundColor: '#f0f8ff',
-        borderRadius: '10px',
-        border: '2px solid #b3d9ff'
+        marginBottom: deviceInfo.isTablet ? '30px' : '25px',
+        padding: deviceInfo.isTablet ? '30px 25px' : '25px 20px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderRadius: deviceInfo.isTablet ? '20px' : '16px',
+        border: 'none',
+        boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+        position: 'relative',
+        overflow: 'hidden',
+        width: '100%',
+        boxSizing: 'border-box'
       }}>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.1) 75%), linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.1) 75%)',
+          backgroundSize: '20px 20px',
+          backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'
+        }} />
         <h2 style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: deviceInfo.isTablet ? '28px' : '24px',
-          fontWeight: 'bold',
-          color: '#2c3e50',
+          fontSize: deviceInfo.isTablet ? '32px' : '28px',
+          fontWeight: '800',
+          color: '#ffffff',
           margin: '0',
           textTransform: 'uppercase',
-          letterSpacing: '1px'
+          letterSpacing: '2px',
+          textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+          position: 'relative',
+          zIndex: 1
         }}>
           {getWeekTitle()}
         </h2>
         <p style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: deviceInfo.isTablet ? '24px' : '20px',
-          color: '#495057',
-          margin: '8px 0 0 0',
+          fontSize: deviceInfo.isTablet ? '26px' : '22px',
+          color: '#ffffff',
+          margin: '12px 0 0 0',
           fontStyle: 'italic',
-          fontWeight: '600'
+          fontWeight: '500',
+          textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+          position: 'relative',
+          zIndex: 1
         }}>
           {currentShopData?.name || selectedShop}
           {deviceInfo.isIPad && (
             <span style={{ 
-              fontSize: '14px', 
-              color: '#17a2b8', 
-              marginLeft: '10px',
-              fontWeight: 'normal'
+              fontSize: '16px', 
+              color: '#e3f2fd', 
+              marginLeft: '12px',
+              fontWeight: '400',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              padding: '4px 8px',
+              borderRadius: '6px'
             }}>
               📱 Mode iPad
             </span>
@@ -791,33 +1329,752 @@ const PlanningDisplay = ({
         </p>
       </div>
 
+      {/* Indicateur de sauvegarde automatique */}
+      {nextAutoBackup && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '10px',
+          padding: '8px 16px',
+          background: 'linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%)',
+          borderRadius: '8px',
+          border: '1px solid #c3e6cb',
+          fontSize: '12px',
+          color: '#155724',
+          fontWeight: '500'
+        }}>
+          <span style={{ marginRight: '8px' }}>💾</span>
+          Sauvegarde automatique JSON dans {Math.max(0, Math.floor((nextAutoBackup - new Date()) / 1000 / 60))} min
+        </div>
+      )}
+
+      {/* Sélecteur de mode de barre */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
+        <button
+          onClick={() => setToolbarMode(toolbarMode === 'smart' ? 'classic' : 'smart')}
+          style={{
+            backgroundColor: '#f1f3f5',
+            color: '#333',
+            padding: '6px 10px',
+            fontSize: '12px',
+            border: '1px solid #dee2e6',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          }}
+          title={toolbarMode === 'smart' ? 'Basculer en mode classique' : 'Basculer en mode intelligent'}
+        >
+          {toolbarMode === 'smart' ? 'Mode classique' : 'Mode intelligent'}
+        </button>
+      </div>
+
+      {/* Menu Actions - Juste après le titre */}
+      {toolbarMode === 'smart' ? (
+        <div style={{ width: '100%' }}>
+          <PlanningMenuBar
+            currentShop={selectedShop}
+            shops={shops}
+            currentWeek={validWeek}
+            changeWeek={changeWeek}
+            changeShop={changeShop}
+            changeMonth={changeMonth}
+            onBack={onBackToEmployees}
+            onBackToShop={onBackToShopSelection}
+            onBackToWeek={onBackToWeekSelection}
+            onBackToConfig={onBackToConfig}
+            onBackToStartup={onBackToStartup}
+            onExport={handleExport}
+            onImport={onImport}
+            onReset={() => setShowResetModal(true)}
+            setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+            handleManualSave={handleManualSave}
+            onCreateJSONBackup={createAutoBackupJSON}
+            onOpenDashboard={() => setShowDashboard(true)}
+            onOpenShopStats={() => setShowShopStatsPage(true)}
+            onOpenGestion={() => setShowGestionBoutique(true)}
+            onOpenNotes={() => setShowNotesModal(true)}
+          />
+        </div>
+      ) : (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: deviceInfo.isTablet ? '8px' : '6px',
+        flexWrap: 'wrap',
+        padding: deviceInfo.isTablet ? '12px 15px' : '10px 12px',
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+        borderRadius: deviceInfo.isTablet ? '16px' : '12px',
+        border: '2px solid #dee2e6',
+        marginBottom: deviceInfo.isTablet ? '20px' : '15px',
+        width: '100%',
+        boxSizing: 'border-box',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+        overflowX: 'auto'
+      }}>
+        <button
+          onClick={() => setShowGlobalDayViewModalV2(true)}
+          style={{
+            background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(25, 118, 210, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(25, 118, 210, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(25, 118, 210, 0.4)';
+          }}
+        >
+          Vue Jour
+        </button>
+        
+        <button
+          onClick={() => setShowDashboard(true)}
+          style={{
+            background: 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(123, 31, 162, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #4a148c 0%, #311b92 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(123, 31, 162, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(123, 31, 162, 0.4)';
+          }}
+        >
+          Dashboard
+        </button>
+        
+        <button
+          onClick={() => {
+            console.log('🚨🚨🚨 PlanningDisplay: SHOP STATS BUTTON CLICKED 🚨🚨🚨');
+            setShowShopStatsPage(true);
+            console.log('🚨🚨🚨 PlanningDisplay: showShopStatsPage set to true 🚨🚨🚨');
+          }}
+          style={{
+            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(255, 152, 0, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 152, 0, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 152, 0, 0.4)';
+          }}
+        >
+          Stats
+        </button>
+        
+        <button
+          onClick={() => setShowGestionBoutique(true)}
+          style={{
+            background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(40, 167, 69, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #1e7e34 0%, #155724 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(40, 167, 69, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
+          }}
+        >
+          Gestion
+        </button>
+        
+        <button
+          onClick={handleExport}
+          style={{
+            background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(46, 125, 50, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #1b5e20 0%, #0d4f1c 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(46, 125, 50, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(46, 125, 50, 0.4)';
+          }}
+        >
+          Export
+        </button>
+        
+        {/* Tooltip pour expliquer les différences */}
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          whiteSpace: 'nowrap',
+          zIndex: 1000,
+          pointerEvents: 'none',
+          opacity: 0,
+          transition: 'opacity 0.3s ease'
+        }} id="tooltip">
+          Cliquez pour voir les différences
+        </div>
+        
+        <button
+          onClick={handleImportClick}
+          style={{
+            background: 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(245, 124, 0, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #e65100 0%, #bf360c 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 124, 0, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(245, 124, 0, 0.4)';
+          }}
+        >
+          Import
+        </button>
+        
+        <button
+          onClick={() => setShowCopyPastePage(true)}
+          style={{
+            background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(23, 162, 184, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #138496 0%, #0f6674 100%)';
+            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
+            e.currentTarget.style.boxShadow = '0 10px 24px rgba(23, 162, 184, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 162, 184, 0.4)';
+          }}
+        >
+          Copier
+        </button>
+        
+        <button
+          onClick={handleManualSave}
+          style={{
+            background: hasUnsavedChanges 
+              ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
+              : 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: hasUnsavedChanges 
+              ? '0 2px 8px rgba(220, 53, 69, 0.4)' 
+              : '0 2px 8px rgba(40, 167, 69, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = hasUnsavedChanges 
+              ? 'linear-gradient(135deg, #c82333 0%, #a71e2a 100%)' 
+              : 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = hasUnsavedChanges 
+              ? '0 4px 12px rgba(220, 53, 69, 0.6)' 
+              : '0 4px 12px rgba(40, 167, 69, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = hasUnsavedChanges 
+              ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
+              : 'linear-gradient(135deg, #28a745 0%, #218838 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = hasUnsavedChanges 
+              ? '0 2px 8px rgba(220, 53, 69, 0.4)' 
+              : '0 2px 8px rgba(40, 167, 69, 0.4)';
+          }}
+        >
+          {hasUnsavedChanges ? '⚠️' : ''} Sauvegarder
+        </button>
+        
+        <button
+          onClick={() => setShowNotesModal(true)}
+          style={{
+            background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(255, 193, 7, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #e0a800 0%, #b8860b 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 193, 7, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 193, 7, 0.4)';
+          }}
+        >
+          Notes
+        </button>
+        
+        <button
+          onClick={() => setShowResetModal(true)}
+          style={{
+            background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(220, 53, 69, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #c82333 0%, #a71e2a 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 53, 69, 0.4)';
+          }}
+        >
+          Effacer
+        </button>
+        
+        <button
+          onClick={() => toggleMenu('retour')}
+          style={{
+            background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(108, 117, 125, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #495057 0%, #343a40 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(108, 117, 125, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #6c757d 0%, #495057 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(108, 117, 125, 0.4)';
+          }}
+        >
+          Retour
+        </button>
+        
+        {/* Bouton de restauration temporaire */}
+        <button
+          onClick={restoreFromBackup}
+          style={{
+            background: 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(253, 126, 20, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #e55a00 0%, #cc4a00 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(253, 126, 20, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(253, 126, 20, 0.4)';
+          }}
+        >
+          🔄 Restaurer
+        </button>
+        
+        {/* Bouton de sauvegarde JSON manuelle */}
+        <button
+          onClick={createAutoBackupJSON}
+          style={{
+            background: 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)',
+            color: 'white',
+            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
+            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 2px 8px rgba(32, 201, 151, 0.4)',
+            whiteSpace: 'nowrap',
+            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minWidth: deviceInfo.isTablet ? '80px' : '70px',
+            letterSpacing: '0.3px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(32, 201, 151, 0.6)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(32, 201, 151, 0.4)';
+          }}
+        >
+          💾 JSON
+        </button>
+      </div>
+      )}
+
+      {/* Menu déroulant Retour */}
+      {openMenus.retour && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: '#fff',
+          border: '2px solid #dee2e6',
+          borderRadius: '8px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          minWidth: '250px',
+          padding: '10px 0'
+        }}>
+          <button
+            onClick={onBackToStartup}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            🏠 Écran de démarrage
+          </button>
+          <button
+            onClick={onBackToConfig}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            ⚙️ Configuration boutiques
+          </button>
+          <button
+            onClick={onBackToEmployees}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            👥 Gestion employés
+          </button>
+          <button
+            onClick={onBackToShopSelection}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            🏪 Sélection boutique
+          </button>
+          <button
+            onClick={onBackToWeekSelection}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontSize: '14px',
+              transition: 'background-color 0.2s ease'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            📅 Sélection semaine
+          </button>
+        </div>
+      )}
+
       {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
-      {localSelectedEmployees && localSelectedEmployees.length > 0 && (
+      <div style={{ 
+        fontSize: deviceInfo.isTablet ? '20px' : '18px', 
+        fontWeight: '800', 
+        color: '#2c3e50',
+        marginBottom: '15px',
+        width: '100%',
+        textAlign: 'center',
+        padding: '12px 20px',
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+        borderRadius: '12px',
+        border: '2px solid #dee2e6',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span>📊 Récapitulatifs Employés</span>
+        <button
+          onClick={() => setShowEmployeeRecap(!showEmployeeRecap)}
+          style={{
+            backgroundColor: showEmployeeRecap ? '#ff9800' : '#4caf50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 16px',
+            fontSize: '14px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+            textTransform: 'none',
+            letterSpacing: 'normal'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 3px 6px rgba(0,0,0,0.3)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+          }}
+          title={showEmployeeRecap ? 'Masquer le récapitulatif employé' : 'Afficher le récapitulatif employé'}
+        >
+          {showEmployeeRecap ? '👁️ Masquer' : '👁️ Afficher'}
+        </button>
+      </div>
+      
+      {showEmployeeRecap && localSelectedEmployees && localSelectedEmployees.length > 0 && (
         <>
           <div style={{ 
-            fontSize: '16px', 
-            fontWeight: 'bold', 
-            color: '#495057',
-            marginBottom: '10px',
-            width: '100%',
-            textAlign: 'center'
-          }}>
-            Récapitulatifs Employés
-          </div>
-          
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '8px', 
-            flexWrap: 'nowrap',
-            padding: '15px',
-            backgroundColor: '#fff5f5',
-            borderRadius: '10px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            alignItems: 'stretch',
+            justifyItems: 'center',
+            gap: '16px',
+            padding: '20px',
+            background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
+            borderRadius: '16px',
             border: '2px solid #fed7d7',
-            marginBottom: '15px',
+            marginBottom: '20px',
             width: '100%',
             boxSizing: 'border-box',
-            overflowX: 'auto'
+            overflowX: 'visible',
+            boxShadow: '0 4px 20px rgba(254, 215, 215, 0.3)'
           }}>
             {localSelectedEmployees.map((employeeId) => {
               const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
@@ -827,59 +2084,66 @@ const PlanningDisplay = ({
                 <div key={employeeId} style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '6px',
-                  padding: '12px 15px',
-                  backgroundColor: '#fef7ff',
-                  borderRadius: '8px',
-                  border: '2px solid #e9d5ff',
-                  minWidth: '160px',
-                  maxWidth: '180px',
+                  gap: '12px',
+                  padding: '22px 24px',
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+                  borderRadius: '16px',
+                  border: '2px solid #e3f2fd',
+                  width: '100%',
+                  maxWidth: '100%',
                   textAlign: 'center',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-                  flex: '0 0 auto'
+                  boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
+                  transition: 'all 0.3s ease',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  boxSizing: 'border-box'
                 }}>
                   <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: 'bold',
-                    color: '#495057',
-                    marginBottom: '6px',
-                    padding: '6px',
-                    backgroundColor: '#f3e8ff',
-                    borderRadius: '4px',
-                    border: '1px solid #d8b4fe',
+                    fontSize: deviceInfo.isTablet ? '18px' : '16px', 
+                    fontWeight: '800',
+                    color: '#1a237e',
+                    marginBottom: '10px',
+                    padding: '12px 16px',
+                    background: 'linear-gradient(135deg, #e8f4fd 0%, #bbdefb 100%)',
+                    borderRadius: '12px',
+                    border: '2px solid #2196f3',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    textOverflow: 'ellipsis',
+                    boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    letterSpacing: '0.5px'
                   }}>
-                    {employeeName}
+                    👤 {employeeName}
                   </div>
                   
                   <button
                     onClick={() => setShowRecapModal(employeeId)}
                     style={{
-                      backgroundColor: '#17a2b8',
+                      backgroundColor: '#1976d2',
                       color: 'white',
-                      padding: deviceInfo.isTablet ? '12px 16px' : '8px 12px',
-                      fontSize: deviceInfo.isTablet ? '14px' : '12px',
+                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
+                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      marginBottom: '4px',
-                      fontWeight: 'bold',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      marginBottom: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 3px 8px rgba(25, 118, 210, 0.3)',
                       whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '44px' : 'auto'
+                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
+                      letterSpacing: '0.5px'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#138496';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                      e.currentTarget.style.backgroundColor = '#1565c0';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#17a2b8';
+                      e.currentTarget.style.backgroundColor = '#1976d2';
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(25, 118, 210, 0.3)';
                     }}
                     title="Récapitulatif journalier"
                   >
@@ -897,29 +2161,30 @@ const PlanningDisplay = ({
                       setShowEmployeeWeeklyRecap(true);
                     }}
                     style={{
-                      backgroundColor: '#28a745',
+                      backgroundColor: '#2e7d32',
                       color: 'white',
-                      padding: deviceInfo.isTablet ? '12px 16px' : '8px 12px',
-                      fontSize: deviceInfo.isTablet ? '14px' : '12px',
+                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
+                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      marginBottom: '4px',
-                      fontWeight: 'bold',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      marginBottom: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 3px 8px rgba(46, 125, 50, 0.3)',
                       whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '44px' : 'auto'
+                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
+                      letterSpacing: '0.5px'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#218838';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                      e.currentTarget.style.backgroundColor = '#1b5e20';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(46, 125, 50, 0.4)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#28a745';
+                      e.currentTarget.style.backgroundColor = '#2e7d32';
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(46, 125, 50, 0.3)';
                     }}
                     title="Récapitulatif hebdomadaire"
                   >
@@ -935,48 +2200,260 @@ const PlanningDisplay = ({
                     })()}h
                   </button>
                   
+                  {(() => {
+                    // FORCER l'affichage des boutons séparés pour VALOU et ANGELIQUE
+                    if (employeeName === 'VALOU' || employeeName === 'ANGELIQUE') {
+                      console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId})`);
+                      
+                      // Calculer les heures pour chaque boutique
+                      const allShops = planningData?.shops || [];
+                      const shopsWithHours = [];
+                      
+                      allShops.forEach(shop => {
+                        let shopHours = 0;
+                        
+                        // Calculer les heures du mois pour cette boutique
+                        if (selectedWeek && planningData) {
+                          const currentDate = new Date(selectedWeek);
+                          const year = currentDate.getFullYear();
+                          const month = currentDate.getMonth();
+                          const firstDayOfMonth = new Date(year, month, 1);
+                          const lastDayOfMonth = new Date(year, month + 1, 0);
+                          
+                          // Parcourir tous les jours du mois
+                          for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                            const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                            
+                            // Calculer les heures pour cette boutique spécifique
+                            if (shop.weeks) {
+                              Object.keys(shop.weeks).forEach(weekKey => {
+                                const weekData = shop.weeks[weekKey];
+                                if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                  const slots = weekData.planning[employeeId][dayKey];
+                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                    shopHours += hours;
+                                  }
+                                }
+                              });
+                            }
+                          }
+                        }
+                        
+                        if (shopHours > 0) {
+                          shopsWithHours.push({
+                            id: shop.id,
+                            name: shop.name,
+                            hours: shopHours
+                          });
+                        }
+                      });
+                      
+                      console.log(`Shops with hours for ${employeeName}:`, shopsWithHours);
+                      
+                      if (shopsWithHours.length > 1) {
+                        return (
+                          <div style={{ width: '100%' }}>
+                            {shopsWithHours.map((shop, shopIndex) => (
                   <button
+                                key={shop.id}
                     onClick={() => {
-                      setSelectedEmployeeForMonthlyRecap(employeeId);
-                      setShowEmployeeMonthlyRecap(true);
+                                  console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeName, 'Boutique:', shop.name, 'Heures:', shop.hours);
+                                  setSelectedEmployeeForMonthlyRecap(employeeId);
+                                  setShowEmployeeMonthlyRecap(true);
+                                }}
+                                style={{
+                                  backgroundColor: '#1e88e5',
+                                  color: '#fff',
+                                  padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                  fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  marginBottom: shopIndex < shopsWithHours.length - 1 ? '4px' : '6px',
+                                  fontWeight: '600',
+                                  transition: 'all 0.3s ease',
+                                  boxShadow: '0 2px 6px rgba(30, 136, 229, 0.3)',
+                                  whiteSpace: 'nowrap',
+                                  width: '100%',
+                                  letterSpacing: '0.5px'
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#1565c0';
+                                  e.currentTarget.style.transform = 'translateY(-1px)';
+                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#1e88e5';
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
+                                }}
+                                title={`Récapitulatif mensuel - ${shop.name}`}
+                              >
+                                📈 {shop.name}: {shop.hours.toFixed(1)}h
+                              </button>
+                            ))}
+                            {/* Bouton total global séparé */}
+                            <button
+                              onClick={() => {
+                                console.log('Bouton MOIS RÉEL TOTAL GLOBAL cliqué pour employé:', employeeName);
+                                setSelectedEmployeeForMonthlyRecap(employeeId);
+                                setShowEmployeeMonthlyRecap(true);
+                              }}
+                              style={{
+                                backgroundColor: '#28a745',
+                                color: '#fff',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                marginTop: '4px',
+                                fontWeight: '600',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
+                                whiteSpace: 'nowrap',
+                                width: '100%',
+                                letterSpacing: '0.5px'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.backgroundColor = '#218838';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.backgroundColor = '#28a745';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(40, 167, 69, 0.3)';
+                              }}
+                              title="Récapitulatif mensuel global"
+                            >
+                              📈 TOTAL GLOBAL: {(() => {
+                                if (!selectedWeek || !planningData) return '0.0';
+                                
+                                // Calculer les heures du mois complet sur toutes les boutiques
+                                const currentDate = new Date(selectedWeek);
+                                const year = currentDate.getFullYear();
+                                const month = currentDate.getMonth();
+                                
+                                // Premier jour du mois
+                                const firstDayOfMonth = new Date(year, month, 1);
+                                // Dernier jour du mois
+                                const lastDayOfMonth = new Date(year, month + 1, 0);
+                                
+                                let totalHours = 0;
+                                
+                                // Parcourir tous les jours du mois
+                                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                                  
+                                  // Calculer les heures pour toutes les boutiques où l'employé travaille
+                                  if (planningData.shops) {
+                                    planningData.shops.forEach(shop => {
+                                      if (shop.weeks) {
+                                        Object.keys(shop.weeks).forEach(weekKey => {
+                                          const weekData = shop.weeks[weekKey];
+                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                            const slots = weekData.planning[employeeId][dayKey];
+                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                              totalHours += hours;
+                                            }
+                                          }
+                                        });
+                                      }
+                                    });
+                                  }
+                                }
+                                
+                                return totalHours.toFixed(1);
+                              })()}h
+                            </button>
+                          </div>
+                        );
+                      }
+                    }
+                    
+                    // Pour tous les autres employés, bouton normal
+                    return (
+                      <button
+                        onClick={() => {
+                          console.log('🚨🚨🚨 PlanningDisplay: MOIS BUTTON CLICKED for employee', employeeId, '🚨🚨🚨');
+                          setSelectedEmployeeForMonthlyRecap(employeeId);
+                          setShowEmployeeMonthlyRecap(true);
+                          console.log('🚨🚨🚨 PlanningDisplay: showEmployeeMonthlyRecap set to true 🚨🚨🚨');
                     }}
                     style={{
-                      backgroundColor: '#ffc107',
-                      color: '#212529',
-                      padding: '8px 12px',
-                      fontSize: '12px',
+                      backgroundColor: '#f57c00',
+                      color: 'white',
+                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
+                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      marginBottom: '4px',
-                      fontWeight: 'bold',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                      whiteSpace: 'nowrap'
+                      marginBottom: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 3px 8px rgba(245, 124, 0, 0.3)',
+                      whiteSpace: 'nowrap',
+                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
+                      letterSpacing: '0.5px'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#e0a800';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                      e.currentTarget.style.backgroundColor = '#e65100';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 124, 0, 0.4)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#ffc107';
+                      e.currentTarget.style.backgroundColor = '#f57c00';
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(245, 124, 0, 0.3)';
                     }}
                     title="Récapitulatif mensuel"
                   >
                     📈 Mois: {(() => {
-          if (!selectedWeek || !selectedShop || !planning) return '0.0';
+          if (!selectedWeek || !planningData) return '0.0';
+          
+          // Calculer les heures du mois complet sur toutes les boutiques
+          const currentDate = new Date(selectedWeek);
+          const year = currentDate.getFullYear();
+          const month = currentDate.getMonth();
+          
+          // Premier jour du mois
+          const firstDayOfMonth = new Date(year, month, 1);
+          // Dernier jour du mois
+          const lastDayOfMonth = new Date(year, month + 1, 0);
+          
           let totalHours = 0;
-          for (let i = 0; i < 7; i++) {
-            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-            const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-            totalHours += hours;
+          
+          // Parcourir tous les jours du mois
+          for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+            const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+            
+            // Calculer les heures pour toutes les boutiques où l'employé travaille
+            if (planningData.shops) {
+              planningData.shops.forEach(shop => {
+                if (shop.weeks) {
+                  Object.keys(shop.weeks).forEach(weekKey => {
+                    const weekData = shop.weeks[weekKey];
+                    if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                      const slots = weekData.planning[employeeId][dayKey];
+                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                        totalHours += hours;
+                      }
+                    }
+                  });
+                }
+              });
+            }
           }
+          
           return totalHours.toFixed(1);
                     })()}h
                   </button>
+                    );
+                  })()}
                   
                   <button
                     onClick={() => {
@@ -984,28 +2461,30 @@ const PlanningDisplay = ({
                       setShowEmployeeMonthlyDetail(true);
                     }}
                     style={{
-                      backgroundColor: '#6f42c1',
+                      backgroundColor: '#7b1fa2',
                       color: 'white',
-                      padding: deviceInfo.isTablet ? '12px 16px' : '8px 12px',
-                      fontSize: deviceInfo.isTablet ? '14px' : '12px',
+                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
+                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      fontWeight: 'bold',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      marginBottom: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 3px 8px rgba(123, 31, 162, 0.3)',
                       whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '44px' : 'auto'
+                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
+                      letterSpacing: '0.5px'
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#5a32a3';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                      e.currentTarget.style.backgroundColor = '#4a148c';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(123, 31, 162, 0.4)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#6f42c1';
+                      e.currentTarget.style.backgroundColor = '#7b1fa2';
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(123, 31, 162, 0.3)';
                     }}
                     title="Détail mensuel complet"
                   >
@@ -1095,208 +2574,7 @@ const PlanningDisplay = ({
               );
             })}
 
-            {/* Boutons d'actions intégrés dans le conteneur des récapitulatifs */}
-          <div style={{
-              display: 'flex', 
-              justifyContent: 'center', 
-              gap: '10px', 
-              flexWrap: 'wrap',
-              alignItems: 'center',
-            padding: '15px',
-              backgroundColor: '#f0fff4',
-            borderRadius: '10px',
-              border: '2px solid #9ae6b4',
-              marginTop: '15px',
-              width: '100%',
-              boxSizing: 'border-box'
-            }}>
-              {/* Boutons Principaux - Directement Visibles */}
-              <button
-                onClick={() => setShowGlobalDayViewModalV2(true)}
-                style={{
-                  backgroundColor: '#1e88e5',
-                  color: '#fff',
-                  padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
-                  fontSize: deviceInfo.isTablet ? '16px' : '14px',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  minHeight: deviceInfo.isTablet ? '48px' : 'auto'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-              >
-                📊 Vue globale par jour
-              </button>
 
-              <button
-                onClick={() => deviceInfo.isTablet ? exportAllDataIPad(setLocalFeedback) : onExport()}
-                style={{
-                  backgroundColor: '#28a745',
-                  color: '#fff',
-                  padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
-                  fontSize: deviceInfo.isTablet ? '16px' : '14px',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  minHeight: deviceInfo.isTablet ? '48px' : 'auto'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
-              >
-                <FaDownload /> {deviceInfo.isTablet ? 'Partager/Exporter' : 'Exporter les données'}
-              </button>
-
-              <button
-                onClick={handleImportClick}
-                style={{
-                  backgroundColor: '#ffc107',
-                  color: '#212529',
-                  padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
-                  fontSize: deviceInfo.isTablet ? '16px' : '14px',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  minHeight: deviceInfo.isTablet ? '48px' : 'auto'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
-              >
-                📥 Importer les données
-              </button>
-
-
-
-              {/* Menu Retour */}
-              <div style={{ position: 'relative' }} className="retour-menu">
-                <button
-                  onClick={() => toggleMenu('retour')}
-                  style={{
-                    backgroundColor: '#1e88e5',
-                    color: '#fff',
-                    padding: deviceInfo.isTablet ? '14px 20px' : '10px 16px',
-                    fontSize: deviceInfo.isTablet ? '16px' : '14px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    minHeight: deviceInfo.isTablet ? '48px' : 'auto'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-                >
-                  <FaArrowLeft /> Retour
-                  {openMenus.retour ? <FaChevronUp /> : <FaChevronDown />}
-                </button>
-                
-                {openMenus.retour && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '0',
-                    backgroundColor: '#fff',
-                    border: '1px solid #ccc',
-                    borderRadius: '4px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    zIndex: 1000,
-                    minWidth: '200px',
-                    marginBottom: '5px'
-                  }}>
-                    <button
-                      onClick={onBackToStartup}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontSize: '14px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      🏠 Écran de démarrage
-                    </button>
-                    <button
-                      onClick={onBackToConfig}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontSize: '14px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      ⚙️ Configuration boutiques
-                    </button>
-                    <button
-                      onClick={onBackToEmployees}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontSize: '14px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      👥 Gestion employés
-                    </button>
-                    <button
-                      onClick={onBackToShopSelection}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontSize: '14px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      🏪 Sélection boutique
-                    </button>
-                    <button
-                      onClick={onBackToWeekSelection}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        border: 'none',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontSize: '14px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      📅 Sélection semaine
-                    </button>
-                  </div>
-                )}
-              </div>
-          </div>
 
             {/* Input file caché pour l'import */}
             <input
@@ -1311,33 +2589,61 @@ const PlanningDisplay = ({
       )}
 
       {/* PLANNING - DIRECTEMENT APRÈS LE TITRE ET LES RÉCAPITULATIFS */}
-      <div className="planning-content">
-        <div className="planning-left">
+      <div className="planning-content" style={{
+        width: '100%',
+        flex: '1',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px',
+        minHeight: '0'
+      }}>
+        <div className="planning-left" style={{
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px'
+        }}>
           {/* Sélecteur de boutique et navigation */}
           <div style={{
             textAlign: 'center',
-            marginBottom: '15px',
-            padding: '15px',
-            backgroundColor: '#fffaf0',
-            borderRadius: '8px',
-            border: '1px solid #fbd38d',
+            marginBottom: '20px',
+            padding: deviceInfo.isTablet ? '25px' : '20px',
+            background: 'linear-gradient(135deg, #fffaf0 0%, #fef5e7 100%)',
+            borderRadius: '16px',
+            border: '2px solid #fbd38d',
             display: 'flex',
             alignItems: 'center',
-            gap: '15px',
+            gap: deviceInfo.isTablet ? '20px' : '15px',
             flexWrap: 'wrap',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(251, 211, 141, 0.2)',
+            width: '100%',
+            boxSizing: 'border-box'
           }}>
             <select
               value={selectedShop}
               onChange={(e) => setSelectedShop(e.target.value)}
               style={{ 
-                padding: '8px 12px',
-                fontSize: '14px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                minWidth: '200px',
+                padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
+                fontSize: deviceInfo.isTablet ? '16px' : '15px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '10px',
+                minWidth: deviceInfo.isTablet ? '250px' : '220px',
+                maxWidth: '100%',
                 backgroundColor: '#fff',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: '500',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s ease',
+                flex: deviceInfo.isTablet ? '1' : '0 1 auto'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = '#cbd5e0';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = '#e2e8f0';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
               }}
             >
               {shops.map(shop => (
@@ -1349,19 +2655,33 @@ const PlanningDisplay = ({
             <button
               onClick={() => changeWeek('prev')}
               style={{
-                backgroundColor: '#2196f3',
+                background: 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)',
                 color: 'white',
-                padding: '8px 16px',
-                fontSize: '14px',
+                padding: deviceInfo.isTablet ? '14px 24px' : '12px 20px',
+                fontSize: deviceInfo.isTablet ? '16px' : '15px',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '10px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '8px',
+                fontWeight: '600',
+                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                transition: 'all 0.3s ease',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                whiteSpace: 'nowrap',
+                minWidth: deviceInfo.isTablet ? 'auto' : 'fit-content'
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976d2'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196f3'}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(33, 150, 243, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.3)';
+              }}
             >
               ← Semaine précédente
             </button>
@@ -1371,12 +2691,26 @@ const PlanningDisplay = ({
               value={selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : ''}
               onChange={(e) => changeMonth(e.target.value)}
               style={{ 
-                padding: '8px 12px',
-                fontSize: '14px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                minWidth: '150px',
-                backgroundColor: '#fff'
+                padding: deviceInfo.isTablet ? '12px 16px' : '10px 14px',
+                fontSize: deviceInfo.isTablet ? '15px' : '14px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '10px',
+                minWidth: deviceInfo.isTablet ? '180px' : '150px',
+                maxWidth: '100%',
+                backgroundColor: '#fff',
+                cursor: 'pointer',
+                fontWeight: '500',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s ease',
+                flex: deviceInfo.isTablet ? '1' : '0 1 auto'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = '#cbd5e0';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = '#e2e8f0';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
               }}
             >
               {(() => {
@@ -1401,19 +2735,33 @@ const PlanningDisplay = ({
             <button
               onClick={() => changeWeek('next')}
               style={{
-                backgroundColor: '#2196f3',
+                background: 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)',
                 color: 'white',
-                padding: '8px 16px',
-                fontSize: '14px',
+                padding: deviceInfo.isTablet ? '14px 24px' : '12px 20px',
+                fontSize: deviceInfo.isTablet ? '16px' : '15px',
                 border: 'none',
-                borderRadius: '4px',
+                borderRadius: '10px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '8px',
+                fontWeight: '600',
+                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                transition: 'all 0.3s ease',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                whiteSpace: 'nowrap',
+                minWidth: deviceInfo.isTablet ? 'auto' : 'fit-content'
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976d2'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196f3'}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(33, 150, 243, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.3)';
+              }}
             >
               Semaine suivante →
             </button>
@@ -1422,7 +2770,7 @@ const PlanningDisplay = ({
           <DayButtons 
             days={days} 
             currentDay={currentDay} 
-            setCurrentDay={handleDayChangeWithLock}
+            setCurrentDay={handleDayChange}
             planning={planning}
             config={config}
             selectedEmployees={localSelectedEmployees}
@@ -1430,20 +2778,118 @@ const PlanningDisplay = ({
             selectedShop={selectedShop}
           />
           
-          {/* Gestionnaire de validation */}
-          <ValidationManager
-            selectedShop={selectedShop}
-            selectedWeek={validWeek}
-            selectedEmployees={localSelectedEmployees}
-            planning={planning}
-            onValidationChange={setValidationState}
-            currentShopEmployees={currentShopEmployees}
-            autoLockEnabled={autoLockEnabled}
-            onAutoLockToggle={() => setAutoLockEnabled(!autoLockEnabled)}
-          />
+          {/* Boutons de déverrouillage simples */}
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            border: '2px solid #dee2e6',
+            borderRadius: '8px',
+            padding: '15px',
+            margin: '10px 0',
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap'
+          }}>
+            <button
+              onClick={() => {
+                const newState = {
+                  isWeekValidated: false,
+                  validatedEmployees: [],
+                  lockedEmployees: []
+                };
+                setValidationState(newState);
+                localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(newState));
+              }}
+              style={{
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🔓 Déverrouiller tous
+            </button>
+            
+            <button
+              onClick={() => {
+                const newState = {
+                  isWeekValidated: true,
+                  validatedEmployees: localSelectedEmployees,
+                  lockedEmployees: localSelectedEmployees
+                };
+                setValidationState(newState);
+                localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(newState));
+              }}
+              style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🔒 Verrouiller tous
+            </button>
+            
+            <div style={{ fontSize: '12px', color: '#6c757d', alignSelf: 'center' }}>
+              {validationState.lockedEmployees.length} employé(s) verrouillé(s)
+            </div>
+            
+            <button
+              onClick={() => setAutoLockEnabled(!autoLockEnabled)}
+              style={{
+                backgroundColor: autoLockEnabled ? '#28a745' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              title={autoLockEnabled ? 
+                'Désactiver le verrouillage automatique lors du changement de jour' : 
+                'Activer le verrouillage automatique lors du changement de jour'
+              }
+            >
+              {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
+            </button>
+            
+            <button
+              onClick={copyWeekToNextWeek}
+              style={{
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 16px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              title="Copier les données de la semaine actuelle vers la semaine suivante"
+            >
+              📋 Copier → Semaine +1
+            </button>
+          </div>
+          
+
         </div>
 
-        <div className="planning-right">
+        <div className="planning-right" style={{
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+          flex: '1',
+          minHeight: '0'
+        }}>
           <PlanningTable
             employees={currentShopEmployees}
             selectedEmployees={localSelectedEmployees}
@@ -1501,6 +2947,61 @@ const PlanningDisplay = ({
         currentShopEmployees={currentShopEmployees}
       />
 
+      {/* Modale du tableau de bord */}
+      {showDashboard && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '20px',
+            maxWidth: '95%',
+            maxHeight: '95%',
+            overflow: 'auto',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowDashboard(false)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                color: '#666'
+              }}
+            >
+              ×
+            </button>
+            <Dashboard
+              selectedShop={selectedShop}
+              selectedWeek={validWeek}
+              selectedEmployees={localSelectedEmployees}
+              globalPlanning={planning}
+              planningData={planningData}
+              onShopChange={changeShop}
+              onWeekChange={changeToSpecificWeek}
+              onMonthChange={changeMonth}
+              shops={shops}
+              employees={currentShopEmployees}
+              config={config}
+            />
+          </div>
+        </div>
+      )}
+
       {showMonthlyRecapModal && (
       <MonthlyRecapModals
         showMonthlyRecapModal={showMonthlyRecapModal}
@@ -1510,6 +3011,7 @@ const PlanningDisplay = ({
         selectedWeek={validWeek}
         selectedEmployees={localSelectedEmployees}
         shops={shops}
+          planningData={planningData}
       />
       )}
 
@@ -1646,6 +3148,205 @@ const PlanningDisplay = ({
               >
                 ⚠️ Forcer la modification
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale de notes */}
+      <NotesModal
+        showNotesModal={showNotesModal}
+        setShowNotesModal={setShowNotesModal}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        employees={currentShopEmployees}
+        planningData={planningData}
+        onSaveNotes={(notes) => {
+          console.log('Notes sauvegardées:', notes);
+          setFeedback('✅ Notes sauvegardées avec succès');
+        }}
+      />
+
+      {/* Page de Gestion Boutique */}
+      {showGestionBoutique && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '40px',
+            borderRadius: '16px',
+            maxWidth: '900px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px',
+              borderBottom: '2px solid #e0e0e0',
+              paddingBottom: '20px'
+            }}>
+              <h1 style={{
+                color: '#333',
+                margin: '0',
+                fontSize: '28px',
+                fontWeight: 'bold'
+              }}>
+                🏪 Gestion Boutique
+              </h1>
+              <button
+                onClick={() => setShowGestionBoutique(false)}
+                style={{
+                  background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                  color: 'white',
+                  padding: '12px 24px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px'
+                }}
+              >
+                ✕ Fermer
+              </button>
+            </div>
+
+            {/* Sélecteur de module */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '20px',
+              marginBottom: '40px',
+              flexWrap: 'wrap'
+            }}>
+              <button
+                onClick={() => setShowShopStatsPage(true)}
+                style={{
+                  padding: '20px 30px',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                  minWidth: '200px'
+                }}
+              >
+                📅 Statistiques Planning
+              </button>
+              <button
+                onClick={() => {
+                  setShowShopStatsPage(true);
+                  setShowGestionBoutique(false);
+                }}
+                style={{
+                  padding: '20px 30px',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                  minWidth: '200px'
+                }}
+              >
+                📊 Statistiques CA
+              </button>
+              <button
+                style={{
+                  padding: '20px 30px',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '18px',
+                  background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
+                  color: 'white',
+                  transition: 'all 0.3s ease',
+                  minWidth: '200px'
+                }}
+              >
+                💰 Caisse Enregistreuse
+              </button>
+            </div>
+
+            {/* Contenu du module sélectionné */}
+            <div style={{ minHeight: '300px', textAlign: 'center' }}>
+              <h2 style={{ color: '#333', marginBottom: '20px' }}>Sélectionnez un module</h2>
+              <p style={{ color: '#666', fontSize: '16px', marginBottom: '30px' }}>
+                Choisissez le module que vous souhaitez utiliser :
+              </p>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '20px',
+                marginBottom: '30px'
+              }}>
+                <div style={{
+                  background: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => setShowShopStatsPage(true)}
+                >
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>📅 Statistiques Planning</h3>
+                  <p style={{ margin: '0', opacity: '0.9' }}>Analyser les heures et la rentabilité</p>
+                </div>
+
+                <div style={{
+                  background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                onClick={() => {
+                  setShowShopStatsPage(true);
+                  setShowGestionBoutique(false);
+                }}
+                >
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>📊 Statistiques CA</h3>
+                  <p style={{ margin: '0', opacity: '0.9' }}>Import et gestion des données CA</p>
+                </div>
+
+                <div style={{
+                  background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
+                  color: 'white',
+                  padding: '25px',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease'
+                }}
+                >
+                  <h3 style={{ margin: '0 0 15px 0', fontSize: '20px' }}>💰 Caisse Enregistreuse</h3>
+                  <p style={{ margin: '0', opacity: '0.9' }}>Gestion des ventes et paiements</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

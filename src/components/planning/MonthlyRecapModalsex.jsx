@@ -100,17 +100,31 @@ const MonthlyRecapModals = ({
     const calculateEmployeeMonthlyHours = (employee) => {
         let calendarHours = 0;
         let realHours = 0;
-        const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${selectedShop}_`));
-        storageKeys.forEach(key => {
-            const weekKey = key.replace(`planning_${selectedShop}_`, '');
-            const weekDate = new Date(weekKey);
-            if (weekDate >= addDays(monthStart, -6) && weekDate <= monthEnd) {
-                const weekPlanning = loadFromLocalStorage(key, planning);
-                const { calendarHours: weekCalendar, realHours: weekReal } = calculateEmployeeWeeklyHoursInMonth(employee, weekKey, weekPlanning);
-                calendarHours += weekCalendar;
-                realHours += weekReal;
-            }
+        
+        // Générer tous les jours du mois
+        const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+        
+        // Filtrer pour ne garder que les jours qui appartiennent réellement au mois en cours
+        const days = allDays.filter(day => {
+            const dayMonth = day.getMonth();
+            const dayYear = day.getFullYear();
+            const selectedMonth = monthStart.getMonth();
+            const selectedYear = monthStart.getFullYear();
+            
+            // Ne garder que les jours du mois sélectionné
+            return dayMonth === selectedMonth && dayYear === selectedYear;
         });
+        
+        // Calculer les heures pour chaque jour du mois
+        days.forEach(day => {
+            const dayKey = format(day, 'yyyy-MM-dd');
+            const weekKey = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, planning);
+            const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning);
+            calendarHours += hours;
+            realHours += hours;
+        });
+        
         console.log('Monthly hours for', employee, { calendar: calendarHours.toFixed(1), real: realHours.toFixed(1) });
         return { calendarHours: calendarHours.toFixed(1), realHours: realHours.toFixed(1) };
     };
@@ -118,21 +132,167 @@ const MonthlyRecapModals = ({
     const calculateShopMonthlyHours = () => {
         let calendarHours = 0;
         let realHours = 0;
-        const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${selectedShop}_`));
-        storageKeys.forEach(key => {
-            const weekKey = key.replace(`planning_${selectedShop}_`, '');
-            const weekDate = new Date(weekKey);
-            if (weekDate >= addDays(monthStart, -6) && weekDate <= monthEnd) {
-                const weekPlanning = loadFromLocalStorage(key, planning);
-                selectedEmployees.forEach(employee => {
-                    const { calendarHours: weekCalendar, realHours: weekReal } = calculateEmployeeWeeklyHoursInMonth(employee, weekKey, weekPlanning);
-                    calendarHours += weekCalendar;
-                    realHours += weekReal;
-                });
-            }
+        
+        // Générer tous les jours du mois
+        const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+        
+        // Filtrer pour ne garder que les jours qui appartiennent réellement au mois en cours
+        const days = allDays.filter(day => {
+            const dayMonth = day.getMonth();
+            const dayYear = day.getFullYear();
+            const selectedMonth = monthStart.getMonth();
+            const selectedYear = monthStart.getFullYear();
+            
+            // Ne garder que les jours du mois sélectionné
+            return dayMonth === selectedMonth && dayYear === selectedYear;
         });
+        
+        // Calculer les heures pour chaque jour du mois pour tous les employés
+        days.forEach(day => {
+            const dayKey = format(day, 'yyyy-MM-dd');
+            const weekKey = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, planning);
+            
+            selectedEmployees.forEach(employee => {
+                const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning);
+                calendarHours += hours;
+                realHours += hours;
+            });
+        });
+        
         console.log('Shop monthly hours:', { calendar: calendarHours.toFixed(1), real: realHours.toFixed(1) });
         return { calendarHours: calendarHours.toFixed(1), realHours: realHours.toFixed(1) };
+    };
+
+    // Nouvelle fonction pour calculer le récapitulatif des semaines à cheval
+    const calculateOverlappingWeeksRecap = () => {
+        const recap = [];
+        
+        // Trouver toutes les semaines qui chevauchent le mois sélectionné
+        const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${selectedShop}_`));
+        
+        storageKeys.forEach(key => {
+            const weekKey = key.replace(`planning_${selectedShop}_`, '');
+            const weekStart = new Date(weekKey);
+            const weekEnd = addDays(weekStart, 6);
+            
+            // Vérifier si cette semaine chevauche le mois sélectionné
+            const overlapsMonth = (weekStart <= monthEnd && weekEnd >= monthStart);
+            
+            if (overlapsMonth) {
+                const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+                let previousMonthHours = 0;
+                let currentMonthHours = 0;
+                let nextMonthHours = 0;
+                
+                weekDays.forEach(day => {
+                    const dayKey = format(day, 'yyyy-MM-dd');
+                    const weekPlanning = loadFromLocalStorage(key, planning);
+                    
+                    // Calculer les heures pour tous les employés de cette journée
+                    selectedEmployees.forEach(employee => {
+                        const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning);
+                        
+                        // Déterminer à quel mois appartient ce jour
+                        const dayMonth = day.getMonth();
+                        const dayYear = day.getFullYear();
+                        const selectedMonth = monthStart.getMonth();
+                        const selectedYear = monthStart.getFullYear();
+                        
+                        if (dayMonth === selectedMonth && dayYear === selectedYear) {
+                            currentMonthHours += hours;
+                        } else if (day < monthStart) {
+                            previousMonthHours += hours;
+                        } else if (day > monthEnd) {
+                            nextMonthHours += hours;
+                        }
+                    });
+                });
+                
+                // Ne garder que les semaines qui ont effectivement des heures à cheval
+                const hasOverlappingHours = previousMonthHours > 0 || nextMonthHours > 0;
+                const totalWeekHours = previousMonthHours + currentMonthHours + nextMonthHours;
+                
+                if (hasOverlappingHours && totalWeekHours > 0) {
+                    recap.push({
+                        weekKey,
+                        weekLabel: `Du ${format(weekStart, 'dd/MM/yyyy')} au ${format(weekEnd, 'dd/MM/yyyy')}`,
+                        previousMonthHours: previousMonthHours.toFixed(1),
+                        currentMonthHours: currentMonthHours.toFixed(1),
+                        nextMonthHours: nextMonthHours.toFixed(1),
+                        totalWeekHours: totalWeekHours.toFixed(1),
+                        employeeCount: selectedEmployees.length
+                    });
+                }
+            }
+        });
+        
+        console.log('Overlapping weeks recap calculated:', recap);
+        return recap;
+    };
+
+    // Fonction pour calculer le récapitulatif des semaines à cheval pour un employé spécifique
+    const calculateOverlappingWeeksRecapForEmployee = (employee) => {
+        const recap = [];
+        
+        // Trouver toutes les semaines qui chevauchent le mois sélectionné
+        const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${selectedShop}_`));
+        
+        storageKeys.forEach(key => {
+            const weekKey = key.replace(`planning_${selectedShop}_`, '');
+            const weekStart = new Date(weekKey);
+            const weekEnd = addDays(weekStart, 6);
+            
+            // Vérifier si cette semaine chevauche le mois sélectionné
+            const overlapsMonth = (weekStart <= monthEnd && weekEnd >= monthStart);
+            
+            if (overlapsMonth) {
+                const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+                let previousMonthHours = 0;
+                let currentMonthHours = 0;
+                let nextMonthHours = 0;
+                
+                weekDays.forEach(day => {
+                    const dayKey = format(day, 'yyyy-MM-dd');
+                    const weekPlanning = loadFromLocalStorage(key, planning);
+                    
+                    // Calculer les heures pour cet employé spécifique
+                    const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning);
+                    
+                    // Déterminer à quel mois appartient ce jour
+                    const dayMonth = day.getMonth();
+                    const dayYear = day.getFullYear();
+                    const selectedMonth = monthStart.getMonth();
+                    const selectedYear = monthStart.getFullYear();
+                    
+                    if (dayMonth === selectedMonth && dayYear === selectedYear) {
+                        currentMonthHours += hours;
+                    } else if (day < monthStart) {
+                        previousMonthHours += hours;
+                    } else if (day > monthEnd) {
+                        nextMonthHours += hours;
+                    }
+                });
+                
+                // Ne garder que les semaines qui ont effectivement des heures à cheval
+                const hasOverlappingHours = previousMonthHours > 0 || nextMonthHours > 0;
+                const totalWeekHours = previousMonthHours + currentMonthHours + nextMonthHours;
+                
+                if (hasOverlappingHours && totalWeekHours > 0) {
+                    recap.push({
+                        weekKey,
+                        weekLabel: `Du ${format(weekStart, 'dd/MM/yyyy')} au ${format(weekEnd, 'dd/MM/yyyy')}`,
+                        previousMonthHours: previousMonthHours.toFixed(1),
+                        currentMonthHours: currentMonthHours.toFixed(1),
+                        nextMonthHours: nextMonthHours.toFixed(1),
+                        totalWeekHours: totalWeekHours.toFixed(1)
+                    });
+                }
+            }
+        });
+        
+        console.log(`Overlapping weeks recap calculated for ${employee}:`, recap);
+        return recap;
     };
 
     const getDailyHoursOrCongé = (employee, dayKey, weekPlanning) => {
@@ -165,6 +325,7 @@ const MonthlyRecapModals = ({
     let employeeDetailData = [];
     let totalMonthCalendarHours = 0;
     let totalMonthRealHours = 0;
+    let overlappingWeeksRecap = [];
 
     if (showMonthlyRecapModal) {
         recapData = selectedEmployees.map(employee => {
@@ -217,18 +378,31 @@ const MonthlyRecapModals = ({
     }
 
     if (showMonthlyDetailModal) {
-        const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-        detailData = days.map(day => {
+        // Afficher tous les jours des semaines qui chevauchent le mois
+        const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+        
+        detailData = allDays.map(day => {
             const dayKey = format(day, 'yyyy-MM-dd');
             const weekKey = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
             const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, planning);
+            
+            // Vérifier si le jour appartient au mois sélectionné
+            const dayMonth = day.getMonth();
+            const dayYear = day.getFullYear();
+            const selectedMonth = monthStart.getMonth();
+            const selectedYear = monthStart.getFullYear();
+            const isInSelectedMonth = dayMonth === selectedMonth && dayYear === selectedYear;
+            
             const row = {
                 day: format(day, 'dd/MM/yyyy', { locale: fr }),
-                employees: {}
+                employees: {},
+                isInSelectedMonth
             };
+            
             selectedEmployees.forEach(employee => {
                 const [entry, pause, resume, exit, hours] = getDailyHoursOrCongé(employee, dayKey, weekPlanning);
-                row.employees[employee] = hours === '0.0 h' && !entry ? 'CONGÉ' : hours;
+                // Si le jour n'appartient pas au mois sélectionné, afficher "---" au lieu des heures
+                row.employees[employee] = isInSelectedMonth ? (hours === '0.0 h' && !entry ? 'CONGÉ' : hours) : '---';
             });
             return row;
         });
@@ -241,26 +415,41 @@ const MonthlyRecapModals = ({
     if (showEmployeeMonthlyDetailModal) {
         const employee = selectedEmployeeForMonthlyRecap;
         const { calendarHours, realHours } = calculateEmployeeMonthlyHours(employee);
-        const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-        employeeDetailData = days.map(day => {
+        const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+        
+        employeeDetailData = allDays.map(day => {
             const dayKey = format(day, 'yyyy-MM-dd');
             const weekKey = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
             const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, planning);
+            
+            // Vérifier si le jour appartient au mois sélectionné
+            const dayMonth = day.getMonth();
+            const dayYear = day.getFullYear();
+            const selectedMonth = monthStart.getMonth();
+            const selectedYear = monthStart.getFullYear();
+            const isInSelectedMonth = dayMonth === selectedMonth && dayYear === selectedYear;
+            
             const [entry, pause, resume, exit, hours] = getDailyHoursOrCongé(employee, dayKey, weekPlanning);
             return {
                 day: format(day, 'dd/MM/yyyy', { locale: fr }),
                 dayName: format(day, 'EEEE', { locale: fr }),
-                entry,
-                pause,
-                resume,
-                exit,
-                hours,
-                weekColor: getWeekBackgroundColor(day)
+                entry: isInSelectedMonth ? entry : '---',
+                pause: isInSelectedMonth ? pause : '---',
+                resume: isInSelectedMonth ? resume : '---',
+                exit: isInSelectedMonth ? exit : '---',
+                hours: isInSelectedMonth ? hours : '---',
+                weekColor: getWeekBackgroundColor(day),
+                isInSelectedMonth
             };
         });
         totalMonthCalendarHours = parseFloat(calendarHours);
         totalMonthRealHours = parseFloat(realHours);
+        
+        // Calculer le récapitulatif des semaines à cheval pour cet employé spécifique
+        overlappingWeeksRecap = calculateOverlappingWeeksRecapForEmployee(employee);
+        
         console.log('MonthlyRecapModals: Generated employee detail data:', employeeDetailData);
+        console.log('MonthlyRecapModals: Generated overlapping weeks recap for employee:', overlappingWeeksRecap);
     }
 
     const exportToPDF = () => {
@@ -520,10 +709,21 @@ const MonthlyRecapModals = ({
                         {showMonthlyDetailModal ? (
                             <>
                                 {detailData.map((row, index) => (
-                                    <tr key={index}>
-                                        <td className="align-left">{row.day}</td>
+                                    <tr key={index} style={{ 
+                                        backgroundColor: row.isInSelectedMonth ? 'transparent' : '#f8f9fa',
+                                        opacity: row.isInSelectedMonth ? 1 : 0.7
+                                    }}>
+                                        <td className="align-left" style={{ 
+                                            color: row.isInSelectedMonth ? '#333' : '#999',
+                                            fontStyle: row.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {row.day}
+                                        </td>
                                         {selectedEmployees.map(employee => (
-                                            <td key={employee} className={`align-center ${getEmployeeColorClass(employee)}`}>
+                                            <td key={employee} className={`align-center ${getEmployeeColorClass(employee)}`} style={{
+                                                color: row.isInSelectedMonth ? 'inherit' : '#999',
+                                                fontStyle: row.isInSelectedMonth ? 'normal' : 'italic'
+                                            }}>
                                                 {row.employees[employee]}
                                             </td>
                                         ))}
@@ -541,13 +741,46 @@ const MonthlyRecapModals = ({
                         ) : showEmployeeMonthlyDetailModal ? (
                             <>
                                 {employeeDetailData.map((data, index) => (
-                                    <tr key={index} style={{ backgroundColor: data.weekColor }}>
-                                        <td className="align-left">{`${data.dayName} ${data.day}`}</td>
-                                        <td className="align-center">{data.entry}</td>
-                                        <td className="align-center">{data.pause}</td>
-                                        <td className="align-center">{data.resume}</td>
-                                        <td className="align-center">{data.exit}</td>
-                                        <td className="align-center">{data.hours}</td>
+                                    <tr key={index} style={{ 
+                                        backgroundColor: data.isInSelectedMonth ? data.weekColor : '#f8f9fa',
+                                        opacity: data.isInSelectedMonth ? 1 : 0.7
+                                    }}>
+                                        <td className="align-left" style={{ 
+                                            color: data.isInSelectedMonth ? '#333' : '#999',
+                                            fontStyle: data.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {`${data.dayName} ${data.day}`}
+                                        </td>
+                                        <td className="align-center" style={{
+                                            color: data.isInSelectedMonth ? 'inherit' : '#999',
+                                            fontStyle: data.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {data.entry}
+                                        </td>
+                                        <td className="align-center" style={{
+                                            color: data.isInSelectedMonth ? 'inherit' : '#999',
+                                            fontStyle: data.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {data.pause}
+                                        </td>
+                                        <td className="align-center" style={{
+                                            color: data.isInSelectedMonth ? 'inherit' : '#999',
+                                            fontStyle: data.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {data.resume}
+                                        </td>
+                                        <td className="align-center" style={{
+                                            color: data.isInSelectedMonth ? 'inherit' : '#999',
+                                            fontStyle: data.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {data.exit}
+                                        </td>
+                                        <td className="align-center" style={{
+                                            color: data.isInSelectedMonth ? 'inherit' : '#999',
+                                            fontStyle: data.isInSelectedMonth ? 'normal' : 'italic'
+                                        }}>
+                                            {data.hours}
+                                        </td>
                                     </tr>
                                 ))}
                                 <tr style={{ backgroundColor: '#ffffff' }}>
@@ -589,6 +822,80 @@ const MonthlyRecapModals = ({
                         )}
                     </tbody>
                 </table>
+                
+                {/* Tableau récapitulatif des semaines à cheval */}
+                {overlappingWeeksRecap.length > 0 && (
+                    <div style={{ marginTop: '20px' }}>
+                        <h3 style={{ 
+                            fontFamily: 'Roboto, sans-serif', 
+                            textAlign: 'center', 
+                            marginBottom: '15px',
+                            color: '#d63384',
+                            fontSize: '16px'
+                        }}>
+                            📊 Récapitulatif des semaines à cheval sur {format(monthStart, 'MMMM yyyy', { locale: fr })}
+                            {showEmployeeMonthlyDetailModal ? ` - ${selectedEmployeeForMonthlyRecap}` : ' (Tous employés)'}
+                        </h3>
+                        <table className="monthly-recap-table" style={{ marginBottom: '15px' }}>
+                            <thead>
+                                <tr>
+                                    <th className="align-left">Semaine</th>
+                                    <th className="align-center">Heures mois précédent</th>
+                                    <th className="align-center">Heures {format(monthStart, 'MMMM yyyy', { locale: fr })}</th>
+                                    <th className="align-center">Heures mois suivant</th>
+                                    <th className="align-center">Total semaine</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {overlappingWeeksRecap.map((week, index) => (
+                                    <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#f8f9fa' : '#ffffff' }}>
+                                        <td className="align-left" style={{ fontSize: '13px' }}>
+                                            {week.weekLabel}
+                                        </td>
+                                        <td className="align-center" style={{ 
+                                            color: parseFloat(week.previousMonthHours) > 0 ? '#dc3545' : '#999',
+                                            fontWeight: parseFloat(week.previousMonthHours) > 0 ? 'bold' : 'normal'
+                                        }}>
+                                            {parseFloat(week.previousMonthHours) > 0 ? `${week.previousMonthHours} h` : '---'}
+                                        </td>
+                                        <td className="align-center" style={{ 
+                                            color: '#28a745',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            {week.currentMonthHours} h
+                                        </td>
+                                        <td className="align-center" style={{ 
+                                            color: parseFloat(week.nextMonthHours) > 0 ? '#007bff' : '#999',
+                                            fontWeight: parseFloat(week.nextMonthHours) > 0 ? 'bold' : 'normal'
+                                        }}>
+                                            {parseFloat(week.nextMonthHours) > 0 ? `${week.nextMonthHours} h` : '---'}
+                                        </td>
+                                        <td className="align-center" style={{ 
+                                            backgroundColor: '#e9ecef',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            {week.totalWeekHours} h
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div style={{ 
+                            backgroundColor: '#fff3cd', 
+                            border: '1px solid #ffeaa7', 
+                            borderRadius: '6px', 
+                            padding: '10px', 
+                            marginBottom: '15px',
+                            fontSize: '13px',
+                            color: '#856404'
+                        }}>
+                            <strong>💡 Explication :</strong> Ce tableau montre les heures {showEmployeeMonthlyDetailModal ? `de <strong>${selectedEmployeeForMonthlyRecap}</strong>` : '<strong>combinées de tous les employés</strong>'} pour les semaines à cheval. 
+                            Les heures du mois précédent ont été payées le mois précédent, celles du mois suivant seront payées le mois suivant.
+                            {!showEmployeeMonthlyDetailModal && <><br /><strong>Note :</strong> Les heures affichées sont la somme de tous les employés de la boutique.</>}
+                        </div>
+                    </div>
+                )}
+                
                 <div className="button-group" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
                     <Button className="button-pdf" onClick={exportToPDF}>
                         Exporter en PDF

@@ -168,6 +168,27 @@ const EmployeeMonthlyDetailModal = ({
     return totalHours.toFixed(1);
   };
 
+  // Calculer les heures pour la boutique sélectionnée uniquement (pour les statistiques)
+  const calculateSelectedShopHours = () => {
+    if (!selectedShop) return 0;
+    return calculateShopHours(selectedShop);
+  };
+
+  // Calculer les heures d'un jour pour la boutique sélectionnée uniquement
+  const calculateDayHoursForSelectedShop = (date) => {
+    if (!selectedShop) return 0;
+    
+    const dayStr = format(date, 'yyyy-MM-dd');
+    const dayPlanning = allEmployeePlanning[dayStr];
+    
+    if (!dayPlanning || !dayPlanning[selectedShop]) {
+      return 0;
+    }
+    
+    const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: dayPlanning[selectedShop] } }, config);
+    return hours;
+  };
+
   // Obtenir le nom du jour
   const getDayName = (date) => {
     return format(date, 'EEEE', { locale: fr });
@@ -196,41 +217,46 @@ const EmployeeMonthlyDetailModal = ({
     });
   };
 
-  // Calculer les heures d'un jour
+  // Vérifier si un créneau est sélectionné dans la boutique sélectionnée
+  const isSlotSelectedInSelectedShop = (date, slotIndex) => {
+    if (!selectedShop) return false;
+    
+    const dayStr = format(date, 'yyyy-MM-dd');
+    const dayPlanning = allEmployeePlanning[dayStr];
+    if (!dayPlanning || !dayPlanning[selectedShop]) return false;
+    
+    const slots = dayPlanning[selectedShop];
+    return slots && Array.isArray(slots) && slots[slotIndex];
+  };
+
+  // Calculer les heures d'un jour (boutique sélectionnée uniquement)
   const calculateDayHours = (date) => {
+    return calculateDayHoursForSelectedShop(date);
+  };
+
+  // Vérifier si un jour est en congé (aucun créneau sélectionné dans la boutique sélectionnée)
+  const isDayOff = (date) => {
+    if (!selectedShop) return true;
+    
     const dayStr = format(date, 'yyyy-MM-dd');
     const dayPlanning = allEmployeePlanning[dayStr];
     
-    if (!dayPlanning) {
-      return 0;
+    if (!dayPlanning || !dayPlanning[selectedShop]) {
+      return true;
     }
     
-    let totalHours = 0;
-    Object.values(dayPlanning).forEach(slots => {
-      if (slots) {
-        const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: slots } }, config);
-        totalHours += hours;
-      }
-    });
-    
-    return totalHours;
+    const slots = dayPlanning[selectedShop];
+    return !slots || slots.every(slot => !slot);
   };
 
-  // Vérifier si un jour est en congé (aucun créneau sélectionné)
-  const isDayOff = (date) => {
-    const dayStr = format(date, 'yyyy-MM-dd');
-    const dayPlanning = allEmployeePlanning[dayStr];
-    return !dayPlanning || Object.values(dayPlanning).every(slots => !slots || slots.every(slot => !slot));
-  };
-
-  // Calculer les heures de travail pour un jour
+  // Calculer les heures de travail pour un jour (boutique sélectionnée uniquement)
   const calculateWorkHours = (date) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     const selectedSlots = [];
     
-    // Récupérer tous les créneaux sélectionnés pour cette date
+    // Récupérer tous les créneaux sélectionnés pour cette date dans la boutique sélectionnée
     config.timeSlots.forEach((time, index) => {
-      if (isSlotSelected(date, index)) {
+      if (isSlotSelectedInSelectedShop(date, index)) {
         selectedSlots.push({ time, index });
       }
     });
@@ -241,28 +267,7 @@ const EmployeeMonthlyDetailModal = ({
     selectedSlots.sort((a, b) => a.index - b.index);
     
     const entry = selectedSlots[0].time;
-    
-    // Calculer l'heure de fin (dernier créneau + intervalle)
-    const lastSlotIndex = selectedSlots[selectedSlots.length - 1].index;
-    const lastTime = config.timeSlots[lastSlotIndex];
-    
-    // Validation pour éviter l'erreur de date invalide
-    if (!lastTime) {
-      console.warn('Invalid lastTime for date:', dateKey, 'lastSlotIndex:', lastSlotIndex);
-      return { entry, pause: null, return: null, exit: null, hours: calculateDayHours(date) };
-    }
-    
-    const interval = config.interval || 30;
-    const lastTimeDate = new Date(`2000-01-01T${lastTime}:00`);
-    
-    // Validation supplémentaire pour la date
-    if (isNaN(lastTimeDate.getTime())) {
-      console.warn('Invalid date created from lastTime:', lastTime, 'for date:', dateKey);
-      return { entry, pause: null, return: null, exit: null, hours: calculateDayHours(date) };
-    }
-    
-    const endTimeDate = new Date(lastTimeDate.getTime() + interval * 60 * 1000);
-    const exit = format(endTimeDate, 'HH:mm');
+    const exit = selectedSlots[selectedSlots.length - 1].time;
     
     // Détecter les pauses (gaps dans les créneaux sélectionnés)
     let pause = null;
@@ -272,38 +277,41 @@ const EmployeeMonthlyDetailModal = ({
       const currentIndex = selectedSlots[i].index;
       const nextIndex = selectedSlots[i + 1].index;
       
-      // Si il y a un gap entre les créneaux sélectionnés
-      if (nextIndex > currentIndex + 1) {
-        // L'heure de pause est l'heure de fin du créneau actuel
+      // Si il y a un gap de plus d'un créneau, c'est une pause
+      if (nextIndex - currentIndex > 1) {
         const currentTime = config.timeSlots[currentIndex];
+        const nextTime = config.timeSlots[nextIndex];
         
-        // Validation pour currentTime
-        if (currentTime) {
-          const currentTimeDate = new Date(`2000-01-01T${currentTime}:00`);
-          if (!isNaN(currentTimeDate.getTime())) {
-            const pauseTimeDate = new Date(currentTimeDate.getTime() + interval * 60 * 1000);
-            pause = format(pauseTimeDate, 'HH:mm');
-          }
-        }
+        // Calculer l'heure de fin du créneau actuel
+        const currentTimeDate = new Date(`2000-01-01T${currentTime}:00`);
+        const endTimeDate = new Date(currentTimeDate.getTime() + (config.interval || 30) * 60 * 1000);
+        const endTime = format(endTimeDate, 'HH:mm');
         
-        // L'heure de retour est l'heure de début du prochain créneau
-        returnTime = config.timeSlots[nextIndex];
+        pause = endTime;
+        returnTime = nextTime;
         break;
       }
     }
     
-    return { entry, pause, return: returnTime, exit, hours: calculateDayHours(date) };
+    // Calculer le total des heures
+    const hours = calculateDayHoursForSelectedShop(date);
+    
+    return { entry, pause, return: returnTime, exit, hours };
   };
 
   const exportToPDF = () => {
     console.log('EmployeeMonthlyDetailModal: Exporting to PDF');
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
-    const title = `Récapitulatif mensuel détaillé pour ${employeeName} (${calculateTotalMonthHours()} H)`;
+    
+    // Titre avec la boutique sélectionnée
+    const selectedShopName = shops.find(s => s.id === selectedShop)?.name || selectedShop;
+    const title = `Récapitulatif mensuel détaillé pour ${employeeName} - ${selectedShopName}`;
     doc.text(title, 10, 10);
     doc.text(`Mois de ${format(firstDayOfMonth, 'MMMM yyyy', { locale: fr })}`, 10, 20);
+    doc.text(`Total boutique: ${calculateSelectedShopHours()} H`, 10, 30);
     
-         const columns = ['Jour', 'BOUTIQUE', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures'];
+    const columns = ['Jour', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures'];
     const body = [];
     
     // Grouper les jours par semaine
@@ -320,8 +328,8 @@ const EmployeeMonthlyDetailModal = ({
       const weekDays = weeks[weekNumber];
       const weekTitle = getWeekTitle(weekDays[0].date);
       
-             // Ligne d'en-tête de semaine
-       body.push([weekTitle, '', '', '', '', '', '']);
+      // Ligne d'en-tête de semaine
+      body.push([weekTitle, '', '', '', '', '']);
       
       // Jours de la semaine
       weekDays.forEach(({ date }) => {
@@ -329,36 +337,39 @@ const EmployeeMonthlyDetailModal = ({
         const dayDate = format(date, 'dd/MM', { locale: fr });
         const isOff = isDayOff(date);
         const workHours = calculateWorkHours(date);
-        const shopForDay = getShopForDay(date);
         
-                 body.push([
-           `${dayName} ${dayDate}`,
-           isOff ? 'Congé ☀️' : (shopForDay ? shopForDay.name : '-'),
-           isOff ? '-' : (workHours.entry ? `${workHours.entry} H` : '-'),
-           isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-           isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-           isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-           isOff ? '0.0 h' : `${workHours.hours} h`
-         ]);
+        body.push([
+          `${dayName} ${dayDate}`,
+          isOff ? 'Congé ☀️' : (workHours.entry ? `${workHours.entry} H` : '-'),
+          isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
+          isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
+          isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
+          isOff ? '0.0 h' : `${workHours.hours} h`
+        ]);
       });
     });
     
-         // Totaux par boutique
-     employeeShops.forEach((shop) => {
-       body.push([`TOTAL ${shop.name}`, '', '', '', '', '', `${calculateShopHours(shop.id)} H`]);
-     });
-     
-     // Total général
-     body.push(['Total mois', '', '', '', '', '', `${calculateTotalMonthHours()} H`]);
+    // Total de la boutique sélectionnée
+    body.push(['Total boutique', '', '', '', '', `${calculateSelectedShopHours()} H`]);
     
-         doc.autoTable({
-       head: [columns],
-       body: body,
-       startY: 40,
-       styles: { fontSize: 7, fontStyle: 'bold' },
-       headStyles: { fillColor: [30, 136, 229], fontSize: 8, fontStyle: 'bold' }
-     });
-    doc.save(`monthly_detail_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    // Si l'employé travaille dans plusieurs boutiques, ajouter un résumé
+    if (employeeShops.length > 1) {
+      body.push(['', '', '', '', '', '']);
+      body.push(['Résumé multi-boutiques:', '', '', '', '', '']);
+      employeeShops.forEach((shop) => {
+        body.push([`- ${shop.name}`, '', '', '', '', `${calculateShopHours(shop.id)} H`]);
+      });
+      body.push(['Total global', '', '', '', '', `${calculateTotalMonthHours()} H`]);
+    }
+    
+    doc.autoTable({
+      head: [columns],
+      body: body,
+      startY: 50,
+      styles: { fontSize: 7, fontStyle: 'bold' },
+      headStyles: { fillColor: [30, 136, 229], fontSize: 8, fontStyle: 'bold' }
+    });
+    doc.save(`monthly_detail_${employeeName}_${selectedShopName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     console.log('EmployeeMonthlyDetailModal: PDF exported successfully');
   };
 
@@ -380,16 +391,15 @@ const EmployeeMonthlyDetailModal = ({
       const weekDays = weeks[weekNumber];
       const weekTitle = getWeekTitle(weekDays[0].date);
       
-             // Ligne d'en-tête de semaine
-       data.push({
-         'Jour': weekTitle,
-         'BOUTIQUE': '',
-         'ENTRÉE': '',
-         'PAUSE': '',
-         'RETOUR': '',
-         'SORTIE': '',
-         'Heures': ''
-       });
+      // Ligne d'en-tête de semaine
+      data.push({
+        'Jour': weekTitle,
+        'ENTRÉE': '',
+        'PAUSE': '',
+        'RETOUR': '',
+        'SORTIE': '',
+        'Heures': ''
+      });
       
       // Jours de la semaine
       weekDays.forEach(({ date }) => {
@@ -397,48 +407,71 @@ const EmployeeMonthlyDetailModal = ({
         const dayDate = format(date, 'dd/MM', { locale: fr });
         const isOff = isDayOff(date);
         const workHours = calculateWorkHours(date);
-        const shopForDay = getShopForDay(date);
         
-                 data.push({
-           'Jour': `${dayName} ${dayDate}`,
-           'BOUTIQUE': isOff ? 'Congé ☀️' : (shopForDay ? shopForDay.name : '-'),
-           'ENTRÉE': isOff ? '-' : (workHours.entry ? `${workHours.entry} H` : '-'),
-           'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-           'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-           'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-           'Heures': isOff ? '0.0 h' : `${workHours.hours} h`
-         });
+        data.push({
+          'Jour': `${dayName} ${dayDate}`,
+          'ENTRÉE': isOff ? 'Congé ☀️' : (workHours.entry ? `${workHours.entry} H` : '-'),
+          'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
+          'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
+          'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
+          'Heures': isOff ? '0.0 h' : `${workHours.hours} h`
+        });
       });
     });
     
-         // Totaux par boutique
-     employeeShops.forEach((shop) => {
-       data.push({
-         'Jour': `TOTAL ${shop.name}`,
-         'BOUTIQUE': '',
-         'ENTRÉE': '',
-         'PAUSE': '',
-         'RETOUR': '',
-         'SORTIE': '',
-         'Heures': `${calculateShopHours(shop.id)} H`
-       });
-     });
-     
-     // Total général
-     data.push({
-       'Jour': 'Total mois',
-       'BOUTIQUE': '',
-       'ENTRÉE': '',
-       'PAUSE': '',
-       'RETOUR': '',
-       'SORTIE': '',
-       'Heures': `${calculateTotalMonthHours()} H`
-     });
+    // Total de la boutique sélectionnée
+    data.push({
+      'Jour': 'Total boutique',
+      'ENTRÉE': '',
+      'PAUSE': '',
+      'RETOUR': '',
+      'SORTIE': '',
+      'Heures': `${calculateSelectedShopHours()} H`
+    });
     
+    // Si l'employé travaille dans plusieurs boutiques, ajouter un résumé
+    if (employeeShops.length > 1) {
+      data.push({
+        'Jour': '',
+        'ENTRÉE': '',
+        'PAUSE': '',
+        'RETOUR': '',
+        'SORTIE': '',
+        'Heures': ''
+      });
+      data.push({
+        'Jour': 'Résumé multi-boutiques:',
+        'ENTRÉE': '',
+        'PAUSE': '',
+        'RETOUR': '',
+        'SORTIE': '',
+        'Heures': ''
+      });
+      employeeShops.forEach((shop) => {
+        data.push({
+          'Jour': `- ${shop.name}`,
+          'ENTRÉE': '',
+          'PAUSE': '',
+          'RETOUR': '',
+          'SORTIE': '',
+          'Heures': `${calculateShopHours(shop.id)} H`
+        });
+      });
+      data.push({
+        'Jour': 'Total global',
+        'ENTRÉE': '',
+        'PAUSE': '',
+        'RETOUR': '',
+        'SORTIE': '',
+        'Heures': `${calculateTotalMonthHours()} H`
+      });
+    }
+    
+    const selectedShopName = shops.find(s => s.id === selectedShop)?.name || selectedShop;
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Récapitulatif mensuel détaillé');
-    XLSX.writeFile(wb, `monthly_detail_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Récapitulatif mensuel');
+    XLSX.writeFile(wb, `monthly_detail_${employeeName}_${selectedShopName}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     console.log('EmployeeMonthlyDetailModal: Excel exported successfully');
   };
 
@@ -563,6 +596,60 @@ const EmployeeMonthlyDetailModal = ({
     return `Semaine du ${format(mondayOfWeek, 'd MMMM', { locale: fr })} au ${format(sundayOfWeek, 'd MMMM yyyy', { locale: fr })}`;
   };
 
+  // Identifier les jours hors mois qui ont des données de planning
+  const getDaysOutsideMonth = () => {
+    const daysOutsideMonth = [];
+    
+    if (!planningData?.shops) return daysOutsideMonth;
+    
+    // Ne regarder que la boutique sélectionnée
+    const selectedShopData = planningData.shops.find(shop => shop.id === selectedShop);
+    if (!selectedShopData || !selectedShopData.weeks) return daysOutsideMonth;
+    
+    // Trouver les semaines qui chevauchent le mois sélectionné
+    const monthStart = startOfMonth(new Date(selectedWeek));
+    const monthEnd = endOfMonth(new Date(selectedWeek));
+    
+    Object.keys(selectedShopData.weeks).forEach(weekKey => {
+      const weekStart = new Date(weekKey);
+      const weekEnd = addDays(weekStart, 6);
+      
+      // Vérifier si cette semaine chevauche le mois sélectionné
+      const overlapsMonth = (weekStart <= monthEnd && weekEnd >= monthStart);
+      
+      if (overlapsMonth) {
+        const weekData = selectedShopData.weeks[weekKey];
+        if (weekData && weekData.planning && weekData.planning[selectedEmployeeForMonthlyDetail]) {
+          Object.keys(weekData.planning[selectedEmployeeForMonthlyDetail]).forEach(dayStr => {
+            const dayDate = new Date(dayStr);
+            
+            // Si le jour est en dehors du mois (avant OU après) ET a des créneaux sélectionnés
+            if (dayDate < monthStart || dayDate > monthEnd) {
+              const slots = weekData.planning[selectedEmployeeForMonthlyDetail][dayStr];
+              if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: slots } }, config);
+                daysOutsideMonth.push({
+                  date: dayStr,
+                  shopName: selectedShopData.name || selectedShopData.id,
+                  hours: hours,
+                  dayName: format(dayDate, 'EEEE', { locale: fr }),
+                  dayDate: format(dayDate, 'dd/MM/yyyy', { locale: fr }),
+                  isBeforeMonth: dayDate < monthStart,
+                  weekKey: weekKey
+                });
+              }
+            }
+          });
+        }
+      }
+    });
+    
+    // Trier par date pour avoir un ordre chronologique
+    return daysOutsideMonth.sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  const daysOutsideMonth = getDaysOutsideMonth();
+
      return (
      <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
        <div className="modal-content" style={{ 
@@ -590,7 +677,7 @@ const EmployeeMonthlyDetailModal = ({
                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                    <div></div>
                    <h3 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', margin: 0 }}>
-                     Récapitulatif mensuel détaillé pour {employeeName} ({calculateTotalMonthHours()} H)
+                     Récapitulatif mensuel détaillé pour {employeeName}
                    </h3>
                    <button 
                      onClick={() => {
@@ -614,6 +701,312 @@ const EmployeeMonthlyDetailModal = ({
                  <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '20px' }}>
                    Mois de {format(firstDayOfMonth, 'MMMM yyyy', { locale: fr })}
                  </p>
+                 
+                 {/* Boutons par boutique avec totaux séparés */}
+                 <div style={{ 
+                   display: 'flex', 
+                   justifyContent: 'center', 
+                   gap: '15px', 
+                   marginBottom: '20px',
+                   flexWrap: 'wrap'
+                 }}>
+                   {employeeShops.map((shop) => (
+                     <button
+                       key={shop.id}
+                       style={{
+                         display: 'flex',
+                         flexDirection: 'column',
+                         alignItems: 'center',
+                         padding: '15px 20px',
+                         border: '3px solid #007bff',
+                         borderRadius: '12px',
+                         backgroundColor: '#f8f9fa',
+                         minWidth: '180px',
+                         cursor: 'pointer',
+                         transition: 'all 0.3s ease',
+                         boxShadow: '0 2px 8px rgba(0, 123, 255, 0.2)'
+                       }}
+                       onMouseEnter={(e) => {
+                         e.target.style.backgroundColor = '#e3f2fd';
+                         e.target.style.transform = 'translateY(-2px)';
+                         e.target.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.3)';
+                       }}
+                       onMouseLeave={(e) => {
+                         e.target.style.backgroundColor = '#f8f9fa';
+                         e.target.style.transform = 'translateY(0)';
+                         e.target.style.boxShadow = '0 2px 8px rgba(0, 123, 255, 0.2)';
+                       }}
+                       onClick={() => {
+                         // Ici on pourrait ajouter une action pour changer de boutique
+                         console.log(`Boutique sélectionnée: ${shop.name} (${shop.id})`);
+                       }}
+                     >
+                       <div style={{
+                         fontWeight: 'bold',
+                         fontSize: '16px',
+                         color: '#007bff',
+                         marginBottom: '8px',
+                         textAlign: 'center'
+                       }}>
+                         {shop.name}
+                       </div>
+                       <div style={{
+                         fontSize: '24px',
+                         fontWeight: 'bold',
+                         color: '#28a745',
+                         textAlign: 'center'
+                       }}>
+                         {calculateShopHours(shop.id)} H
+                       </div>
+                       <div style={{
+                         fontSize: '12px',
+                         color: '#666',
+                         marginTop: '5px',
+                         textAlign: 'center'
+                       }}>
+                         Total du mois
+                       </div>
+                     </button>
+                   ))}
+                   
+                   {/* Bouton total global (si plusieurs boutiques) */}
+                   {employeeShops.length > 1 && (
+                     <button
+                       style={{
+                         display: 'flex',
+                         flexDirection: 'column',
+                         alignItems: 'center',
+                         padding: '15px 20px',
+                         border: '3px solid #28a745',
+                         borderRadius: '12px',
+                         backgroundColor: '#f8fff9',
+                         minWidth: '180px',
+                         cursor: 'pointer',
+                         transition: 'all 0.3s ease',
+                         boxShadow: '0 2px 8px rgba(40, 167, 69, 0.2)'
+                       }}
+                       onMouseEnter={(e) => {
+                         e.target.style.backgroundColor = '#e8f5e8';
+                         e.target.style.transform = 'translateY(-2px)';
+                         e.target.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.3)';
+                       }}
+                       onMouseLeave={(e) => {
+                         e.target.style.backgroundColor = '#f8fff9';
+                         e.target.style.transform = 'translateY(0)';
+                         e.target.style.boxShadow = '0 2px 8px rgba(40, 167, 69, 0.2)';
+                       }}
+                     >
+                       <div style={{
+                         fontWeight: 'bold',
+                         fontSize: '16px',
+                         color: '#28a745',
+                         marginBottom: '8px',
+                         textAlign: 'center'
+                       }}>
+                         TOTAL GLOBAL
+                       </div>
+                       <div style={{
+                         fontSize: '24px',
+                         fontWeight: 'bold',
+                         color: '#28a745',
+                         textAlign: 'center'
+                       }}>
+                         {calculateTotalMonthHours()} H
+                       </div>
+                       <div style={{
+                         fontSize: '12px',
+                         color: '#666',
+                         marginTop: '5px',
+                         textAlign: 'center'
+                       }}>
+                         Toutes boutiques
+                       </div>
+                     </button>
+                   )}
+                 </div>
+                 
+                 {/* Statistiques de la boutique sélectionnée */}
+                 {selectedShop && (
+                   <div style={{ 
+                     marginBottom: '20px', 
+                     padding: '15px', 
+                     backgroundColor: '#e3f2fd', 
+                     border: '1px solid #2196f3', 
+                     borderRadius: '8px',
+                     fontFamily: 'Roboto, sans-serif'
+                   }}>
+                     <h4 style={{ 
+                       margin: '0 0 10px 0', 
+                       color: '#1976d2', 
+                       fontSize: '14px', 
+                       fontWeight: 'bold',
+                       textAlign: 'center'
+                     }}>
+                       📊 Statistiques de la boutique sélectionnée
+                     </h4>
+                     <div style={{ 
+                       display: 'flex', 
+                       justifyContent: 'space-around', 
+                       flexWrap: 'wrap',
+                       gap: '10px'
+                     }}>
+                       <div style={{ textAlign: 'center' }}>
+                         <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#28a745' }}>
+                           {calculateSelectedShopHours()} H
+                         </div>
+                         <div style={{ fontSize: '12px', color: '#666' }}>
+                           Total du mois
+                         </div>
+                       </div>
+                       <div style={{ textAlign: 'center' }}>
+                         <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ff9800' }}>
+                           {allDaysOfMonth.filter(day => !isDayOff(day)).length}
+                         </div>
+                         <div style={{ fontSize: '12px', color: '#666' }}>
+                           Jours travaillés
+                         </div>
+                       </div>
+                       <div style={{ textAlign: 'center' }}>
+                         <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#e91e63' }}>
+                           {allDaysOfMonth.filter(day => isDayOff(day)).length}
+                         </div>
+                         <div style={{ fontSize: '12px', color: '#666' }}>
+                           Jours de repos
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+                 
+                 {/* Tableau explicatif des jours hors mois */}
+                 {daysOutsideMonth.length > 0 && (
+                   <div style={{ 
+                     marginBottom: '20px', 
+                     padding: '15px', 
+                     backgroundColor: '#fff3cd', 
+                     border: '1px solid #ffeaa7', 
+                     borderRadius: '8px',
+                     fontFamily: 'Roboto, sans-serif'
+                   }}>
+                     <h4 style={{ 
+                       margin: '0 0 10px 0', 
+                       color: '#856404', 
+                       fontSize: '14px', 
+                       fontWeight: 'bold',
+                       textAlign: 'center'
+                     }}>
+                       ⚠️ Jours hors mois non comptabilisés dans le total
+                     </h4>
+                     <table style={{ 
+                       width: '100%', 
+                       borderCollapse: 'collapse', 
+                       fontSize: '11px',
+                       fontFamily: 'Roboto, sans-serif'
+                     }}>
+                       <thead>
+                         <tr style={{ backgroundColor: '#f8f9fa' }}>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Jour</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Date</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Boutique</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Heures</th>
+                           <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Statut</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {daysOutsideMonth.map((day, index) => (
+                           <tr key={index} style={{ 
+                             backgroundColor: day.isBeforeMonth ? '#fff3cd' : '#e3f2fd',
+                             borderLeft: day.isBeforeMonth ? '4px solid #ffc107' : '4px solid #17a2b8'
+                           }}>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>
+                               {day.dayName}
+                               <span style={{ 
+                                 fontSize: '9px', 
+                                 color: day.isBeforeMonth ? '#856404' : '#0c5460',
+                                 marginLeft: '4px',
+                                 fontWeight: 'bold'
+                               }}>
+                                 {day.isBeforeMonth ? '←' : '→'}
+                               </span>
+                             </td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.dayDate}</td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.shopName}</td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>
+                               {day.hours.toFixed(1)} h
+                             </td>
+                             <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontSize: '10px' }}>
+                               <span style={{ 
+                                 padding: '2px 6px', 
+                                 borderRadius: '4px', 
+                                 fontWeight: 'bold',
+                                 color: 'white',
+                                 backgroundColor: day.isBeforeMonth ? '#28a745' : '#007bff'
+                               }}>
+                                 {day.isBeforeMonth ? '✓ Payé' : '⏳ Fragmenté'}
+                               </span>
+                             </td>
+                           </tr>
+                         ))}
+                         <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
+                           <td colSpan="3" style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'right' }}>
+                             Total hors mois :
+                           </td>
+                           <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                             {daysOutsideMonth.reduce((total, day) => total + day.hours, 0).toFixed(1)} h
+                           </td>
+                           <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                             <span style={{ fontSize: '10px', color: '#6c757d' }}>
+                               {daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h payées / {daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h fragmentées
+                             </span>
+                           </td>
+                         </tr>
+                       </tbody>
+                     </table>
+                     <div style={{ 
+                       marginTop: '10px', 
+                       fontSize: '10px', 
+                       color: '#856404',
+                       display: 'flex',
+                       justifyContent: 'space-between',
+                       alignItems: 'center'
+                     }}>
+                       <span style={{ display: 'flex', alignItems: 'center' }}>
+                         <span style={{ 
+                           display: 'inline-block', 
+                           width: '12px', 
+                           height: '12px', 
+                           backgroundColor: '#fff3cd', 
+                           border: '1px solid #ffc107',
+                           marginRight: '4px',
+                           borderRadius: '2px'
+                         }}></span>
+                         <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ Heures déjà payées</span>
+                       </span>
+                       <span style={{ display: 'flex', alignItems: 'center' }}>
+                         <span style={{ 
+                           display: 'inline-block', 
+                           width: '12px', 
+                           height: '12px', 
+                           backgroundColor: '#e3f2fd', 
+                           border: '1px solid #17a2b8',
+                           marginRight: '4px',
+                           borderRadius: '2px'
+                         }}></span>
+                         <span style={{ color: '#007bff', fontWeight: 'bold' }}>⏳ Semaine fragmentée (report août)</span>
+                       </span>
+                     </div>
+                     <p style={{ 
+                       margin: '10px 0 0 0', 
+                       fontSize: '11px', 
+                       color: '#856404', 
+                       textAlign: 'center',
+                       fontStyle: 'italic'
+                     }}>
+                       Ces heures proviennent de semaines fragmentées à cheval sur deux mois. 
+                       Même une semaine complète de 35h peut être divisée entre deux paies.
+                     </p>
+                   </div>
+                 )}
         
                                    <table style={{ 
                      fontFamily: 'Roboto, sans-serif', 

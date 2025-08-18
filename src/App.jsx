@@ -5,12 +5,14 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 
 // import LicenseManager from './components/admin/LicenseManager';
-import { enableProtection } from './utils/protection';
+// import { enableProtection } from './utils/protection';
 // import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManagerVercel';
 // import './utils/createFullLicense';
 // import './utils/licenseKeyGenerator';
 // import './utils/licenseCreator';
+import MainStartupScreen from './components/MainStartupScreen';
 import StartupScreen from './components/StartupScreen';
+
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
 import EmployeeManagement from './components/steps/EmployeeManagement';
@@ -24,6 +26,7 @@ import {
   addEmployee, 
   updateEmployeeShops,
   exportPlanningData,
+  exportPlanningToExcel,
   importPlanningData
 } from './utils/planningDataManager';
 import './App.css';
@@ -87,11 +90,12 @@ const App = () => {
   };
 
   // États de l'application
-  const [mode, setMode] = useState('startup'); // 'startup', 'new', 'imported', 'week-selection', 'planning'
+  const [mode, setMode] = useState('main-startup'); // 'main-startup', 'startup', 'new', 'imported', 'week-selection', 'planning', 'cash-register'
   const [planningData, setPlanningData] = useState(createNewPlanningData());
   const [currentStep, setCurrentStep] = useState(1); // 1: création boutiques, 2: config, 3: employés, 4: affectation
   const [currentShopIndex, setCurrentShopIndex] = useState(0);
   const [feedback, setFeedback] = useState('');
+  const [restoredInfo, setRestoredInfo] = useState('');
 
   // États pour le planning (quand on est en mode planning)
   const [selectedShop, setSelectedShop] = useState('');
@@ -104,6 +108,7 @@ const App = () => {
   const [licenseError, setLicenseError] = useState('');
   const [showLicenseManager, setShowLicenseManager] = useState(false);
 
+  // Charger les données depuis localStorage au démarrage
   useEffect(() => {
     try {
       // Charger les données depuis localStorage si elles existent
@@ -122,30 +127,36 @@ const App = () => {
           // Sélectionner automatiquement la première boutique
           setSelectedShop(savedData.shops[0].id);
           console.log('Données valides chargées, passage en mode week-selection');
+          setRestoredInfo('🔄 Données restaurées depuis le stockage local');
         } else {
           console.log('Données corrompues détectées, nettoyage du localStorage');
           localStorage.clear();
           setMode('startup');
+          setRestoredInfo('');
         }
       } else if (savedData && savedData.version === "2.0" && (!savedData.shops || savedData.shops.length === 0)) {
         // Données vides ou corrompues, nettoyer et retourner à l'écran de démarrage
         console.log('Données vides détectées, nettoyage du localStorage');
         localStorage.clear();
         setMode('startup');
+        setRestoredInfo('');
       } else {
         // Aucune donnée ou format incorrect, nettoyer et retourner à l'écran de démarrage
         console.log('Aucune donnée valide trouvée, nettoyage du localStorage');
         localStorage.clear();
         setMode('startup');
+        setRestoredInfo('');
       }
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       console.log('Nettoyage du localStorage suite à l\'erreur');
       localStorage.clear();
       setMode('startup');
+      setRestoredInfo('');
     }
   }, []);
 
+  // Sauvegarder les données dans localStorage
   useEffect(() => {
     // Sauvegarder les données dans localStorage
     if (mode !== 'startup') {
@@ -160,53 +171,13 @@ const App = () => {
     }
   }, [feedback]);
 
-  useEffect(() => {
-    // Activer la protection propriétaire
-    enableProtection();
-  }, []);
+  // Protection désactivée
+  // useEffect(() => {
+  //   enableProtection();
+  // }, []);
 
-  // Vérification de la licence au démarrage
-  useEffect(() => {
-    // Check for admin mode first
-    const urlParams = new URLSearchParams(window.location.search);
-    const adminMode = urlParams.get('admin');
-    
-    if (adminMode === 'licenses') {
-      setShowLicenseManager(true);
-      return; // Stop further license checks if in admin mode
-    }
-
-    const checkLicense = () => {
-      const license = loadLicense(); // Charger la licence existante seulement
-
-      if (!license) {
-        setLicenseError('Aucune licence active. Veuillez activer une licence.');
-        setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si pas de licence
-        return;
-      }
-      
-      if (!isLicenseValid(license)) {
-        setLicenseError('Licence expirée. Veuillez renouveler votre licence.');
-        setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si licence expirée
-        return;
-      }
-      
-      // Vérification des limites
-      const limits = checkLicenseLimits(license, planningData);
-      if (!limits.valid) {
-        setLicenseError(`Limite de licence atteinte: ${limits.message}`);
-        setShowLicenseModal(true);
-        setMode('startup'); // Forcer le mode startup si limites atteintes
-        return;
-      }
-      
-      setShowLicenseModal(false);
-      setLicenseError('');
-    };
-    checkLicense();
-  }, []); // Supprimé planningData de la dépendance
+  // Vérification de licence désactivée
+  // useEffect(() => { ... }, [planningData]);
 
   // Gestion du démarrage
   const handleNewPlanning = () => {
@@ -233,41 +204,18 @@ const App = () => {
       const importedData = await importPlanningData(file);
       setPlanningData(importedData);
       
-      // Verrouillage automatique de toutes les données importées
-      console.log('🔒 Début du verrouillage automatique post-importation...');
-      if (importedData.shops && Array.isArray(importedData.shops)) {
-        importedData.shops.forEach(shop => {
-          if (shop.weeks && typeof shop.weeks === 'object') {
-            Object.keys(shop.weeks).forEach(weekKey => {
-              const weekData = shop.weeks[weekKey];
-              if (Array.isArray(weekData.employees)) {
-                const employeeIds = weekData.employees.map(emp => emp.id);
-                if (employeeIds.length > 0) {
-                  // Créer l'état de validation verrouillé pour cette semaine/boutique
-                  const validationState = {
-                    isWeekValidated: true,
-                    validatedEmployees: employeeIds,
-                    lockedEmployees: employeeIds
-                  };
-                  
-                  // Sauvegarder l'état de validation verrouillé
-                  localStorage.setItem(`validation_${shop.id}_${weekKey}`, JSON.stringify(validationState));
-                  console.log(`🔒 Verrouillage automatique: ${shop.name} - Semaine ${weekKey} - ${employeeIds.length} employé(s)`);
-                }
-              }
-            });
-          }
-        });
-      }
-      console.log('✅ Verrouillage automatique post-importation terminé');
+
       
       // Sélectionner la première boutique par défaut
       if (importedData.shops && importedData.shops.length > 0) {
         setSelectedShop(importedData.shops[0].id);
       }
       
-      setMode('week-selection'); // Passer par le sélecteur de semaine
-      setFeedback('Import réussi ! Toutes les données ont été verrouillées automatiquement.');
+      // Aller à la sélection de semaine (comportement d'origine qui fonctionnait)
+      setMode('week-selection');
+      setFeedback('Import réussi ! Veuillez sélectionner une semaine.');
+      
+
     } catch (error) {
       setFeedback(`Erreur d'import : ${error.message}`);
     }
@@ -365,6 +313,17 @@ const App = () => {
         setFeedback('Erreur lors de la sauvegarde automatique, mais reset effectué.');
       }
     }
+  };
+
+  // Nouvelles fonctions de navigation pour les modules
+  const handleSelectPlanning = () => {
+    setMode('startup'); // Retour à l'écran de démarrage du planning
+  };
+
+
+
+  const handleBackToMain = () => {
+    setMode('main-startup');
   };
 
   // Gestion des employés
@@ -477,8 +436,20 @@ const App = () => {
 
   // Gestion du planning
   const handleExport = () => {
-    exportPlanningData(planningData);
-    setFeedback('Export réussi !');
+    try {
+      // Essayer d'abord l'export Excel
+      const result = exportPlanningToExcel(planningData);
+      if (result === true) {
+        setFeedback('📊 Export Excel réussi !');
+      } else {
+        setFeedback('📄 Export JSON réussi !');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
+      // Fallback vers JSON
+      exportPlanningData(planningData);
+      setFeedback('📄 Export JSON réussi !');
+    }
   };
 
   const handleReset = () => {
@@ -517,15 +488,27 @@ const App = () => {
   };
 
   // Rendu conditionnel
+  if (mode === 'main-startup') {
+    return (
+      <ErrorBoundary>
+        <MainStartupScreen 
+          onSelectPlanning={handleSelectPlanning}
+        />
+        <CopyrightNotice />
+      </ErrorBoundary>
+    );
+  }
+
   if (mode === 'startup') {
     return (
       <ErrorBoundary>
-        <StartupScreen 
-          onNewPlanning={handleNewPlanning}
-          onImportPlanning={handleImportPlanning}
-          onExit={handleExit}
-          onClearLocalStorage={handleClearLocalStorage}
-        />
+                  <StartupScreen
+            onNewPlanning={handleNewPlanning}
+            onImportPlanning={handleImportPlanning}
+            onExit={handleExit}
+            onClearLocalStorage={handleClearLocalStorage}
+
+          />
         <CopyrightNotice />
         {/* <LicenseModal
           isOpen={showLicenseModal}
@@ -612,6 +595,29 @@ const App = () => {
               {feedback}
             </p>
           )}
+          {restoredInfo && (
+            <div style={{
+              margin: '0 0 10px 0',
+              padding: '10px 14px',
+              backgroundColor: '#e3f2fd',
+              color: '#0d47a1',
+              border: '1px solid #90caf9',
+              borderRadius: '6px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontFamily: 'Roboto, sans-serif'
+            }}>
+              <span>{restoredInfo}</span>
+              <button onClick={() => setRestoredInfo('')} style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#0d47a1',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}>✕</button>
+            </div>
+          )}
           
           <WeekSelection
             onNext={(week) => {
@@ -655,6 +661,8 @@ const App = () => {
     );
   }
 
+
+
   if (mode === 'planning') {
     return (
       <ErrorBoundary>
@@ -669,30 +677,69 @@ const App = () => {
               {feedback}
             </p>
           )}
+          {restoredInfo && (
+            <div style={{
+              margin: '0 0 10px 0',
+              padding: '10px 14px',
+              backgroundColor: '#e3f2fd',
+              color: '#0d47a1',
+              border: '1px solid #90caf9',
+              borderRadius: '6px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontFamily: 'Roboto, sans-serif'
+            }}>
+              <span>{restoredInfo}</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { setMode('week-selection'); }} style={{
+                  backgroundColor: '#1976d2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 10px',
+                  cursor: 'pointer'
+                }}>Revenir à la sélection</button>
+                <button onClick={() => setRestoredInfo('')} style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#0d47a1',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}>✕</button>
+              </div>
+            </div>
+          )}
           
-                     <PlanningDisplay
-             planningData={planningData}
-             setPlanningData={setPlanningData}
-             selectedShop={selectedShop}
-             setSelectedShop={setSelectedShop}
-             selectedWeek={selectedWeek}
-             setSelectedWeek={setSelectedWeek}
-             selectedEmployees={selectedEmployees}
-             setSelectedEmployees={setSelectedEmployees}
-             planning={planning}
-             setPlanning={setPlanning}
-             onExport={handleExport}
-             onImport={handleImportPlanning}
-             onReset={handleReset}
-             onBackToStartup={handleBackToStartup}
-             onBackToEmployees={handleBackToEmployees}
-             onBackToShopSelection={handleBackToShopSelection}
-             onBackToWeekSelection={handleBackToWeekSelection}
-             onBackToConfig={handleBackToConfig}
-             setFeedback={setFeedback}
-           />
+                      <PlanningDisplay
+              planningData={planningData}
+              setPlanningData={setPlanningData}
+              selectedShop={selectedShop}
+              setSelectedShop={setSelectedShop}
+              selectedWeek={selectedWeek}
+              setSelectedWeek={setSelectedWeek}
+              selectedEmployees={selectedEmployees}
+              setSelectedEmployees={setSelectedEmployees}
+              planning={planning}
+              setPlanning={setPlanning}
+              onExport={handleExport}
+              onImport={handleImportPlanning}
+              onReset={handleReset}
+              onBackToStartup={handleBackToStartup}
+              onBackToEmployees={handleBackToEmployees}
+              onBackToShopSelection={handleBackToShopSelection}
+              onBackToWeekSelection={handleBackToWeekSelection}
+              onBackToConfig={handleBackToConfig}
+              setFeedback={setFeedback}
+            />
           <CopyrightNotice />
         </div>
+        {/* <LicenseModal
+          isOpen={showLicenseModal}
+          onClose={() => setShowLicenseModal(false)}
+          error={licenseError}
+          onLicenseValid={handleLicenseValid}
+        /> */}
       </ErrorBoundary>
     );
   }

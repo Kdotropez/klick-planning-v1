@@ -84,6 +84,24 @@ const ResetModal = ({
           Boutique : {currentShop}<br/>
           Semaine : {currentWeek}
         </p>
+        
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#fff3cd',
+          border: '1px solid #ffeaa7',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <p style={{
+            fontFamily: 'Roboto, sans-serif',
+            color: '#856404',
+            fontSize: '14px',
+            margin: '0',
+            textAlign: 'center'
+          }}>
+            ⚠️ <strong>Attention :</strong> Cette action est irréversible !
+          </p>
+        </div>
 
         <div style={{ marginBottom: '20px' }}>
           <label style={{ display: 'block', marginBottom: '15px', fontFamily: 'Roboto, sans-serif' }}>
