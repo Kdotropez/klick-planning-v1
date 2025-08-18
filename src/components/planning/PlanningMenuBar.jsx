@@ -55,7 +55,8 @@ const PlanningMenuBar = ({
   getSelectedEmployeesCount,
   getTotalShopEmployeesCount,
   showCalendarTotals,
-  onCreateJSONBackup
+  onCreateJSONBackup,
+  testSupabase
 }) => {
   const [openMenus, setOpenMenus] = useState({
     tools: false,
@@ -341,6 +342,9 @@ const PlanningMenuBar = ({
               isOpen={openMenus.tools}
               onClick={() => toggleMenu('tools')}
             >
+              <MenuItem onClick={testSupabase}>
+                🧪 Test Supabase
+              </MenuItem>
               <MenuItem onClick={() => {}}>
                 🔧 Diagnostic données
               </MenuItem>

@@ -26,6 +26,7 @@ import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { initLockService, acquireLock, releaseLock, heartbeat, getLock } from '@/utils/collabLock';
 import { saveRemotePlanning } from '@/utils/remoteStore';
+import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
 
@@ -810,7 +811,7 @@ const PlanningDisplay = ({
   }, []);
 
   // Fonction de sauvegarde forcée
-  const handleManualSave = useCallback(() => {
+  const handleManualSave = useCallback(async () => {
     if (isReadOnly) {
       setLocalFeedback('🔒 Lecture seule: sauvegarde désactivée.');
       return;
@@ -821,7 +822,16 @@ const PlanningDisplay = ({
         setPlanningData(updatedPlanningData);
         saveToLocalStorage('planningData', updatedPlanningData);
         // push remote (best-effort)
-        try { saveRemotePlanning({ planning, selectedEmployees: localSelectedEmployees }, selectedShop, selectedWeek); } catch (_) {}
+        try { 
+          const remoteResult = await saveRemotePlanning({ planning, selectedEmployees: localSelectedEmployees }, selectedShop, selectedWeek);
+          if (remoteResult) {
+            console.log('✅ Sauvegarde Supabase réussie');
+          } else {
+            console.log('❌ Échec sauvegarde Supabase');
+          }
+        } catch (error) {
+          console.error('❌ Erreur sauvegarde Supabase:', error);
+        }
         setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
         setLocalFeedback('💾 Planning sauvegardé manuellement');
       } else {
@@ -832,6 +842,14 @@ const PlanningDisplay = ({
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
   }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
+
+  // Fonction de test de connexion Supabase
+  const testSupabase = useCallback(async () => {
+    console.log('🧪 Test Supabase...');
+    const connectionOk = await testSupabaseConnection();
+    const tablesOk = await testSupabaseTables();
+    setLocalFeedback(`🧪 Test Supabase: ${connectionOk ? '✅' : '❌'} Connexion, ${tablesOk ? '✅' : '❌'} Tables`);
+  }, []);
 
   // Fonction pour restaurer les données de sauvegarde
   const restoreFromBackup = useCallback(() => {
@@ -1517,6 +1535,7 @@ const PlanningDisplay = ({
             onOpenShopStats={() => setShowShopStatsPage(true)}
             onOpenGestion={() => setShowGestionBoutique(true)}
             onOpenNotes={() => setShowNotesModal(true)}
+            testSupabase={testSupabase}
           />
         </div>
       ) : (

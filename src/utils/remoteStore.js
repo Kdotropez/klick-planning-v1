@@ -1,9 +1,20 @@
 import { supabase } from './supabaseClient';
 
-const isReady = () => !!supabase;
+const isReady = () => {
+  const ready = !!supabase;
+  console.log('🔍 Supabase ready check:', ready, {
+    url: import.meta.env?.VITE_SUPABASE_URL ? '✅' : '❌',
+    key: import.meta.env?.VITE_SUPABASE_KEY ? '✅' : '❌'
+  });
+  return ready;
+};
 
 export const loadRemotePlanning = async (shopId, weekKey) => {
-  if (!isReady() || !shopId || !weekKey) return null;
+  console.log('🔍 loadRemotePlanning called with:', { shopId, weekKey });
+  if (!isReady() || !shopId || !weekKey) {
+    console.log('❌ loadRemotePlanning: not ready or missing params');
+    return null;
+  }
   const { data, error } = await supabase
     .from('plannings')
     .select('*')
@@ -11,50 +22,84 @@ export const loadRemotePlanning = async (shopId, weekKey) => {
     .eq('week_key', weekKey)
     .maybeSingle();
   if (error) {
-    console.warn('Supabase load error:', error.message);
+    console.warn('❌ Supabase load error:', error.message);
     return null;
   }
+  console.log('✅ loadRemotePlanning success:', !!data);
   return data?.data || null;
 };
 
 export const saveRemotePlanning = async (planningData, shopId, weekKey) => {
-  if (!isReady() || !planningData || !shopId || !weekKey) return false;
+  console.log('🔍 saveRemotePlanning called with:', { 
+    shopId, 
+    weekKey, 
+    hasData: !!planningData,
+    dataKeys: planningData ? Object.keys(planningData) : []
+  });
+  
+  if (!isReady() || !planningData || !shopId || !weekKey) {
+    console.log('❌ saveRemotePlanning: not ready or missing params');
+    return false;
+  }
+  
   const row = {
     shop_id: shopId,
     week_key: weekKey,
     data: planningData,
     version: 1
   };
+  
+  console.log('🔍 Attempting to save to Supabase:', row);
+  
   const { error } = await supabase
     .from('plannings')
     .upsert(row, { onConflict: 'shop_id,week_key' });
+    
   if (error) {
-    console.warn('Supabase save error:', error.message);
+    console.error('❌ Supabase save error:', error.message, error);
     return false;
   }
+  
+  console.log('✅ saveRemotePlanning success');
   return true;
 };
 
 export const listRemoteShops = async () => {
-  if (!isReady()) return [];
+  console.log('🔍 listRemoteShops called');
+  if (!isReady()) {
+    console.log('❌ listRemoteShops: not ready');
+    return [];
+  }
   const { data, error } = await supabase
     .from('plannings')
     .select('shop_id')
     .order('shop_id', { ascending: true });
-  if (error) return [];
+  if (error) {
+    console.error('❌ listRemoteShops error:', error);
+    return [];
+  }
   const ids = [...new Set((data || []).map(r => r.shop_id).filter(Boolean))];
+  console.log('✅ listRemoteShops success:', ids);
   return ids;
 };
 
 export const listRemoteWeeksForShop = async (shopId) => {
-  if (!isReady() || !shopId) return [];
+  console.log('🔍 listRemoteWeeksForShop called with:', shopId);
+  if (!isReady() || !shopId) {
+    console.log('❌ listRemoteWeeksForShop: not ready or missing shopId');
+    return [];
+  }
   const { data, error } = await supabase
     .from('plannings')
     .select('week_key')
     .eq('shop_id', shopId)
     .order('week_key', { ascending: true });
-  if (error) return [];
+  if (error) {
+    console.error('❌ listRemoteWeeksForShop error:', error);
+    return [];
+  }
   const weeks = [...new Set((data || []).map(r => r.week_key).filter(Boolean))];
+  console.log('✅ listRemoteWeeksForShop success:', weeks);
   return weeks;
 };
 
