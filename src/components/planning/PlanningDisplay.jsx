@@ -627,6 +627,14 @@ const PlanningDisplay = ({
         const backupKey = `backup_${selectedShop}_${selectedWeek}_${Date.now()}`;
         localStorage.setItem(backupKey, JSON.stringify(planning));
         console.log('🛡️ Sauvegarde de sécurité créée:', backupKey);
+        try {
+          const prefix = `backup_${selectedShop}_${selectedWeek}_`;
+          const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix)).sort();
+          while (keys.length > 2) {
+            const oldest = keys.shift();
+            if (oldest) localStorage.removeItem(oldest);
+          }
+        } catch (_) {}
       } catch (error) {
         console.error('Erreur lors de la sauvegarde de sécurité:', error);
       }
@@ -837,14 +845,14 @@ const PlanningDisplay = ({
   }, [selectedShop, selectedWeek]);
 
   // Fonction de sauvegarde automatique JSON
-  const createAutoBackupJSON = useCallback(() => {
+  const createAutoBackupJSON = useCallback((type = 'auto') => {
     if (planningData && Object.keys(planningData.shops || {}).length > 0) {
       try {
         const exportData = {
           ...planningData,
           exportDate: new Date().toISOString(),
-          autoBackup: true,
-          backupType: 'periodic',
+          autoBackup: type !== 'manual',
+          backupType: type === 'manual' ? 'manual' : 'periodic',
           selectedShop: selectedShop,
           selectedWeek: selectedWeek,
           currentPlanning: planning
@@ -857,18 +865,30 @@ const PlanningDisplay = ({
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `planning_auto_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
+        a.download = `planning_${type === 'manual' ? 'manual' : 'auto'}_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
         a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         
         URL.revokeObjectURL(url);
-        console.log('💾 Sauvegarde JSON automatique créée');
-        setLocalFeedback('💾 Sauvegarde JSON automatique créée');
+        try {
+          const prefix = type === 'manual' ? 'json_manualbackup_' : 'json_autobackup_';
+          const key = `${prefix}${Date.now()}`;
+          localStorage.setItem(key, JSON.stringify(exportData));
+          const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix)).sort();
+          while (keys.length > 2) {
+            const oldest = keys.shift();
+            if (oldest) localStorage.removeItem(oldest);
+          }
+        } catch (_) {}
+
+        const msg = type === 'manual' ? '📦 Sauvegarde JSON manuelle créée' : '💾 Sauvegarde JSON automatique créée';
+        console.log(msg);
+        setLocalFeedback(msg);
       } catch (error) {
-        console.error('Erreur lors de la sauvegarde JSON automatique:', error);
-        setLocalFeedback('❌ Erreur lors de la sauvegarde JSON automatique');
+        console.error('Erreur lors de la sauvegarde JSON:', error);
+        setLocalFeedback('❌ Erreur lors de la sauvegarde JSON');
       }
     }
   }, [planningData, selectedShop, selectedWeek, planning]);

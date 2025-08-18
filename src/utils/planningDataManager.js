@@ -409,7 +409,10 @@ export const exportPlanningToExcel = (planningData) => {
         excelData.push([`=== BOUTIQUE: ${shop.name?.toUpperCase() || shop.id} ===`]);
         excelData.push([]);
         
-        const employeesInShop = Array.isArray(shop.employees) ? shop.employees : [];
+        // N'inclure que les employés affectés à cette boutique
+        const employeesInShop = Array.isArray(shop.employees)
+          ? shop.employees.filter(emp => Array.isArray(emp?.canWorkIn) && emp.canWorkIn.includes(shop.id))
+          : [];
         const employeeNames = employeesInShop.map(e => e.name || e.id);
 
         // En-têtes: Semaine | Employé1 | Employé2 | ... | Total semaine | Total T1 | Total T2
@@ -933,22 +936,47 @@ export const exportPlanningToExcel = (planningData) => {
         for (let i = 0; i < employeesCount * 2; i++) wsNight['!cols'].push({ wch: 12 });
         wsNight['!cols'].push({ wch: 14 }, { wch: 14 });
       }
-      try { applyHeaderStyle(wsNight, 1); } catch (e) { console.warn('Style header wsNight ignoré:', e); }
-      // Sections et banding
+      // Sections et banding: appliquer par bloc pour ne pas écraser les entêtes/sections/totaux
       try {
         const rangeN = XLSX.utils.decode_range(wsNight['!ref'] || 'A1');
         const numRowsN = rangeN.e.r - rangeN.s.r + 1;
+        const colCountN = rangeN.e.c - rangeN.s.c + 1;
+        let bandIndex = 0; // reset après chaque entête "Semaine"
         for (let r = 0; r < numRowsN; r++) {
-          const cellA = wsNight[XLSX.utils.encode_cell({ r, c: 0 })];
-          const v = cellA?.v;
-          if (typeof v === 'string') {
-            if (v.startsWith('=== BOUTIQUE:')) applySectionHeaderStyle(wsNight, r + 1);
-            if (v === 'Semaine') applyHeaderStyle(wsNight, r + 1);
-            if (v.startsWith('Total mois')) applyTotalRowStyle(wsNight, r + 1);
+          const addrA = XLSX.utils.encode_cell({ r, c: 0 });
+          const v = wsNight[addrA]?.v;
+          if (typeof v !== 'string') {
+            // Ligne vide: sauter sans banding
+            continue;
           }
+          if (v.startsWith('=== BOUTIQUE:')) {
+            applySectionHeaderStyle(wsNight, r + 1);
+            continue;
+          }
+          if (v === 'Semaine') {
+            applyHeaderStyle(wsNight, r + 1);
+            bandIndex = 0; // redémarrer le banding après cet header
+            continue;
+          }
+          if (v.startsWith('Total mois')) {
+            applyTotalRowStyle(wsNight, r + 1);
+            continue;
+          }
+          // Lignes données: appliquer banding alterné + bordures
+          const isEven = bandIndex % 2 === 0;
+          const fillColor = isEven ? THEME.band1 : THEME.band2;
+          styleRow(wsNight, r, colCountN, {
+            fill: { fgColor: { rgb: fillColor } },
+            border: {
+              top: { style: 'thin', color: { rgb: THEME.border } },
+              bottom: { style: 'thin', color: { rgb: THEME.border } },
+              left: { style: 'thin', color: { rgb: THEME.border } },
+              right: { style: 'thin', color: { rgb: THEME.border } }
+            },
+            alignment: { vertical: 'center' }
+          });
+          bandIndex += 1;
         }
-        // Banding sur tout le tableau (à partir de la première ligne de données après header par section)
-        applyBanding(wsNight, 2, numRowsN);
       } catch (e) { console.warn('Style Heures de nuit ignoré:', e); }
     }
 
