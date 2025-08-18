@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Button from './common/Button';
-import { listRemoteShops } from '../utils/remoteStore';
+import { listRemoteShops, listRemoteWeeksForShop, loadRemotePlanning } from '../utils/remoteStore';
 
 // Types de licences
 const LICENSE_TYPES = {
@@ -459,6 +459,55 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
     }
   };
 
+  const handleRestoreFromSupabase = async () => {
+    try {
+      console.log('🔄 Restauration depuis Supabase...');
+      
+      // Lister les boutiques disponibles
+      const shops = await listRemoteShops();
+      if (shops.length === 0) {
+        alert('Aucune boutique trouvée dans Supabase.');
+        return;
+      }
+      
+      // Pour l'instant, on prend la première boutique
+      const shopId = shops[0];
+      console.log('🏪 Boutique sélectionnée:', shopId);
+      
+      // Lister les semaines disponibles pour cette boutique
+      const weeks = await listRemoteWeeksForShop(shopId);
+      if (weeks.length === 0) {
+        alert('Aucune semaine trouvée pour cette boutique dans Supabase.');
+        return;
+      }
+      
+      // Prendre la semaine la plus récente
+      const weekKey = weeks[weeks.length - 1];
+      console.log('📅 Semaine sélectionnée:', weekKey);
+      
+      // Charger les données
+      const planningData = await loadRemotePlanning(shopId, weekKey);
+      if (!planningData) {
+        alert('Impossible de charger les données depuis Supabase.');
+        return;
+      }
+      
+      console.log('✅ Données chargées depuis Supabase:', planningData);
+      
+      // Sauvegarder en local et continuer
+      localStorage.setItem('planningData', JSON.stringify(planningData));
+      localStorage.setItem('selectedShopId', shopId);
+      localStorage.setItem('selectedWeek', weekKey);
+      
+      // Rediriger vers le planning
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la restauration depuis Supabase:', error);
+      alert('Erreur lors de la restauration depuis Supabase: ' + error.message);
+    }
+  };
+
   // Si le gestionnaire de licences est affiché
   if (showLicenseManager) {
     return (
@@ -793,38 +842,69 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
               }}></div>
             </div>
             
-            <label style={{
-              padding: '20px 40px',
-              fontSize: '1.2rem',
-              background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              display: 'inline-block',
-              fontWeight: '600',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 6px 20px rgba(108, 117, 125, 0.3)',
-              minWidth: '250px'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.transform = 'translateY(-3px)';
-              e.currentTarget.style.boxShadow = '0 10px 25px rgba(108, 117, 125, 0.4)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(108, 117, 125, 0.3)';
-            }}
-            >
-              <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>📁</span>
-              Importer un planning
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-              />
-            </label>
+            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <label style={{
+                padding: '20px 40px',
+                fontSize: '1.2rem',
+                background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                display: 'inline-block',
+                fontWeight: '600',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 6px 20px rgba(108, 117, 125, 0.3)',
+                minWidth: '250px'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-3px)';
+                e.currentTarget.style.boxShadow = '0 10px 25px rgba(108, 117, 125, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(108, 117, 125, 0.3)';
+              }}
+              >
+                <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>📁</span>
+                Importer un planning
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              
+              <Button
+                onClick={handleRestoreFromSupabase}
+                style={{
+                  padding: '20px 40px',
+                  fontSize: '1.2rem',
+                  background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  display: 'inline-block',
+                  fontWeight: '600',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 6px 20px rgba(40, 167, 69, 0.3)',
+                  minWidth: '250px'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 10px 25px rgba(40, 167, 69, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(40, 167, 69, 0.3)';
+                }}
+              >
+                <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>☁️</span>
+                Restaurer depuis Supabase
+              </Button>
+            </div>
           </div>
 
           <div style={{
