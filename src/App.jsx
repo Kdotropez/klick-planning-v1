@@ -253,26 +253,46 @@ const App = () => {
   // Aller directement au planning après restauration depuis Supabase
   const handleRestoreFromSupabase = () => {
     try {
-      // Vérifier qu'on a des données de planning
-      if (!planningData?.shops || planningData.shops.length === 0) {
-        setFeedback('Aucune donnée de planning trouvée. Veuillez d\'abord restaurer depuis Supabase.');
+      console.log('🔄 handleRestoreFromSupabase appelé');
+      
+      // Charger les données depuis localStorage
+      const savedPlanningData = localStorage.getItem('planningData');
+      if (!savedPlanningData) {
+        setFeedback('Aucune donnée trouvée. Veuillez d\'abord restaurer depuis Supabase.');
         return;
       }
       
-      // Sélectionner la première boutique par défaut
-      const firstShop = planningData.shops[0];
-      setSelectedShop(firstShop.id);
-      
-      // Sélectionner la première semaine disponible ou la semaine courante
-      const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
-      setSelectedWeek(currentWeekKey);
-      
-      // Aller directement au planning
-      setMode('planning');
-      setFeedback('Planning restauré depuis Supabase !');
+      try {
+        const parsedData = JSON.parse(savedPlanningData);
+        console.log('📦 Données chargées depuis localStorage:', parsedData);
+        
+        if (!parsedData.shops || parsedData.shops.length === 0) {
+          setFeedback('Aucune boutique trouvée dans les données restaurées.');
+          return;
+        }
+        
+        // Mettre à jour planningData avec les données restaurées
+        setPlanningData(parsedData);
+        
+        // Sélectionner la première boutique par défaut
+        const firstShop = parsedData.shops[0];
+        setSelectedShop(firstShop.id);
+        
+        // Sélectionner la semaine courante
+        const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
+        setSelectedWeek(currentWeekKey);
+        
+        // Aller directement au planning
+        setMode('planning');
+        setFeedback('Planning restauré depuis Supabase !');
+        
+      } catch (error) {
+        console.error('❌ Erreur parsing localStorage:', error);
+        setFeedback('Erreur lors du chargement des données restaurées.');
+      }
       
     } catch (error) {
-      console.error('Erreur lors de la restauration:', error);
+      console.error('❌ Erreur dans handleRestoreFromSupabase:', error);
       setFeedback('Erreur lors de la restauration depuis Supabase.');
     }
   };
