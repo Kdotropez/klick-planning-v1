@@ -429,27 +429,7 @@ const PlanningDisplay = ({
     }
   }, [currentShopEmployees]);
 
-  const handleDeleteEmployeeClick = useCallback((employeeId, employeeName) => {
-    if (!employeeId) return;
-    const confirmed = window.confirm(`Supprimer définitivement l'employé ${employeeName || employeeId} de toutes les boutiques ?`);
-    if (!confirmed) return;
-    try {
-      if (typeof onDeleteEmployee === 'function') {
-        onDeleteEmployee(employeeId);
-      }
-      // Retirer de la sélection locale et du planning local
-      setLocalSelectedEmployees(prev => prev.filter(id => id !== employeeId));
-      setPlanning(prev => {
-        const updated = { ...prev };
-        if (updated[employeeId]) delete updated[employeeId];
-        return updated;
-      });
-      setLocalFeedback(`✅ Employé supprimé`);
-    } catch (e) {
-      console.error('Erreur suppression employé:', e);
-      setLocalFeedback('❌ Erreur lors de la suppression');
-    }
-  }, [onDeleteEmployee, setLocalSelectedEmployees, setPlanning]);
+  // Suppression employé désactivée: handler retiré
 
   const handleRenameEmployeeClick = useCallback((employeeId, currentName) => {
     if (!employeeId) return;
@@ -2673,31 +2653,7 @@ const PlanningDisplay = ({
                     >
                       ✏️ Renommer
                     </button>
-                    <button
-                      onClick={() => handleDeleteEmployeeClick(employeeId, employeeName)}
-                      style={{
-                        backgroundColor: '#6c757d',
-                        color: 'white',
-                        padding: '6px 10px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.backgroundColor = '#5a6268';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.backgroundColor = '#6c757d';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }}
-                      title="Supprimer l'employé"
-                    >
-                      🗑️ Supprimer
-                    </button>
+                    {/* Bouton Supprimer retiré */}
                   </div>
                 </div>
               );
