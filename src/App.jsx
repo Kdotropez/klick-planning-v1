@@ -253,7 +253,8 @@ const App = () => {
   // Aller directement au planning après restauration depuis Supabase
   const handleRestoreFromSupabase = () => {
     try {
-      console.log('🔄 handleRestoreFromSupabase appelé');
+      console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
+      console.log('📊 planningData actuel:', planningData);
       
       // Charger les données depuis localStorage
       const savedPlanningData = localStorage.getItem('planningData');

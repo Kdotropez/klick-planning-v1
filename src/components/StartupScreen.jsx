@@ -480,8 +480,10 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
       
       // Utiliser la nouvelle fonction pour aller directement au planning
       if (typeof onRestoreFromSupabase === 'function') {
+        console.log('📞 Appel de onRestoreFromSupabase...');
         onRestoreFromSupabase();
       } else {
+        console.log('❌ onRestoreFromSupabase n\'est pas une fonction');
         // Fallback : utiliser onNewPlanning
         onNewPlanning();
       }
@@ -788,15 +790,25 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
                   </select>
                   <Button
                     onClick={() => {
+                      console.log('🔘 Bouton cliqué, selectedRemoteShopId:', selectedRemoteShopId);
+                      console.log('🔘 onRestoreFromSupabase type:', typeof onRestoreFromSupabase);
+                      console.log('🔘 onStartWithShop type:', typeof onStartWithShop);
+                      
                       if (selectedRemoteShopId === 'complete_file') {
                         // Si c'est le fichier complet, utiliser la restauration complète
+                        console.log('📁 Fichier complet sélectionné, appel de onRestoreFromSupabase');
                         if (typeof onRestoreFromSupabase === 'function') {
                           onRestoreFromSupabase();
+                        } else {
+                          console.log('❌ onRestoreFromSupabase n\'est pas une fonction');
                         }
                       } else {
                         // Sinon, utiliser le démarrage sur une boutique spécifique
+                        console.log('🏪 Boutique spécifique sélectionnée, appel de onStartWithShop');
                         if (typeof onStartWithShop === 'function' && selectedRemoteShopId) {
                           onStartWithShop(selectedRemoteShopId);
+                        } else {
+                          console.log('❌ onStartWithShop n\'est pas une fonction ou selectedRemoteShopId manquant');
                         }
                       }
                     }}
