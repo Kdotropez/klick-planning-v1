@@ -5,7 +5,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 
 // import LicenseManager from './components/admin/LicenseManager';
-import { enableProtection } from './utils/protection';
+// import { enableProtection } from './utils/protection';
 // import { loadLicense, isLicenseValid, checkLicenseLimits } from './utils/licenseManagerVercel';
 // import './utils/createFullLicense';
 // import './utils/licenseKeyGenerator';
@@ -171,66 +171,13 @@ const App = () => {
     }
   }, [feedback]);
 
-  useEffect(() => {
-    // Activer la protection propriétaire
-    enableProtection();
-  }, []);
+  // Protection désactivée
+  // useEffect(() => {
+  //   enableProtection();
+  // }, []);
 
-  // Vérification de la licence au démarrage
-  useEffect(() => {
-    // Si des données de planning sont déjà chargées, ne pas bloquer l'UI
-    if (planningData?.shops && planningData.shops.length > 0) {
-      setShowLicenseModal(false);
-      setLicenseError('');
-      return;
-    }
-    // Check for admin mode first
-    const urlParams = new URLSearchParams(window.location.search);
-    const adminMode = urlParams.get('admin');
-    
-    if (adminMode === 'licenses') {
-      setShowLicenseManager(true);
-      return; // Stop further license checks if in admin mode
-    }
-
-    const checkLicense = () => {
-      const license = loadLicense(); // Charger la licence existante seulement
-
-      if (!license) {
-        setLicenseError('Aucune licence active. Veuillez activer une licence.');
-        setShowLicenseModal(true);
-        // Ne pas forcer startup si des données locales existent
-        if (!planningData?.shops || planningData.shops.length === 0) {
-          setMode('startup');
-        }
-        return;
-      }
-      
-      if (!isLicenseValid(license)) {
-        setLicenseError('Licence expirée. Veuillez renouveler votre licence.');
-        setShowLicenseModal(true);
-        if (!planningData?.shops || planningData.shops.length === 0) {
-          setMode('startup');
-        }
-        return;
-      }
-      
-      // Vérification des limites
-      const limits = checkLicenseLimits(license, planningData);
-      if (!limits.valid) {
-        setLicenseError(`Limite de licence atteinte: ${limits.message}`);
-        setShowLicenseModal(true);
-        if (!planningData?.shops || planningData.shops.length === 0) {
-          setMode('startup');
-        }
-        return;
-      }
-      
-      setShowLicenseModal(false);
-      setLicenseError('');
-    };
-    checkLicense();
-  }, [planningData]);
+  // Vérification de licence désactivée
+  // useEffect(() => { ... }, [planningData]);
 
   // Gestion du démarrage
   const handleNewPlanning = () => {
