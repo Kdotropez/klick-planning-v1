@@ -331,6 +331,51 @@ export const exportPlanningToExcel = (planningData) => {
       return monthWeeks.reduce((sum, w) => sum + calculateEmployeeWeeklyHours(shop, w, employeeId, monthStart, monthEnd), 0);
     };
 
+    // Heures de nuit: tranche 1 (21:00-22:00) et tranche 2 (>22:00)
+    const calculateEmployeeWeeklyNightHours = (shop, weekStart, employeeId, monthStart, monthEnd) => {
+      const intervalMinutes = Number(shop?.config?.interval) || 30;
+      const timeSlots = Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [];
+      if (timeSlots.length === 0) return { t1: 0, t2: 0 };
+
+      let minutesT1 = 0; // 21:00-22:00
+      let minutesT2 = 0; // > 22:00
+
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      const empWeek = shop.weeks?.[weekKey]?.planning?.[employeeId] || {};
+
+      const makeDate = (timeStr) => new Date(`2000-01-01T${timeStr}:00`);
+      const window21 = makeDate('21:00');
+      const window22 = makeDate('22:00');
+      const windowEnd = makeDate('23:59');
+
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(weekStart);
+        day.setDate(day.getDate() + i);
+        if (day < monthStart || day > monthEnd) continue;
+        const dayKey = format(day, 'yyyy-MM-dd');
+        const slots = empWeek?.[dayKey];
+        if (!Array.isArray(slots)) continue;
+
+        for (let s = 0; s < Math.min(slots.length, timeSlots.length); s++) {
+          if (!slots[s]) continue;
+          const startStr = timeSlots[s];
+          if (!startStr) continue;
+          const slotStart = makeDate(startStr);
+          const slotEnd = new Date(slotStart.getTime() + intervalMinutes * 60000);
+
+          // Overlap with [21:00,22:00)
+          const overlapT1 = Math.max(0, Math.min(slotEnd.getTime(), window22.getTime()) - Math.max(slotStart.getTime(), window21.getTime()));
+          // Overlap with [22:00,23:59]
+          const overlapT2 = Math.max(0, Math.min(slotEnd.getTime(), windowEnd.getTime()) - Math.max(slotStart.getTime(), window22.getTime()));
+
+          minutesT1 += Math.floor(overlapT1 / 60000);
+          minutesT2 += Math.floor(overlapT2 / 60000);
+        }
+      }
+
+      return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
+    };
+
     // Traitement BOUTIQUE PAR BOUTIQUE sur le MOIS COURANT
     const { weeks: monthWeeks, monthStart, monthEnd } = getCurrentMonthWeeks();
     if (planningData.shops && Array.isArray(planningData.shops)) {
@@ -606,6 +651,57 @@ export const exportPlanningToExcel = (planningData) => {
     const wsDetail = XLSX.utils.aoa_to_sheet(excelData);
     const wsGlobal = XLSX.utils.aoa_to_sheet(globalSummaryData);
 
+    // Construire la feuille "Heures de nuit" (par boutique → par semaine → colonnes T1/T2 par employé)
+    const buildNightHoursSheet = () => {
+      const rows = [];
+      if (!planningData.shops || !Array.isArray(planningData.shops)) return rows;
+
+      planningData.shops.forEach(shop => {
+        rows.push([]);
+        rows.push([`=== BOUTIQUE: ${shop.name?.toUpperCase() || shop.id} ===`]);
+        rows.push([]);
+
+        const employeesInShop = Array.isArray(shop.employees) ? shop.employees : [];
+        const header = ['Semaine'];
+        employeesInShop.forEach(emp => {
+          header.push(`${emp.name || emp.id} T1`, `${emp.name || emp.id} T2`);
+        });
+        header.push('Total semaine T1', 'Total semaine T2');
+        rows.push(header);
+
+        monthWeeks.forEach(weekStart => {
+          const row = [getWeekRange(weekStart)];
+          let weekT1 = 0, weekT2 = 0;
+          employeesInShop.forEach(emp => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            row.push(nh.t1 > 0 ? `${nh.t1.toFixed(1)} H` : '', nh.t2 > 0 ? `${nh.t2.toFixed(1)} H` : '');
+            weekT1 += nh.t1; weekT2 += nh.t2;
+          });
+          row.push(weekT1 > 0 ? `${weekT1.toFixed(1)} H` : '', weekT2 > 0 ? `${weekT2.toFixed(1)} H` : '');
+          rows.push(row);
+        });
+
+        // Totaux mois
+        const totalRow = ['Total mois'];
+        let totalT1 = 0, totalT2 = 0;
+        employeesInShop.forEach(emp => {
+          let empT1 = 0, empT2 = 0;
+          monthWeeks.forEach(weekStart => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            empT1 += nh.t1; empT2 += nh.t2;
+          });
+          totalRow.push(empT1 > 0 ? `${empT1.toFixed(1)} H` : '', empT2 > 0 ? `${empT2.toFixed(1)} H` : '');
+          totalT1 += empT1; totalT2 += empT2;
+        });
+        totalRow.push(totalT1 > 0 ? `${totalT1.toFixed(1)} H` : '', totalT2 > 0 ? `${totalT2.toFixed(1)} H` : '');
+        rows.push(totalRow);
+      });
+
+      return rows;
+    };
+
+    const nightHoursData = buildNightHoursSheet();
+
     // Mise en forme basique: largeurs de colonnes
     // Feuille Planning Détaillé: Semaine + N employés + Total
     wsDetail['!cols'] = [{ wch: 34 }];
@@ -795,6 +891,18 @@ export const exportPlanningToExcel = (planningData) => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, wsDetail, 'Planning Détaillé');
     XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé global');
+    if (nightHoursData.length > 0) {
+      const wsNight = XLSX.utils.aoa_to_sheet(nightHoursData);
+      // Largeurs colonnes de base
+      wsNight['!cols'] = [{ wch: 24 }];
+      if (planningData?.shops && planningData.shops.length > 0) {
+        const anyShop = planningData.shops[0];
+        const employeesCount = (anyShop.employees || []).length;
+        for (let i = 0; i < employeesCount * 2; i++) wsNight['!cols'].push({ wch: 12 });
+        wsNight['!cols'].push({ wch: 14 }, { wch: 14 });
+      }
+      XLSX.utils.book_append_sheet(wb, wsNight, 'Heures de nuit');
+    }
     // Largeurs colonnes + style entête + banding + totaux pour les feuilles employé
     employeeSheets.forEach(s => {
       // colonnes: Jour, BOUTIQUE, ENTRÉE, PAUSE, RETOUR, SORTIE, Heures
