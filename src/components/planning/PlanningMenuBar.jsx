@@ -56,7 +56,8 @@ const PlanningMenuBar = ({
   getTotalShopEmployeesCount,
   showCalendarTotals,
   onCreateJSONBackup,
-  testSupabase
+  testSupabase,
+  cleanSupabaseData
 }) => {
   const [openMenus, setOpenMenus] = useState({
     tools: false,
@@ -344,6 +345,9 @@ const PlanningMenuBar = ({
             >
               <MenuItem onClick={testSupabase}>
                 🧪 Test Supabase
+              </MenuItem>
+              <MenuItem onClick={cleanSupabaseData}>
+                🧹 Nettoyer Supabase
               </MenuItem>
               <MenuItem onClick={() => {}}>
                 🔧 Diagnostic données

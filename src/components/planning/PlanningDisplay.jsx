@@ -25,7 +25,7 @@ import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmpl
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { initLockService, acquireLock, releaseLock, heartbeat, getLock } from '@/utils/collabLock';
-import { saveRemotePlanning, saveCompletePlanningData } from '@/utils/remoteStore';
+import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
@@ -855,6 +855,24 @@ const PlanningDisplay = ({
     setLocalFeedback(`🧪 Test Supabase: ${connectionOk ? '✅' : '❌'} Connexion, ${tablesOk ? '✅' : '❌'} Tables`);
   }, []);
 
+  // Fonction pour nettoyer Supabase
+  const cleanSupabaseData = useCallback(async () => {
+    if (window.confirm('⚠️ ATTENTION : Nettoyer Supabase\n\nCette action va supprimer toutes les données dans Supabase.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+      try {
+        console.log('🧹 Nettoyage Supabase...');
+        const result = await cleanAndResaveData();
+        if (result) {
+          setLocalFeedback('✅ Supabase nettoyé avec succès');
+        } else {
+          setLocalFeedback('❌ Erreur lors du nettoyage Supabase');
+        }
+      } catch (error) {
+        console.error('❌ Erreur nettoyage Supabase:', error);
+        setLocalFeedback('❌ Erreur lors du nettoyage Supabase');
+      }
+    }
+  }, []);
+
   // Fonction pour restaurer les données de sauvegarde
   const restoreFromBackup = useCallback(() => {
     if (selectedShop && selectedWeek) {
@@ -1540,6 +1558,7 @@ const PlanningDisplay = ({
             onOpenGestion={() => setShowGestionBoutique(true)}
             onOpenNotes={() => setShowNotesModal(true)}
             testSupabase={testSupabase}
+            cleanSupabaseData={cleanSupabaseData}
           />
         </div>
       ) : (

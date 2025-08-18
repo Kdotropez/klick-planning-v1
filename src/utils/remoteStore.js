@@ -9,6 +9,36 @@ const isReady = () => {
   return ready;
 };
 
+// Fonction pour nettoyer et resauvegarder les données avec la bonne structure
+export const cleanAndResaveData = async () => {
+  console.log('🧹 Nettoyage et resauvegarde des données...');
+  
+  if (!isReady()) {
+    console.log('❌ cleanAndResaveData: not ready');
+    return false;
+  }
+  
+  try {
+    // Supprimer toutes les données existantes
+    console.log('🗑️ Suppression de toutes les données existantes...');
+    const { error: deleteError } = await supabase
+      .from('plannings')
+      .delete()
+      .neq('shop_id', '');
+    
+    if (deleteError) {
+      console.error('❌ Erreur lors de la suppression:', deleteError);
+      return false;
+    }
+    
+    console.log('✅ Toutes les données supprimées');
+    return true;
+  } catch (error) {
+    console.error('❌ Exception dans cleanAndResaveData:', error);
+    return false;
+  }
+};
+
 // Fonction pour sauvegarder le fichier complet de planning
 export const saveCompletePlanningData = async (completePlanningData) => {
   console.log('🔍 saveCompletePlanningData called with:', { 
