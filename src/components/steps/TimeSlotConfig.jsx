@@ -9,19 +9,20 @@ import '@/assets/styles.css';
 const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop }) => {
     const intervals = [15, 30, 60];
     const startTimeOptions = ['09:00', '09:30', '10:00', 'other'];
-    const endTimeOptions = ['19:00', '20:00', '22:00', '23:00', '00:00', '01:00', '02:00', '03:00', 'other'];
+    const endTimeOptions = ['19:00', '20:00', '22:00', '23:00', '23:59', '00:00', '01:00', '02:00', '03:00', 'other'];
 
     const validateTimeFormat = (time) => {
-        const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$|^24:00$|^0[0-3]:[0-5][0-9]$/;
+        const timeRegex = /^(?:([0-1][0-9]|2[0-3]):[0-5][0-9]|23:59)$|^24:00$|^0[0-3]:[0-5][0-9]$/;
         return timeRegex.test(time);
     };
 
     const generateTimeSlots = (start, end, interval) => {
         if (!start || !end || !interval) return [];
         const startDate = parse(start, 'HH:mm', new Date(2025, 0, 1));
-        const endDate = ['00:00', '01:00', '02:00', '03:00'].includes(end) 
-            ? parse(end === '00:00' ? '00:00' : end, 'HH:mm', new Date(2025, 0, 2))
-            : parse(end, 'HH:mm', new Date(2025, 0, 1));
+        const normalizedEnd = end === '24:00' ? '23:59' : end;
+        const endDate = ['00:00', '01:00', '02:00', '03:00'].includes(normalizedEnd) 
+            ? parse(normalizedEnd === '00:00' ? '00:00' : normalizedEnd, 'HH:mm', new Date(2025, 0, 2))
+            : parse(normalizedEnd, 'HH:mm', new Date(2025, 0, 1));
         if (!isAfter(endDate, startDate)) return [];
         const slots = [];
         let current = startDate;

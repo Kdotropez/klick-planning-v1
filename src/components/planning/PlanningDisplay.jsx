@@ -46,7 +46,8 @@ const PlanningDisplay = ({
   onBackToShopSelection,
   onBackToWeekSelection,
   onBackToConfig,
-  setFeedback 
+  setFeedback,
+  onDeleteEmployee
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
@@ -418,6 +419,61 @@ const PlanningDisplay = ({
   useEffect(() => {
     setSelectedEmployees(localSelectedEmployees);
   }, [localSelectedEmployees, setSelectedEmployees]);
+
+  // Inclure automatiquement tout nouvel employé de la boutique dans la sélection locale
+  useEffect(() => {
+    const currentIds = (currentShopEmployees || []).map(emp => emp.id);
+    const missing = currentIds.filter(id => !localSelectedEmployees.includes(id));
+    if (missing.length > 0) {
+      setLocalSelectedEmployees(prev => [...prev, ...missing]);
+    }
+  }, [currentShopEmployees]);
+
+  const handleDeleteEmployeeClick = useCallback((employeeId, employeeName) => {
+    if (!employeeId) return;
+    const confirmed = window.confirm(`Supprimer définitivement l'employé ${employeeName || employeeId} de toutes les boutiques ?`);
+    if (!confirmed) return;
+    try {
+      if (typeof onDeleteEmployee === 'function') {
+        onDeleteEmployee(employeeId);
+      }
+      // Retirer de la sélection locale et du planning local
+      setLocalSelectedEmployees(prev => prev.filter(id => id !== employeeId));
+      setPlanning(prev => {
+        const updated = { ...prev };
+        if (updated[employeeId]) delete updated[employeeId];
+        return updated;
+      });
+      setLocalFeedback(`✅ Employé supprimé`);
+    } catch (e) {
+      console.error('Erreur suppression employé:', e);
+      setLocalFeedback('❌ Erreur lors de la suppression');
+    }
+  }, [onDeleteEmployee, setLocalSelectedEmployees, setPlanning]);
+
+  const handleRenameEmployeeClick = useCallback((employeeId, currentName) => {
+    if (!employeeId) return;
+    const newName = window.prompt("Nouveau nom de l'employé:", currentName || '');
+    if (!newName) return;
+    try {
+      setPlanningData(prev => {
+        const updated = {
+          ...prev,
+          shops: (prev.shops || []).map(shop => ({
+            ...shop,
+            employees: (shop.employees || []).map(emp =>
+              emp && emp.id === employeeId ? { ...emp, name: newName } : emp
+            )
+          }))
+        };
+        return updated;
+      });
+      setLocalFeedback('✏️ Nom employé mis à jour');
+    } catch (e) {
+      console.error('Erreur renommage employé:', e);
+      setLocalFeedback('❌ Erreur lors du renommage');
+    }
+  }, [setPlanningData]);
 
   // Mettre à jour localSelectedEmployees quand selectedEmployees change (pour la première initialisation)
   useEffect(() => {
@@ -2495,7 +2551,7 @@ const PlanningDisplay = ({
                   </button>
                   
                   {/* Boutons de verrouillage/déverrouillage */}
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                     {validationState.lockedEmployees.includes(employeeId) ? (
                       <button
                         onClick={() => {
@@ -2572,6 +2628,56 @@ const PlanningDisplay = ({
                         🔒 Bloquer
                       </button>
                     )}
+                    <button
+                      onClick={() => handleRenameEmployeeClick(employeeId, employeeName)}
+                      style={{
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#0069d9';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#007bff';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                      title="Renommer l'employé"
+                    >
+                      ✏️ Renommer
+                    </button>
+                    <button
+                      onClick={() => handleDeleteEmployeeClick(employeeId, employeeName)}
+                      style={{
+                        backgroundColor: '#6c757d',
+                        color: 'white',
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = '#5a6268';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = '#6c757d';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                      }}
+                      title="Supprimer l'employé"
+                    >
+                      🗑️ Supprimer
+                    </button>
                   </div>
                 </div>
               );
