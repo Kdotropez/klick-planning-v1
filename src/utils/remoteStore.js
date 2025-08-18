@@ -34,28 +34,20 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       return false;
     }
     
-    // Préparer toutes les données à insérer
-    const rowsToInsert = [];
+    // Sauvegarder le fichier complet en une seule ligne
+    const row = {
+      shop_id: 'complete_file',
+      week_key: 'all_data',
+      data: completePlanningData,
+      version: 1
+    };
     
-    Object.keys(completePlanningData).forEach(shopId => {
-      const shopData = completePlanningData[shopId];
-      Object.keys(shopData).forEach(weekKey => {
-        const weekData = shopData[weekKey];
-        rowsToInsert.push({
-          shop_id: shopId,
-          week_key: weekKey,
-          data: weekData,
-          version: 1
-        });
-      });
-    });
+    console.log('📦 Sauvegarde du fichier complet...');
     
-    console.log(`📦 Insertion de ${rowsToInsert.length} enregistrements...`);
-    
-    // Insérer toutes les données en une seule fois
+    // Insérer le fichier complet
     const { data, error } = await supabase
       .from('plannings')
-      .insert(rowsToInsert);
+      .insert(row);
     
     if (error) {
       console.error('❌ Erreur lors de l\'insertion:', error);
@@ -63,8 +55,8 @@ export const saveCompletePlanningData = async (completePlanningData) => {
     }
     
     console.log('✅ saveCompletePlanningData success:', { 
-      inserted: rowsToInsert.length,
-      shops: Object.keys(completePlanningData).length 
+      shops: completePlanningData.shops?.length || 0,
+      version: completePlanningData.version
     });
     
     return true;
@@ -94,22 +86,22 @@ export const loadCompletePlanningData = async () => {
       return null;
     }
     
-    // Reconstruire la structure complète
-    const completeData = {};
+    if (!data || data.length === 0) {
+      console.log('❌ Aucune donnée trouvée dans Supabase');
+      return null;
+    }
     
-    data.forEach(row => {
-      if (!completeData[row.shop_id]) {
-        completeData[row.shop_id] = {};
-      }
-      completeData[row.shop_id][row.week_key] = row.data;
-    });
+    // Prendre la première ligne pour récupérer la structure complète
+    const firstRow = data[0];
+    const planningData = firstRow.data;
     
     console.log('✅ loadCompletePlanningData success:', {
-      shops: Object.keys(completeData).length,
-      totalWeeks: data.length
+      shops: planningData.shops?.length || 0,
+      version: planningData.version,
+      dataKeys: Object.keys(planningData)
     });
     
-    return completeData;
+    return planningData;
   } catch (error) {
     console.error('❌ Exception dans loadCompletePlanningData:', error);
     return null;
