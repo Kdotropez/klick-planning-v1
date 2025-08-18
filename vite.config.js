@@ -8,6 +8,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version)
   },
+  build: {
+    sourcemap: true
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

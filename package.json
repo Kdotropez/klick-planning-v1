@@ -9,15 +9,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "prebuild": "node -e \"const fs=require('fs');const pkg=require('./package.json');const p=process.env;const ver=p.VITE_APP_VERSION||pkg.version;fs.writeFileSync('.env','VITE_APP_VERSION='+ver+'\n');console.log('VITE_APP_VERSION='+ver);\"",
     "release:patch": "npm version patch -m \"chore(version): bump to v%s\" && git push origin main --follow-tags",
     "release:minor": "npm version minor -m \"chore(version): bump to v%s\" && git push origin main --follow-tags",
     "release:major": "npm version major -m \"chore(version): bump to v%s\" && git push origin main --follow-tags",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
     "date-fns": "^3.6.0",
-    "@supabase/supabase-js": "^2.45.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { format, addDays, startOfWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
@@ -24,6 +24,8 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock } from '@/utils/collabLock';
+import { saveRemotePlanning } from '@/utils/remoteStore';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
 
@@ -78,6 +80,27 @@ const PlanningDisplay = ({
   
   // État pour la page de gestion boutique
   const [showGestionBoutique, setShowGestionBoutique] = useState(false);
+
+  // Collaboration lock
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [lockInfo, setLockInfo] = useState(null);
+  const currentUserIdRef = useRef(null);
+  const hbRef = useRef(null);
+  if (!currentUserIdRef.current) {
+    try {
+      const stored = localStorage.getItem('user_id');
+      if (stored) {
+        currentUserIdRef.current = stored;
+      } else {
+        const gen = 'user_' + Math.random().toString(36).slice(2, 9);
+        localStorage.setItem('user_id', gen);
+        currentUserIdRef.current = gen;
+      }
+    } catch (_) {
+      currentUserIdRef.current = 'user_local';
+    }
+  }
+  const currentUserId = currentUserIdRef.current;
   
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
@@ -420,6 +443,35 @@ const PlanningDisplay = ({
     setSelectedEmployees(localSelectedEmployees);
   }, [localSelectedEmployees, setSelectedEmployees]);
 
+  // Init lock service (Supabase si variables présentes)
+  useEffect(() => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_KEY;
+    initLockService(url && key ? { url, key } : null);
+  }, []);
+
+  // Gestion du verrou par (boutique, semaine)
+  useEffect(() => {
+    const run = async () => {
+      if (!selectedShop || !validWeek) return;
+      const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+      setLockInfo(lock || null);
+      setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+      if (ok) {
+        if (hbRef.current) clearInterval(hbRef.current);
+        hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 120000);
+      }
+    };
+    run();
+    return () => {
+      if (hbRef.current) {
+        clearInterval(hbRef.current);
+        hbRef.current = null;
+      }
+      if (selectedShop && validWeek) releaseLock(selectedShop, validWeek, currentUserId);
+    };
+  }, [selectedShop, validWeek, currentUserId]);
+
   // Inclure automatiquement tout nouvel employé de la boutique dans la sélection locale
   useEffect(() => {
     const currentIds = (currentShopEmployees || []).map(emp => emp.id);
@@ -601,6 +653,10 @@ const PlanningDisplay = ({
   }, [selectedShop, selectedWeek, planningData, forceRefresh]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
+    if (isReadOnly) {
+      setLocalFeedback('🔒 Lecture seule: demandez la main pour modifier.');
+      return;
+    }
     // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
     if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
@@ -755,11 +811,17 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(() => {
+    if (isReadOnly) {
+      setLocalFeedback('🔒 Lecture seule: sauvegarde désactivée.');
+      return;
+    }
     try {
       if (selectedShop && selectedWeek) {
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
         saveToLocalStorage('planningData', updatedPlanningData);
+        // push remote (best-effort)
+        try { saveRemotePlanning({ planning, selectedEmployees: localSelectedEmployees }, selectedShop, selectedWeek); } catch (_) {}
         setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
         setLocalFeedback('💾 Planning sauvegardé manuellement');
       } else {
@@ -826,6 +888,10 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde automatique JSON
   const createAutoBackupJSON = useCallback((type = 'auto') => {
+    if (isReadOnly) {
+      setLocalFeedback('🔒 Lecture seule: sauvegarde JSON désactivée.');
+      return;
+    }
     if (planningData && Object.keys(planningData.shops || {}).length > 0) {
       try {
         const exportData = {
@@ -871,14 +937,14 @@ const PlanningDisplay = ({
         setLocalFeedback('❌ Erreur lors de la sauvegarde JSON');
       }
     }
-  }, [planningData, selectedShop, selectedWeek, planning]);
+  }, [planningData, selectedShop, selectedWeek, planning, isReadOnly]);
 
   // État pour la prochaine sauvegarde automatique
   const [nextAutoBackup, setNextAutoBackup] = useState(null);
 
   // Sauvegarde automatique JSON toutes les 5 minutes
   useEffect(() => {
-    if (planningData && Object.keys(planningData.shops || {}).length > 0) {
+    if (!isReadOnly && planningData && Object.keys(planningData.shops || {}).length > 0) {
       // Calculer la prochaine sauvegarde
       const now = new Date();
       const nextBackup = new Date(now.getTime() + 5 * 60 * 1000); // +5 minutes
@@ -893,11 +959,11 @@ const PlanningDisplay = ({
 
       return () => clearInterval(autoBackupInterval);
     }
-  }, [planningData, createAutoBackupJSON]);
+  }, [planningData, createAutoBackupJSON, isReadOnly]);
 
   const changeWeek = (direction) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (!isReadOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
@@ -933,7 +999,7 @@ const PlanningDisplay = ({
 
   const changeToSpecificWeek = (weekDate) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (!isReadOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
@@ -2674,6 +2740,56 @@ const PlanningDisplay = ({
       )}
 
       {/* PLANNING - DIRECTEMENT APRÈS LE TITRE ET LES RÉCAPITULATIFS */}
+      {/* Bandeau collaboratif (toujours visible) */}
+      <div style={{
+        backgroundColor: isReadOnly ? '#fff3cd' : '#e8f5e9',
+        color: isReadOnly ? '#856404' : '#1b5e20',
+        border: `1px solid ${isReadOnly ? '#ffeeba' : '#a5d6a7'}`,
+        borderRadius: 6,
+        padding: '8px 12px',
+        fontFamily: 'Roboto, sans-serif',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10
+      }}>
+        {isReadOnly ? (
+          <>
+            <span>🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.</span>
+            <button
+              onClick={async () => {
+                const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                setLockInfo(lock || null);
+                setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+                if (ok) {
+                  if (hbRef.current) clearInterval(hbRef.current);
+                  hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 120000);
+                } else {
+                  setFeedback && setFeedback('🔔 La main est déjà prise. Réessayez plus tard.');
+                }
+              }}
+              style={{ background: '#ffc107', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
+            >
+              Demander la main
+            </button>
+          </>
+        ) : (
+          <>
+            <span>🟢 Vous avez la main.</span>
+            <button
+              onClick={async () => {
+                if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                await releaseLock(selectedShop, validWeek, currentUserId);
+                setIsReadOnly(true);
+                setLockInfo(null);
+              }}
+              style={{ background: '#9e9e9e', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
+            >
+              Relâcher la main
+            </button>
+          </>
+        )}
+      </div>
+
       <div className="planning-content" style={{
         width: '100%',
         flex: '1',

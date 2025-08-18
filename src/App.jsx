@@ -30,6 +30,7 @@ import {
   importPlanningData
 } from './utils/planningDataManager';
 import './App.css';
+import { loadRemotePlanning } from './utils/remoteStore';
 
 const App = () => {
   // Fonctions de licence intégrées (Vercel-compatible)
@@ -638,16 +639,26 @@ const App = () => {
               
               // Charger les données de la semaine sélectionnée
               if (planningData && selectedShop) {
-                const shop = planningData.shops.find(s => s.id === selectedShop);
-                if (shop && shop.weeks && shop.weeks[week]) {
-                  const weekData = shop.weeks[week];
-                  if (weekData.planning) {
-                    setPlanning(weekData.planning);
+                (async () => {
+                  // Tentative de chargement distant
+                  const remote = await loadRemotePlanning(selectedShop, week);
+                  if (remote && remote.planning) {
+                    setPlanning(remote.planning);
+                    if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
+                  } else {
+                    // Fallback local
+                    const shop = planningData.shops.find(s => s.id === selectedShop);
+                    if (shop && shop.weeks && shop.weeks[week]) {
+                      const weekData = shop.weeks[week];
+                      if (weekData.planning) {
+                        setPlanning(weekData.planning);
+                      }
+                      if (weekData.selectedEmployees) {
+                        setSelectedEmployees(weekData.selectedEmployees);
+                      }
+                    }
                   }
-                  if (weekData.selectedEmployees) {
-                    setSelectedEmployees(weekData.selectedEmployees);
-                  }
-                }
+                })();
               }
               
               setMode('planning');

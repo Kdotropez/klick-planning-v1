@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Button from './common/Button';
+import { listRemoteShops } from '../utils/remoteStore';
 
 // Types de licences
 const LICENSE_TYPES = {
@@ -435,6 +436,8 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
   const [showLicenseManager, setShowLicenseManager] = useState(false);
   const [availableShops, setAvailableShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState('');
+  const [remoteShops, setRemoteShops] = useState([]);
+  const [selectedRemoteShopId, setSelectedRemoteShopId] = useState('');
 
   useEffect(() => {
     // Charger les boutiques depuis planningData (localStorage)
@@ -692,6 +695,77 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
                 </Button>
               </div>
             )}
+
+            {/* Restaurer depuis Supabase */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              alignItems: 'center',
+              width: '100%'
+            }}>
+              <div style={{ color: '#666', fontWeight: 600 }}>Restaurer depuis Supabase (centralisé)</div>
+              {remoteShops.length === 0 ? (
+                <Button
+                  onClick={async () => {
+                    try {
+                      const shops = await listRemoteShops();
+                      setRemoteShops(shops);
+                      if (shops.length > 0) setSelectedRemoteShopId(shops[0]);
+                    } catch (_) {}
+                  }}
+                  style={{
+                    padding: '12px 20px',
+                    background: 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    minWidth: '260px'
+                  }}
+                >
+                  🔄 Charger les boutiques Supabase
+                </Button>
+              ) : (
+                <>
+                  <select
+                    value={selectedRemoteShopId}
+                    onChange={(e) => setSelectedRemoteShopId(e.target.value)}
+                    style={{
+                      padding: '12px 16px',
+                      fontSize: '16px',
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      minWidth: '260px'
+                    }}
+                  >
+                    {remoteShops.map(id => (
+                      <option key={id} value={id}>{id}</option>
+                    ))}
+                  </select>
+                  <Button
+                    onClick={() => {
+                      if (typeof onStartWithShop === 'function' && selectedRemoteShopId) {
+                        onStartWithShop(selectedRemoteShopId);
+                      }
+                    }}
+                    style={{
+                      padding: '12px 20px',
+                      background: 'linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: '700',
+                      minWidth: '260px'
+                    }}
+                  >
+                    ☁️ Démarrer sur cette boutique (Supabase)
+                  </Button>
+                </>
+              )}
+            </div>
 
 
             
