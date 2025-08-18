@@ -25,7 +25,7 @@ import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmpl
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { initLockService, acquireLock, releaseLock, heartbeat, getLock } from '@/utils/collabLock';
-import { saveRemotePlanning } from '@/utils/remoteStore';
+import { saveRemotePlanning, saveCompletePlanningData } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
@@ -821,19 +821,23 @@ const PlanningDisplay = ({
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
         saveToLocalStorage('planningData', updatedPlanningData);
-        // push remote (best-effort)
+        
+        // Sauvegarder le fichier complet dans Supabase
         try { 
-          const remoteResult = await saveRemotePlanning({ planning, selectedEmployees: localSelectedEmployees }, selectedShop, selectedWeek);
+          const remoteResult = await saveCompletePlanningData(updatedPlanningData);
           if (remoteResult) {
-            console.log('✅ Sauvegarde Supabase réussie');
+            console.log('✅ Sauvegarde complète Supabase réussie');
+            setLocalFeedback('💾 Planning complet sauvegardé dans Supabase');
           } else {
-            console.log('❌ Échec sauvegarde Supabase');
+            console.log('❌ Échec sauvegarde complète Supabase');
+            setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
           }
         } catch (error) {
           console.error('❌ Erreur sauvegarde Supabase:', error);
+          setLocalFeedback('⚠️ Sauvegarde locale OK, erreur Supabase');
         }
+        
         setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
-        setLocalFeedback('💾 Planning sauvegardé manuellement');
       } else {
         setLocalFeedback('❌ Sélectionnez une boutique et une semaine avant de sauvegarder');
       }

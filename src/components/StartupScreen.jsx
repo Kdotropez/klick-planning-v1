@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Button from './common/Button';
-import { listRemoteShops, listRemoteWeeksForShop, loadRemotePlanning } from '../utils/remoteStore';
+import { listRemoteShops, listRemoteWeeksForShop, loadRemotePlanning, loadCompletePlanningData } from '../utils/remoteStore';
 
 // Types de licences
 const LICENSE_TYPES = {
@@ -461,43 +461,34 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
 
   const handleRestoreFromSupabase = async () => {
     try {
-      console.log('🔄 Restauration depuis Supabase...');
+      console.log('🔄 Restauration complète depuis Supabase...');
       
-      // Lister les boutiques disponibles
-      const shops = await listRemoteShops();
-      if (shops.length === 0) {
-        alert('Aucune boutique trouvée dans Supabase.');
+      // Charger le fichier complet de planning
+      const completePlanningData = await loadCompletePlanningData();
+      if (!completePlanningData) {
+        alert('Aucune donnée trouvée dans Supabase ou erreur de chargement.');
         return;
       }
       
-      // Pour l'instant, on prend la première boutique
-      const shopId = shops[0];
-      console.log('🏪 Boutique sélectionnée:', shopId);
+      console.log('✅ Fichier complet chargé depuis Supabase:', {
+        shops: Object.keys(completePlanningData),
+        totalWeeks: Object.values(completePlanningData).reduce((acc, shop) => acc + Object.keys(shop).length, 0)
+      });
       
-      // Lister les semaines disponibles pour cette boutique
-      const weeks = await listRemoteWeeksForShop(shopId);
-      if (weeks.length === 0) {
-        alert('Aucune semaine trouvée pour cette boutique dans Supabase.');
-        return;
+      // Sauvegarder le fichier complet en local
+      localStorage.setItem('planningData', JSON.stringify(completePlanningData));
+      
+      // Si il y a des boutiques, sélectionner la première
+      const shops = Object.keys(completePlanningData);
+      if (shops.length > 0) {
+        const firstShop = shops[0];
+        const weeks = Object.keys(completePlanningData[firstShop]);
+        if (weeks.length > 0) {
+          const firstWeek = weeks[0];
+          localStorage.setItem('selectedShopId', firstShop);
+          localStorage.setItem('selectedWeek', firstWeek);
+        }
       }
-      
-      // Prendre la semaine la plus récente
-      const weekKey = weeks[weeks.length - 1];
-      console.log('📅 Semaine sélectionnée:', weekKey);
-      
-      // Charger les données
-      const planningData = await loadRemotePlanning(shopId, weekKey);
-      if (!planningData) {
-        alert('Impossible de charger les données depuis Supabase.');
-        return;
-      }
-      
-      console.log('✅ Données chargées depuis Supabase:', planningData);
-      
-      // Sauvegarder en local et continuer
-      localStorage.setItem('planningData', JSON.stringify(planningData));
-      localStorage.setItem('selectedShopId', shopId);
-      localStorage.setItem('selectedWeek', weekKey);
       
       // Rediriger vers le planning
       window.location.reload();

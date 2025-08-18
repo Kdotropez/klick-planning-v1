@@ -9,6 +9,113 @@ const isReady = () => {
   return ready;
 };
 
+// Fonction pour sauvegarder le fichier complet de planning
+export const saveCompletePlanningData = async (completePlanningData) => {
+  console.log('🔍 saveCompletePlanningData called with:', { 
+    hasData: !!completePlanningData,
+    dataKeys: completePlanningData ? Object.keys(completePlanningData) : []
+  });
+  
+  if (!isReady() || !completePlanningData) {
+    console.log('❌ saveCompletePlanningData: not ready or missing data');
+    return false;
+  }
+  
+  try {
+    // Supprimer toutes les données existantes
+    console.log('🗑️ Suppression des données existantes...');
+    const { error: deleteError } = await supabase
+      .from('plannings')
+      .delete()
+      .neq('shop_id', ''); // Supprimer toutes les lignes
+    
+    if (deleteError) {
+      console.error('❌ Erreur lors de la suppression:', deleteError);
+      return false;
+    }
+    
+    // Préparer toutes les données à insérer
+    const rowsToInsert = [];
+    
+    Object.keys(completePlanningData).forEach(shopId => {
+      const shopData = completePlanningData[shopId];
+      Object.keys(shopData).forEach(weekKey => {
+        const weekData = shopData[weekKey];
+        rowsToInsert.push({
+          shop_id: shopId,
+          week_key: weekKey,
+          data: weekData,
+          version: 1
+        });
+      });
+    });
+    
+    console.log(`📦 Insertion de ${rowsToInsert.length} enregistrements...`);
+    
+    // Insérer toutes les données en une seule fois
+    const { data, error } = await supabase
+      .from('plannings')
+      .insert(rowsToInsert);
+    
+    if (error) {
+      console.error('❌ Erreur lors de l\'insertion:', error);
+      return false;
+    }
+    
+    console.log('✅ saveCompletePlanningData success:', { 
+      inserted: rowsToInsert.length,
+      shops: Object.keys(completePlanningData).length 
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Exception dans saveCompletePlanningData:', error);
+    return false;
+  }
+};
+
+// Fonction pour charger le fichier complet de planning
+export const loadCompletePlanningData = async () => {
+  console.log('🔍 loadCompletePlanningData called');
+  
+  if (!isReady()) {
+    console.log('❌ loadCompletePlanningData: not ready');
+    return null;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('plannings')
+      .select('*')
+      .order('shop_id', { ascending: true });
+    
+    if (error) {
+      console.error('❌ Erreur lors du chargement:', error);
+      return null;
+    }
+    
+    // Reconstruire la structure complète
+    const completeData = {};
+    
+    data.forEach(row => {
+      if (!completeData[row.shop_id]) {
+        completeData[row.shop_id] = {};
+      }
+      completeData[row.shop_id][row.week_key] = row.data;
+    });
+    
+    console.log('✅ loadCompletePlanningData success:', {
+      shops: Object.keys(completeData).length,
+      totalWeeks: data.length
+    });
+    
+    return completeData;
+  } catch (error) {
+    console.error('❌ Exception dans loadCompletePlanningData:', error);
+    return null;
+  }
+};
+
 export const loadRemotePlanning = async (shopId, weekKey) => {
   console.log('🔍 loadRemotePlanning called with:', { shopId, weekKey });
   if (!isReady() || !shopId || !weekKey) {
