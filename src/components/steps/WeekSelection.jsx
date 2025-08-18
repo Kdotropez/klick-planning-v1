@@ -5,7 +5,7 @@ import { loadFromLocalStorage } from '../../utils/localStorage';
 import Button from '../common/Button';
 import '@/assets/styles.css';
 
-const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, planningData }) => {
+const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, planningData, onChangeShop }) => {
     const [month, setMonth] = useState(selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : format(new Date(), 'yyyy-MM'));
     const [savedWeeksMonth, setSavedWeeksMonth] = useState(selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : format(new Date(), 'yyyy-MM'));
     const [currentWeek, setCurrentWeek] = useState(selectedWeek || '');
@@ -163,24 +163,49 @@ const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, pl
         onReset({ source: 'week', selectedWeek: currentWeek });
     };
 
+    // Liste des boutiques disponibles
+    const shops = Array.isArray(planningData?.shops) ? planningData.shops : [];
+    const selectedShopObj = shops.find(s => s.id === selectedShop);
+
     return (
         <div className="week-selection-container">
-            <div style={{
-                fontFamily: 'Roboto, sans-serif',
-                fontSize: '24px',
-                fontWeight: '700',
-                textAlign: 'center',
-                marginBottom: '15px',
-                padding: '10px',
-                backgroundColor: '#f5f5f5',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                width: 'fit-content',
-                maxWidth: '600px',
-                marginLeft: 'auto',
-                marginRight: 'auto'
-            }}>
-                {selectedShop || 'Aucune boutique sélectionnée'}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+                <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'center',
+                    fontFamily: 'Roboto, sans-serif',
+                    backgroundColor: '#f5f5f5',
+                    border: '1px solid #ccc',
+                    borderRadius: '6px',
+                    padding: '10px 12px'
+                }}>
+                    <span style={{ fontWeight: 700 }}>Boutique:</span>
+                    <select
+                        value={selectedShop || ''}
+                        onChange={(e) => {
+                            if (typeof onChangeShop === 'function') {
+                                onChangeShop(e.target.value);
+                            }
+                            setCurrentWeek('');
+                            setFeedback('');
+                        }}
+                        style={{
+                            padding: '8px 10px',
+                            fontSize: '14px',
+                            border: '1px solid #bbb',
+                            borderRadius: '4px',
+                            minWidth: '220px'
+                        }}
+                    >
+                        {shops.length === 0 && (
+                            <option value="">Aucune boutique</option>
+                        )}
+                        {shops.map(shop => (
+                            <option key={shop.id} value={shop.id}>{shop.name}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
             <h2 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center' }}>
                 Sélection de la semaine

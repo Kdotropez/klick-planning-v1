@@ -431,8 +431,23 @@ const LicenseManager = () => {
   );
 };
 
-const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain }) => {
+const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onStartWithShop }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
+  const [availableShops, setAvailableShops] = useState([]);
+  const [selectedShopId, setSelectedShopId] = useState('');
+
+  useEffect(() => {
+    // Charger les boutiques depuis planningData (localStorage)
+    try {
+      const saved = localStorage.getItem('planningData');
+      if (saved) {
+        const data = JSON.parse(saved);
+        const shops = Array.isArray(data?.shops) ? data.shops.filter(s => s && s.id && s.name) : [];
+        setAvailableShops(shops);
+        if (shops.length > 0) setSelectedShopId(shops[0].id);
+      }
+    } catch (_) {}
+  }, []);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -630,6 +645,54 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
               Créer un nouveau planning
             </Button>
             
+            {/* Démarrer sur une boutique existante */}
+            {availableShops.length > 0 && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                alignItems: 'center',
+                width: '100%'
+              }}>
+                <div style={{ color: '#666', fontWeight: 600 }}>Ou démarrer directement sur une boutique existante</div>
+                <select
+                  value={selectedShopId}
+                  onChange={(e) => setSelectedShopId(e.target.value)}
+                  style={{
+                    padding: '12px 16px',
+                    fontSize: '16px',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    minWidth: '260px'
+                  }}
+                >
+                  {availableShops.map(shop => (
+                    <option key={shop.id} value={shop.id}>{shop.name}</option>
+                  ))}
+                </select>
+                <Button
+                  onClick={() => {
+                    if (typeof onStartWithShop === 'function' && selectedShopId) {
+                      onStartWithShop(selectedShopId);
+                    }
+                  }}
+                  style={{
+                    padding: '14px 28px',
+                    fontSize: '1.1rem',
+                    background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    minWidth: '260px'
+                  }}
+                >
+                  ▶️ Démarrer sur cette boutique
+                </Button>
+              </div>
+            )}
+
 
             
             <div style={{

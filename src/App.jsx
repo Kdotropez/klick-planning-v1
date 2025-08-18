@@ -193,6 +193,21 @@ const App = () => {
     setFeedback('');
   };
 
+  // Démarrer directement sur une boutique depuis l'écran de démarrage
+  const handleStartWithShop = (shopId) => {
+    try {
+      if (!planningData?.shops || planningData.shops.length === 0) return;
+      const exists = planningData.shops.some(s => s.id === shopId);
+      if (!exists) return;
+      setSelectedShop(shopId);
+      // Préparer semaine courante par défaut
+      const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
+      setSelectedWeek(currentWeekKey);
+      setMode('week-selection');
+      setFeedback('Sélectionnez la semaine pour commencer.');
+    } catch (_) {}
+  };
+
   // Gestion de la licence
   const handleLicenseValid = () => {
     setShowLicenseModal(false);
@@ -437,18 +452,15 @@ const App = () => {
   // Gestion du planning
   const handleExport = () => {
     try {
-      // Essayer d'abord l'export Excel
-      const result = exportPlanningToExcel(planningData);
-      if (result === true) {
+      const ok = exportPlanningToExcel(planningData);
+      if (ok === true) {
         setFeedback('📊 Export Excel réussi !');
       } else {
-        setFeedback('📄 Export JSON réussi !');
+        setFeedback('❌ Échec export Excel');
       }
     } catch (error) {
-      console.error('Erreur lors de l\'export:', error);
-      // Fallback vers JSON
-      exportPlanningData(planningData);
-      setFeedback('📄 Export JSON réussi !');
+      console.error('Erreur lors de l\'export Excel:', error);
+      setFeedback('❌ Échec export Excel');
     }
   };
 
@@ -507,6 +519,7 @@ const App = () => {
             onImportPlanning={handleImportPlanning}
             onExit={handleExit}
             onClearLocalStorage={handleClearLocalStorage}
+            onStartWithShop={handleStartWithShop}
 
           />
         <CopyrightNotice />
@@ -648,6 +661,9 @@ const App = () => {
             selectedWeek={selectedWeek}
             selectedShop={selectedShop}
             planningData={planningData}
+            onChangeShop={(shopId) => {
+              setSelectedShop(shopId);
+            }}
           />
           <CopyrightNotice />
         </div>

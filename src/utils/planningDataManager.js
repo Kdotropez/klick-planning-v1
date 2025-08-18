@@ -2,6 +2,7 @@ import { format, startOfWeek, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 // Remplace xlsx standard par xlsx-js-style pour le formatage des cellules
 import * as XLSX from 'xlsx-js-style';
+import * as XLSXCore from 'xlsx';
 
 // Structure de données v2.0
 export const createNewPlanningData = () => ({
@@ -265,8 +266,8 @@ export const exportPlanningToExcel = (planningData) => {
   try {
     // Vérifier si XLSX est disponible
     if (typeof XLSX === 'undefined') {
-      console.error('XLSX non disponible, export JSON à la place');
-      return exportPlanningData(planningData);
+      console.error('XLSX non disponible, annulation de l\'export Excel');
+      return false;
     }
 
     const excelData = [];
@@ -376,6 +377,30 @@ export const exportPlanningToExcel = (planningData) => {
       return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
     };
 
+    // Heures de nuit par JOUR à partir des slots (utilisé par feuilles Employé)
+    const calculateDayNightFromSlots = (timeSlots, intervalMinutes, slots) => {
+      if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
+        return { t1: 0, t2: 0 };
+      }
+      const makeDate = (timeStr) => new Date(`2000-01-01T${timeStr}:00`);
+      const window21 = makeDate('21:00');
+      const window22 = makeDate('22:00');
+      const windowEnd = makeDate('23:59');
+      let minutesT1 = 0, minutesT2 = 0;
+      for (let s = 0; s < Math.min(slots.length, timeSlots.length); s++) {
+        if (!slots[s]) continue;
+        const startStr = timeSlots[s];
+        if (!startStr) continue;
+        const slotStart = makeDate(startStr);
+        const slotEnd = new Date(slotStart.getTime() + (Number(intervalMinutes) || 30) * 60000);
+        const overlapT1 = Math.max(0, Math.min(slotEnd.getTime(), window22.getTime()) - Math.max(slotStart.getTime(), window21.getTime()));
+        const overlapT2 = Math.max(0, Math.min(slotEnd.getTime(), windowEnd.getTime()) - Math.max(slotStart.getTime(), window22.getTime()));
+        minutesT1 += Math.floor(overlapT1 / 60000);
+        minutesT2 += Math.floor(overlapT2 / 60000);
+      }
+      return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
+    };
+
     // Traitement BOUTIQUE PAR BOUTIQUE sur le MOIS COURANT
     const { weeks: monthWeeks, monthStart, monthEnd } = getCurrentMonthWeeks();
     if (planningData.shops && Array.isArray(planningData.shops)) {
@@ -387,31 +412,50 @@ export const exportPlanningToExcel = (planningData) => {
         const employeesInShop = Array.isArray(shop.employees) ? shop.employees : [];
         const employeeNames = employeesInShop.map(e => e.name || e.id);
 
-        // En-têtes: Semaine | Employé1 | Employé2 | ... | Total semaine
-        excelData.push(['Semaine', ...employeeNames, 'Total semaine']);
+        // En-têtes: Semaine | Employé1 | Employé2 | ... | Total semaine | Total T1 | Total T2
+        excelData.push(['Semaine', ...employeeNames, 'Total semaine', 'Total T1', 'Total T2']);
 
         // Lignes par semaine
         monthWeeks.forEach(weekStart => {
           const row = [getWeekRange(weekStart)];
           let weekTotal = 0;
+          let weekT1 = 0;
+          let weekT2 = 0;
           employeesInShop.forEach(emp => {
             const hours = calculateEmployeeWeeklyHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
             weekTotal += hours;
+            weekT1 += nh.t1;
+            weekT2 += nh.t2;
             row.push(hours > 0 ? `${hours.toFixed(1)} H` : '');
           });
-          row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '');
+          row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '', weekT1 > 0 ? `${weekT1.toFixed(1)} H` : '', weekT2 > 0 ? `${weekT2.toFixed(1)} H` : '');
           excelData.push(row);
         });
 
-        // Totaux mensuels par employé + total général
+        // Totaux mensuels par employé + total général + T1/T2 globaux du mois
         const totalsRow = ['Total mois'];
         let grandTotal = 0;
+        let grandT1 = 0;
+        let grandT2 = 0;
         employeesInShop.forEach(emp => {
           const total = calculateEmployeeMonthlyHours(shop, emp.id, monthWeeks, monthStart, monthEnd);
           grandTotal += total;
           totalsRow.push(total > 0 ? `${total.toFixed(1)} H` : '');
         });
-        totalsRow.push(grandTotal > 0 ? `${grandTotal.toFixed(1)} H` : '');
+        // Cumuls T1/T2 pour le mois (par boutique)
+        monthWeeks.forEach(weekStart => {
+          employeesInShop.forEach(emp => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            grandT1 += nh.t1;
+            grandT2 += nh.t2;
+          });
+        });
+        totalsRow.push(
+          grandTotal > 0 ? `${grandTotal.toFixed(1)} H` : '',
+          grandT1 > 0 ? `${grandT1.toFixed(1)} H` : '',
+          grandT2 > 0 ? `${grandT2.toFixed(1)} H` : ''
+        );
         excelData.push(totalsRow);
 
         excelData.push([]);
@@ -422,7 +466,7 @@ export const exportPlanningToExcel = (planningData) => {
     const buildGlobalSummary = () => {
       const shops = Array.isArray(planningData.shops) ? planningData.shops : [];
       const shopNames = shops.map(s => s.name || s.id);
-      const header = ['Semaine', ...shopNames, 'Total semaine'];
+      const header = ['Semaine', ...shopNames, 'Total semaine', 'Total T1', 'Total T2'];
       const rows = [header];
 
       // Totaux mensuels par boutique
@@ -431,20 +475,38 @@ export const exportPlanningToExcel = (planningData) => {
       monthWeeks.forEach(weekStart => {
         const row = [getWeekRange(weekStart)];
         let weekTotal = 0;
+        let weekT1 = 0;
+        let weekT2 = 0;
         shops.forEach((shop, idx) => {
           const employeesInShop = Array.isArray(shop.employees) ? shop.employees : [];
           const shopWeekTotal = employeesInShop.reduce((sum, emp) => sum + calculateEmployeeWeeklyHours(shop, weekStart, emp.id, monthStart, monthEnd), 0);
+          const shopWeekNight = employeesInShop.reduce((acc, emp) => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            acc.t1 += nh.t1; acc.t2 += nh.t2; return acc;
+          }, { t1: 0, t2: 0 });
           monthlyTotalsPerShop[idx] += shopWeekTotal;
           weekTotal += shopWeekTotal;
           row.push(shopWeekTotal > 0 ? `${shopWeekTotal.toFixed(1)} H` : '');
+          weekT1 += shopWeekNight.t1;
+          weekT2 += shopWeekNight.t2;
         });
-        row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '');
+        row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '', weekT1 > 0 ? `${weekT1.toFixed(1)} H` : '', weekT2 > 0 ? `${weekT2.toFixed(1)} H` : '');
         rows.push(row);
       });
 
       // Ligne total mois
       const grandTotal = monthlyTotalsPerShop.reduce((a, b) => a + b, 0);
-      rows.push(['Total mois', ...monthlyTotalsPerShop.map(v => (v > 0 ? `${v.toFixed(1)} H` : '')), grandTotal > 0 ? `${grandTotal.toFixed(1)} H` : '']);
+      // T1/T2 total mois (tous shops)
+      let totalMonthT1 = 0, totalMonthT2 = 0;
+      monthWeeks.forEach(weekStart => {
+        shops.forEach(shop => {
+          (shop.employees || []).forEach(emp => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            totalMonthT1 += nh.t1; totalMonthT2 += nh.t2;
+          });
+        });
+      });
+      rows.push(['Total mois', ...monthlyTotalsPerShop.map(v => (v > 0 ? `${v.toFixed(1)} H` : '')), grandTotal > 0 ? `${grandTotal.toFixed(1)} H` : '', totalMonthT1 > 0 ? `${totalMonthT1.toFixed(1)} H` : '', totalMonthT2 > 0 ? `${totalMonthT2.toFixed(1)} H` : '']);
 
       return rows;
     };
@@ -561,16 +623,20 @@ export const exportPlanningToExcel = (planningData) => {
         const empName = emp.name || emp.id;
         const data = [];
         const shopTotals = new Map(); // shopId -> hours
+        const shopNightTotals = new Map(); // shopId -> {t1,t2}
 
         // Grouper par semaines (basées sur les lundis)
         let weekStart = getMonday(monthDays[0]);
         let idx = 0;
         while (weekStart <= monthDays[monthDays.length - 1]) {
           const weekTitle = getWeekTitle(weekStart);
-          data.push({ 'Jour': weekTitle, 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': '' });
+          data.push({ 'Jour': weekTitle, 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': '', 'T1': '', 'T2': '' });
 
           let weekHoursTotal = 0;
+          let weekT1Total = 0;
+          let weekT2Total = 0;
           const weekShopTotals = new Map(); // shopId -> hours for this week
+          const weekShopNightTotals = new Map(); // shopId -> {t1,t2}
           for (let d = 0; d < 7; d++) {
             const day = new Date(weekStart);
             day.setDate(weekStart.getDate() + d);
@@ -581,10 +647,16 @@ export const exportPlanningToExcel = (planningData) => {
             const dayLabel = `${format(day, 'EEEE', { locale: fr })} ${format(day, 'dd/MM', { locale: fr })}`;
             if (dd && Array.isArray(dd.timeSlots) && dd.timeSlots.length > 0) {
               const wt = getWorkTimesFromSlots(dd.timeSlots, dd.interval, dd.slots);
+              const dnh = calculateDayNightFromSlots(dd.timeSlots, dd.interval, dd.slots);
               const prev = shopTotals.get(dd.shopId) || 0;
               shopTotals.set(dd.shopId, prev + wt.hours);
+              const prevNight = shopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
+              shopNightTotals.set(dd.shopId, { t1: prevNight.t1 + dnh.t1, t2: prevNight.t2 + dnh.t2 });
               weekShopTotals.set(dd.shopId, (weekShopTotals.get(dd.shopId) || 0) + wt.hours);
+              const wsnPrev = weekShopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
+              weekShopNightTotals.set(dd.shopId, { t1: wsnPrev.t1 + dnh.t1, t2: wsnPrev.t2 + dnh.t2 });
               weekHoursTotal += wt.hours;
+              weekT1Total += dnh.t1; weekT2Total += dnh.t2;
               data.push({
                 'Jour': dayLabel,
                 'BOUTIQUE': dd.shopName,
@@ -592,7 +664,9 @@ export const exportPlanningToExcel = (planningData) => {
                 'PAUSE': wt.pause ? `${wt.pause} H` : '-',
                 'RETOUR': wt.returnTime ? `${wt.returnTime} H` : '-',
                 'SORTIE': wt.exit ? `${wt.exit} H` : '-',
-                'Heures': `${wt.hours.toFixed(1)} h`
+                'Heures': `${wt.hours.toFixed(1)} h`,
+                'T1': `${dnh.t1.toFixed(1)} h`,
+                'T2': `${dnh.t2.toFixed(1)} h`
               });
             } else {
               data.push({
@@ -602,7 +676,9 @@ export const exportPlanningToExcel = (planningData) => {
                 'PAUSE': '-',
                 'RETOUR': '-',
                 'SORTIE': '-',
-                'Heures': '0.0 h'
+                'Heures': '0.0 h',
+                'T1': '0.0 h',
+                'T2': '0.0 h'
               });
             }
           }
@@ -611,12 +687,13 @@ export const exportPlanningToExcel = (planningData) => {
           if (weekShopTotals.size > 0) {
             weekShopTotals.forEach((hours, shopId) => {
               const shopName = (planningData.shops || []).find(s => s.id === shopId)?.name || shopId;
-              data.push({ 'Jour': 'Total semaine', 'BOUTIQUE': shopName, 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${hours.toFixed(1)} H` });
+              const nh = weekShopNightTotals.get(shopId) || { t1: 0, t2: 0 };
+              data.push({ 'Jour': 'Total semaine', 'BOUTIQUE': shopName, 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${hours.toFixed(1)} H`, 'T1': `${nh.t1.toFixed(1)} H`, 'T2': `${nh.t2.toFixed(1)} H` });
             });
           }
 
           // Sous-total de la semaine (global)
-          data.push({ 'Jour': 'Total semaine', 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${weekHoursTotal.toFixed(1)} H` });
+          data.push({ 'Jour': 'Total semaine', 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${weekHoursTotal.toFixed(1)} H`, 'T1': `${weekT1Total.toFixed(1)} H`, 'T2': `${weekT2Total.toFixed(1)} H` });
 
           // Semaine suivante
           const next = new Date(weekStart);
@@ -629,10 +706,12 @@ export const exportPlanningToExcel = (planningData) => {
         if (shopTotals.size > 0) {
           shopTotals.forEach((hours, shopId) => {
             const shopName = (planningData.shops || []).find(s => s.id === shopId)?.name || shopId;
-            data.push({ 'Jour': `TOTAL ${shopName}`, 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${hours.toFixed(1)} H` });
+            const nh = shopNightTotals.get(shopId) || { t1: 0, t2: 0 };
+            data.push({ 'Jour': `TOTAL ${shopName}`, 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${hours.toFixed(1)} H`, 'T1': `${nh.t1.toFixed(1)} H`, 'T2': `${nh.t2.toFixed(1)} H` });
           });
           const grand = Array.from(shopTotals.values()).reduce((a, b) => a + b, 0);
-          data.push({ 'Jour': 'Total mois', 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${grand.toFixed(1)} H` });
+          const grandNight = Array.from(shopNightTotals.values()).reduce((acc, v) => ({ t1: acc.t1 + v.t1, t2: acc.t2 + v.t2 }), { t1: 0, t2: 0 });
+          data.push({ 'Jour': 'Total mois', 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': `${grand.toFixed(1)} H`, 'T1': `${grandNight.t1.toFixed(1)} H`, 'T2': `${grandNight.t2.toFixed(1)} H` });
         }
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -839,9 +918,39 @@ export const exportPlanningToExcel = (planningData) => {
       });
     };
 
-    // Appliquer style d'entête par défaut sur première ligne si applicable
-    applyHeaderStyle(wsDetail, 1);
-    applyHeaderStyle(wsGlobal, 1);
+    // Appliquer style d'entête par défaut sur première ligne si applicable (tolérant aux erreurs)
+    try { applyHeaderStyle(wsDetail, 1); } catch (e) { console.warn('Style header wsDetail ignoré:', e); }
+    try { applyHeaderStyle(wsGlobal, 1); } catch (e) { console.warn('Style header wsGlobal ignoré:', e); }
+    // Construire et styliser la feuille Heures de nuit
+    let wsNight = null;
+    if (nightHoursData && nightHoursData.length > 0) {
+      wsNight = XLSX.utils.aoa_to_sheet(nightHoursData);
+      // Largeurs colonnes: Semaine + 2 colonnes par employé + 2 totaux
+      wsNight['!cols'] = [{ wch: 34 }];
+      if (planningData?.shops && planningData.shops.length > 0) {
+        const anyShop = planningData.shops[0];
+        const employeesCount = (anyShop.employees || []).length;
+        for (let i = 0; i < employeesCount * 2; i++) wsNight['!cols'].push({ wch: 12 });
+        wsNight['!cols'].push({ wch: 14 }, { wch: 14 });
+      }
+      try { applyHeaderStyle(wsNight, 1); } catch (e) { console.warn('Style header wsNight ignoré:', e); }
+      // Sections et banding
+      try {
+        const rangeN = XLSX.utils.decode_range(wsNight['!ref'] || 'A1');
+        const numRowsN = rangeN.e.r - rangeN.s.r + 1;
+        for (let r = 0; r < numRowsN; r++) {
+          const cellA = wsNight[XLSX.utils.encode_cell({ r, c: 0 })];
+          const v = cellA?.v;
+          if (typeof v === 'string') {
+            if (v.startsWith('=== BOUTIQUE:')) applySectionHeaderStyle(wsNight, r + 1);
+            if (v === 'Semaine') applyHeaderStyle(wsNight, r + 1);
+            if (v.startsWith('Total mois')) applyTotalRowStyle(wsNight, r + 1);
+          }
+        }
+        // Banding sur tout le tableau (à partir de la première ligne de données après header par section)
+        applyBanding(wsNight, 2, numRowsN);
+      } catch (e) { console.warn('Style Heures de nuit ignoré:', e); }
+    }
 
     // Styling avancé pour Planning Détaillé: sections boutique, entêtes, banding et totaux
     const stylePlanningDetailSheet = () => {
@@ -872,7 +981,7 @@ export const exportPlanningToExcel = (planningData) => {
         applyBanding(wsDetail, dataStartRow, dataEndRow);
       }
     };
-    stylePlanningDetailSheet();
+    try { stylePlanningDetailSheet(); } catch (e) { console.warn('Style Planning Détaillé ignoré:', e); }
 
     // Styling avancé pour Résumé global: header, banding, total
     const styleGlobalSummarySheet = () => {
@@ -887,153 +996,171 @@ export const exportPlanningToExcel = (planningData) => {
         }
       }
     };
-    styleGlobalSummarySheet();
+    try { styleGlobalSummarySheet(); } catch (e) { console.warn('Style Résumé global ignoré:', e); }
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsDetail, 'Planning Détaillé');
-    XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé global');
-    if (nightHoursData.length > 0) {
-      const wsNight = XLSX.utils.aoa_to_sheet(nightHoursData);
-      // Largeurs colonnes de base
-      wsNight['!cols'] = [{ wch: 24 }];
-      if (planningData?.shops && planningData.shops.length > 0) {
-        const anyShop = planningData.shops[0];
-        const employeesCount = (anyShop.employees || []).length;
-        for (let i = 0; i < employeesCount * 2; i++) wsNight['!cols'].push({ wch: 12 });
-        wsNight['!cols'].push({ wch: 14 }, { wch: 14 });
-      }
+    // Encapsuler l'ajout de feuilles dans des try/catch pour éviter les erreurs bloquantes
+    try { XLSX.utils.book_append_sheet(wb, wsDetail, 'Planning Détaillé'); } catch (e) { console.warn('Ajout feuille Planning Détaillé ignoré:', e); }
+    try { XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé global'); } catch (e) { console.warn('Ajout feuille Résumé global ignoré:', e); }
+    if (wsNight) {
       XLSX.utils.book_append_sheet(wb, wsNight, 'Heures de nuit');
     }
     // Largeurs colonnes + style entête + banding + totaux pour les feuilles employé
     employeeSheets.forEach(s => {
-      // colonnes: Jour, BOUTIQUE, ENTRÉE, PAUSE, RETOUR, SORTIE, Heures
-      s.ws['!cols'] = [
-        { wch: 36 }, // Jour (élargi)
-        { wch: 18 }, // Boutique
-        { wch: 10 }, // Entrée
-        { wch: 10 }, // Pause
-        { wch: 10 }, // Retour
-        { wch: 10 }, // Sortie
-        { wch: 12 }  // Heures
-      ];
-      // Style entête ligne 1
-      const rangeRef = s.ws['!ref'] || 'A1';
-      const range = XLSX.utils.decode_range(rangeRef);
-      for (let C = range.s.c; C <= range.e.c; ++C) {
-        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
-        const cell = s.ws[cellAddress];
-        if (cell) {
-          cell.s = {
-            fill: { fgColor: { rgb: THEME.headerBg } },
-            font: { color: { rgb: THEME.headerFont }, bold: true },
-            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-            border: {
-              top: { style: 'thin', color: { rgb: THEME.border } },
-              bottom: { style: 'thin', color: { rgb: THEME.border } },
-              left: { style: 'thin', color: { rgb: THEME.border } },
-              right: { style: 'thin', color: { rgb: THEME.border } }
-            }
-          };
-        }
-      }
-
-      // Banding à partir de la 2e ligne jusqu'à la fin + alignement/retour ligne
-      const numRows = range.e.r - range.s.r + 1;
-      if (numRows > 1) {
-        for (let r = 1; r < numRows; r++) {
-          const isEven = (r - 1) % 2 === 0;
-          const fillColor = isEven ? THEME.band1 : THEME.band2;
-          for (let c = range.s.c; c <= range.e.c; c++) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
+      // colonnes: Jour, BOUTIQUE, ENTRÉE, PAUSE, RETOUR, SORTIE, Heures, T1, T2
+      try {
+        s.ws['!cols'] = [
+          { wch: 36 },
+          { wch: 18 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 12 },
+          { wch: 10 },
+          { wch: 10 }
+        ];
+        const rangeRef = s.ws['!ref'] || 'A1';
+        const range = XLSX.utils.decode_range(rangeRef);
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+          const cell = s.ws[cellAddress];
+          if (cell) {
             cell.s = {
-              ...(cell.s || {}),
-              fill: { fgColor: { rgb: fillColor } },
+              fill: { fgColor: { rgb: THEME.headerBg } },
+              font: { color: { rgb: THEME.headerFont }, bold: true },
+              alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
               border: {
                 top: { style: 'thin', color: { rgb: THEME.border } },
                 bottom: { style: 'thin', color: { rgb: THEME.border } },
                 left: { style: 'thin', color: { rgb: THEME.border } },
                 right: { style: 'thin', color: { rgb: THEME.border } }
-              },
-              alignment: { vertical: 'center', wrapText: true }
+              }
             };
           }
         }
+        const numRows = range.e.r - range.s.r + 1;
+        if (numRows > 1) {
+          for (let r = 1; r < numRows; r++) {
+            const isEven = (r - 1) % 2 === 0;
+            const fillColor = isEven ? THEME.band1 : THEME.band2;
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: fillColor } },
+                border: {
+                  top: { style: 'thin', color: { rgb: THEME.border } },
+                  bottom: { style: 'thin', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { vertical: 'center', wrapText: true }
+              };
+            }
+          }
+        }
+        for (let r = 1; r < numRows; r++) {
+          const cellA = s.ws[XLSX.utils.encode_cell({ r, c: 0 })];
+          const v = cellA?.v || '';
+          if (typeof v === 'string' && v.startsWith('Semaine du')) {
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: THEME.sectionBg } },
+                font: { color: { rgb: THEME.sectionFont }, bold: true },
+                border: {
+                  top: { style: 'medium', color: { rgb: THEME.border } },
+                  bottom: { style: 'medium', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { horizontal: 'center', vertical: 'center' }
+              };
+            }
+          }
+          if (typeof v === 'string' && (v === 'Total mois' || v.startsWith('TOTAL '))) {
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: THEME.totalBg } },
+                font: { color: { rgb: THEME.totalFont }, bold: true },
+                border: {
+                  top: { style: 'medium', color: { rgb: THEME.border } },
+                  bottom: { style: 'medium', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { vertical: 'center' }
+              };
+            }
+          }
+          if (typeof v === 'string' && v === 'Total semaine') {
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: THEME.totalBg } },
+                font: { color: { rgb: THEME.totalFont }, bold: true },
+                border: {
+                  top: { style: 'medium', color: { rgb: THEME.border } },
+                  bottom: { style: 'medium', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { vertical: 'center' }
+              };
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`Styles ignorés pour la feuille ${s.name}:`, e);
       }
-
-      // Sous-totaux hebdomadaires (ligne commençant par "Semaine du ...") + couleurs pastel + style "Total semaine"
-      for (let r = 1; r < numRows; r++) {
-        const cellA = s.ws[XLSX.utils.encode_cell({ r, c: 0 })];
-        const v = cellA?.v || '';
-        if (typeof v === 'string' && v.startsWith('Semaine du')) {
-          // En-tête de section semaine
-          for (let c = range.s.c; c <= range.e.c; c++) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
-            cell.s = {
-              ...(cell.s || {}),
-              fill: { fgColor: { rgb: THEME.sectionBg } },
-              font: { color: { rgb: THEME.sectionFont }, bold: true },
-              border: {
-                top: { style: 'medium', color: { rgb: THEME.border } },
-                bottom: { style: 'medium', color: { rgb: THEME.border } },
-                left: { style: 'thin', color: { rgb: THEME.border } },
-                right: { style: 'thin', color: { rgb: THEME.border } }
-              },
-              alignment: { horizontal: 'center', vertical: 'center' }
-            };
-          }
-        }
-        if (typeof v === 'string' && (v === 'Total mois' || v.startsWith('TOTAL '))) {
-          // Totaux
-          for (let c = range.s.c; c <= range.e.c; c++) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
-            cell.s = {
-              ...(cell.s || {}),
-              fill: { fgColor: { rgb: THEME.totalBg } },
-              font: { color: { rgb: THEME.totalFont }, bold: true },
-              border: {
-                top: { style: 'medium', color: { rgb: THEME.border } },
-                bottom: { style: 'medium', color: { rgb: THEME.border } },
-                left: { style: 'thin', color: { rgb: THEME.border } },
-                right: { style: 'thin', color: { rgb: THEME.border } }
-              },
-              alignment: { vertical: 'center' }
-            };
-          }
-        }
-        if (typeof v === 'string' && v === 'Total semaine') {
-          // Style total semaine
-          for (let c = range.s.c; c <= range.e.c; c++) {
-            const addr = XLSX.utils.encode_cell({ r, c });
-            const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
-            cell.s = {
-              ...(cell.s || {}),
-              fill: { fgColor: { rgb: THEME.totalBg } },
-              font: { color: { rgb: THEME.totalFont }, bold: true },
-              border: {
-                top: { style: 'medium', color: { rgb: THEME.border } },
-                bottom: { style: 'medium', color: { rgb: THEME.border } },
-                left: { style: 'thin', color: { rgb: THEME.border } },
-                right: { style: 'thin', color: { rgb: THEME.border } }
-              },
-              alignment: { vertical: 'center' }
-            };
-          }
-        }
-      }
-      XLSX.utils.book_append_sheet(wb, s.ws, s.name);
+      try { XLSX.utils.book_append_sheet(wb, s.ws, s.name); } catch (e) { console.warn(`Ajout feuille ${s.name} ignoré:`, e); }
     });
     
-    // Exporter le fichier
-    XLSX.writeFile(wb, `planning_detaille_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
+    // Exporter le fichier (tolérant aux erreurs liées au style)
+    try {
+      XLSX.writeFile(wb, `planning_detaille_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
+    } catch (e) {
+      console.warn('writeFile (xlsx-js-style) a échoué, tentative fallback simple (xlsx):', e);
+      try {
+        // Fallback minimal via librairie xlsx (sans styles avancés)
+        const wb2 = XLSXCore.utils.book_new();
+        const wsDetail2 = XLSXCore.utils.aoa_to_sheet(excelData);
+        const wsGlobal2 = XLSXCore.utils.aoa_to_sheet(globalSummaryData);
+        XLSXCore.utils.book_append_sheet(wb2, wsDetail2, 'Planning Détaillé');
+        XLSXCore.utils.book_append_sheet(wb2, wsGlobal2, 'Résumé global');
+        // Inclure Heures de nuit si dispo
+        if (nightHoursData && nightHoursData.length > 0) {
+          const wsNight2 = XLSXCore.utils.aoa_to_sheet(nightHoursData);
+          XLSXCore.utils.book_append_sheet(wb2, wsNight2, 'Heures de nuit');
+        }
+        // Inclure feuilles employé (données sans styles)
+        employeeSheets.forEach(s => {
+          try {
+            const raw = XLSXCore.utils.sheet_to_json(s.ws, { header: 1 });
+            const wsEmp2 = XLSXCore.utils.aoa_to_sheet(raw);
+            XLSXCore.utils.book_append_sheet(wb2, wsEmp2, s.name);
+          } catch (_) {}
+        });
+        XLSXCore.writeFile(wb2, `planning_detaille_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`);
+      } catch (e2) {
+        console.error('Échec export Excel (fallback xlsx):', e2);
+        return false;
+      }
+    }
     
     console.log('📊 Export Excel détaillé réussi');
     return true;
   } catch (error) {
     console.error('Erreur lors de l\'export Excel:', error);
-    // Fallback vers JSON si Excel échoue
-    return exportPlanningData(planningData);
+    return false;
   }
 };
 
