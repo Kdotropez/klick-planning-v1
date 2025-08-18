@@ -1,5 +1,7 @@
 import React from 'react';
 
+const APP_VERSION = 'v3.5.0';
+
 const CopyrightNotice = () => {
   return (
     <div style={{
@@ -14,7 +16,7 @@ const CopyrightNotice = () => {
       zIndex: 1000,
       fontFamily: 'monospace'
     }}>
-             © 2025 Nicolas Lefevre - Propriétaire
+      © 2025 Nicolas Lefevre - Propriétaire — {APP_VERSION}
     </div>
   );
 };
