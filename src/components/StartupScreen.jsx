@@ -781,13 +781,23 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
                     }}
                   >
                     {remoteShops.map(id => (
-                      <option key={id} value={id}>{id}</option>
+                      <option key={id} value={id}>
+                        {id === 'complete_file' ? '📁 Fichier complet (toutes les boutiques)' : id}
+                      </option>
                     ))}
                   </select>
                   <Button
                     onClick={() => {
-                      if (typeof onStartWithShop === 'function' && selectedRemoteShopId) {
-                        onStartWithShop(selectedRemoteShopId);
+                      if (selectedRemoteShopId === 'complete_file') {
+                        // Si c'est le fichier complet, utiliser la restauration complète
+                        if (typeof onRestoreFromSupabase === 'function') {
+                          onRestoreFromSupabase();
+                        }
+                      } else {
+                        // Sinon, utiliser le démarrage sur une boutique spécifique
+                        if (typeof onStartWithShop === 'function' && selectedRemoteShopId) {
+                          onStartWithShop(selectedRemoteShopId);
+                        }
                       }
                     }}
                     style={{
@@ -801,7 +811,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
                       minWidth: '260px'
                     }}
                   >
-                    ☁️ Démarrer sur cette boutique (Supabase)
+                    {selectedRemoteShopId === 'complete_file' ? '☁️ Restaurer fichier complet' : '☁️ Démarrer sur cette boutique (Supabase)'}
                   </Button>
                 </>
               )}
