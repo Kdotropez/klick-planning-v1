@@ -523,10 +523,13 @@ const PlanningDisplay = ({
       // Mettre à jour tous les employés de toutes les boutiques
       setAllEmployees(validShopEmployees);
       
-      // Filtrer les employés qui peuvent travailler dans cette boutique
-      const shopEmployees = validShopEmployees.filter(emp => 
-        emp.canWorkIn && emp.canWorkIn.includes(selectedShop)
-      );
+      // Filtrer les employés pour cette boutique
+      // Afficher aussi ceux sans affectation (canWorkIn vide) afin que les ajouts à la volée apparaissent
+      const shopEmployees = validShopEmployees.filter(emp => {
+        const can = emp.canWorkIn;
+        if (!Array.isArray(can) || can.length === 0) return true; // inclure nouveaux employés non affectés
+        return can.includes(selectedShop);
+      });
       
       const currentShopEmployeeIds = shopEmployees.map(emp => emp.id);
       
