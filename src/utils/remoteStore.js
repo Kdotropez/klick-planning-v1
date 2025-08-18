@@ -51,16 +51,52 @@ export const saveRemotePlanning = async (planningData, shopId, weekKey) => {
   
   console.log('🔍 Attempting to save to Supabase:', row);
   
-  const { error } = await supabase
+  // First, try to check if the record exists
+  const { data: existingData, error: checkError } = await supabase
     .from('plannings')
-    .upsert(row, { onConflict: 'shop_id,week_key' });
+    .select('shop_id, week_key')
+    .eq('shop_id', shopId)
+    .eq('week_key', weekKey)
+    .maybeSingle();
     
+  console.log('🔍 Existing data check:', { existingData, checkError });
+  
+  let result;
+  if (existingData) {
+    // Update existing record
+    console.log('🔄 Updating existing record...');
+    result = await supabase
+      .from('plannings')
+      .update({ data: planningData, version: 1 })
+      .eq('shop_id', shopId)
+      .eq('week_key', weekKey);
+  } else {
+    // Insert new record
+    console.log('➕ Inserting new record...');
+    result = await supabase
+      .from('plannings')
+      .insert(row);
+  }
+  
+  const { data, error } = result;
+  
   if (error) {
     console.error('❌ Supabase save error:', error.message, error);
     return false;
   }
   
-  console.log('✅ saveRemotePlanning success');
+  console.log('✅ saveRemotePlanning success, result:', { data, error });
+  
+  // Verify the save by reading back
+  const { data: verifyData, error: verifyError } = await supabase
+    .from('plannings')
+    .select('*')
+    .eq('shop_id', shopId)
+    .eq('week_key', weekKey)
+    .maybeSingle();
+    
+  console.log('🔍 Verification read:', { verifyData, verifyError });
+  
   return true;
 };
 
