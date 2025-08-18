@@ -209,6 +209,33 @@ const App = () => {
     } catch (_) {}
   };
 
+  // Aller directement au planning après restauration depuis Supabase
+  const handleRestoreFromSupabase = () => {
+    try {
+      // Vérifier qu'on a des données de planning
+      if (!planningData?.shops || planningData.shops.length === 0) {
+        setFeedback('Aucune donnée de planning trouvée. Veuillez d\'abord restaurer depuis Supabase.');
+        return;
+      }
+      
+      // Sélectionner la première boutique par défaut
+      const firstShop = planningData.shops[0];
+      setSelectedShop(firstShop.id);
+      
+      // Sélectionner la première semaine disponible ou la semaine courante
+      const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
+      setSelectedWeek(currentWeekKey);
+      
+      // Aller directement au planning
+      setMode('planning');
+      setFeedback('Planning restauré depuis Supabase !');
+      
+    } catch (error) {
+      console.error('Erreur lors de la restauration:', error);
+      setFeedback('Erreur lors de la restauration depuis Supabase.');
+    }
+  };
+
   // Gestion de la licence
   const handleLicenseValid = () => {
     setShowLicenseModal(false);
@@ -521,7 +548,7 @@ const App = () => {
             onExit={handleExit}
             onClearLocalStorage={handleClearLocalStorage}
             onStartWithShop={handleStartWithShop}
-
+            onRestoreFromSupabase={handleRestoreFromSupabase}
           />
         <CopyrightNotice />
         {/* <LicenseModal

@@ -432,7 +432,7 @@ const LicenseManager = () => {
   );
 };
 
-const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onStartWithShop }) => {
+const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onStartWithShop, onRestoreFromSupabase }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
   const [availableShops, setAvailableShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState('');
@@ -478,24 +478,13 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
       // Sauvegarder le fichier complet en local
       localStorage.setItem('planningData', JSON.stringify(completePlanningData));
       
-      // Si il y a des boutiques, sélectionner la première
-      const shops = Object.keys(completePlanningData);
-      if (shops.length > 0) {
-        const firstShop = shops[0];
-        const weeks = Object.keys(completePlanningData[firstShop]);
-        if (weeks.length > 0) {
-          const firstWeek = weeks[0];
-          localStorage.setItem('selectedShopId', firstShop);
-          localStorage.setItem('selectedWeek', firstWeek);
-          
-          // Utiliser la prop de navigation pour aller au planning
-          onNewPlanning();
-          return;
-        }
+      // Utiliser la nouvelle fonction pour aller directement au planning
+      if (typeof onRestoreFromSupabase === 'function') {
+        onRestoreFromSupabase();
+      } else {
+        // Fallback : utiliser onNewPlanning
+        onNewPlanning();
       }
-      
-      // Si pas de données valides, créer un nouveau planning
-      onNewPlanning();
       
     } catch (error) {
       console.error('❌ Erreur lors de la restauration depuis Supabase:', error);
