@@ -487,11 +487,15 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
           const firstWeek = weeks[0];
           localStorage.setItem('selectedShopId', firstShop);
           localStorage.setItem('selectedWeek', firstWeek);
+          
+          // Utiliser la prop de navigation pour aller au planning
+          onNewPlanning();
+          return;
         }
       }
       
-      // Rediriger vers le planning
-      window.location.reload();
+      // Si pas de données valides, créer un nouveau planning
+      onNewPlanning();
       
     } catch (error) {
       console.error('❌ Erreur lors de la restauration depuis Supabase:', error);
@@ -749,10 +753,17 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
                 <Button
                   onClick={async () => {
                     try {
+                      console.log('🔄 Chargement des boutiques depuis Supabase...');
                       const shops = await listRemoteShops();
+                      console.log('✅ Boutiques trouvées:', shops);
                       setRemoteShops(shops);
-                      if (shops.length > 0) setSelectedRemoteShopId(shops[0]);
-                    } catch (_) {}
+                      if (shops.length > 0) {
+                        setSelectedRemoteShopId(shops[0]);
+                        console.log('🏪 Boutique sélectionnée:', shops[0]);
+                      }
+                    } catch (error) {
+                      console.error('❌ Erreur chargement boutiques:', error);
+                    }
                   }}
                   style={{
                     padding: '12px 20px',
