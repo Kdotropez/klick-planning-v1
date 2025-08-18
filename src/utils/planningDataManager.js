@@ -743,7 +743,18 @@ export const exportPlanningToExcel = (planningData) => {
         rows.push([`=== BOUTIQUE: ${shop.name?.toUpperCase() || shop.id} ===`]);
         rows.push([]);
 
-        const employeesInShop = Array.isArray(shop.employees) ? shop.employees : [];
+        // N'inclure que les employés affectés et ayant des heures de nuit > 0 sur le mois courant
+        const assigned = Array.isArray(shop.employees)
+          ? shop.employees.filter(emp => Array.isArray(emp?.canWorkIn) && emp.canWorkIn.includes(shop.id))
+          : [];
+        const employeesInShop = assigned.filter(emp => {
+          let hasNight = false;
+          for (const weekStart of monthWeeks) {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            if ((nh.t1 || 0) + (nh.t2 || 0) > 0) { hasNight = true; break; }
+          }
+          return hasNight;
+        });
         const header = ['Semaine'];
         employeesInShop.forEach(emp => {
           header.push(`${emp.name || emp.id} T1`, `${emp.name || emp.id} T2`);
@@ -928,14 +939,15 @@ export const exportPlanningToExcel = (planningData) => {
     let wsNight = null;
     if (nightHoursData && nightHoursData.length > 0) {
       wsNight = XLSX.utils.aoa_to_sheet(nightHoursData);
-      // Largeurs colonnes: Semaine + 2 colonnes par employé + 2 totaux
-      wsNight['!cols'] = [{ wch: 34 }];
-      if (planningData?.shops && planningData.shops.length > 0) {
-        const anyShop = planningData.shops[0];
-        const employeesCount = (anyShop.employees || []).length;
-        for (let i = 0; i < employeesCount * 2; i++) wsNight['!cols'].push({ wch: 12 });
-        wsNight['!cols'].push({ wch: 14 }, { wch: 14 });
-      }
+      // Largeurs colonnes dynamiques en fonction du nombre réel de colonnes
+      try {
+        const rangeN = XLSX.utils.decode_range(wsNight['!ref'] || 'A1');
+        const colCountN = rangeN.e.c - rangeN.s.c + 1;
+        wsNight['!cols'] = [];
+        for (let c = 0; c < colCountN; c++) {
+          wsNight['!cols'].push({ wch: c === 0 ? 34 : 12 });
+        }
+      } catch (_) {}
       // Sections et banding: appliquer par bloc pour ne pas écraser les entêtes/sections/totaux
       try {
         const rangeN = XLSX.utils.decode_range(wsNight['!ref'] || 'A1');

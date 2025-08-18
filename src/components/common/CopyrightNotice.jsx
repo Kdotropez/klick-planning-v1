@@ -1,6 +1,6 @@
 import React from 'react';
 
-const APP_VERSION = 'v3.5.0';
+const APP_VERSION = `v${import.meta.env?.VITE_APP_VERSION || '0.0.0'}`;
 
 const CopyrightNotice = () => {
   return (
