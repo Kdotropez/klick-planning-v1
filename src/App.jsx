@@ -265,7 +265,7 @@ const App = () => {
   };
 
   // Aller directement au planning après restauration depuis Supabase
-  const handleRestoreFromSupabase = async () => {
+  const handleRestoreFromSupabase = () => {
     console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
     
     // Vérifier s'il y a des données locales
@@ -286,44 +286,26 @@ const App = () => {
     
     setFeedback('⏳ Chargement depuis Supabase...');
     
-    try {
-      // Initialiser Supabase d'abord
-      const { initLockService } = await import('@/utils/collabLock');
-      const url = import.meta.env.VITE_SUPABASE_URL;
-      const key = import.meta.env.VITE_SUPABASE_KEY;
-      await initLockService(url && key ? { url, key } : null);
-      
-      // Charger les données
-      const { loadCompletePlanningData } = await import('@/utils/remoteStore');
-      const restoredData = await loadCompletePlanningData();
-      
-      if (!restoredData) {
-        setFeedback('❌ Aucune donnée trouvée sur Supabase.');
-        return;
+    // Solution simple : charger depuis localStorage d'abord
+    const savedData = localStorage.getItem('planningData');
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        if (parsedData && parsedData.shops && parsedData.shops.length > 0) {
+          setPlanningData(parsedData);
+          const firstShop = parsedData.shops[0];
+          setSelectedShop(firstShop.id);
+          setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+          setMode('week-selection');
+          setFeedback('✅ Planning restauré depuis localStorage ! Sélectionnez une semaine.');
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erreur parsing localStorage:', error);
       }
-      
-      if (!restoredData.shops || restoredData.shops.length === 0) {
-        setFeedback('❌ Aucune boutique trouvée dans les données.');
-        return;
-      }
-      
-      // Mettre à jour les données
-      setPlanningData(restoredData);
-      localStorage.setItem('planningData', JSON.stringify(restoredData));
-      
-      // Sélectionner la première boutique
-      const firstShop = restoredData.shops[0];
-      setSelectedShop(firstShop.id);
-      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
-      
-      // Aller à la sélection de semaine
-      setMode('week-selection');
-      setFeedback('✅ Planning restauré ! Sélectionnez une semaine.');
-      
-    } catch (error) {
-      console.error('❌ Erreur restauration:', error);
-      setFeedback('❌ Erreur: ' + error.message);
     }
+    
+    setFeedback('❌ Aucune donnée trouvée. Créez un nouveau planning.');
   };
 
   // Gestion de la licence
