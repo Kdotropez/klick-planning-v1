@@ -86,7 +86,10 @@ export const saveCompletePlanningData = async (completePlanningData) => {
     
     console.log('✅ saveCompletePlanningData success:', { 
       shops: completePlanningData.shops?.length || 0,
-      version: completePlanningData.version
+      version: completePlanningData.version,
+      dataKeys: Object.keys(completePlanningData),
+      hasPlanning: !!completePlanningData.planning,
+      planningKeys: completePlanningData.planning ? Object.keys(completePlanningData.planning) : []
     });
     
     return true;
@@ -128,7 +131,9 @@ export const loadCompletePlanningData = async () => {
     console.log('✅ loadCompletePlanningData success:', {
       shops: planningData.shops?.length || 0,
       version: planningData.version,
-      dataKeys: Object.keys(planningData)
+      dataKeys: Object.keys(planningData),
+      hasPlanning: !!planningData.planning,
+      planningKeys: planningData.planning ? Object.keys(planningData.planning) : []
     });
     
     return planningData;
