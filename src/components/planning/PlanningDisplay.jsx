@@ -579,6 +579,7 @@ const PlanningDisplay = ({
             setLocalFeedback('🤝 Demande de main reçue - vous pouvez maintenant demander la main.');
           }
         }
+      }
     }, 3000); // Vérification toutes les 3 secondes pour plus de réactivité
     
     return () => {
