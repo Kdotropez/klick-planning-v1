@@ -137,10 +137,20 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
             ...shop,
             weeks: {
               ...shop.weeks,
-              [weekKey]: {
-                planning,
-                selectedEmployees
-              }
+              [weekKey]: (() => {
+                const existingWeek = shop.weeks?.[weekKey] || { planning: {}, selectedEmployees: [] };
+                const existingSelected = Array.isArray(existingWeek.selectedEmployees) ? existingWeek.selectedEmployees : [];
+                const incomingSelected = Array.isArray(selectedEmployees) ? selectedEmployees : [];
+                const shopEmployeeIds = Array.isArray(shop.employees) ? shop.employees.map(e => e.id) : [];
+                // Fusionner les listes sans dupliquer
+                let mergedSelected = Array.from(new Set([...existingSelected, ...incomingSelected]));
+                // Si rien de sélectionné, par défaut: tous les employés de la boutique
+                if (mergedSelected.length === 0) mergedSelected = shopEmployeeIds;
+                return {
+                  planning,
+                  selectedEmployees: mergedSelected
+                };
+              })()
             }
           }
         : shop

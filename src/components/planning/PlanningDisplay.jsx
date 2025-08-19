@@ -112,7 +112,11 @@ const PlanningDisplay = ({
   const [localFeedback, setLocalFeedback] = useState('');
   
   // État local pour les employés sélectionnés
-  const [localSelectedEmployees, setLocalSelectedEmployees] = useState(selectedEmployees || []);
+  const [localSelectedEmployees, setLocalSelectedEmployees] = useState(() => {
+    return Array.isArray(selectedEmployees) && selectedEmployees.length > 0
+      ? selectedEmployees
+      : (currentShopEmployees || []).map(e => e.id);
+  });
   
   // Démarrer la file d'attente de synchro distante (mode hybride)
   useEffect(() => {
@@ -623,10 +627,14 @@ const PlanningDisplay = ({
 
   // Mettre à jour localSelectedEmployees quand selectedEmployees change (pour la première initialisation)
   useEffect(() => {
-    if (selectedEmployees && selectedEmployees.length > 0) {
+    const allIds = (currentShopEmployees || []).map(e => e.id);
+    if (Array.isArray(selectedEmployees) && selectedEmployees.length > 0) {
       setLocalSelectedEmployees(selectedEmployees);
+    } else {
+      // Si vide, par défaut: tous les employés de la boutique
+      setLocalSelectedEmployees(allIds);
     }
-  }, [selectedEmployees]);
+  }, [selectedEmployees, currentShopEmployees]);
   
   // Mettre à jour le planning global
   useEffect(() => {
