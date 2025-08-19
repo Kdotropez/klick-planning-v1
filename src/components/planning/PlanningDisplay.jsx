@@ -501,12 +501,12 @@ const PlanningDisplay = ({
     
     run();
     
-    // Vérification périodique du verrou (toutes les 10 secondes)
+    // Vérification périodique du verrou (toutes les 5 secondes pour plus de réactivité)
     const checkInterval = setInterval(async () => {
       if (selectedShop && validWeek) {
         const currentLock = await getLock(selectedShop, validWeek);
         if (currentLock) {
-          const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 5 * 60 * 1000;
+          const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000; // 2 minutes au lieu de 5
           if (isExpired) {
             console.log('🔒 Verrou expiré, tentative de reprise');
             run(); // Réessayer d'acquérir le verrou
@@ -3044,20 +3044,24 @@ const PlanningDisplay = ({
                               
                               setLocalFeedback('✅ Verrou forcé ! Rechargement des données...');
                               
-                              // Recharger les données depuis Supabase
-                              try {
-                                const updatedPlanningData = await loadCompletePlanningData();
-                                if (updatedPlanningData) {
-                                  setPlanningData(updatedPlanningData);
-                                  // Recharger le planning actuel
-                                  const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
-                                  setPlanning(weekData.planning || {});
-                                  setLocalFeedback('✅ Verrou forcé ! Données mises à jour.');
+                              // Attendre un peu plus longtemps pour s'assurer que les données sont sauvegardées
+                              setTimeout(async () => {
+                                try {
+                                  const updatedPlanningData = await loadCompletePlanningData();
+                                  if (updatedPlanningData) {
+                                    setPlanningData(updatedPlanningData);
+                                    // Recharger le planning actuel
+                                    const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
+                                    setPlanning(weekData.planning || {});
+                                    setLocalFeedback('✅ Verrou forcé ! Données mises à jour.');
+                                  } else {
+                                    setLocalFeedback('✅ Verrou forcé ! (Aucune donnée à recharger)');
+                                  }
+                                } catch (error) {
+                                  console.error('❌ Erreur lors du rechargement des données:', error);
+                                  setLocalFeedback('✅ Verrou forcé ! (Erreur rechargement données)');
                                 }
-                              } catch (error) {
-                                console.error('❌ Erreur lors du rechargement des données:', error);
-                                setLocalFeedback('✅ Verrou forcé ! (Erreur rechargement données)');
-                              }
+                              }, 3000); // Attendre 3 secondes pour laisser le temps à la sauvegarde
                             }
                           } catch (error) {
                             console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);

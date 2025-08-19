@@ -81,7 +81,7 @@ export const getLock = async (shopId, weekKey) => {
   }
 };
 
-export const acquireLock = async (shopId, weekKey, userId, ttlMs = 5 * 60 * 1000) => {
+export const acquireLock = async (shopId, weekKey, userId, ttlMs = 2 * 60 * 1000) => { // 2 minutes au lieu de 5
   console.log('🔒 acquireLock appelé:', { shopId, weekKey, userId, useSupabase });
   
   const existing = await getLock(shopId, weekKey);
@@ -211,16 +211,22 @@ export const forceRelease = async (shopId, weekKey, userId) => {
       // Attendre plus longtemps pour laisser le temps à l'utilisateur de sauvegarder
       await new Promise(resolve => setTimeout(resolve, 10000));
       
-      // Supprimer le verrou
-      const { error } = await supabase
-        .from('planning_locks')
-        .delete()
-        .eq('shop_id', shopId)
-        .eq('week_key', weekKey);
-      
-      if (error) {
-        console.error('❌ Erreur forceRelease Supabase:', error);
-        return { ok: false };
+      // Vérifier que le verrou existe toujours avant de le supprimer
+      const currentLock = await getLock(shopId, weekKey);
+      if (currentLock) {
+        // Supprimer le verrou
+        const { error } = await supabase
+          .from('planning_locks')
+          .delete()
+          .eq('shop_id', shopId)
+          .eq('week_key', weekKey);
+        
+        if (error) {
+          console.error('❌ Erreur forceRelease Supabase:', error);
+          return { ok: false };
+        }
+      } else {
+        console.log('🔓 Verrou déjà supprimé par un autre processus');
       }
       
       console.log('✅ Force release réussi avec Supabase');
@@ -251,6 +257,8 @@ export const requestMain = async (shopId, weekKey, userId) => {
         return { ok: false };
       }
       
+      console.log('🔍 Verrou actuel trouvé:', currentLock);
+      
       // Créer une notification de demande de main pour l'utilisateur qui a la main
       const { error: notifyError } = await supabase
         .from('planning_locks')
@@ -266,7 +274,7 @@ export const requestMain = async (shopId, weekKey, userId) => {
         return { ok: false };
       }
       
-      console.log('✅ Demande de main envoyée avec Supabase');
+      console.log('✅ Demande de main envoyée avec Supabase pour l\'utilisateur:', currentLock.user_id);
       return { ok: true };
     } catch (error) {
       console.error('❌ Exception requestMain Supabase:', error);

@@ -1,0 +1,22 @@
+{
+  "version": "3.8.4",
+  "buildDate": "2025-01-27T10:00:00.000Z",
+  "changelog": [
+    "🔧 Corrections du système de verrouillage collaboratif",
+    "⚡ Réduction du délai de verrouillage automatique (5min → 2min)",
+    "🔄 Amélioration de la vérification périodique (10s → 5s)",
+    "🔒 Correction du double verrouillage lors du force release",
+    "📊 Amélioration du rechargement des données après force release",
+    "🤝 Ajout de logging pour déboguer les demandes de main",
+    "⏱️ Attente de 3 secondes pour le rechargement des données",
+    "✅ Vérification de l'existence du verrou avant suppression"
+  ],
+  "features": [
+    "Système de verrouillage collaboratif en temps réel",
+    "Sauvegarde automatique des modifications",
+    "Gestion des conflits d'accès",
+    "Notifications de demande de main",
+    "Force release en cas de blocage",
+    "Vérification automatique de version"
+  ]
+}
