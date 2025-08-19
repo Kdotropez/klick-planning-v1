@@ -297,9 +297,9 @@ const App = () => {
         const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
         setSelectedWeek(currentWeekKey);
         
-        // Aller directement au planning
-        setMode('planning');
-        setFeedback('Planning restauré depuis Supabase !');
+        // Aller à la sélection de semaine pour permettre de choisir une semaine avec des données
+        setMode('week-selection');
+        setFeedback('Planning restauré depuis Supabase ! Sélectionnez une semaine pour commencer.');
         
       } catch (error) {
         console.error('❌ Erreur parsing localStorage:', error);
