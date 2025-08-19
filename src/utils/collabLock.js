@@ -311,9 +311,9 @@ export const forceRelease = async (shopId, weekKey, userId) => {
         
         console.log('🔍 Résultat checkMainRequest:', data);
         
-        // On ne notifie que si CE client détient réellement le verrou et qu'une demande existe
-        if (data && data.user_id === userId && data.main_request) {
-          console.log('🤝 Demande de main détectée pour le détenteur:', userId);
+        // On notifie si une demande existe (pour tous les utilisateurs)
+        if (data && data.main_request) {
+          console.log('🤝 Demande de main détectée:', data.main_request);
           // Supprimer la notification après lecture
           await supabase
             .from('planning_locks')

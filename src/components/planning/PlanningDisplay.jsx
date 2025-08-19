@@ -538,7 +538,7 @@ const PlanningDisplay = ({
             }
           }
 
-          // Toujours vérifier les demandes de main (le service renverra seulement si CE client est le détenteur)
+          // Vérifier les demandes de main pour tous les utilisateurs
           console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
           const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
           console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
@@ -569,6 +569,16 @@ const PlanningDisplay = ({
               setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
             }
           }
+        } else {
+          // Même si on n'a pas le verrou, vérifier s'il y a des demandes de main pour nous
+          console.log('🔍 Vérification des demandes de main (pas détenteur):', { selectedShop, validWeek, currentUserId });
+          const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+          console.log('🔍 Résultat de la vérification des demandes de main (pas détenteur):', mainRequest);
+          if (mainRequest) {
+            console.log('🤝 Demande de main détectée (pas détenteur):', mainRequest);
+            setLocalFeedback('🤝 Demande de main reçue - vous pouvez maintenant demander la main.');
+          }
+        }
         }
       }
     }, 3000); // Vérification toutes les 3 secondes pour plus de réactivité
