@@ -265,7 +265,7 @@ const App = () => {
   };
 
   // Aller directement au planning après restauration depuis Supabase
-  const handleRestoreFromSupabase = () => {
+  const handleRestoreFromSupabase = async () => {
     console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
     
     // Vérifier s'il y a des données locales
@@ -286,26 +286,62 @@ const App = () => {
     
     setFeedback('⏳ Chargement depuis Supabase...');
     
-    // Solution simple : charger depuis localStorage d'abord
-    const savedData = localStorage.getItem('planningData');
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        if (parsedData && parsedData.shops && parsedData.shops.length > 0) {
-          setPlanningData(parsedData);
-          const firstShop = parsedData.shops[0];
-          setSelectedShop(firstShop.id);
-          setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
-          setMode('week-selection');
-          setFeedback('✅ Planning restauré depuis localStorage ! Sélectionnez une semaine.');
-          return;
-        }
-      } catch (error) {
-        console.error('❌ Erreur parsing localStorage:', error);
+    try {
+      // Initialiser Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      const key = import.meta.env.VITE_SUPABASE_KEY;
+      
+      if (!url || !key) {
+        setFeedback('❌ Configuration Supabase manquante.');
+        return;
       }
+      
+      const supabase = createClient(url, key);
+      
+      // Charger les données depuis Supabase
+      const { data, error } = await supabase
+        .from('plannings')
+        .select('*')
+        .eq('shop_id', 'complete_file')
+        .eq('week_key', 'all_data')
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Erreur Supabase:', error);
+        setFeedback('❌ Erreur de connexion Supabase.');
+        return;
+      }
+      
+      if (!data || !data.data) {
+        setFeedback('❌ Aucune donnée trouvée sur Supabase.');
+        return;
+      }
+      
+      const restoredData = data.data;
+      
+      if (!restoredData.shops || restoredData.shops.length === 0) {
+        setFeedback('❌ Aucune boutique trouvée dans les données.');
+        return;
+      }
+      
+      // Mettre à jour les données
+      setPlanningData(restoredData);
+      localStorage.setItem('planningData', JSON.stringify(restoredData));
+      
+      // Sélectionner la première boutique
+      const firstShop = restoredData.shops[0];
+      setSelectedShop(firstShop.id);
+      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+      
+      // Aller à la sélection de semaine
+      setMode('week-selection');
+      setFeedback('✅ Planning restauré depuis Supabase ! Sélectionnez une semaine.');
+      
+    } catch (error) {
+      console.error('❌ Erreur restauration:', error);
+      setFeedback('❌ Erreur: ' + error.message);
     }
-    
-    setFeedback('❌ Aucune donnée trouvée. Créez un nouveau planning.');
   };
 
   // Gestion de la licence
