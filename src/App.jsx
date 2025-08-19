@@ -115,6 +115,14 @@ const App = () => {
       // Charger les données depuis localStorage si elles existent
       const savedData = loadFromLocalStorage('planningData');
       console.log('Données chargées depuis localStorage:', savedData);
+      console.log('Structure complète des données:', {
+        version: savedData?.version,
+        hasShops: !!savedData?.shops,
+        shopsLength: savedData?.shops?.length,
+        allKeys: Object.keys(savedData || {}),
+        shopsType: typeof savedData?.shops,
+        isArray: Array.isArray(savedData?.shops)
+      });
       
       if (savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
         // Vérifier que les données sont complètes et valides
@@ -138,6 +146,12 @@ const App = () => {
       } else if (savedData && savedData.version === "2.0" && (!savedData.shops || savedData.shops.length === 0)) {
         // Données vides ou corrompues, nettoyer et retourner à l'écran de démarrage
         console.log('Données vides détectées, nettoyage du localStorage');
+        console.log('Structure des données:', {
+          version: savedData.version,
+          hasShops: !!savedData.shops,
+          shopsLength: savedData.shops?.length,
+          allKeys: Object.keys(savedData)
+        });
         localStorage.clear();
         setMode('startup');
         setRestoredInfo('');
