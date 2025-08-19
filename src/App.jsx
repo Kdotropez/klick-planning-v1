@@ -271,23 +271,29 @@ const App = () => {
       
       // Vérifier s'il y a des données locales non sauvegardées
       const localData = localStorage.getItem('planningData');
-      if (localData && planningData && Object.keys(planningData).length > 0) {
-        const hasLocalChanges = window.confirm(
+      const hasLocalData = localData && planningData && Object.keys(planningData).length > 0;
+      
+      if (hasLocalData) {
+        const shouldSaveFirst = window.confirm(
           '⚠️ ATTENTION : Vous avez des modifications locales non sauvegardées.\n\n' +
           'La restauration depuis Supabase va écraser vos modifications locales.\n\n' +
           'Voulez-vous d\'abord sauvegarder vos modifications locales ?\n\n' +
           'Cliquez "OK" pour sauvegarder d\'abord, "Annuler" pour restaurer directement.'
         );
         
-        if (hasLocalChanges) {
+        if (shouldSaveFirst) {
           setFeedback('💾 Sauvegarde de vos modifications locales...');
-          // Sauvegarder les données locales dans Supabase
-          const { saveCompletePlanningData } = await import('@/utils/remoteStore');
-          const saveResult = await saveCompletePlanningData(planningData);
-          if (saveResult) {
-            setFeedback('✅ Modifications locales sauvegardées ! Restauration depuis Supabase...');
-          } else {
-            setFeedback('⚠️ Échec de la sauvegarde locale. Restauration depuis Supabase...');
+          try {
+            const { saveCompletePlanningData } = await import('@/utils/remoteStore');
+            const saveResult = await saveCompletePlanningData(planningData);
+            if (saveResult) {
+              setFeedback('✅ Modifications locales sauvegardées ! Restauration depuis Supabase...');
+            } else {
+              setFeedback('⚠️ Échec de la sauvegarde locale. Restauration depuis Supabase...');
+            }
+          } catch (saveError) {
+            console.error('❌ Erreur lors de la sauvegarde locale:', saveError);
+            setFeedback('⚠️ Erreur lors de la sauvegarde locale. Restauration depuis Supabase...');
           }
         } else {
           // L'utilisateur a cliqué "Annuler", on arrête là
@@ -298,51 +304,57 @@ const App = () => {
       
       setFeedback('⏳ Chargement depuis Supabase...');
       
-      // Charger les données depuis Supabase avec timeout
-      const { loadCompletePlanningData } = await import('@/utils/remoteStore');
-      
-      // Ajouter un timeout de 10 secondes pour éviter le blocage
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout: Chargement Supabase trop long')), 10000)
-      );
-      
-      const restoredData = await Promise.race([
-        loadCompletePlanningData(),
-        timeoutPromise
-      ]);
-      
-      if (!restoredData) {
-        setFeedback('❌ Aucune donnée trouvée sur Supabase.');
-        return;
+      try {
+        // Charger les données depuis Supabase avec timeout
+        const { loadCompletePlanningData } = await import('@/utils/remoteStore');
+        
+        // Ajouter un timeout de 10 secondes pour éviter le blocage
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: Chargement Supabase trop long')), 10000)
+        );
+        
+        const restoredData = await Promise.race([
+          loadCompletePlanningData(),
+          timeoutPromise
+        ]);
+        
+        if (!restoredData) {
+          setFeedback('❌ Aucune donnée trouvée sur Supabase.');
+          return;
+        }
+        
+        console.log('📦 Données chargées depuis Supabase:', restoredData);
+        
+        if (!restoredData.shops || restoredData.shops.length === 0) {
+          setFeedback('❌ Aucune boutique trouvée dans les données restaurées.');
+          return;
+        }
+        
+        // Mettre à jour planningData avec les données restaurées
+        setPlanningData(restoredData);
+        
+        // Sauvegarder dans localStorage pour la persistance locale
+        localStorage.setItem('planningData', JSON.stringify(restoredData));
+        
+        // Sélectionner la première boutique par défaut
+        const firstShop = restoredData.shops[0];
+        setSelectedShop(firstShop.id);
+        
+        // Sélectionner la semaine courante
+        const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
+        setSelectedWeek(currentWeekKey);
+        
+        // Aller à la sélection de semaine pour permettre de choisir une semaine avec des données
+        setMode('week-selection');
+        setFeedback('✅ Planning restauré depuis Supabase ! Sélectionnez une semaine pour commencer.');
+        
+      } catch (loadError) {
+        console.error('❌ Erreur lors du chargement depuis Supabase:', loadError);
+        setFeedback('❌ Erreur lors du chargement depuis Supabase: ' + loadError.message);
       }
-      
-      console.log('📦 Données chargées depuis Supabase:', restoredData);
-      
-      if (!restoredData.shops || restoredData.shops.length === 0) {
-        setFeedback('❌ Aucune boutique trouvée dans les données restaurées.');
-        return;
-      }
-      
-      // Mettre à jour planningData avec les données restaurées
-      setPlanningData(restoredData);
-      
-      // Sauvegarder dans localStorage pour la persistance locale
-      localStorage.setItem('planningData', JSON.stringify(restoredData));
-      
-      // Sélectionner la première boutique par défaut
-      const firstShop = restoredData.shops[0];
-      setSelectedShop(firstShop.id);
-      
-      // Sélectionner la semaine courante
-      const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
-      setSelectedWeek(currentWeekKey);
-      
-      // Aller à la sélection de semaine pour permettre de choisir une semaine avec des données
-      setMode('week-selection');
-      setFeedback('✅ Planning restauré depuis Supabase ! Sélectionnez une semaine pour commencer.');
       
     } catch (error) {
-      console.error('❌ Erreur dans handleRestoreFromSupabase:', error);
+      console.error('❌ Erreur générale dans handleRestoreFromSupabase:', error);
       setFeedback('❌ Erreur lors de la restauration depuis Supabase: ' + error.message);
     }
   };
