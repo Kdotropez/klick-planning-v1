@@ -104,7 +104,8 @@ export const cleanAndResaveData = async () => {
 export const saveCompletePlanningData = async (completePlanningData) => {
   console.log('🔍 saveCompletePlanningData called with:', { 
     hasData: !!completePlanningData,
-    dataKeys: completePlanningData ? Object.keys(completePlanningData) : []
+    dataKeys: completePlanningData ? Object.keys(completePlanningData) : [],
+    shopsCount: completePlanningData?.shops?.length || 0
   });
   
   if (!isReady() || !completePlanningData) {
@@ -121,6 +122,13 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       version: 1
     };
     console.log('📦 Upsert du fichier complet (complete_file)...');
+    console.log('📦 Données à sauvegarder:', {
+      shop_id: row.shop_id,
+      week_key: row.week_key,
+      dataShops: completePlanningData.shops?.length || 0,
+      dataVersion: completePlanningData.version
+    });
+    
     const { data, error } = await supabase
       .from('plannings')
       .upsert(row, { onConflict: 'shop_id,week_key' });
@@ -135,7 +143,8 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       version: completePlanningData.version,
       dataKeys: Object.keys(completePlanningData),
       hasPlanning: !!completePlanningData.planning,
-      planningKeys: completePlanningData.planning ? Object.keys(completePlanningData.planning) : []
+      planningKeys: completePlanningData.planning ? Object.keys(completePlanningData.planning) : [],
+      upsertResult: data
     });
     
     return true;
@@ -170,7 +179,9 @@ export const loadCompletePlanningData = async () => {
       console.log('✅ loadCompletePlanningData (complete_file) OK:', {
         shops: planningData.shops?.length || 0,
         version: planningData.version,
-        dataKeys: Object.keys(planningData)
+        dataKeys: Object.keys(planningData),
+        hasPlanning: !!planningData.planning,
+        planningKeys: planningData.planning ? Object.keys(planningData.planning) : []
       });
       return planningData;
     }
@@ -337,6 +348,62 @@ export const listRemoteWeeksForShop = async (shopId) => {
   const weeks = [...new Set((data || []).map(r => r.week_key).filter(Boolean))];
   console.log('✅ listRemoteWeeksForShop success:', weeks);
   return weeks;
+};
+
+// Fonction de diagnostic pour vérifier l'état de Supabase
+export const diagnoseSupabase = async () => {
+  console.log('🔍 Diagnostic Supabase...');
+  
+  if (!isReady()) {
+    console.log('❌ Supabase not ready');
+    return null;
+  }
+  
+  try {
+    // Vérifier toutes les entrées
+    const { data: allData, error: allError } = await supabase
+      .from('plannings')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    
+    if (allError) {
+      console.error('❌ Erreur diagnostic:', allError);
+      return null;
+    }
+    
+    console.log('📊 Diagnostic Supabase - Toutes les entrées:', allData?.map(row => ({
+      shop_id: row.shop_id,
+      week_key: row.week_key,
+      updated_at: row.updated_at,
+      dataShops: row.data?.shops?.length || 0,
+      dataVersion: row.data?.version
+    })));
+    
+    // Vérifier spécifiquement le fichier complet
+    const { data: completeData, error: completeError } = await supabase
+      .from('plannings')
+      .select('*')
+      .eq('shop_id', 'complete_file')
+      .eq('week_key', 'all_data')
+      .maybeSingle();
+    
+    if (completeError) {
+      console.error('❌ Erreur lecture complete_file:', completeError);
+    } else if (completeData) {
+      console.log('✅ Fichier complet trouvé:', {
+        updated_at: completeData.updated_at,
+        dataShops: completeData.data?.shops?.length || 0,
+        dataVersion: completeData.data?.version
+      });
+    } else {
+      console.log('❌ Fichier complet non trouvé');
+    }
+    
+    return allData;
+  } catch (error) {
+    console.error('❌ Exception diagnostic:', error);
+    return null;
+  }
 };
 
 

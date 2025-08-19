@@ -58,6 +58,7 @@ const PlanningMenuBar = ({
   onCreateJSONBackup,
   testSupabase,
   cleanSupabaseData,
+  diagnoseSupabase,
   // Sync/Outbox (optionnels)
   outboxSize = 0,
   onForceSync
@@ -385,8 +386,8 @@ const PlanningMenuBar = ({
             <MenuItem onClick={cleanSupabaseData}>
               🧹 Nettoyer Supabase
             </MenuItem>
-            <MenuItem onClick={() => {}}>
-              🔧 Diagnostic données
+            <MenuItem onClick={diagnoseSupabase}>
+              🔧 Diagnostic Supabase
             </MenuItem>
             <MenuItem onClick={() => {}}>
               🧹 Nettoyer cache

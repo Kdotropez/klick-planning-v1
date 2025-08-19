@@ -999,6 +999,23 @@ const PlanningDisplay = ({
     setLocalFeedback(`🧪 Test Supabase: ${connectionOk ? '✅' : '❌'} Connexion, ${tablesOk ? '✅' : '❌'} Tables`);
   }, []);
 
+  // Fonction de diagnostic Supabase
+  const diagnoseSupabase = useCallback(async () => {
+    try {
+      console.log('🔍 Diagnostic Supabase...');
+      const { diagnoseSupabase: diagnoseFn } = await import('@/utils/remoteStore');
+      const result = await diagnoseFn();
+      if (result) {
+        setLocalFeedback(`🔍 Diagnostic: ${result.length} entrées trouvées dans Supabase`);
+      } else {
+        setLocalFeedback('❌ Erreur diagnostic Supabase');
+      }
+    } catch (error) {
+      console.error('❌ Erreur diagnostic:', error);
+      setLocalFeedback('❌ Erreur diagnostic Supabase');
+    }
+  }, []);
+
   // Fonction pour nettoyer Supabase
   const cleanSupabaseData = useCallback(async () => {
     if (window.confirm('⚠️ ATTENTION : Nettoyer Supabase\n\nCette action va supprimer toutes les données dans Supabase.\n\nÊtes-vous sûr de vouloir continuer ?')) {
@@ -1703,6 +1720,7 @@ const PlanningDisplay = ({
             onOpenNotes={() => setShowNotesModal(true)}
             testSupabase={testSupabase}
             cleanSupabaseData={cleanSupabaseData}
+            diagnoseSupabase={diagnoseSupabase}
           />
         </div>
       ) : (
