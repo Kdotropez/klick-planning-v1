@@ -559,7 +559,7 @@ const PlanningDisplay = ({
           }
         }
       }
-    }, 10000);
+    }, 3000); // Vérification toutes les 3 secondes pour plus de réactivité
     
     return () => {
       if (hbRef.current) {
@@ -3057,21 +3057,25 @@ const PlanningDisplay = ({
                               // Attendre un peu plus longtemps pour s'assurer que les données sont sauvegardées
                               setTimeout(async () => {
                                 try {
+                                  console.log('🔄 Rechargement des données après force release...');
                                   const updatedPlanningData = await loadCompletePlanningData();
                                   if (updatedPlanningData) {
+                                    console.log('📊 Données rechargées:', updatedPlanningData);
                                     setPlanningData(updatedPlanningData);
                                     // Recharger le planning actuel
                                     const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
+                                    console.log('📅 Planning de la semaine rechargé:', weekData);
                                     setPlanning(weekData.planning || {});
                                     setLocalFeedback('✅ Verrou forcé ! Données mises à jour.');
                                   } else {
+                                    console.log('⚠️ Aucune donnée à recharger');
                                     setLocalFeedback('✅ Verrou forcé ! (Aucune donnée à recharger)');
                                   }
                                 } catch (error) {
                                   console.error('❌ Erreur lors du rechargement des données:', error);
                                   setLocalFeedback('✅ Verrou forcé ! (Erreur rechargement données)');
                                 }
-                              }, 3000); // Attendre 3 secondes pour laisser le temps à la sauvegarde
+                              }, 5000); // Attendre 5 secondes pour laisser le temps à la sauvegarde
                             }
                           } catch (error) {
                             console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);

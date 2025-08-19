@@ -244,95 +244,101 @@ export const forceRelease = async (shopId, weekKey, userId) => {
   }
 };
 
-// Nouvelle fonction pour demander la main
-export const requestMain = async (shopId, weekKey, userId) => {
-  console.log('🤝 requestMain appelé:', { shopId, weekKey, userId, useSupabase });
-  
-  if (useSupabase) {
-    try {
-      // D'abord, récupérer le verrou actuel pour savoir qui a la main
-      const currentLock = await getLock(shopId, weekKey);
-      if (!currentLock) {
-        console.log('❌ Aucun verrou actuel trouvé');
-        return { ok: false };
-      }
-      
-      console.log('🔍 Verrou actuel trouvé:', currentLock);
-      
-      // Créer une notification de demande de main pour l'utilisateur qui a la main
-      const { error: notifyError } = await supabase
-        .from('planning_locks')
-        .update({
-          main_request: nowIso(),
-          updated_at: nowIso()
-        })
-        .eq('shop_id', shopId)
-        .eq('week_key', weekKey);
-      
-      if (notifyError) {
-        console.error('❌ Erreur notification demande de main Supabase:', notifyError);
-        return { ok: false };
-      }
-      
-      console.log('✅ Demande de main envoyée avec Supabase pour l\'utilisateur:', currentLock.user_id);
-      return { ok: true };
-    } catch (error) {
-      console.error('❌ Exception requestMain Supabase:', error);
-      return { ok: false };
-    }
-  } else {
-    // Fallback localStorage
-    localStorage.setItem(mainRequestKey(shopId, weekKey), nowIso());
-    console.log('✅ Demande de main envoyée avec localStorage');
-    return { ok: true };
-  }
-};
-
-// Nouvelle fonction pour vérifier les demandes de main
-export const checkMainRequest = async (shopId, weekKey, userId) => {
-  if (useSupabase) {
-    try {
-      const { data, error } = await supabase
-        .from('planning_locks')
-        .select('main_request')
-        .eq('shop_id', shopId)
-        .eq('week_key', weekKey)
-        .eq('user_id', userId) // On vérifie pour l'utilisateur qui a actuellement la main
-        .not('main_request', 'is', null)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('❌ Erreur checkMainRequest Supabase:', error);
-        return null;
-      }
-      
-      if (data && data.main_request) {
-        console.log('🤝 Demande de main détectée pour:', userId);
-        // Supprimer la notification après l'avoir lue
-        await supabase
+  // Nouvelle fonction pour demander la main
+  export const requestMain = async (shopId, weekKey, userId) => {
+    console.log('🤝 requestMain appelé:', { shopId, weekKey, userId, useSupabase });
+    
+    if (useSupabase) {
+      try {
+        // D'abord, récupérer le verrou actuel pour savoir qui a la main
+        const currentLock = await getLock(shopId, weekKey);
+        if (!currentLock) {
+          console.log('❌ Aucun verrou actuel trouvé');
+          return { ok: false };
+        }
+        
+        console.log('🔍 Verrou actuel trouvé:', currentLock);
+        console.log('🔍 Utilisateur qui demande la main:', userId);
+        console.log('🔍 Utilisateur qui a actuellement la main:', currentLock.user_id);
+        
+        // Créer une notification de demande de main pour l'utilisateur qui a la main
+        const { error: notifyError } = await supabase
           .from('planning_locks')
-          .update({ main_request: null })
+          .update({
+            main_request: nowIso(),
+            updated_at: nowIso()
+          })
           .eq('shop_id', shopId)
           .eq('week_key', weekKey);
         
-        return data.main_request;
+        if (notifyError) {
+          console.error('❌ Erreur notification demande de main Supabase:', notifyError);
+          return { ok: false };
+        }
+        
+        console.log('✅ Demande de main envoyée avec Supabase pour l\'utilisateur:', currentLock.user_id);
+        return { ok: true };
+      } catch (error) {
+        console.error('❌ Exception requestMain Supabase:', error);
+        return { ok: false };
       }
-      
-      return null;
-    } catch (error) {
-      console.error('❌ Exception checkMainRequest Supabase:', error);
+    } else {
+      // Fallback localStorage
+      localStorage.setItem(mainRequestKey(shopId, weekKey), nowIso());
+      console.log('✅ Demande de main envoyée avec localStorage');
+      return { ok: true };
+    }
+  };
+
+  // Nouvelle fonction pour vérifier les demandes de main
+  export const checkMainRequest = async (shopId, weekKey, userId) => {
+    if (useSupabase) {
+      try {
+        console.log('🔍 checkMainRequest appelé pour:', { shopId, weekKey, userId });
+        
+        const { data, error } = await supabase
+          .from('planning_locks')
+          .select('main_request')
+          .eq('shop_id', shopId)
+          .eq('week_key', weekKey)
+          .eq('user_id', userId) // On vérifie pour l'utilisateur qui a actuellement la main
+          .not('main_request', 'is', null)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('❌ Erreur checkMainRequest Supabase:', error);
+          return null;
+        }
+        
+        console.log('🔍 Résultat checkMainRequest:', data);
+        
+        if (data && data.main_request) {
+          console.log('🤝 Demande de main détectée pour:', userId);
+          // Supprimer la notification après l'avoir lue
+          await supabase
+            .from('planning_locks')
+            .update({ main_request: null })
+            .eq('shop_id', shopId)
+            .eq('week_key', weekKey);
+          
+          return data.main_request;
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('❌ Exception checkMainRequest Supabase:', error);
+        return null;
+      }
+    } else {
+      // Fallback localStorage
+      const requestTime = localStorage.getItem(mainRequestKey(shopId, weekKey));
+      if (requestTime) {
+        localStorage.removeItem(mainRequestKey(shopId, weekKey));
+        return requestTime;
+      }
       return null;
     }
-  } else {
-    // Fallback localStorage
-    const requestTime = localStorage.getItem(mainRequestKey(shopId, weekKey));
-    if (requestTime) {
-      localStorage.removeItem(mainRequestKey(shopId, weekKey));
-      return requestTime;
-    }
-    return null;
-  }
-};
+  };
 
 // Nouvelle fonction pour vérifier les demandes de force release
 export const checkForceReleaseRequest = async (shopId, weekKey, userId) => {
