@@ -2862,56 +2862,85 @@ const PlanningDisplay = ({
               🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.
             </span>
             <button
-              onClick={async () => {
-                console.log('🔒 Tentative de demande de la main');
-                const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
-                console.log('🔒 Résultat demande de la main:', { ok, lock });
-                setLockInfo(lock || null);
-                setIsReadOnly(!ok && lock?.user_id !== currentUserId);
-                if (ok) {
-                  console.log('✅ Main obtenue avec succès');
-                  if (hbRef.current) clearInterval(hbRef.current);
-                  hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
-                  setLocalFeedback('✅ Vous avez maintenant la main !');
-                } else {
-                  console.log('❌ Main refusée, détenue par:', lock?.user_id);
-                  setLocalFeedback(`🔒 Main détenue par ${lock?.user_id || 'un autre utilisateur'}. Réessayez plus tard.`);
-                }
+              onClick={() => {
+                // Utiliser setTimeout pour éviter les conflits de rendu React
+                setTimeout(async () => {
+                  try {
+                    console.log('🔒 Tentative de demande de la main');
+                    const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                    console.log('🔒 Résultat demande de la main:', { ok, lock });
+                    
+                    // Mettre à jour l'état de manière sécurisée
+                    setLockInfo(lock || null);
+                    setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+                    
+                    if (ok) {
+                      console.log('✅ Main obtenue avec succès');
+                      if (hbRef.current) clearInterval(hbRef.current);
+                      hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                      setLocalFeedback('✅ Vous avez maintenant la main !');
+                    } else {
+                      console.log('❌ Main refusée, détenue par:', lock?.user_id);
+                      setLocalFeedback(`🔒 Main détenue par ${lock?.user_id || 'un autre utilisateur'}. Réessayez plus tard.`);
+                    }
+                  } catch (error) {
+                    console.error('❌ Erreur lors de la demande de main:', error);
+                    setLocalFeedback('❌ Erreur lors de la demande de main');
+                  }
+                }, 0);
               }}
               style={{ background: '#ffc107', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
             >
               Demander la main
             </button>
             <button
-              onClick={async () => {
+              onClick={() => {
                 if (window.confirm('⚠️ FORCER LA LIBÉRATION\n\nCette action va :\n1. Demander à l\'utilisateur actuel de sauvegarder son travail\n2. Forcer la libération du verrou\n3. Vous donner la main\n\nÊtes-vous sûr de vouloir continuer ?')) {
-                  console.log('🔓 Force release du verrou');
-                  
-                  // Enregistrer la tentative de force release pour notifier l'autre utilisateur
-                  localStorage.setItem(`lock_attempt_${selectedShop}_${validWeek}`, new Date().toISOString());
-                  
-                  // Demander à l'utilisateur distant de sauvegarder
-                  localStorage.setItem(`force_save_request_${selectedShop}_${validWeek}`, new Date().toISOString());
-                  
-                  // Attendre 10 secondes pour laisser le temps de sauvegarder
-                  setLocalFeedback('⏳ Demande de sauvegarde envoyée à l\'utilisateur distant...');
-                  
+                  // Utiliser setTimeout pour éviter les conflits de rendu React
                   setTimeout(async () => {
-                    await releaseLock(selectedShop, validWeek, currentUserId);
-                    
-                    // Attendre un peu puis réessayer d'acquérir le verrou
-                    setTimeout(async () => {
-                      const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
-                      setLockInfo(lock || null);
-                      setIsReadOnly(!ok && lock?.user_id !== currentUserId);
-                      if (ok) {
-                        console.log('✅ Verrou forcé avec succès');
-                        if (hbRef.current) clearInterval(hbRef.current);
-                        hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
-                        setLocalFeedback('✅ Verrou forcé ! Vous avez maintenant la main.');
-                      }
-                    }, 1000);
-                  }, 10000);
+                    try {
+                      console.log('🔓 Force release du verrou');
+                      
+                      // Enregistrer la tentative de force release pour notifier l'autre utilisateur
+                      localStorage.setItem(`lock_attempt_${selectedShop}_${validWeek}`, new Date().toISOString());
+                      
+                      // Demander à l'utilisateur distant de sauvegarder
+                      localStorage.setItem(`force_save_request_${selectedShop}_${validWeek}`, new Date().toISOString());
+                      
+                      // Attendre 10 secondes pour laisser le temps de sauvegarder
+                      setLocalFeedback('⏳ Demande de sauvegarde envoyée à l\'utilisateur distant...');
+                      
+                      setTimeout(async () => {
+                        try {
+                          await releaseLock(selectedShop, validWeek, currentUserId);
+                          
+                          // Attendre un peu puis réessayer d'acquérir le verrou
+                          setTimeout(async () => {
+                            try {
+                              const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                              setLockInfo(lock || null);
+                              setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+                              if (ok) {
+                                console.log('✅ Verrou forcé avec succès');
+                                if (hbRef.current) clearInterval(hbRef.current);
+                                hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                                setLocalFeedback('✅ Verrou forcé ! Vous avez maintenant la main.');
+                              }
+                            } catch (error) {
+                              console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);
+                              setLocalFeedback('❌ Erreur lors de l\'acquisition du verrou');
+                            }
+                          }, 1000);
+                        } catch (error) {
+                          console.error('❌ Erreur lors de la libération du verrou:', error);
+                          setLocalFeedback('❌ Erreur lors de la libération du verrou');
+                        }
+                      }, 10000);
+                    } catch (error) {
+                      console.error('❌ Erreur lors du force release:', error);
+                      setLocalFeedback('❌ Erreur lors du force release');
+                    }
+                  }, 0);
                 }
               }}
               style={{ background: '#dc3545', color: 'white', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', marginLeft: '5px' }}
@@ -2930,11 +2959,20 @@ const PlanningDisplay = ({
               }
             </span>
             <button
-              onClick={async () => {
-                if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                await releaseLock(selectedShop, validWeek, currentUserId);
-                setIsReadOnly(true);
-                setLockInfo(null);
+              onClick={() => {
+                // Utiliser setTimeout pour éviter les conflits de rendu React
+                setTimeout(async () => {
+                  try {
+                    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                    await releaseLock(selectedShop, validWeek, currentUserId);
+                    setIsReadOnly(true);
+                    setLockInfo(null);
+                    setLocalFeedback('🔓 Main relâchée');
+                  } catch (error) {
+                    console.error('❌ Erreur lors de la libération de la main:', error);
+                    setLocalFeedback('❌ Erreur lors de la libération de la main');
+                  }
+                }, 0);
               }}
               style={{ background: '#9e9e9e', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
             >
