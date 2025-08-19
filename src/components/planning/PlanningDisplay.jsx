@@ -455,21 +455,53 @@ const PlanningDisplay = ({
   useEffect(() => {
     const run = async () => {
       if (!selectedShop || !validWeek) return;
+      
+      console.log('🔒 Tentative d\'acquisition du verrou:', { selectedShop, validWeek, currentUserId });
       const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+      console.log('🔒 Résultat acquisition verrou:', { ok, lock });
+      
       setLockInfo(lock || null);
       setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+      
       if (ok) {
+        console.log('✅ Verrou acquis avec succès');
         if (hbRef.current) clearInterval(hbRef.current);
-        hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 120000);
+        hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000); // 30s au lieu de 2min
+      } else if (lock) {
+        console.log('❌ Verrou détenu par:', lock.user_id);
+        setLocalFeedback(`🔒 Lecture seule: ${lock.user_id} édite actuellement ce planning`);
       }
     };
+    
     run();
+    
+    // Vérification périodique du verrou (toutes les 10 secondes)
+    const checkInterval = setInterval(async () => {
+      if (selectedShop && validWeek) {
+        const currentLock = await getLock(selectedShop, validWeek);
+        if (currentLock) {
+          const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 5 * 60 * 1000;
+          if (isExpired) {
+            console.log('🔒 Verrou expiré, tentative de reprise');
+            run(); // Réessayer d'acquérir le verrou
+          } else if (currentLock.user_id !== currentUserId) {
+            setIsReadOnly(true);
+            setLockInfo(currentLock);
+          }
+        }
+      }
+    }, 10000);
+    
     return () => {
       if (hbRef.current) {
         clearInterval(hbRef.current);
         hbRef.current = null;
       }
-      if (selectedShop && validWeek) releaseLock(selectedShop, validWeek, currentUserId);
+      clearInterval(checkInterval);
+      if (selectedShop && validWeek) {
+        console.log('🔓 Libération du verrou');
+        releaseLock(selectedShop, validWeek, currentUserId);
+      }
     };
   }, [selectedShop, validWeek, currentUserId]);
 
@@ -2803,14 +2835,19 @@ const PlanningDisplay = ({
             <span>🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.</span>
             <button
               onClick={async () => {
+                console.log('🔒 Tentative de demande de la main');
                 const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                console.log('🔒 Résultat demande de la main:', { ok, lock });
                 setLockInfo(lock || null);
                 setIsReadOnly(!ok && lock?.user_id !== currentUserId);
                 if (ok) {
+                  console.log('✅ Main obtenue avec succès');
                   if (hbRef.current) clearInterval(hbRef.current);
-                  hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 120000);
+                  hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                  setLocalFeedback('✅ Vous avez maintenant la main !');
                 } else {
-                  setFeedback && setFeedback('🔔 La main est déjà prise. Réessayez plus tard.');
+                  console.log('❌ Main refusée, détenue par:', lock?.user_id);
+                  setLocalFeedback(`🔒 Main détenue par ${lock?.user_id || 'un autre utilisateur'}. Réessayez plus tard.`);
                 }
               }}
               style={{ background: '#ffc107', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
