@@ -24,7 +24,7 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest } from '@/utils/collabLock';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, requestMain, checkMainRequest } from '@/utils/collabLock';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -499,6 +499,27 @@ const PlanningDisplay = ({
               } else {
                 setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
               }
+            }
+            
+            // Vérifier les demandes de main normale (quand quelqu'un clique sur "Demander la main")
+            const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+            if (mainRequest) {
+              console.log('🤝 Demande de main normale détectée:', mainRequest);
+              // Sauvegarder automatiquement les modifications
+              handleManualSave();
+              setLocalFeedback('💾 Modifications sauvegardées automatiquement - Main libérée pour un autre utilisateur.');
+              
+              // Libérer le verrou après sauvegarde
+              setTimeout(async () => {
+                try {
+                  if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                  await releaseLock(selectedShop, validWeek, currentUserId);
+                  setIsReadOnly(true);
+                  setLockInfo(null);
+                } catch (error) {
+                  console.error('❌ Erreur lors de la libération automatique:', error);
+                }
+              }, 1000);
             }
           }
         }
@@ -2853,22 +2874,40 @@ const PlanningDisplay = ({
                 // Utiliser setTimeout pour éviter les conflits de rendu React
                 setTimeout(async () => {
                   try {
-                    console.log('🔒 Tentative de demande de la main');
-                    const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
-                    console.log('🔒 Résultat demande de la main:', { ok, lock });
+                    console.log('🤝 Envoi de demande de main');
                     
-                    // Mettre à jour l'état de manière sécurisée
-                    setLockInfo(lock || null);
-                    setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+                    // Envoyer une demande de main à l'utilisateur actuel
+                    const { ok } = await requestMain(selectedShop, validWeek, currentUserId);
                     
                     if (ok) {
-                      console.log('✅ Main obtenue avec succès');
-                      if (hbRef.current) clearInterval(hbRef.current);
-                      hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
-                      setLocalFeedback('✅ Vous avez maintenant la main !');
+                      setLocalFeedback('🤝 Demande de main envoyée. En attente de libération...');
+                      
+                      // Attendre et vérifier périodiquement si on obtient la main
+                      const checkInterval = setInterval(async () => {
+                        try {
+                          const { ok: acquireOk, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                          if (acquireOk) {
+                            clearInterval(checkInterval);
+                            setLockInfo(lock || null);
+                            setIsReadOnly(false);
+                            if (hbRef.current) clearInterval(hbRef.current);
+                            hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                            setLocalFeedback('✅ Main obtenue avec succès !');
+                          }
+                        } catch (error) {
+                          console.error('❌ Erreur lors de la vérification de la main:', error);
+                        }
+                      }, 2000); // Vérifier toutes les 2 secondes
+                      
+                      // Arrêter de vérifier après 30 secondes
+                      setTimeout(() => {
+                        clearInterval(checkInterval);
+                        if (isReadOnly) {
+                          setLocalFeedback('⏰ Timeout: La demande de main a expiré. Réessayez.');
+                        }
+                      }, 30000);
                     } else {
-                      console.log('❌ Main refusée, détenue par:', lock?.user_id);
-                      setLocalFeedback(`🔒 Main détenue par ${lock?.user_id || 'un autre utilisateur'}. Réessayez plus tard.`);
+                      setLocalFeedback('❌ Erreur lors de l\'envoi de la demande de main');
                     }
                   } catch (error) {
                     console.error('❌ Erreur lors de la demande de main:', error);

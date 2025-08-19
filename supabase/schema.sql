@@ -19,6 +19,7 @@ create table if not exists public.planning_locks (
   week_key text not null,
   user_id text not null,
   force_release_request timestamptz,
+  main_request timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint planning_locks_pkey primary key (shop_id, week_key)

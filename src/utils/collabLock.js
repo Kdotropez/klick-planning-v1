@@ -7,6 +7,8 @@
 // - heartbeat(shopId, weekKey, userId)
 // - forceRelease(shopId, weekKey, userId)
 // - checkForceReleaseRequest(shopId, weekKey, userId)
+// - requestMain(shopId, weekKey, userId)
+// - checkMainRequest(shopId, weekKey, userId)
 
 let supabase = null;
 let useSupabase = false;
@@ -31,6 +33,7 @@ export const initLockService = async (config) => {
 
 const localKey = (shopId, weekKey) => `lock_${shopId}_${weekKey}`;
 const forceReleaseKey = (shopId, weekKey) => `force_release_${shopId}_${weekKey}`;
+const mainRequestKey = (shopId, weekKey) => `main_request_${shopId}_${weekKey}`;
 
 const nowIso = () => new Date().toISOString();
 
@@ -232,6 +235,87 @@ export const forceRelease = async (shopId, weekKey, userId) => {
     localStorage.setItem(forceReleaseKey(shopId, weekKey), nowIso());
     console.log('✅ Force release réussi avec localStorage');
     return { ok: true };
+  }
+};
+
+// Nouvelle fonction pour demander la main
+export const requestMain = async (shopId, weekKey, userId) => {
+  console.log('🤝 requestMain appelé:', { shopId, weekKey, userId, useSupabase });
+  
+  if (useSupabase) {
+    try {
+      // Créer une notification de demande de main
+      const { error: notifyError } = await supabase
+        .from('planning_locks')
+        .upsert({
+          shop_id: shopId,
+          week_key: weekKey,
+          user_id: userId,
+          main_request: nowIso(),
+          created_at: nowIso(),
+          updated_at: nowIso()
+        }, { onConflict: 'shop_id,week_key' });
+      
+      if (notifyError) {
+        console.error('❌ Erreur notification demande de main Supabase:', notifyError);
+      }
+      
+      console.log('✅ Demande de main envoyée avec Supabase');
+      return { ok: true };
+    } catch (error) {
+      console.error('❌ Exception requestMain Supabase:', error);
+      return { ok: false };
+    }
+  } else {
+    // Fallback localStorage
+    localStorage.setItem(mainRequestKey(shopId, weekKey), nowIso());
+    console.log('✅ Demande de main envoyée avec localStorage');
+    return { ok: true };
+  }
+};
+
+// Nouvelle fonction pour vérifier les demandes de main
+export const checkMainRequest = async (shopId, weekKey, userId) => {
+  if (useSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from('planning_locks')
+        .select('main_request')
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey)
+        .eq('user_id', userId)
+        .not('main_request', 'is', null)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Erreur checkMainRequest Supabase:', error);
+        return null;
+      }
+      
+      if (data && data.main_request) {
+        // Supprimer la notification après l'avoir lue
+        await supabase
+          .from('planning_locks')
+          .update({ main_request: null })
+          .eq('shop_id', shopId)
+          .eq('week_key', weekKey);
+        
+        return data.main_request;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Exception checkMainRequest Supabase:', error);
+      return null;
+    }
+  } else {
+    // Fallback localStorage
+    const requestTime = localStorage.getItem(mainRequestKey(shopId, weekKey));
+    if (requestTime) {
+      localStorage.removeItem(mainRequestKey(shopId, weekKey));
+      return requestTime;
+    }
+    return null;
   }
 };
 
