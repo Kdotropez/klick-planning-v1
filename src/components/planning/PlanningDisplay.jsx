@@ -3441,6 +3441,63 @@ const PlanningDisplay = ({
             onEmployeeToggle={handleEmployeeToggle}
             planning={planning}
             onToggleSlot={toggleSlot}
+            onSetDayStatus={(employeeId, dayIndex, status) => {
+              if (isReadOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
+              const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+              setPlanning(prev => {
+                const updated = { ...prev };
+                if (!updated[employeeId]) updated[employeeId] = {};
+                if (status === 'maladie') {
+                  updated[employeeId][dayKey] = 'Maladie 🤒';
+                } else if (status === 'conge') {
+                  updated[employeeId][dayKey] = 'Congé ☀️';
+                } else {
+                  // none: réinitialiser les slots à false
+                  updated[employeeId][dayKey] = Array(config.timeSlots.length).fill(false);
+                }
+                // Sauvegarde immédiate
+                try {
+                  // Propager le statut aux autres boutiques si multi-boutiques
+                  let planningDataToSave = planningData;
+                  const baseUpdatedForCurrentShop = saveWeekPlanning(planningDataToSave, selectedShop, selectedWeek, updated, localSelectedEmployees);
+                  planningDataToSave = baseUpdatedForCurrentShop;
+                  try {
+                    const employeeGlobal = (planningDataToSave.shops || []).flatMap(s => s.employees || []).find(e => e.id === employeeId);
+                    const otherShopIds = (employeeGlobal?.canWorkIn || []).filter(id => id !== selectedShop);
+                    if (otherShopIds.length > 0) {
+                      otherShopIds.forEach(shopId => {
+                        const shop = (planningDataToSave.shops || []).find(s => s.id === shopId);
+                        if (!shop) return;
+                        const timeSlots = Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : (Array.isArray(config?.timeSlots) ? config.timeSlots : []);
+                        const empWeek = shop.weeks?.[selectedWeek]?.planning?.[employeeId] || {};
+                        const currentDayValue = empWeek[dayKey];
+                        // Construire un planning minimal pour cette propagation
+                        const patch = { [employeeId]: { [dayKey]: null } };
+                        if (status === 'maladie') {
+                          patch[employeeId][dayKey] = 'Maladie 🤒';
+                        } else if (status === 'conge') {
+                          patch[employeeId][dayKey] = 'Congé ☀️';
+                        } else {
+                          // none -> si on enlève, on remet un tableau de la bonne taille
+                          const length = Array.isArray(currentDayValue) ? currentDayValue.length : timeSlots.length;
+                          patch[employeeId][dayKey] = new Array(length).fill(false);
+                        }
+                        planningDataToSave = saveWeekPlanning(planningDataToSave, shopId, selectedWeek, { ...(shop.weeks?.[selectedWeek]?.planning || {}), ...patch }, shop.weeks?.[selectedWeek]?.selectedEmployees || []);
+                      });
+                    }
+                  } catch (e2) {
+                    console.warn('Propagation multi-boutiques ignorée:', e2);
+                  }
+                  const updatedPlanningData = planningDataToSave;
+                  setPlanningData(updatedPlanningData);
+                  setHasUnsavedChanges(false);
+                } catch (e) {
+                  console.error('Erreur sauvegarde statut jour:', e);
+                  setHasUnsavedChanges(true);
+                }
+                return updated;
+              });
+            }}
             config={config}
             lockedEmployees={validationState.lockedEmployees}
             currentDay={currentDay}

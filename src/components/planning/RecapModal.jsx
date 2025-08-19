@@ -55,11 +55,17 @@ const RecapModal = ({
   const formatTimeRange = (employee, dayKey, timeSlots, shopId, shopName) => {
     console.log(`RecapModal: Formatting time range for ${employee} on ${dayKey} in shop ${shopId}`, { timeSlots });
     const weekPlanning = loadFromLocalStorage(`planning_${shopId}_${selectedWeek}`, {});
-    if (!weekPlanning[employee]?.[dayKey] || weekPlanning[employee][dayKey].every(slot => !slot)) {
+    const dayValue = weekPlanning?.[employee]?.[dayKey];
+    // Gérer les statuts sentinelles (Maladie/Congé) et formats legacy
+    if (typeof dayValue === 'string') {
+      const status = dayValue;
+      return { start: status, pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: shopName || 'Plage' };
+    }
+    if (!Array.isArray(dayValue) || dayValue.every(slot => !slot)) {
       return { start: 'Congé ☀️', pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: shopName || 'Plage' };
     }
 
-    const slots = weekPlanning[employee][dayKey];
+    const slots = dayValue;
     
     // Trouver les créneaux sélectionnés
     const selectedSlots = [];
@@ -161,46 +167,17 @@ const RecapModal = ({
     console.log('RecapModal: Generating data for employee week recap');
     days.forEach((day, index) => {
       const dayKey = format(addDays(new Date(selectedWeek), index), 'yyyy-MM-dd');
-      let added = false;
-      
-      // Ne calculer que pour la boutique actuelle
+      // Ne calculer que pour la boutique actuelle; toujours afficher la ligne (travail, congé ou maladie)
       const currentShop = shops.find(shop => shop.id === selectedShop);
-      if (currentShop) {
-        const { start, pause, resume, end, hours, shop: shopName } = formatTimeRange(employee, dayKey, config.timeSlots, currentShop.id, currentShop.name);
-        if (hours !== '0.0 h') {
-          recapData.push({
-            day: `${day.name} ${format(addDays(new Date(selectedWeek), index), 'dd/MM', { locale: fr })}`,
-            employees: [{
-              employee,
-              start,
-              pause,
-              resume,
-              end,
-              hours,
-              shop: shopName
-            }],
-            dayIndex: index
-          });
-          totalWeekHours += parseFloat(hours);
-          added = true;
-        }
-      }
-      
-      if (!added) {
-        recapData.push({
-          day: `${day.name} ${format(addDays(new Date(selectedWeek), index), 'dd/MM', { locale: fr })}`,
-          employees: [{
-            employee,
-            start: 'Congé ☀️',
-            pause: '',
-            resume: '',
-            end: '',
-            hours: '0.0 h',
-            shop: currentShop?.name || 'Plage'
-          }],
-          dayIndex: index
-        });
-      }
+      const { start, pause, resume, end, hours, shop: shopName } = currentShop
+        ? formatTimeRange(employee, dayKey, config.timeSlots, currentShop.id, currentShop.name)
+        : { start: 'Congé ☀️', pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: selectedShop };
+      recapData.push({
+        day: `${day.name} ${format(addDays(new Date(selectedWeek), index), 'dd/MM', { locale: fr })}`,
+        employees: [{ employee, start, pause, resume, end, hours, shop: shopName }],
+        dayIndex: index
+      });
+      totalWeekHours += parseFloat(hours);
     });
   } else {
     console.log('RecapModal: Generating data for employee day recap');

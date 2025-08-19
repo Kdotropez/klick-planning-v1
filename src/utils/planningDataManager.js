@@ -262,7 +262,7 @@ export const exportPlanningData = (planningData) => {
 };
 
 // Export Excel pour analyse détaillée par boutique et mois
-export const exportPlanningToExcel = (planningData) => {
+export const exportPlanningToExcel = (planningData, opts = {}) => {
   try {
     // Vérifier si XLSX est disponible
     if (typeof XLSX === 'undefined') {
@@ -277,11 +277,11 @@ export const exportPlanningToExcel = (planningData) => {
     excelData.push(['Date d\'export:', format(new Date(), 'dd/MM/yyyy HH:mm')]);
     excelData.push([]);
     
-    // Semaines du MOIS COURANT (lundi -> dimanche), avec bornes de mois pour filtrer les jours hors mois
+    // Semaines du MOIS CHOISI (par défaut: courant) (lundi -> dimanche), bornes de mois pour filtrer hors mois
     const getCurrentMonthWeeks = () => {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const base = opts?.monthDate ? new Date(opts.monthDate) : new Date();
+      const start = new Date(base.getFullYear(), base.getMonth(), 1);
+      const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
       
       const weeks = [];
       const firstMonday = new Date(start);
@@ -316,6 +316,8 @@ export const exportPlanningToExcel = (planningData) => {
           // Filtrer: ignorer les jours hors du mois courant
           if (day < monthStart || day > monthEnd) continue;
           const daySlots = weekData?.[dayKey];
+          // Ignorer les statuts sentinelles (chaînes)
+          if (typeof daySlots === 'string') continue;
           if (Array.isArray(daySlots)) {
             trueSlotsCount += daySlots.filter(Boolean).length;
           }
@@ -355,7 +357,7 @@ export const exportPlanningToExcel = (planningData) => {
         if (day < monthStart || day > monthEnd) continue;
         const dayKey = format(day, 'yyyy-MM-dd');
         const slots = empWeek?.[dayKey];
-        if (!Array.isArray(slots)) continue;
+        if (typeof slots === 'string' || !Array.isArray(slots)) continue;
 
         for (let s = 0; s < Math.min(slots.length, timeSlots.length); s++) {
           if (!slots[s]) continue;
@@ -518,9 +520,9 @@ export const exportPlanningToExcel = (planningData) => {
 
     // Feuilles par EMPLOYÉ avec détail mensuel (comme la modale détaillée)
     const getCurrentMonthDays = () => {
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const base = opts?.monthDate ? new Date(opts.monthDate) : new Date();
+      const start = new Date(base.getFullYear(), base.getMonth(), 1);
+      const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
       const days = [];
       let current = new Date(start);
       while (current <= end) {
@@ -1647,23 +1649,49 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
         days.forEach(dayKey => {
           // Vérifier si on a des données existantes pour ce jour et cet employé
           const existingData = weekData.planning?.[employee.id]?.[dayKey];
-          
-          if (existingData) {
-            // Utiliser les données existantes si elles ont la bonne longueur
-            if (existingData.length === timeSlots.length) {
-              initializedPlanning[employee.id][dayKey] = [...existingData];
-              console.log(`🔍 getWeekPlanning - Utilisé données existantes pour ${dayKey} (${employee.id})`);
-            } else {
-              // Ajuster la longueur si nécessaire
-              if (existingData.length < timeSlots.length) {
-                initializedPlanning[employee.id][dayKey] = [
-                  ...existingData,
-                  ...new Array(timeSlots.length - existingData.length).fill(false)
-                ];
-              } else {
-                initializedPlanning[employee.id][dayKey] = existingData.slice(0, timeSlots.length);
+
+          if (existingData !== undefined && existingData !== null) {
+            // 1) Nouveau format: statut sentinelle directement en chaîne ('Maladie 🤒' / 'Congé ☀️')
+            if (typeof existingData === 'string') {
+              initializedPlanning[employee.id][dayKey] = existingData;
+              console.log(`🔍 getWeekPlanning - Statut détecté pour ${dayKey} (${employee.id}):`, existingData);
+              return;
+            }
+
+            // 2) Ancien format: tableau contenant des marqueurs texte ('M', 'C', 'Maladie', 'Congé')
+            if (Array.isArray(existingData)) {
+              const hasLegacyMaladie = existingData.some(v => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')));
+              const hasLegacyConge = existingData.some(v => v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge'))));
+              if (hasLegacyMaladie) {
+                initializedPlanning[employee.id][dayKey] = 'Maladie 🤒';
+                console.log(`🩺 Migration legacy -> Maladie pour ${dayKey} (${employee.id})`);
+                return;
               }
-              console.log(`🔍 getWeekPlanning - Ajusté longueur pour ${dayKey} (${employee.id})`);
+              if (hasLegacyConge) {
+                initializedPlanning[employee.id][dayKey] = 'Congé ☀️';
+                console.log(`🏖️ Migration legacy -> Congé pour ${dayKey} (${employee.id})`);
+                return;
+              }
+
+              // 3) Tableau booléen standard: copier/ajuster la longueur
+              if (existingData.length === timeSlots.length) {
+                initializedPlanning[employee.id][dayKey] = [...existingData];
+                console.log(`🔍 getWeekPlanning - Utilisé données existantes pour ${dayKey} (${employee.id})`);
+              } else {
+                if (existingData.length < timeSlots.length) {
+                  initializedPlanning[employee.id][dayKey] = [
+                    ...existingData,
+                    ...new Array(timeSlots.length - existingData.length).fill(false)
+                  ];
+                } else {
+                  initializedPlanning[employee.id][dayKey] = existingData.slice(0, timeSlots.length);
+                }
+                console.log(`🔍 getWeekPlanning - Ajusté longueur pour ${dayKey} (${employee.id})`);
+              }
+            } else {
+              // Format inattendu: fallback tableau vide
+              initializedPlanning[employee.id][dayKey] = new Array(timeSlots.length).fill(false);
+              console.warn(`⚠️ getWeekPlanning - Format inattendu pour ${dayKey} (${employee.id}), initialisation par défaut`);
             }
           } else {
             // Initialiser avec un tableau vide si pas de données existantes

@@ -116,8 +116,13 @@ const EmployeeMonthlyDetailModal = ({
               
               if (dayDate >= monthStart && dayDate <= monthEnd) {
                 const slots = weekData.planning[selectedEmployeeForMonthlyDetail][dayStr];
-                // Validation des slots et vérification qu'il y a au moins un créneau sélectionné
-                if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                // Inclure statuts sentinelles (Congé / Maladie) ou jours avec créneaux sélectionnés
+                if (typeof slots === 'string') {
+                  if (!allPlanning[dayStr]) {
+                    allPlanning[dayStr] = {};
+                  }
+                  allPlanning[dayStr][shop.id] = slots;
+                } else if (Array.isArray(slots) && slots.some(slot => slot === true)) {
                   if (!allPlanning[dayStr]) {
                     allPlanning[dayStr] = {};
                   }
@@ -226,6 +231,7 @@ const EmployeeMonthlyDetailModal = ({
     if (!dayPlanning || !dayPlanning[selectedShop]) return false;
     
     const slots = dayPlanning[selectedShop];
+    if (typeof slots === 'string') return false;
     return slots && Array.isArray(slots) && slots[slotIndex];
   };
 
@@ -246,6 +252,7 @@ const EmployeeMonthlyDetailModal = ({
     }
     
     const slots = dayPlanning[selectedShop];
+    if (typeof slots === 'string') return true;
     return !slots || slots.every(slot => !slot);
   };
 
@@ -267,7 +274,19 @@ const EmployeeMonthlyDetailModal = ({
     selectedSlots.sort((a, b) => a.index - b.index);
     
     const entry = selectedSlots[0].time;
-    const exit = selectedSlots[selectedSlots.length - 1].time;
+    // Calculer la fin réelle du dernier créneau (ex: 21:30 -> 22:00)
+    const lastSelected = selectedSlots[selectedSlots.length - 1];
+    let exit = lastSelected.time;
+    if (config?.timeSlots && typeof lastSelected.index === 'number') {
+      const nextSlotTime = config.timeSlots[lastSelected.index + 1];
+      if (nextSlotTime) {
+        exit = nextSlotTime;
+      } else {
+        const exitStartDate = new Date(`2000-01-01T${lastSelected.time}:00`);
+        const exitEndDate = new Date(exitStartDate.getTime() + (config.interval || 30) * 60 * 1000);
+        exit = format(exitEndDate, 'HH:mm');
+      }
+    }
     
     // Détecter les pauses (gaps dans les créneaux sélectionnés)
     let pause = null;
@@ -407,14 +426,18 @@ const EmployeeMonthlyDetailModal = ({
         const dayDate = format(date, 'dd/MM', { locale: fr });
         const isOff = isDayOff(date);
         const workHours = calculateWorkHours(date);
+        // Récupérer le statut exact pour la boutique sélectionnée
+        const dayStr = format(date, 'yyyy-MM-dd');
+        const dayPlanning = allEmployeePlanning[dayStr];
+        const status = dayPlanning && typeof dayPlanning[selectedShop] === 'string' ? dayPlanning[selectedShop] : (isOff ? 'Congé ☀️' : null);
         
         data.push({
           'Jour': `${dayName} ${dayDate}`,
-          'ENTRÉE': isOff ? 'Congé ☀️' : (workHours.entry ? `${workHours.entry} H` : '-'),
-          'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-          'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-          'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-          'Heures': isOff ? '0.0 h' : `${workHours.hours} h`
+          'ENTRÉE': status ? status : (workHours.entry ? `${workHours.entry} H` : '-'),
+          'PAUSE': status ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
+          'RETOUR': status ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
+          'SORTIE': status ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
+          'Heures': status ? '0.0 h' : `${workHours.hours} h`
         });
       });
     });
@@ -1098,11 +1121,17 @@ const EmployeeMonthlyDetailModal = ({
                               {dayName} {dayDate}
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              {isOff ? (
-                                <span style={{ color: '#FF9800', fontWeight: '600', fontSize: '9px' }}>
-                                  Congé ☀️
-                                </span>
-                              ) : (
+                              {isOff ? (() => {
+                                const dayStr = format(date, 'yyyy-MM-dd');
+                                const dayPlanning = allEmployeePlanning[dayStr];
+                                const status = dayPlanning && typeof dayPlanning[selectedShop] === 'string' ? dayPlanning[selectedShop] : 'Congé ☀️';
+                                const isSick = typeof status === 'string' && status.toLowerCase().includes('maladie');
+                                return (
+                                  <span style={{ color: isSick ? '#dc3545' : '#FF9800', fontWeight: '600', fontSize: '9px' }}>
+                                    {status}
+                                  </span>
+                                );
+                              })() : (
                                 shopForDay ? shopForDay.name : '-'
                               )}
                             </td>

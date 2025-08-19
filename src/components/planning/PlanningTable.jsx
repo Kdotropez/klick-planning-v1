@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { format, addDays, addMinutes, parse } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
@@ -10,6 +10,7 @@ const PlanningTable = ({
   planning, 
   selectedEmployees, 
   onToggleSlot, 
+  onSetDayStatus,
   currentDay, 
   currentShopEmployees,
   copyMode = false,
@@ -21,6 +22,8 @@ const PlanningTable = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [dragValue, setDragValue] = useState(null);
+  const [edgeSelection, setEdgeSelection] = useState(null); // { employeeId, dayIndex, edge: 'first' | 'last', ts }
+  const edgeTimerRef = useRef(null);
   let clickTimeout = null;
 
   const getEndTime = (startTime, interval) => {
@@ -42,11 +45,81 @@ const PlanningTable = ({
     }
     
     console.log('handleMouseDown called:', { employeeId, slotIndex, dayIndex });
-    setIsDragging(true);
-    setDragStart({ employeeId, slotIndex, dayIndex });
 
     const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
-    const currentValue = planning?.[employeeId]?.[dayKey]?.[slotIndex] || false;
+    const dayData = planning?.[employeeId]?.[dayKey];
+    // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
+    const hasStatus = (
+      typeof dayData === 'string' ||
+      (Array.isArray(dayData) && dayData.some(v => v === 'M' || v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('maladie') || v.toLowerCase().includes('congé')))))
+    );
+    const totalSlots = (config?.timeSlots?.length || 0);
+    const isFirst = slotIndex === 0;
+    const isLast = slotIndex === totalSlots - 1;
+    if (hasStatus) {
+      // Autoriser la gestuelle premier+dernier pour RETIRER le statut
+      if (isFirst || isLast) {
+        const now = Date.now();
+        const edge = isFirst ? 'first' : 'last';
+        if (
+          edgeSelection &&
+          edgeSelection.employeeId === employeeId &&
+          edgeSelection.dayIndex === dayIndex &&
+          edgeSelection.edge !== edge &&
+          now - edgeSelection.ts <= 3000
+        ) {
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          setEdgeSelection(null);
+          if (typeof onSetDayStatus === 'function') {
+            event.preventDefault();
+            if (clickTimeout) clearTimeout(clickTimeout);
+            onSetDayStatus(employeeId, dayIndex, 'none');
+            return;
+          }
+        } else {
+          setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+          event.preventDefault();
+          return;
+        }
+      }
+      event.preventDefault();
+      return;
+    }
+    const currentValue = Array.isArray(dayData) ? (dayData?.[slotIndex] || false) : false;
+
+    // Geste maladie: clic premier et dernier créneau
+    if (isFirst || isLast) {
+      const now = Date.now();
+      const edge = isFirst ? 'first' : 'last';
+      if (
+        edgeSelection &&
+        edgeSelection.employeeId === employeeId &&
+        edgeSelection.dayIndex === dayIndex &&
+        edgeSelection.edge !== edge &&
+        now - edgeSelection.ts <= 3000
+      ) {
+        // Complète le geste -> marquer maladie
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        setEdgeSelection(null);
+        if (typeof onSetDayStatus === 'function') {
+          event.preventDefault();
+          if (clickTimeout) clearTimeout(clickTimeout);
+          onSetDayStatus(employeeId, dayIndex, 'maladie');
+          return;
+        }
+      } else {
+        setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+        return;
+      }
+    }
+
+    // Sinon, comportement normal (drag/toggle)
+    setIsDragging(true);
+    setDragStart({ employeeId, slotIndex, dayIndex });
     setDragValue(!currentValue);
 
     clickTimeout = setTimeout(() => {
@@ -106,9 +179,91 @@ const PlanningTable = ({
       return;
     }
     const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
-    const currentValue = planning?.[employeeId]?.[dayKey]?.[slotIndex] || false;
+    const dayData = planning?.[employeeId]?.[dayKey];
+    // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
+    const hasStatus = (
+      typeof dayData === 'string' ||
+      (Array.isArray(dayData) && dayData.some(v => v === 'M' || v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('maladie') || v.toLowerCase().includes('congé')))))
+    );
+    const totalSlots = (config?.timeSlots?.length || 0);
+    const isFirst = slotIndex === 0;
+    const isLast = slotIndex === totalSlots - 1;
+    if (hasStatus) {
+      // Autoriser la gestuelle premier+dernier pour RETIRER le statut en touch
+      if (isFirst || isLast) {
+        const now = Date.now();
+        const edge = isFirst ? 'first' : 'last';
+        if (
+          edgeSelection &&
+          edgeSelection.employeeId === employeeId &&
+          edgeSelection.dayIndex === dayIndex &&
+          edgeSelection.edge !== edge &&
+          now - edgeSelection.ts <= 3000
+        ) {
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          setEdgeSelection(null);
+          if (typeof onSetDayStatus === 'function') {
+            onSetDayStatus(employeeId, dayIndex, 'none');
+            return;
+          }
+        } else {
+          setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+          return;
+        }
+      }
+      return;
+    }
+    const currentValue = Array.isArray(dayData) ? (dayData?.[slotIndex] || false) : false;
     console.log('Toggling slot:', { employeeId, dayKey, slotIndex, currentValue });
+    if (isFirst || isLast) {
+      const now = Date.now();
+      const edge = isFirst ? 'first' : 'last';
+      if (
+        edgeSelection &&
+        edgeSelection.employeeId === employeeId &&
+        edgeSelection.dayIndex === dayIndex &&
+        edgeSelection.edge !== edge &&
+        now - edgeSelection.ts <= 3000
+      ) {
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        setEdgeSelection(null);
+        if (typeof onSetDayStatus === 'function') {
+          onSetDayStatus(employeeId, dayIndex, 'maladie');
+          return;
+        }
+      } else {
+        setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+        return;
+      }
+    }
     onToggleSlot(employeeId, slotIndex, dayIndex, !currentValue);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+    };
+  }, []);
+
+  const handleContextMenu = (e, employeeId, dayIndex) => {
+    e.preventDefault();
+    if (typeof onSetDayStatus !== 'function') return;
+    const choice = window.prompt('Statut du jour (maladie / conge / none) :', 'maladie');
+    if (!choice) return;
+    const normalized = choice.trim().toLowerCase();
+    if (normalized === 'maladie') {
+      onSetDayStatus(employeeId, dayIndex, 'maladie');
+    } else if (normalized === 'conge' || normalized === 'congé') {
+      onSetDayStatus(employeeId, dayIndex, 'conge');
+    } else if (normalized === 'none' || normalized === 'aucun') {
+      onSetDayStatus(employeeId, dayIndex, 'none');
+    } else {
+      alert('Valeur non reconnue. Options: maladie, conge, none');
+    }
   };
 
   // Validation de selectedWeek
@@ -234,7 +389,17 @@ const PlanningTable = ({
         <tbody>
           {(selectedEmployees || []).map((employeeId, employeeIndex) => {
             const dayKey = format(addDays(new Date(validWeek), currentDay), 'yyyy-MM-dd');
-            const employeeSlots = planning?.[employeeId]?.[dayKey] || Array(validTimeSlots.length).fill(false);
+            const dayData = planning?.[employeeId]?.[dayKey];
+            const dayStatus = typeof dayData === 'string' ? dayData : null;
+            const legacyArrayStatus = Array.isArray(dayData)
+              ? (dayData.some(v => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')))
+                  ? 'Maladie 🤒'
+                  : (dayData.some(v => v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge'))))
+                      ? 'Congé ☀️'
+                      : null))
+              : null;
+            const displayStatus = dayStatus || legacyArrayStatus;
+            const employeeSlots = Array.isArray(dayData) ? dayData : Array(validTimeSlots.length).fill(false);
             const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
             
             // Trouver l'employé dans currentShopEmployees pour récupérer son nom
@@ -244,10 +409,37 @@ const PlanningTable = ({
 
             const isLocked = lockedEmployees.includes(employeeId);
             
+            const isSickDay = typeof displayStatus === 'string' && displayStatus.toLowerCase().includes('maladie');
             return (
-              <tr key={employeeId} className={isLocked ? 'locked-employee' : ''}>
-                <td className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}`}>
+              <tr key={employeeId} className={isLocked ? 'locked-employee' : ''} style={isSickDay ? { backgroundColor: '#ffe6f0' } : {}}>
+                <td 
+                  className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}`}
+                >
                   {employeeName} ({hours.toFixed(1)} h)
+                  {displayStatus && (
+                    <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 'bold', color: isSickDay ? '#dc3545' : '#ff9800' }}>
+                      {displayStatus}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (typeof onSetDayStatus === 'function') {
+                            onSetDayStatus(employeeId, currentDay, 'none');
+                          }
+                        }}
+                        title="Retirer le statut"
+                        style={{
+                          marginLeft: '6px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: '#6c757d',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
                   {isLocked && <span className="lock-icon">🔒</span>}
                 </td>
                 {validTimeSlots.map((_, slotIndex) => {
@@ -260,8 +452,14 @@ const PlanningTable = ({
                       className={`scrollable-col ${isChecked ? `clicked-${employeeIndex % 7}` : ''}`}
                       style={slotStyle}
                       onTouchStart={(e) => handleTouchStart(employeeId, slotIndex, currentDay, e)}
-                      onMouseDown={(e) => handleMouseDown(employeeId, slotIndex, currentDay, e)}
-                      onMouseMove={(e) => handleMouseMove(employeeId, slotIndex, currentDay, e)}
+                      onMouseDown={(e) => {
+                        // Toujours déléguer au handler qui gère aussi la suppression de statut via gestuelle
+                        handleMouseDown(employeeId, slotIndex, currentDay, e);
+                      }}
+                      onMouseMove={(e) => {
+                        if (displayStatus) return;
+                        handleMouseMove(employeeId, slotIndex, currentDay, e);
+                      }}
                     >
                       {isChecked && <span className="checkmark">✅</span>}
                     </td>

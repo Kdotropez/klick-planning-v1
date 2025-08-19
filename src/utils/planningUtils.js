@@ -29,8 +29,15 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   
   const slots = employeeData[dayKey];
   
-  // Vérifier que les slots sont un tableau valide
+  // Vérifier que les slots sont un tableau valide ou un statut spécial
   if (!Array.isArray(slots)) {
+    // Support des statuts sentinelles: Congé / Maladie
+    if (typeof slots === 'string') {
+      const normalized = slots.toLowerCase();
+      if (normalized.includes('congé') || normalized.includes('conge') || normalized.includes('maladie')) {
+        return 0;
+      }
+    }
     console.warn(`calculateEmployeeDailyHours: Invalid slots for ${employeeId} on ${dayKey}`, { slots });
     return 0;
   }

@@ -80,11 +80,12 @@ const EmployeeWeeklyRecapModal = ({
     return format(day, 'd MMMM yyyy', { locale: fr });
   };
 
-  // Vérifier si un créneau est sélectionné
+  // Vérifier si un créneau est sélectionné (tolérant aux statuts chaîne)
   const isSlotSelected = (dayIndex, slotIndex) => {
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
     const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
-    return dayPlanning && dayPlanning[slotIndex];
+    if (typeof dayPlanning === 'string') return false;
+    return Array.isArray(dayPlanning) && !!dayPlanning[slotIndex];
   };
 
   // Calculer les heures d'un jour
@@ -93,21 +94,27 @@ const EmployeeWeeklyRecapModal = ({
     return calculateEmployeeDailyHours(selectedEmployeeForWeeklyRecap, day, employeePlanning, config);
   };
 
-  // Vérifier si un jour est en congé (aucun créneau sélectionné)
-  const isDayOff = (dayIndex) => {
+  // Obtenir le statut du jour ("Maladie 🤒" / "Congé ☀️" / null)
+  const getDayStatus = (dayIndex) => {
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
     const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
-    return !dayPlanning || dayPlanning.every(slot => !slot);
+    if (typeof dayPlanning === 'string') return dayPlanning;
+    if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) return 'Congé ☀️';
+    return null;
   };
+
+  // Jour sans heures (zéro) s'il a un statut ou aucun créneau
+  const isDayOff = (dayIndex) => getDayStatus(dayIndex) !== null;
 
   // Calculer les heures de travail pour un jour
   const calculateWorkHours = (dayIndex) => {
-    if (isDayOff(dayIndex)) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
+    const status = getDayStatus(dayIndex);
+    if (status) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
     
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
     const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
     
-    if (!dayPlanning || dayPlanning.every(slot => !slot)) {
+    if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) {
       return { entry: null, pause: null, return: null, exit: null, hours: 0 };
     }
     
@@ -177,12 +184,13 @@ const EmployeeWeeklyRecapModal = ({
      for (let i = 0; i < 7; i++) {
        const dayName = getDayName(i);
        const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
-       const isOff = isDayOff(i);
+       const status = getDayStatus(i);
+       const isOff = !!status;
        const workHours = calculateWorkHours(i);
        
        body.push([
          `${dayName} ${dayDate}`,
-         isOff ? 'Congé' : (workHours.entry ? `${workHours.entry} H` : '-'),
+         isOff ? (status || 'Congé ☀️') : (workHours.entry ? `${workHours.entry} H` : '-'),
          isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
          isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
@@ -208,12 +216,13 @@ const EmployeeWeeklyRecapModal = ({
      for (let i = 0; i < 7; i++) {
        const dayName = getDayName(i);
        const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
-       const isOff = isDayOff(i);
+       const status = getDayStatus(i);
+       const isOff = !!status;
        const workHours = calculateWorkHours(i);
        
        data.push({
          'Jour': `${dayName} ${dayDate}`,
-         'ENTRÉE': isOff ? 'Congé' : (workHours.entry ? `${workHours.entry} H` : '-'),
+         'ENTRÉE': isOff ? (status || 'Congé ☀️') : (workHours.entry ? `${workHours.entry} H` : '-'),
          'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
          'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
@@ -340,7 +349,8 @@ const EmployeeWeeklyRecapModal = ({
              {Array.from({ length: 7 }, (_, i) => {
                const dayName = getDayName(i);
                const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
-               const isOff = isDayOff(i);
+               const status = getDayStatus(i);
+               const isOff = !!status;
                const workHours = calculateWorkHours(i);
                
                // Couleurs alternées pour les jours
@@ -362,9 +372,9 @@ const EmployeeWeeklyRecapModal = ({
                      {dayName} {dayDate}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                     {isOff ? (
-                       <span style={{ color: '#FF9800', fontWeight: '600' }}>
-                         Congé ☀️
+                     {status ? (
+                       <span style={{ color: status.toLowerCase().includes('maladie') ? '#dc3545' : '#FF9800', fontWeight: '600' }}>
+                         {status}
                        </span>
                      ) : (
                        workHours.entry ? `${workHours.entry} H` : '-'

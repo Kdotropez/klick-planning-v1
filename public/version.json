@@ -1,7 +1,13 @@
 {
-  "version": "3.8.8",
-  "buildDate": "2025-01-27T10:00:00.000Z",
+  "version": "3.9.0",
+  "buildDate": "2025-08-19T00:00:00.000Z",
   "changelog": [
+    "🤒 Nouveau statut 'Maladie' avec gestuelle (1er + dernier créneau)",
+    "🩹 Suppression du statut par gestuelle ou bouton ✕",
+    "🌸 Coloration ligne maladie et badges dans le planning",
+    "📈 Récaps hebdo et mensuels robustes aux statuts (PDF/Excel)",
+    "📤 Export Excel: choix du mois via sélecteur et respect des statuts",
+    "🔁 Propagation auto du statut 'Maladie' sur toutes les boutiques de l'employé",
     "🔧 Corrections du système de verrouillage collaboratif",
     "⚡ Réduction du délai de verrouillage automatique (5min → 2min)",
     "🔄 Amélioration de la vérification périodique (10s → 5s)",
