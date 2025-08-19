@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Button from './common/Button';
-import { listRemoteShops, listRemoteWeeksForShop, loadRemotePlanning, loadCompletePlanningData } from '../utils/remoteStore';
+import { loadCompletePlanningData } from '../utils/remoteStore';
 
 // Types de licences
 const LICENSE_TYPES = {
@@ -432,12 +432,10 @@ const LicenseManager = () => {
   );
 };
 
-const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onStartWithShop, onRestoreFromSupabase }) => {
+  const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onRestoreFromSupabase }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
   const [availableShops, setAvailableShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState('');
-  const [remoteShops, setRemoteShops] = useState([]);
-  const [selectedRemoteShopId, setSelectedRemoteShopId] = useState('');
 
   useEffect(() => {
     // Charger les boutiques depuis planningData (localStorage)
@@ -731,103 +729,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
               </div>
             )}
 
-            {/* Restaurer depuis Supabase */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              alignItems: 'center',
-              width: '100%'
-            }}>
-              <div style={{ color: '#666', fontWeight: 600 }}>Restaurer depuis Supabase (centralisé)</div>
-              {remoteShops.length === 0 ? (
-                <Button
-                  onClick={async () => {
-                    try {
-                      console.log('🔄 Chargement des boutiques depuis Supabase...');
-                      const shops = await listRemoteShops();
-                      console.log('✅ Boutiques trouvées:', shops);
-                      setRemoteShops(shops);
-                      if (shops.length > 0) {
-                        setSelectedRemoteShopId(shops[0]);
-                        console.log('🏪 Boutique sélectionnée:', shops[0]);
-                      }
-                    } catch (error) {
-                      console.error('❌ Erreur chargement boutiques:', error);
-                    }
-                  }}
-                  style={{
-                    padding: '12px 20px',
-                    background: 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontWeight: '700',
-                    minWidth: '260px'
-                  }}
-                >
-                  🔄 Charger les boutiques Supabase
-                </Button>
-              ) : (
-                <>
-                  <select
-                    value={selectedRemoteShopId}
-                    onChange={(e) => setSelectedRemoteShopId(e.target.value)}
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: '16px',
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      minWidth: '260px'
-                    }}
-                  >
-                    {remoteShops.map(id => (
-                      <option key={id} value={id}>
-                        {id === 'complete_file' ? '📁 Fichier complet (toutes les boutiques)' : id}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    onClick={async () => {
-                      console.log('🔘 Bouton cliqué, selectedRemoteShopId:', selectedRemoteShopId);
-                      console.log('🔘 onRestoreFromSupabase type:', typeof onRestoreFromSupabase);
-                      console.log('🔘 onStartWithShop type:', typeof onStartWithShop);
-                      
-                      if (selectedRemoteShopId === 'complete_file') {
-                        // Si c'est le fichier complet, utiliser la restauration complète
-                        console.log('📁 Fichier complet sélectionné, appel de onRestoreFromSupabase');
-                        if (typeof onRestoreFromSupabase === 'function') {
-                          onRestoreFromSupabase();
-                        } else {
-                          console.log('❌ onRestoreFromSupabase n\'est pas une fonction');
-                        }
-                      } else {
-                        // Sinon, utiliser le démarrage sur une boutique spécifique
-                        console.log('🏪 Boutique spécifique sélectionnée, appel de onStartWithShop');
-                        if (typeof onStartWithShop === 'function' && selectedRemoteShopId) {
-                          onStartWithShop(selectedRemoteShopId);
-                        } else {
-                          console.log('❌ onStartWithShop n\'est pas une fonction ou selectedRemoteShopId manquant');
-                        }
-                      }
-                    }}
-                    style={{
-                      padding: '12px 20px',
-                      background: 'linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '700',
-                      minWidth: '260px'
-                    }}
-                  >
-                    {selectedRemoteShopId === 'complete_file' ? '☁️ Restaurer fichier complet' : '☁️ Démarrer sur cette boutique (Supabase)'}
-                  </Button>
-                </>
-              )}
-            </div>
+
 
 
             

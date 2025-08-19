@@ -208,61 +208,7 @@ const App = () => {
     setFeedback('');
   };
 
-  // Démarrer directement sur une boutique depuis l'écran de démarrage
-  const handleStartWithShop = (shopId) => {
-    try {
-      console.log('🚀 handleStartWithShop appelé avec:', shopId);
-      console.log('📊 planningData:', planningData);
-      
-      // Si on a des données de planning normales
-      if (planningData?.shops && planningData.shops.length > 0) {
-        const exists = planningData.shops.some(s => s.id === shopId);
-        if (!exists) {
-          console.log('❌ Boutique non trouvée dans planningData.shops');
-          return;
-        }
-        setSelectedShop(shopId);
-        // Préparer semaine courante par défaut
-        const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
-        setSelectedWeek(currentWeekKey);
-        setMode('week-selection');
-        setFeedback('Sélectionnez la semaine pour commencer.');
-        return;
-      }
-      
-      // Si on n'a pas de données normales, essayer de charger depuis localStorage
-      const savedPlanningData = localStorage.getItem('planningData');
-      if (savedPlanningData) {
-        try {
-          const parsedData = JSON.parse(savedPlanningData);
-          console.log('📦 Données chargées depuis localStorage:', parsedData);
-          
-          if (parsedData.shops && parsedData.shops.length > 0) {
-            const exists = parsedData.shops.some(s => s.id === shopId);
-            if (exists) {
-              // Mettre à jour planningData avec les données restaurées
-              setPlanningData(parsedData);
-              setSelectedShop(shopId);
-              const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
-              setSelectedWeek(currentWeekKey);
-              setMode('week-selection');
-              setFeedback('Planning restauré ! Sélectionnez la semaine pour commencer.');
-              return;
-            }
-          }
-        } catch (error) {
-          console.error('❌ Erreur parsing localStorage:', error);
-        }
-      }
-      
-      console.log('❌ Aucune donnée valide trouvée pour la boutique:', shopId);
-      setFeedback('Aucune donnée trouvée pour cette boutique. Veuillez d\'abord restaurer depuis Supabase.');
-      
-    } catch (error) {
-      console.error('❌ Erreur dans handleStartWithShop:', error);
-      setFeedback('Erreur lors du démarrage sur cette boutique.');
-    }
-  };
+
 
   // Aller directement au planning après restauration depuis Supabase
   const handleRestoreFromSupabase = async () => {
@@ -695,7 +641,6 @@ const App = () => {
             onImportPlanning={handleImportPlanning}
             onExit={handleExit}
             onClearLocalStorage={handleClearLocalStorage}
-            onStartWithShop={handleStartWithShop}
             onRestoreFromSupabase={handleRestoreFromSupabase}
           />
         <CopyrightNotice />
