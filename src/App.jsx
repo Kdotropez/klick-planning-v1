@@ -299,26 +299,19 @@ const App = () => {
       
       const supabase = createClient(url, key);
       
-      // Charger les données depuis Supabase
-      const { data, error } = await supabase
-        .from('plannings')
-        .select('*')
-        .eq('shop_id', 'complete_file')
-        .eq('week_key', 'all_data')
-        .maybeSingle();
+      // Charger les données depuis Supabase avec fallback
+      const { loadCompletePlanningData } = await import('@/utils/remoteStore');
       
-      if (error) {
-        console.error('❌ Erreur Supabase:', error);
-        setFeedback('❌ Erreur de connexion Supabase.');
-        return;
-      }
+      // Initialiser le service Supabase pour loadCompletePlanningData
+      const { initLockService } = await import('@/utils/collabLock');
+      await initLockService({ url, key });
       
-      if (!data || !data.data) {
+      const restoredData = await loadCompletePlanningData();
+      
+      if (!restoredData) {
         setFeedback('❌ Aucune donnée trouvée sur Supabase.');
         return;
       }
-      
-      const restoredData = data.data;
       
       if (!restoredData.shops || restoredData.shops.length === 0) {
         setFeedback('❌ Aucune boutique trouvée dans les données.');
