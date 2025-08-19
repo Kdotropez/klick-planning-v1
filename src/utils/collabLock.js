@@ -296,6 +296,15 @@ export const forceRelease = async (shopId, weekKey, userId) => {
       try {
         console.log('🔍 checkMainRequest appelé pour:', { shopId, weekKey, userId });
         
+        // D'abord, vérifier si l'utilisateur actuel a bien la main
+        const currentLock = await getLock(shopId, weekKey);
+        console.log('🔍 Verrou actuel pour la vérification:', currentLock);
+        
+        if (!currentLock || currentLock.user_id !== userId) {
+          console.log('🔍 Utilisateur actuel n\'a pas la main, pas de vérification de demande');
+          return null;
+        }
+        
         const { data, error } = await supabase
           .from('planning_locks')
           .select('main_request')

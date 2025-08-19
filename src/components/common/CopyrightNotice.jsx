@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 const CopyrightNotice = () => {
-  const [version, setVersion] = useState('3.8.6');
+  const [version, setVersion] = useState('3.8.7');
 
   useEffect(() => {
     // Charger la version depuis le fichier version.json
@@ -10,7 +10,7 @@ const CopyrightNotice = () => {
       .then(data => setVersion(data.version))
       .catch(error => {
         console.error('Erreur chargement version:', error);
-        setVersion('3.8.6'); // Version par défaut
+        setVersion('3.8.7'); // Version par défaut
       });
   }, []);
 

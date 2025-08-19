@@ -528,7 +528,9 @@ const PlanningDisplay = ({
             }
             
             // Vérifier les demandes de main normale (quand quelqu'un clique sur "Demander la main")
+            console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
             const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+            console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
             if (mainRequest) {
               console.log('🤝 Demande de main normale détectée:', mainRequest);
               console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
