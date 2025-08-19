@@ -287,6 +287,13 @@ const App = () => {
     setFeedback('⏳ Chargement depuis Supabase...');
     
     try {
+      // Initialiser Supabase d'abord
+      const { initLockService } = await import('@/utils/collabLock');
+      const url = import.meta.env.VITE_SUPABASE_URL;
+      const key = import.meta.env.VITE_SUPABASE_KEY;
+      await initLockService(url && key ? { url, key } : null);
+      
+      // Charger les données
       const { loadCompletePlanningData } = await import('@/utils/remoteStore');
       const restoredData = await loadCompletePlanningData();
       
