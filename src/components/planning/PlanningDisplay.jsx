@@ -866,8 +866,8 @@ const PlanningDisplay = ({
         idx === slotIndex ? (forceValue !== null ? forceValue : !val) : val
       );
       
-      // SAUVEGARDE AUTOMATIQUE IMMÉDIATE
-      if (selectedShop && selectedWeek) {
+      // SAUVEGARDE AUTOMATIQUE IMMÉDIATE (seulement si on a la main)
+      if (selectedShop && selectedWeek && !isReadOnly) {
         try {
           const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
           setPlanningData(updatedPlanningData);
