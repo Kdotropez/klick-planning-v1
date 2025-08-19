@@ -5,6 +5,8 @@
 // - releaseLock(shopId, weekKey, userId)
 // - getLock(shopId, weekKey)
 // - heartbeat(shopId, weekKey, userId)
+// - forceRelease(shopId, weekKey, userId)
+// - checkForceReleaseRequest(shopId, weekKey, userId)
 
 let supabase = null;
 let useSupabase = false;
@@ -28,6 +30,7 @@ export const initLockService = async (config) => {
 };
 
 const localKey = (shopId, weekKey) => `lock_${shopId}_${weekKey}`;
+const forceReleaseKey = (shopId, weekKey) => `force_release_${shopId}_${weekKey}`;
 
 const nowIso = () => new Date().toISOString();
 
@@ -91,7 +94,15 @@ export const acquireLock = async (shopId, weekKey, userId, ttlMs = 5 * 60 * 1000
   
   if (useSupabase) {
     try {
-      const { error } = await supabase.from('planning_locks').upsert(lock, { onConflict: 'shop_id,week_key' });
+      // Supprimer d'abord l'ancien verrou s'il existe
+      await supabase
+        .from('planning_locks')
+        .delete()
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey);
+      
+      // Insérer le nouveau verrou
+      const { error } = await supabase.from('planning_locks').insert(lock);
       if (error) {
         console.error('❌ Erreur acquireLock Supabase:', error);
         return { ok: false, lock: null };
@@ -110,30 +121,163 @@ export const acquireLock = async (shopId, weekKey, userId, ttlMs = 5 * 60 * 1000
 };
 
 export const releaseLock = async (shopId, weekKey, userId) => {
+  console.log('🔓 releaseLock appelé:', { shopId, weekKey, userId, useSupabase });
+  
   const existing = await getLock(shopId, weekKey);
-  if (existing && existing.user_id !== userId) return { ok: false };
+  if (existing && existing.user_id !== userId) {
+    console.log('❌ Tentative de libération par un utilisateur non autorisé:', userId);
+    return { ok: false };
+  }
+  
   if (useSupabase) {
-    await supabase
-      .from('planning_locks')
-      .delete()
-      .eq('shop_id', shopId)
-      .eq('week_key', weekKey);
+    try {
+      const { error } = await supabase
+        .from('planning_locks')
+        .delete()
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey);
+      
+      if (error) {
+        console.error('❌ Erreur releaseLock Supabase:', error);
+        return { ok: false };
+      }
+      console.log('✅ Verrou libéré avec Supabase');
+    } catch (error) {
+      console.error('❌ Exception releaseLock Supabase:', error);
+      return { ok: false };
+    }
   } else {
     localStorage.removeItem(localKey(shopId, weekKey));
+    console.log('✅ Verrou libéré avec localStorage');
   }
+  
   return { ok: true };
 };
 
 export const heartbeat = async (shopId, weekKey, userId) => {
   const existing = await getLock(shopId, weekKey);
   if (!existing || existing.user_id !== userId) return { ok: false };
+  
   existing.updated_at = nowIso();
+  
   if (useSupabase) {
-    await supabase.from('planning_locks').upsert(existing, { onConflict: 'shop_id,week_key' });
+    try {
+      const { error } = await supabase
+        .from('planning_locks')
+        .update({ updated_at: existing.updated_at })
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey);
+      
+      if (error) {
+        console.error('❌ Erreur heartbeat Supabase:', error);
+        return { ok: false };
+      }
+    } catch (error) {
+      console.error('❌ Exception heartbeat Supabase:', error);
+      return { ok: false };
+    }
   } else {
     localStorage.setItem(localKey(shopId, weekKey), JSON.stringify(existing));
   }
+  
   return { ok: true };
+};
+
+// Nouvelle fonction pour forcer la libération d'un verrou
+export const forceRelease = async (shopId, weekKey, userId) => {
+  console.log('🔓 forceRelease appelé:', { shopId, weekKey, userId, useSupabase });
+  
+  if (useSupabase) {
+    try {
+      // Créer une notification de force release
+      const { error: notifyError } = await supabase
+        .from('planning_locks')
+        .upsert({
+          shop_id: shopId,
+          week_key: weekKey,
+          user_id: userId,
+          force_release_request: nowIso(),
+          created_at: nowIso(),
+          updated_at: nowIso()
+        }, { onConflict: 'shop_id,week_key' });
+      
+      if (notifyError) {
+        console.error('❌ Erreur notification force release Supabase:', notifyError);
+      }
+      
+      // Attendre un peu puis forcer la libération
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // Supprimer le verrou
+      const { error } = await supabase
+        .from('planning_locks')
+        .delete()
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey);
+      
+      if (error) {
+        console.error('❌ Erreur forceRelease Supabase:', error);
+        return { ok: false };
+      }
+      
+      console.log('✅ Force release réussi avec Supabase');
+      return { ok: true };
+    } catch (error) {
+      console.error('❌ Exception forceRelease Supabase:', error);
+      return { ok: false };
+    }
+  } else {
+    // Fallback localStorage
+    localStorage.removeItem(localKey(shopId, weekKey));
+    localStorage.setItem(forceReleaseKey(shopId, weekKey), nowIso());
+    console.log('✅ Force release réussi avec localStorage');
+    return { ok: true };
+  }
+};
+
+// Nouvelle fonction pour vérifier les demandes de force release
+export const checkForceReleaseRequest = async (shopId, weekKey, userId) => {
+  if (useSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from('planning_locks')
+        .select('force_release_request')
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey)
+        .eq('user_id', userId)
+        .not('force_release_request', 'is', null)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Erreur checkForceReleaseRequest Supabase:', error);
+        return null;
+      }
+      
+      if (data && data.force_release_request) {
+        // Supprimer la notification après l'avoir lue
+        await supabase
+          .from('planning_locks')
+          .update({ force_release_request: null })
+          .eq('shop_id', shopId)
+          .eq('week_key', weekKey);
+        
+        return data.force_release_request;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Exception checkForceReleaseRequest Supabase:', error);
+      return null;
+    }
+  } else {
+    // Fallback localStorage
+    const requestTime = localStorage.getItem(forceReleaseKey(shopId, weekKey));
+    if (requestTime) {
+      localStorage.removeItem(forceReleaseKey(shopId, weekKey));
+      return requestTime;
+    }
+    return null;
+  }
 };
 
 

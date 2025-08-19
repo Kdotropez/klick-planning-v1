@@ -24,7 +24,7 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock } from '@/utils/collabLock';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest } from '@/utils/collabLock';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -488,29 +488,16 @@ const PlanningDisplay = ({
             setIsReadOnly(true);
             setLockInfo(currentLock);
           } else if (currentLock.user_id === currentUserId) {
-            // Vérifier si quelqu'un a tenté de forcer la libération
-            const lastAttempt = localStorage.getItem(`lock_attempt_${selectedShop}_${validWeek}`);
-            if (lastAttempt) {
-              const attemptTime = new Date(lastAttempt).getTime();
-              if (Date.now() - attemptTime < 5000) { // Dans les 5 dernières secondes
-                setLocalFeedback('⚠️ ATTENTION : Quelqu\'un a tenté de forcer la libération du verrou !');
-                localStorage.removeItem(`lock_attempt_${selectedShop}_${validWeek}`);
-              }
-            }
-            
-            // Vérifier si quelqu'un demande une sauvegarde forcée
-            const saveRequest = localStorage.getItem(`force_save_request_${selectedShop}_${validWeek}`);
-            if (saveRequest) {
-              const requestTime = new Date(saveRequest).getTime();
-              if (Date.now() - requestTime < 15000) { // Dans les 15 dernières secondes
-                if (window.confirm('🚨 URGENT : Un autre utilisateur veut forcer la libération du verrou !\n\nVoulez-vous sauvegarder votre travail maintenant ?\n\nCliquez "OK" pour sauvegarder, "Annuler" pour ignorer.')) {
-                  // Sauvegarder automatiquement
-                  handleManualSave();
-                  setLocalFeedback('💾 Travail sauvegardé automatiquement suite à la demande.');
-                } else {
-                  setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
-                }
-                localStorage.removeItem(`force_save_request_${selectedShop}_${validWeek}`);
+            // Vérifier les demandes de force release via Supabase
+            const forceReleaseRequest = await checkForceReleaseRequest(selectedShop, validWeek, currentUserId);
+            if (forceReleaseRequest) {
+              console.log('🚨 Demande de force release détectée:', forceReleaseRequest);
+              if (window.confirm('🚨 URGENT : Un autre utilisateur veut forcer la libération du verrou !\n\nVoulez-vous sauvegarder votre travail maintenant ?\n\nCliquez "OK" pour sauvegarder, "Annuler" pour ignorer.')) {
+                // Sauvegarder automatiquement
+                handleManualSave();
+                setLocalFeedback('💾 Travail sauvegardé automatiquement suite à la demande.');
+              } else {
+                setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
               }
             }
           }
@@ -2900,42 +2887,32 @@ const PlanningDisplay = ({
                   setTimeout(async () => {
                     try {
                       console.log('🔓 Force release du verrou');
-                      
-                      // Enregistrer la tentative de force release pour notifier l'autre utilisateur
-                      localStorage.setItem(`lock_attempt_${selectedShop}_${validWeek}`, new Date().toISOString());
-                      
-                      // Demander à l'utilisateur distant de sauvegarder
-                      localStorage.setItem(`force_save_request_${selectedShop}_${validWeek}`, new Date().toISOString());
-                      
-                      // Attendre 10 secondes pour laisser le temps de sauvegarder
                       setLocalFeedback('⏳ Demande de sauvegarde envoyée à l\'utilisateur distant...');
                       
-                      setTimeout(async () => {
-                        try {
-                          await releaseLock(selectedShop, validWeek, currentUserId);
-                          
-                          // Attendre un peu puis réessayer d'acquérir le verrou
-                          setTimeout(async () => {
-                            try {
-                              const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
-                              setLockInfo(lock || null);
-                              setIsReadOnly(!ok && lock?.user_id !== currentUserId);
-                              if (ok) {
-                                console.log('✅ Verrou forcé avec succès');
-                                if (hbRef.current) clearInterval(hbRef.current);
-                                hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
-                                setLocalFeedback('✅ Verrou forcé ! Vous avez maintenant la main.');
-                              }
-                            } catch (error) {
-                              console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);
-                              setLocalFeedback('❌ Erreur lors de l\'acquisition du verrou');
+                      // Utiliser la nouvelle fonction forceRelease
+                      const { ok } = await forceRelease(selectedShop, validWeek, currentUserId);
+                      
+                      if (ok) {
+                        // Attendre un peu puis réessayer d'acquérir le verrou
+                        setTimeout(async () => {
+                          try {
+                            const { ok: acquireOk, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                            setLockInfo(lock || null);
+                            setIsReadOnly(!acquireOk && lock?.user_id !== currentUserId);
+                            if (acquireOk) {
+                              console.log('✅ Verrou forcé avec succès');
+                              if (hbRef.current) clearInterval(hbRef.current);
+                              hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                              setLocalFeedback('✅ Verrou forcé ! Vous avez maintenant la main.');
                             }
-                          }, 1000);
-                        } catch (error) {
-                          console.error('❌ Erreur lors de la libération du verrou:', error);
-                          setLocalFeedback('❌ Erreur lors de la libération du verrou');
-                        }
-                      }, 10000);
+                          } catch (error) {
+                            console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);
+                            setLocalFeedback('❌ Erreur lors de l\'acquisition du verrou');
+                          }
+                        }, 2000);
+                      } else {
+                        setLocalFeedback('❌ Échec du force release');
+                      }
                     } catch (error) {
                       console.error('❌ Erreur lors du force release:', error);
                       setLocalFeedback('❌ Erreur lors du force release');
