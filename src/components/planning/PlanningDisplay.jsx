@@ -487,6 +487,16 @@ const PlanningDisplay = ({
           } else if (currentLock.user_id !== currentUserId) {
             setIsReadOnly(true);
             setLockInfo(currentLock);
+          } else if (currentLock.user_id === currentUserId) {
+            // Vérifier si quelqu'un a tenté de forcer la libération
+            const lastAttempt = localStorage.getItem(`lock_attempt_${selectedShop}_${validWeek}`);
+            if (lastAttempt) {
+              const attemptTime = new Date(lastAttempt).getTime();
+              if (Date.now() - attemptTime < 5000) { // Dans les 5 dernières secondes
+                setLocalFeedback('⚠️ ATTENTION : Quelqu\'un a tenté de forcer la libération du verrou !');
+                localStorage.removeItem(`lock_attempt_${selectedShop}_${validWeek}`);
+              }
+            }
           }
         }
       }
@@ -2832,7 +2842,9 @@ const PlanningDisplay = ({
       }}>
         {isReadOnly ? (
           <>
-            <span>🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.</span>
+            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
+              🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.
+            </span>
             <button
               onClick={async () => {
                 console.log('🔒 Tentative de demande de la main');
@@ -2854,10 +2866,40 @@ const PlanningDisplay = ({
             >
               Demander la main
             </button>
+            <button
+              onClick={async () => {
+                if (window.confirm('⚠️ FORCER LA LIBÉRATION\n\nCette action va forcer la libération du verrou même s\'il est détenu par un autre utilisateur.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+                  console.log('🔓 Force release du verrou');
+                  
+                  // Enregistrer la tentative de force release pour notifier l'autre utilisateur
+                  localStorage.setItem(`lock_attempt_${selectedShop}_${validWeek}`, new Date().toISOString());
+                  
+                  await releaseLock(selectedShop, validWeek, currentUserId);
+                  
+                  // Attendre un peu puis réessayer d'acquérir le verrou
+                  setTimeout(async () => {
+                    const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                    setLockInfo(lock || null);
+                    setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+                    if (ok) {
+                      console.log('✅ Verrou forcé avec succès');
+                      if (hbRef.current) clearInterval(hbRef.current);
+                      hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                      setLocalFeedback('✅ Verrou forcé ! Vous avez maintenant la main.');
+                    }
+                  }, 1000);
+                }
+              }}
+              style={{ background: '#dc3545', color: 'white', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', marginLeft: '5px' }}
+            >
+              Forcer la libération
+            </button>
           </>
         ) : (
           <>
-            <span>🟢 Vous avez la main.</span>
+            <span style={{ color: '#28a745', fontWeight: 'bold' }}>
+              🟢 Vous avez la main.
+            </span>
             <button
               onClick={async () => {
                 if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
