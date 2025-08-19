@@ -113,32 +113,17 @@ export const saveCompletePlanningData = async (completePlanningData) => {
   }
   
   try {
-    // Supprimer toutes les données existantes
-    console.log('🗑️ Suppression des données existantes...');
-    const { error: deleteError } = await supabase
-      .from('plannings')
-      .delete()
-      .neq('shop_id', ''); // Supprimer toutes les lignes
-    
-    if (deleteError) {
-      console.error('❌ Erreur lors de la suppression:', deleteError);
-      return false;
-    }
-    
-    // Sauvegarder le fichier complet en une seule ligne
+    // Sauvegarder le fichier complet en une seule ligne, sans supprimer les semaines
     const row = {
       shop_id: 'complete_file',
       week_key: 'all_data',
       data: completePlanningData,
       version: 1
     };
-    
-    console.log('📦 Sauvegarde du fichier complet...');
-    
-    // Insérer le fichier complet
+    console.log('📦 Upsert du fichier complet (complete_file)...');
     const { data, error } = await supabase
       .from('plannings')
-      .insert(row);
+      .upsert(row, { onConflict: 'shop_id,week_key' });
     
     if (error) {
       console.error('❌ Erreur lors de l\'insertion:', error);
@@ -170,24 +155,40 @@ export const loadCompletePlanningData = async () => {
   }
   
   try {
-    const { data, error } = await supabase
+    // 1) Essayer de charger la ligne de backup complète dédiée
+    const { data: completeRow, error: completeErr } = await supabase
       .from('plannings')
       .select('*')
-      .order('shop_id', { ascending: true });
-    
-    if (error) {
-      console.error('❌ Erreur lors du chargement:', error);
+      .eq('shop_id', 'complete_file')
+      .eq('week_key', 'all_data')
+      .maybeSingle();
+    if (completeErr) {
+      console.warn('⚠️ loadCompletePlanningData: échec lecture complete_file, on tente le fallback:', completeErr);
+    }
+    if (completeRow && completeRow.data) {
+      const planningData = completeRow.data;
+      console.log('✅ loadCompletePlanningData (complete_file) OK:', {
+        shops: planningData.shops?.length || 0,
+        version: planningData.version,
+        dataKeys: Object.keys(planningData)
+      });
+      return planningData;
+    }
+    // 2) Fallback: prendre la ligne la plus récente par updated_at
+    const { data: latestRows, error: latestErr } = await supabase
+      .from('plannings')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (latestErr) {
+      console.error('❌ Erreur lors du chargement (fallback):', latestErr);
       return null;
     }
-    
-    if (!data || data.length === 0) {
+    if (!latestRows || latestRows.length === 0) {
       console.log('❌ Aucune donnée trouvée dans Supabase');
       return null;
     }
-    
-    // Prendre la première ligne pour récupérer la structure complète
-    const firstRow = data[0];
-    const planningData = firstRow.data;
+    const planningData = latestRows[0].data;
     
     console.log('✅ loadCompletePlanningData success:', {
       shops: planningData.shops?.length || 0,

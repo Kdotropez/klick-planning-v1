@@ -218,16 +218,17 @@ const PlanningMenuBar = ({
       </div>
 
       {toolbarMode === 'smart' ? (
-        // Mode intelligent: un seul conteneur en grille à 2 rangées max
+        // Mode intelligent: grille stricte 7x2, boutons étirés, pas de débordement
         <div style={{ 
           display: 'grid',
-          gridAutoFlow: 'column',
-          gridTemplateRows: 'repeat(2, auto)',
-          justifyContent: 'flex-start',
-          gap: '12px',
-          overflowX: 'auto',
-          alignItems: 'center',
-          paddingBottom: '2px'
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateRows: 'repeat(2, minmax(50px, auto))',
+          gridAutoFlow: 'row',
+          justifyItems: 'stretch',
+          alignItems: 'stretch',
+          gap: '10px',
+          overflowX: 'hidden',
+          paddingBottom: '4px'
         }}>
           <Button
             className="button-primary"

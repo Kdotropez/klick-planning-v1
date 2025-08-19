@@ -115,7 +115,7 @@ const PlanningDisplay = ({
   const [localSelectedEmployees, setLocalSelectedEmployees] = useState(() => {
     return Array.isArray(selectedEmployees) && selectedEmployees.length > 0
       ? selectedEmployees
-      : (currentShopEmployees || []).map(e => e.id);
+      : [];
   });
   
   // Démarrer la file d'attente de synchro distante (mode hybride)
