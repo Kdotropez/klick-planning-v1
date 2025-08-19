@@ -296,28 +296,12 @@ export const forceRelease = async (shopId, weekKey, userId) => {
       try {
         console.log('🔍 checkMainRequest appelé pour:', { shopId, weekKey, userId });
         
-        // D'abord, vérifier si l'utilisateur actuel a bien la main
-        const currentLock = await getLock(shopId, weekKey);
-        console.log('🔍 Verrou actuel pour la vérification:', currentLock);
-        
-        if (!currentLock) {
-          console.log('🔍 Aucun verrou actuel, pas de vérification de demande');
-          return null;
-        }
-        
-        // Vérifier si l'utilisateur actuel a la main
-        if (currentLock.user_id !== userId) {
-          console.log('🔍 Utilisateur actuel n\'a pas la main, pas de vérification de demande');
-          return null;
-        }
-        
-        // Maintenant vérifier s'il y a une demande de main pour cet utilisateur
+        // Interroger directement le verrou pour récupérer user_id et main_request
         const { data, error } = await supabase
           .from('planning_locks')
-          .select('main_request')
+          .select('user_id, main_request')
           .eq('shop_id', shopId)
           .eq('week_key', weekKey)
-          .not('main_request', 'is', null)
           .maybeSingle();
         
         if (error) {
@@ -327,9 +311,10 @@ export const forceRelease = async (shopId, weekKey, userId) => {
         
         console.log('🔍 Résultat checkMainRequest:', data);
         
-        if (data && data.main_request) {
-          console.log('🤝 Demande de main détectée pour:', userId);
-          // Supprimer la notification après l'avoir lue
+        // On ne notifie que si CE client détient réellement le verrou et qu'une demande existe
+        if (data && data.user_id === userId && data.main_request) {
+          console.log('🤝 Demande de main détectée pour le détenteur:', userId);
+          // Supprimer la notification après lecture
           await supabase
             .from('planning_locks')
             .update({ main_request: null })
