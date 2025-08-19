@@ -87,6 +87,7 @@ const PlanningDisplay = ({
   const [lockInfo, setLockInfo] = useState(null);
   const currentUserIdRef = useRef(null);
   const hbRef = useRef(null);
+  const autoSaveRef = useRef(null);
   if (!currentUserIdRef.current) {
     try {
       const stored = localStorage.getItem('user_id');
@@ -467,6 +468,31 @@ const PlanningDisplay = ({
         console.log('✅ Verrou acquis avec succès');
         if (hbRef.current) clearInterval(hbRef.current);
         hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000); // 30s au lieu de 2min
+        
+        // Démarrer la sauvegarde automatique toutes les 3 minutes
+        if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+        autoSaveRef.current = setInterval(async () => {
+          try {
+            console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
+            if (selectedShop && selectedWeek) {
+              const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+              setPlanningData(updatedPlanningData);
+              
+              // Sauvegarder dans Supabase
+              const remoteResult = await saveCompletePlanningData(updatedPlanningData);
+              if (remoteResult) {
+                console.log('✅ Sauvegarde automatique Supabase réussie');
+                setLocalFeedback('💾 Sauvegarde automatique effectuée');
+              } else {
+                console.log('❌ Échec sauvegarde automatique Supabase');
+                setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+              }
+            }
+          } catch (error) {
+            console.error('❌ Erreur lors de la sauvegarde automatique:', error);
+            setLocalFeedback('❌ Erreur sauvegarde automatique');
+          }
+        }, 3 * 60 * 1000); // 3 minutes
       } else if (lock) {
         console.log('❌ Verrou détenu par:', lock.user_id);
         setLocalFeedback(`🔒 Lecture seule: ${lock.user_id} édite actuellement ce planning`);
@@ -514,6 +540,7 @@ const PlanningDisplay = ({
               setTimeout(async () => {
                 try {
                   if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                  if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
                   await releaseLock(selectedShop, validWeek, currentUserId);
                   setIsReadOnly(true);
                   setLockInfo(null);
@@ -532,6 +559,10 @@ const PlanningDisplay = ({
       if (hbRef.current) {
         clearInterval(hbRef.current);
         hbRef.current = null;
+      }
+      if (autoSaveRef.current) {
+        clearInterval(autoSaveRef.current);
+        autoSaveRef.current = null;
       }
       clearInterval(checkInterval);
       if (selectedShop && validWeek) {
@@ -2894,6 +2925,32 @@ const PlanningDisplay = ({
                             setIsReadOnly(false);
                             if (hbRef.current) clearInterval(hbRef.current);
                             hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                            
+                            // Démarrer la sauvegarde automatique toutes les 3 minutes
+                            if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+                            autoSaveRef.current = setInterval(async () => {
+                              try {
+                                console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
+                                if (selectedShop && selectedWeek) {
+                                  const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                                  setPlanningData(updatedPlanningData);
+                                  
+                                  // Sauvegarder dans Supabase
+                                  const remoteResult = await saveCompletePlanningData(updatedPlanningData);
+                                  if (remoteResult) {
+                                    console.log('✅ Sauvegarde automatique Supabase réussie');
+                                    setLocalFeedback('💾 Sauvegarde automatique effectuée');
+                                  } else {
+                                    console.log('❌ Échec sauvegarde automatique Supabase');
+                                    setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                                  }
+                                }
+                              } catch (error) {
+                                console.error('❌ Erreur lors de la sauvegarde automatique:', error);
+                                setLocalFeedback('❌ Erreur sauvegarde automatique');
+                              }
+                            }, 3 * 60 * 1000); // 3 minutes
+                            
                             setLocalFeedback('✅ Main obtenue avec succès ! Rechargement des données...');
                             
                             // Recharger les données depuis Supabase
@@ -2959,6 +3016,32 @@ const PlanningDisplay = ({
                               console.log('✅ Verrou forcé avec succès');
                               if (hbRef.current) clearInterval(hbRef.current);
                               hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                              
+                              // Démarrer la sauvegarde automatique toutes les 3 minutes
+                              if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+                              autoSaveRef.current = setInterval(async () => {
+                                try {
+                                  console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
+                                  if (selectedShop && selectedWeek) {
+                                    const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                                    setPlanningData(updatedPlanningData);
+                                    
+                                    // Sauvegarder dans Supabase
+                                    const remoteResult = await saveCompletePlanningData(updatedPlanningData);
+                                    if (remoteResult) {
+                                      console.log('✅ Sauvegarde automatique Supabase réussie');
+                                      setLocalFeedback('💾 Sauvegarde automatique effectuée');
+                                    } else {
+                                      console.log('❌ Échec sauvegarde automatique Supabase');
+                                      setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                                    }
+                                  }
+                                } catch (error) {
+                                  console.error('❌ Erreur lors de la sauvegarde automatique:', error);
+                                  setLocalFeedback('❌ Erreur sauvegarde automatique');
+                                }
+                              }, 3 * 60 * 1000); // 3 minutes
+                              
                               setLocalFeedback('✅ Verrou forcé ! Rechargement des données...');
                               
                               // Recharger les données depuis Supabase
@@ -3012,6 +3095,7 @@ const PlanningDisplay = ({
                 setTimeout(async () => {
                   try {
                     if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
                     await releaseLock(selectedShop, validWeek, currentUserId);
                     setIsReadOnly(true);
                     setLockInfo(null);
