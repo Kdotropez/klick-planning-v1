@@ -59,6 +59,7 @@ const PlanningMenuBar = ({
   testSupabase,
   cleanSupabaseData,
   diagnoseSupabase,
+  forceReleaseLock,
   // Sync/Outbox (optionnels)
   outboxSize = 0,
   onForceSync
@@ -388,6 +389,9 @@ const PlanningMenuBar = ({
             </MenuItem>
             <MenuItem onClick={diagnoseSupabase}>
               🔧 Diagnostic Supabase
+            </MenuItem>
+            <MenuItem onClick={forceReleaseLock}>
+              🔓 Forcer libération verrou
             </MenuItem>
             <MenuItem onClick={() => {}}>
               🧹 Nettoyer cache

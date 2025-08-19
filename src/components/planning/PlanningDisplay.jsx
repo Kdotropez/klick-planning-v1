@@ -471,7 +471,16 @@ const PlanningDisplay = ({
       console.log('🔒 Résultat acquisition verrou:', { ok, lock });
       
       setLockInfo(lock || null);
-      setIsReadOnly(!ok && lock?.user_id !== currentUserId);
+      // isReadOnly = true si on n'a pas le verrou ET si le verrou appartient à quelqu'un d'autre
+      const shouldBeReadOnly = !ok && lock?.user_id !== currentUserId;
+      setIsReadOnly(shouldBeReadOnly);
+      console.log('🔒 État lecture seule:', { 
+        ok, 
+        lockUserId: lock?.user_id, 
+        currentUserId, 
+        shouldBeReadOnly,
+        isReadOnly: shouldBeReadOnly 
+      });
       
       if (ok) {
         console.log('✅ Verrou acquis avec succès');
@@ -523,7 +532,11 @@ const PlanningDisplay = ({
           } else if (currentLock.user_id !== currentUserId) {
             setIsReadOnly(true);
             setLockInfo(currentLock);
+            console.log('🔒 Verrou détenu par un autre utilisateur:', currentLock.user_id);
           } else if (currentLock.user_id === currentUserId) {
+            // On a le verrou, s'assurer qu'on n'est pas en lecture seule
+            setIsReadOnly(false);
+            console.log('🔓 On a le verrou, lecture seule désactivée');
             // Vérifier les demandes de force release via Supabase
             const forceReleaseRequest = await checkForceReleaseRequest(selectedShop, validWeek, currentUserId);
             if (forceReleaseRequest) {
@@ -1015,6 +1028,25 @@ const PlanningDisplay = ({
       setLocalFeedback('❌ Erreur diagnostic Supabase');
     }
   }, []);
+
+  // Fonction pour forcer la libération du verrou
+  const forceReleaseLock = useCallback(async () => {
+    try {
+      console.log('🔓 Force release du verrou...');
+      const { forceRelease } = await import('@/utils/collabLock');
+      const result = await forceRelease(selectedShop, selectedWeek, currentUserId);
+      if (result) {
+        setLocalFeedback('🔓 Verrou libéré avec force');
+        setIsReadOnly(false);
+        setLockInfo(null);
+      } else {
+        setLocalFeedback('❌ Échec libération forcée');
+      }
+    } catch (error) {
+      console.error('❌ Erreur force release:', error);
+      setLocalFeedback('❌ Erreur force release');
+    }
+  }, [selectedShop, selectedWeek, currentUserId]);
 
   // Fonction pour nettoyer Supabase
   const cleanSupabaseData = useCallback(async () => {
@@ -1721,6 +1753,7 @@ const PlanningDisplay = ({
             testSupabase={testSupabase}
             cleanSupabaseData={cleanSupabaseData}
             diagnoseSupabase={diagnoseSupabase}
+            forceReleaseLock={forceReleaseLock}
           />
         </div>
       ) : (
