@@ -268,6 +268,30 @@ const App = () => {
   const handleRestoreFromSupabase = async () => {
     try {
       console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
+      
+      // Vérifier s'il y a des données locales non sauvegardées
+      const localData = localStorage.getItem('planningData');
+      if (localData && planningData && Object.keys(planningData).length > 0) {
+        const hasLocalChanges = window.confirm(
+          '⚠️ ATTENTION : Vous avez des modifications locales non sauvegardées.\n\n' +
+          'La restauration depuis Supabase va écraser vos modifications locales.\n\n' +
+          'Voulez-vous d\'abord sauvegarder vos modifications locales ?\n\n' +
+          'Cliquez "OK" pour sauvegarder d\'abord, "Annuler" pour restaurer directement.'
+        );
+        
+        if (hasLocalChanges) {
+          setFeedback('💾 Sauvegarde de vos modifications locales...');
+          // Sauvegarder les données locales dans Supabase
+          const { saveCompletePlanningData } = await import('@/utils/remoteStore');
+          const saveResult = await saveCompletePlanningData(planningData);
+          if (saveResult) {
+            setFeedback('✅ Modifications locales sauvegardées ! Restauration depuis Supabase...');
+          } else {
+            setFeedback('⚠️ Échec de la sauvegarde locale. Restauration depuis Supabase...');
+          }
+        }
+      }
+      
       setFeedback('⏳ Chargement depuis Supabase...');
       
       // Charger les données depuis Supabase
@@ -790,21 +814,33 @@ const App = () => {
                 (async () => {
                   // Tentative de chargement distant
                   const remote = await loadRemotePlanning(selectedShop, week);
-                  if (remote && remote.planning) {
+                  
+                  // Récupérer les données locales
+                  const shop = planningData.shops.find(s => s.id === selectedShop);
+                  const localWeekData = shop && shop.weeks && shop.weeks[week] ? shop.weeks[week] : null;
+                  
+                  // Comparer les timestamps pour choisir les données les plus récentes
+                  if (remote && remote.planning && localWeekData && localWeekData.planning) {
+                    const remoteTimestamp = remote.updated_at || remote.created_at || 0;
+                    const localTimestamp = localWeekData.updated_at || localWeekData.created_at || 0;
+                    
+                    if (localTimestamp > remoteTimestamp) {
+                      console.log('📊 Données locales plus récentes, utilisation des données locales');
+                      setPlanning(localWeekData.planning);
+                      if (localWeekData.selectedEmployees) setSelectedEmployees(localWeekData.selectedEmployees);
+                    } else {
+                      console.log('📊 Données distantes plus récentes, utilisation des données distantes');
+                      setPlanning(remote.planning);
+                      if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
+                    }
+                  } else if (remote && remote.planning) {
+                    console.log('📊 Utilisation des données distantes (pas de données locales)');
                     setPlanning(remote.planning);
                     if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
-                  } else {
-                    // Fallback local
-                    const shop = planningData.shops.find(s => s.id === selectedShop);
-                    if (shop && shop.weeks && shop.weeks[week]) {
-                      const weekData = shop.weeks[week];
-                      if (weekData.planning) {
-                        setPlanning(weekData.planning);
-                      }
-                      if (weekData.selectedEmployees) {
-                        setSelectedEmployees(weekData.selectedEmployees);
-                      }
-                    }
+                  } else if (localWeekData && localWeekData.planning) {
+                    console.log('📊 Utilisation des données locales (pas de données distantes)');
+                    setPlanning(localWeekData.planning);
+                    if (localWeekData.selectedEmployees) setSelectedEmployees(localWeekData.selectedEmployees);
                   }
                 })();
               }

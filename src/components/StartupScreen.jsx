@@ -789,7 +789,7 @@ const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalSt
                     ))}
                   </select>
                   <Button
-                    onClick={() => {
+                    onClick={async () => {
                       console.log('🔘 Bouton cliqué, selectedRemoteShopId:', selectedRemoteShopId);
                       console.log('🔘 onRestoreFromSupabase type:', typeof onRestoreFromSupabase);
                       console.log('🔘 onStartWithShop type:', typeof onStartWithShop);
