@@ -227,22 +227,6 @@ const App = () => {
   const handleRestoreFromSupabase = async () => {
     console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
     
-    // Vérifier s'il y a des données locales
-    const localData = localStorage.getItem('planningData');
-    if (localData && planningData && Object.keys(planningData).length > 0) {
-      const confirmed = window.confirm(
-        '⚠️ ATTENTION : Vous avez des modifications locales.\n\n' +
-        'La restauration va écraser vos modifications locales.\n\n' +
-        'Voulez-vous continuer ?\n\n' +
-        'Cliquez "OK" pour continuer, "Annuler" pour arrêter.'
-      );
-      
-      if (!confirmed) {
-        setFeedback('❌ Restauration annulée.');
-        return;
-      }
-    }
-    
     setFeedback('⏳ Chargement depuis Supabase...');
     
     try {
