@@ -57,7 +57,10 @@ const PlanningMenuBar = ({
   showCalendarTotals,
   onCreateJSONBackup,
   testSupabase,
-  cleanSupabaseData
+  cleanSupabaseData,
+  // Sync/Outbox (optionnels)
+  outboxSize = 0,
+  onForceSync
 }) => {
   const [openMenus, setOpenMenus] = useState({
     tools: false,
@@ -107,7 +110,7 @@ const PlanningMenuBar = ({
     event.target.value = '';
   };
 
-  const MenuButton = ({ icon, label, isOpen, onClick, children }) => (
+  const MenuButton = ({ icon, label, isOpen, onClick, children, badge }) => (
     <div style={{ position: 'relative' }}>
       <Button
         className="menu-button"
@@ -123,8 +126,8 @@ const PlanningMenuBar = ({
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          minWidth: '140px',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          whiteSpace: 'nowrap'
         }}
         onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
         onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
@@ -135,6 +138,7 @@ const PlanningMenuBar = ({
         </div>
         {isOpen ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
       </Button>
+      {badge}
       
       {isOpen && (
         <div
@@ -214,219 +218,249 @@ const PlanningMenuBar = ({
       </div>
 
       {toolbarMode === 'smart' ? (
-        <>
-          {/* Boutons Principaux - Directement Visibles */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '10px', 
-            flexWrap: 'wrap',
-            alignItems: 'center'
-          }}>
-            <Button
-              className="button-primary"
-              onClick={() => setShowGlobalDayViewModalV2(true)}
-              style={{
-                backgroundColor: '#1e88e5',
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-            >
-              📊 Vue globale par jour
-            </Button>
+        // Mode intelligent: un seul conteneur en grille à 2 rangées max
+        <div style={{ 
+          display: 'grid',
+          gridAutoFlow: 'column',
+          gridTemplateRows: 'repeat(2, auto)',
+          justifyContent: 'flex-start',
+          gap: '12px',
+          overflowX: 'auto',
+          alignItems: 'center',
+          paddingBottom: '2px'
+        }}>
+          <Button
+            className="button-primary"
+            onClick={() => setShowGlobalDayViewModalV2(true)}
+            style={{
+              backgroundColor: '#1e88e5',
+              color: '#fff',
+              padding: '12px 18px',
+              fontSize: '15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+          >
+            📊 Vue globale par jour
+          </Button>
 
-            <Button
-              className="button-primary"
-              onClick={onExport}
-              style={{
-                backgroundColor: '#28a745',
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
-            >
-              <FaDownload /> Exporter les données
-            </Button>
+          <Button
+            className="button-primary"
+            onClick={onExport}
+            style={{
+              backgroundColor: '#28a745',
+              color: '#fff',
+              padding: '12px 18px',
+              fontSize: '15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+          >
+            <FaDownload /> Exporter les données
+          </Button>
 
-            <Button
-              className="button-primary"
-              onClick={handleManualSave}
-              style={{
-                backgroundColor: '#17a2b8',
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#138496'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
-            >
-              💾 Sauvegarder
-            </Button>
+          <Button
+            className="button-primary"
+            onClick={handleManualSave}
+            style={{
+              backgroundColor: '#17a2b8',
+              color: '#fff',
+              padding: '12px 18px',
+              fontSize: '15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#138496'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
+          >
+            💾 SAUVE SUPABASE
+          </Button>
 
-            <Button
-              className="button-primary"
-              onClick={onCreateJSONBackup}
-              style={{
-                backgroundColor: '#20c997',
-                color: '#fff',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#20c997'}
-            >
-              📦 JSON
-            </Button>
+          <Button
+            className="button-primary"
+            onClick={onCreateJSONBackup}
+            style={{
+              backgroundColor: '#20c997',
+              color: '#fff',
+              padding: '12px 18px',
+              fontSize: '15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#20c997'}
+          >
+            📦 JSON
+          </Button>
 
-            <Button
-              className="button-primary"
-              onClick={handleImportClick}
-              style={{
-                backgroundColor: '#ffc107',
-                color: '#212529',
-                padding: '10px 16px',
-                fontSize: '14px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
-            >
-              📥 Importer les données
-            </Button>
-          </div>
+          <Button
+            className="button-primary"
+            onClick={handleImportClick}
+            style={{
+              backgroundColor: '#ffc107',
+              color: '#212529',
+              padding: '12px 18px',
+              fontSize: '15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
+          >
+            📥 Importer les données
+          </Button>
 
-          {/* Menus Secondaires */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '10px', 
-            flexWrap: 'wrap'
-          }}>
-            {/* Menu Outils */}
-            <MenuButton
-              icon={<FaTools />}
-              label="Outils"
-              isOpen={openMenus.tools}
-              onClick={() => toggleMenu('tools')}
-            >
-              <MenuItem onClick={testSupabase}>
-                🧪 Test Supabase
-              </MenuItem>
-              <MenuItem onClick={cleanSupabaseData}>
-                🧹 Nettoyer Supabase
-              </MenuItem>
-              <MenuItem onClick={() => {}}>
-                🔧 Diagnostic données
-              </MenuItem>
-              <MenuItem onClick={() => {}}>
-                🧹 Nettoyer cache
-              </MenuItem>
-              <MenuItem onClick={() => {}}>
-                📋 Logs système
-              </MenuItem>
-            </MenuButton>
+          {/* Menus - intégrés dans la même grille */}
+          <MenuButton
+            icon={<FaTools />}
+            label="Outils"
+            isOpen={openMenus.tools}
+            onClick={() => toggleMenu('tools')}
+            badge={
+              outboxSize > 0 ? (
+                <span
+                  title={`Synchronisation en attente: ${outboxSize}`}
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ff9800'
+                  }}
+                />
+              ) : (
+                <span
+                  title="Synchronisation à jour"
+                  style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: '#4caf50'
+                  }}
+                />
+              )
+            }
+          >
+            <MenuItem onClick={() => onForceSync && onForceSync()}>
+              🔄 Forcer la synchro {outboxSize > 0 ? `(${outboxSize})` : ''}
+            </MenuItem>
+            <MenuItem onClick={testSupabase}>
+              🧪 Test Supabase
+            </MenuItem>
+            <MenuItem onClick={cleanSupabaseData}>
+              🧹 Nettoyer Supabase
+            </MenuItem>
+            <MenuItem onClick={() => {}}>
+              🔧 Diagnostic données
+            </MenuItem>
+            <MenuItem onClick={() => {}}>
+              🧹 Nettoyer cache
+            </MenuItem>
+            <MenuItem onClick={() => {}}>
+              📋 Logs système
+            </MenuItem>
+          </MenuButton>
 
-            {/* Menu Modules */}
-            <MenuButton
-              icon={<FaChartBar />}
-              label="Modules"
-              isOpen={openMenus.modules}
-              onClick={() => toggleMenu('modules')}
-            >
-              <MenuItem onClick={() => onOpenDashboard && onOpenDashboard()}>
-                📊 Ouvrir le Dashboard
-              </MenuItem>
-              <MenuItem onClick={() => onOpenShopStats && onOpenShopStats()}>
-                📈 Statistiques Boutique
-              </MenuItem>
-              <MenuItem onClick={() => onOpenGestion && onOpenGestion()}>
-                🛠️ Gestion Boutique
-              </MenuItem>
-              <MenuItem onClick={() => onOpenNotes && onOpenNotes()}>
-                📝 Notes
-              </MenuItem>
-            </MenuButton>
+          <MenuButton
+            icon={<FaChartBar />}
+            label="Modules"
+            isOpen={openMenus.modules}
+            onClick={() => toggleMenu('modules')}
+          >
+            <MenuItem onClick={() => onOpenDashboard && onOpenDashboard()}>
+              📊 Ouvrir le Dashboard
+            </MenuItem>
+            <MenuItem onClick={() => onOpenShopStats && onOpenShopStats()}>
+              📈 Statistiques Boutique
+            </MenuItem>
+            <MenuItem onClick={() => onOpenGestion && onOpenGestion()}>
+              🛠️ Gestion Boutique
+            </MenuItem>
+            <MenuItem onClick={() => onOpenNotes && onOpenNotes()}>
+              📝 Notes
+            </MenuItem>
+          </MenuButton>
 
-            {/* Sélecteur de retour */}
-            <MenuButton
-              icon={<FaArrowLeft />}
-              label="Retour"
-              isOpen={openMenus.retour}
-              onClick={() => toggleMenu('retour')}
-            >
-              <MenuItem onClick={onBackToStartup}>
-                🏠 Écran de démarrage
-              </MenuItem>
-              <MenuItem onClick={onBackToConfig}>
-                ⚙️ Configuration boutiques
-              </MenuItem>
-              <MenuItem onClick={onBack}>
-                👥 Gestion employés
-              </MenuItem>
-              <MenuItem onClick={onBackToShop}>
-                🏪 Sélection boutique
-              </MenuItem>
-              <MenuItem onClick={onBackToWeek}>
-                📅 Sélection semaine
-              </MenuItem>
-            </MenuButton>
-          </div>
-        </>
+          <MenuButton
+            icon={<FaArrowLeft />}
+            label="Retour"
+            isOpen={openMenus.retour}
+            onClick={() => toggleMenu('retour')}
+          >
+            <MenuItem onClick={onBackToStartup}>
+              🏠 Écran de démarrage
+            </MenuItem>
+            <MenuItem onClick={onBackToConfig}>
+              ⚙️ Configuration boutiques
+            </MenuItem>
+            <MenuItem onClick={onBack}>
+              👥 Gestion employés
+            </MenuItem>
+            <MenuItem onClick={onBackToShop}>
+              🏪 Sélection boutique
+            </MenuItem>
+            <MenuItem onClick={onBackToWeek}>
+              📅 Sélection semaine
+            </MenuItem>
+          </MenuButton>
+        </div>
       ) : (
         // Mode classique: tous les boutons à plat, sans menus
         <div style={{ 
-          display: 'flex', 
+          display: 'grid',
+          gridAutoFlow: 'column',
+          gridTemplateRows: 'repeat(2, auto)',
           justifyContent: 'center', 
-          gap: '10px', 
-          flexWrap: 'wrap',
+          gap: '12px', 
+          overflowX: 'auto',
           alignItems: 'center'
         }}>
-          <Button title="Vue globale par jour" onClick={() => setShowGlobalDayViewModalV2(true)}>📊 Vue globale</Button>
-          <Button title="Exporter" onClick={onExport}>⬇️ Exporter</Button>
-          <Button title="Sauvegarder" onClick={handleManualSave}>💾 Sauvegarder</Button>
-          <Button title="Importer" onClick={handleImportClick}>📥 Importer</Button>
-          <Button title="Diagnostic" onClick={() => {}}>🔧 Diagnostic</Button>
-          <Button title="Nettoyer cache" onClick={() => {}}>🧹 Cache</Button>
-          <Button title="Logs système" onClick={() => {}}>📋 Logs</Button>
-          <Button title="Écran de démarrage" onClick={onBackToStartup}>🏠 Démarrage</Button>
-          <Button title="Configuration boutiques" onClick={onBackToConfig}>⚙️ Config</Button>
-          <Button title="Gestion employés" onClick={onBack}>👥 Employés</Button>
-          <Button title="Sélection boutique" onClick={onBackToShop}>🏪 Boutique</Button>
-          <Button title="Sélection semaine" onClick={onBackToWeek}>📅 Semaine</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Vue globale par jour" onClick={() => setShowGlobalDayViewModalV2(true)}>📊 Vue globale</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Exporter" onClick={onExport}>⬇️ Exporter</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Sauvegarder" onClick={handleManualSave}>💾 Sauvegarder</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Importer" onClick={handleImportClick}>📥 Importer</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Diagnostic" onClick={() => {}}>🔧 Diagnostic</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Nettoyer cache" onClick={() => {}}>🧹 Cache</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Logs système" onClick={() => {}}>📋 Logs</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Écran de démarrage" onClick={onBackToStartup}>🏠 Démarrage</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Configuration boutiques" onClick={onBackToConfig}>⚙️ Config</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Gestion employés" onClick={onBack}>👥 Employés</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Sélection boutique" onClick={onBackToShop}>🏪 Boutique</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Sélection semaine" onClick={onBackToWeek}>📅 Semaine</Button>
         </div>
       )}
       

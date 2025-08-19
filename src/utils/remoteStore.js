@@ -1,5 +1,66 @@
 import { supabase } from './supabaseClient';
 
+// Outbox locale pour mode hybride (sauvegardes différées)
+const OUTBOX_KEY = 'remote_outbox_v1';
+const generateId = () => {
+  try {
+    // Navigateurs modernes
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch (_) {}
+  // Fallback simple RFC4122 v4-like
+  const hex = [...Array(256)].map((_, i) => (i + 0x100).toString(16).slice(1));
+  const rnd = () => Math.random() * 0xffffffff >>> 0;
+  const r = [rnd(), rnd(), rnd(), rnd()];
+  return (
+    hex[r[0] & 0xff] + hex[r[0] >> 8 & 0xff] + hex[r[0] >> 16 & 0xff] + hex[r[0] >> 24 & 0xff] + '-' +
+    hex[r[1] & 0xff] + hex[r[1] >> 8 & 0xff] + '-' +
+    ((r[1] >> 16 & 0x0f) | 0x40).toString(16) + hex[r[1] >> 24 & 0xff] + '-' +
+    ((r[2] & 0x3f) | 0x80).toString(16) + hex[r[2] >> 8 & 0xff] + '-' +
+    hex[r[2] >> 16 & 0xff] + hex[r[2] >> 24 & 0xff] + hex[r[3] & 0xff] + hex[r[3] >> 8 & 0xff] + hex[r[3] >> 16 & 0xff] + hex[r[3] >> 24 & 0xff]
+  );
+};
+const readOutbox = () => {
+  try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); } catch (_) { return []; }
+};
+const writeOutbox = (items) => {
+  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(items || [])); } catch (_) {}
+};
+const enqueue = (item) => { const items = readOutbox(); items.push(item); writeOutbox(items); };
+const dequeueIf = (pred) => { const items = readOutbox().filter(i => !pred(i)); writeOutbox(items); };
+
+let flushTimer = null;
+const backoffFor = (attempt) => Math.min(30000, 2000 * Math.pow(2, Math.max(0, attempt - 1))); // 2s,4s,8s,...<=30s
+
+export const initRemoteOutbox = () => {
+  if (flushTimer) return;
+  const flush = async () => {
+    const items = readOutbox();
+    if (!items.length) return;
+    for (const it of items) {
+      // Respecter le backoff
+      const now = Date.now();
+      if (it.nextTryAt && now < it.nextTryAt) continue;
+      // Vérifier disponibilité basique
+      if (!supabase) { it.attempt = (it.attempt || 0) + 1; it.nextTryAt = now + backoffFor(it.attempt); writeOutbox(items); continue; }
+      try {
+        // Optionnel: vérifier le verrou ailleurs avant flush (côté appelant)
+        const ok = await saveRemotePlanning(it.data, it.shopId, it.weekKey, true);
+        if (ok) {
+          dequeueIf(x => x.id === it.id);
+        } else {
+          it.attempt = (it.attempt || 0) + 1; it.nextTryAt = now + backoffFor(it.attempt); writeOutbox(items);
+        }
+      } catch (_) {
+        it.attempt = (it.attempt || 0) + 1; it.nextTryAt = now + backoffFor(it.attempt); writeOutbox(items);
+      }
+    }
+  };
+  flushTimer = setInterval(flush, 5000);
+  window.addEventListener('online', flush);
+};
+
 const isReady = () => {
   const ready = !!supabase;
   console.log('🔍 Supabase ready check:', ready, {
@@ -163,7 +224,7 @@ export const loadRemotePlanning = async (shopId, weekKey) => {
   return data?.data || null;
 };
 
-export const saveRemotePlanning = async (planningData, shopId, weekKey) => {
+export const saveRemotePlanning = async (planningData, shopId, weekKey, isOutboxFlush = false) => {
   console.log('🔍 saveRemotePlanning called with:', { 
     shopId, 
     weekKey, 
@@ -173,6 +234,10 @@ export const saveRemotePlanning = async (planningData, shopId, weekKey) => {
   
   if (!isReady() || !planningData || !shopId || !weekKey) {
     console.log('❌ saveRemotePlanning: not ready or missing params');
+    // Enqueue si manque Supabase seulement
+    if (!isReady() && planningData && shopId && weekKey && !isOutboxFlush) {
+      enqueue({ id: generateId(), type: 'saveWeek', shopId, weekKey, data: planningData, attempt: 0, nextTryAt: 0, ts: Date.now() });
+    }
     return false;
   }
   

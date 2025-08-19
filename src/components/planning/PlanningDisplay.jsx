@@ -25,7 +25,7 @@ import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmpl
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, requestMain, checkMainRequest } from '@/utils/collabLock';
-import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData } from '@/utils/remoteStore';
+import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
@@ -113,6 +113,11 @@ const PlanningDisplay = ({
   
   // État local pour les employés sélectionnés
   const [localSelectedEmployees, setLocalSelectedEmployees] = useState(selectedEmployees || []);
+  
+  // Démarrer la file d'attente de synchro distante (mode hybride)
+  useEffect(() => {
+    try { initRemoteOutbox(); } catch (e) { console.warn('initRemoteOutbox failed', e); }
+  }, []);
   
   // États pour la protection des données validées
   const [validatedData, setValidatedData] = useState({});
@@ -1674,19 +1679,23 @@ const PlanningDisplay = ({
         </div>
       ) : (
       <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        gap: deviceInfo.isTablet ? '8px' : '6px',
-        flexWrap: 'wrap',
-        padding: deviceInfo.isTablet ? '12px 15px' : '10px 12px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7, 1fr)',
+        gridTemplateRows: 'repeat(2, minmax(50px, auto))',
+        gridAutoFlow: 'row',
+        justifyItems: 'stretch',
+        alignItems: 'stretch',
+        gap: deviceInfo.isTablet ? '12px' : '10px',
+        padding: deviceInfo.isTablet ? '18px 22px' : '16px 20px',
         background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
         borderRadius: deviceInfo.isTablet ? '16px' : '12px',
         border: '2px solid #dee2e6',
-        marginBottom: deviceInfo.isTablet ? '20px' : '15px',
+        marginBottom: deviceInfo.isTablet ? '22px' : '18px',
         width: '100%',
         boxSizing: 'border-box',
         boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-        overflowX: 'auto'
+        overflowX: 'hidden',
+        paddingBottom: '8px'
       }}>
         <button
           onClick={() => setShowGlobalDayViewModalV2(true)}
@@ -1694,7 +1703,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1729,7 +1738,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1768,7 +1777,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1803,7 +1812,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1838,7 +1847,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1893,7 +1902,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1928,7 +1937,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -1965,7 +1974,7 @@ const PlanningDisplay = ({
               : 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -2001,16 +2010,16 @@ const PlanningDisplay = ({
               : '0 2px 8px rgba(40, 167, 69, 0.4)';
           }}
         >
-          {hasUnsavedChanges ? '⚠️' : ''} Sauvegarder
+          {hasUnsavedChanges ? '⚠️' : ''} SAUVE SUPABASE
         </button>
         
         <button
           onClick={() => setShowNotesModal(true)}
           style={{
             background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            color: '#212529',
+            padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+            fontSize: deviceInfo.isTablet ? '13px' : '12px',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -2018,7 +2027,7 @@ const PlanningDisplay = ({
             transition: 'all 0.3s ease',
             boxShadow: '0 2px 8px rgba(255, 193, 7, 0.4)',
             whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
+            minHeight: deviceInfo.isTablet ? '44px' : '40px',
             minWidth: deviceInfo.isTablet ? '80px' : '70px',
             letterSpacing: '0.3px',
             textShadow: '0 1px 2px rgba(0,0,0,0.3)',
@@ -2045,7 +2054,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -2080,7 +2089,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -2116,7 +2125,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -2152,7 +2161,7 @@ const PlanningDisplay = ({
             background: 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)',
             color: 'white',
             padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? '11px' : '10px',
+            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
