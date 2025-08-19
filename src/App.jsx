@@ -289,14 +289,27 @@ const App = () => {
           } else {
             setFeedback('⚠️ Échec de la sauvegarde locale. Restauration depuis Supabase...');
           }
+        } else {
+          // L'utilisateur a cliqué "Annuler", on arrête là
+          setFeedback('❌ Restauration annulée par l\'utilisateur.');
+          return;
         }
       }
       
       setFeedback('⏳ Chargement depuis Supabase...');
       
-      // Charger les données depuis Supabase
+      // Charger les données depuis Supabase avec timeout
       const { loadCompletePlanningData } = await import('@/utils/remoteStore');
-      const restoredData = await loadCompletePlanningData();
+      
+      // Ajouter un timeout de 10 secondes pour éviter le blocage
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: Chargement Supabase trop long')), 10000)
+      );
+      
+      const restoredData = await Promise.race([
+        loadCompletePlanningData(),
+        timeoutPromise
+      ]);
       
       if (!restoredData) {
         setFeedback('❌ Aucune donnée trouvée sur Supabase.');
