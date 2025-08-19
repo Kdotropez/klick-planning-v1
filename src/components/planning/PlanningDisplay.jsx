@@ -627,8 +627,12 @@ const PlanningDisplay = ({
       
       // 2. Récupérer le planning existant pour cette boutique/semaine
       console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek, planningData });
+      console.log('🔍 planningData.shops:', planningData.shops);
+      console.log('🔍 planningData.planning:', planningData.planning);
       const weekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
       console.log('🔍 Résultat getWeekPlanning:', weekData);
+      console.log('🔍 weekData.planning:', weekData.planning);
+      console.log('🔍 weekData.selectedEmployees:', weekData.selectedEmployees);
       
       // Charger le planning depuis les données sauvegardées
       setPlanning(weekData.planning || {});
