@@ -537,60 +537,60 @@ const PlanningDisplay = ({
             // On a le verrou, s'assurer qu'on n'est pas en lecture seule
             setIsReadOnly(false);
             console.log('🔓 On a le verrou, lecture seule désactivée');
-            // Vérifier les demandes de force release via Supabase
-            const forceReleaseRequest = await checkForceReleaseRequest(selectedShop, validWeek, currentUserId);
-            if (forceReleaseRequest) {
-              console.log('🚨 Demande de force release détectée:', forceReleaseRequest);
-              if (window.confirm('🚨 URGENT : Un autre utilisateur veut forcer la libération du verrou !\n\nVoulez-vous sauvegarder votre travail maintenant ?\n\nCliquez "OK" pour sauvegarder, "Annuler" pour ignorer.')) {
-                // Sauvegarder automatiquement
-                handleManualSave();
-                setLocalFeedback('💾 Travail sauvegardé automatiquement suite à la demande.');
-              } else {
-                setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
-              }
-            }
+            // Vérifier les demandes de force release via Supabase (DÉSACTIVÉ TEMPORAIREMENT)
+            // const forceReleaseRequest = await checkForceReleaseRequest(selectedShop, validWeek, currentUserId);
+            // if (forceReleaseRequest) {
+            //   console.log('🚨 Demande de force release détectée:', forceReleaseRequest);
+            //   if (window.confirm('🚨 URGENT : Un autre utilisateur veut forcer la libération du verrou !\n\nVoulez-vous sauvegarder votre travail maintenant ?\n\nCliquez "OK" pour sauvegarder, "Annuler" pour ignorer.')) {
+            //     // Sauvegarder automatiquement
+            //     handleManualSave();
+            //     setLocalFeedback('💾 Travail sauvegardé automatiquement suite à la demande.');
+            //   } else {
+            //     setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
+            //   }
+            // }
           }
 
-          // Vérifier les demandes de main pour tous les utilisateurs
-          console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
-          const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
-          console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
-          if (mainRequest) {
-            console.log('🤝 Demande de main normale détectée:', mainRequest);
-            console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
-            
-            // Afficher une notification à l'utilisateur
-            if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
-              // Sauvegarder automatiquement les modifications
-              handleManualSave();
-              setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
-              
-              // Libérer le verrou après sauvegarde
-              setTimeout(async () => {
-                try {
-                  if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                  if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                  await releaseLock(selectedShop, validWeek, currentUserId);
-                  setIsReadOnly(true);
-                  setLockInfo(null);
-                  console.log('🔓 Verrou libéré automatiquement après demande de main');
-                } catch (error) {
-                  console.error('❌ Erreur lors de la libération automatique:', error);
-                }
-              }, 1000); // Réduire à 1 seconde
-            } else {
-              setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
-            }
-          }
+          // Vérifier les demandes de main pour tous les utilisateurs (DÉSACTIVÉ TEMPORAIREMENT)
+          // console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
+          // const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+          // console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
+          // if (mainRequest) {
+          //   console.log('🤝 Demande de main normale détectée:', mainRequest);
+          //   console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
+          //   
+          //   // Afficher une notification à l'utilisateur
+          //   if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
+          //     // Sauvegarder automatiquement les modifications
+          //     handleManualSave();
+          //     setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
+          //     
+          //     // Libérer le verrou après sauvegarde
+          //     setTimeout(async () => {
+          //       try {
+          //         if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+          //         if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
+          //         await releaseLock(selectedShop, validWeek, currentUserId);
+          //         setIsReadOnly(true);
+          //         setLockInfo(null);
+          //         console.log('🔓 Verrou libéré automatiquement après demande de main');
+          //       } catch (error) {
+          //         console.error('❌ Erreur lors de la libération automatique:', error);
+          //       }
+          //     }, 1000); // Réduire à 1 seconde
+          //   } else {
+          //     setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
+          //   }
+          // }
         } else {
-          // Même si on n'a pas le verrou, vérifier s'il y a des demandes de main pour nous
-          console.log('🔍 Vérification des demandes de main (pas détenteur):', { selectedShop, validWeek, currentUserId });
-          const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
-          console.log('🔍 Résultat de la vérification des demandes de main (pas détenteur):', mainRequest);
-          if (mainRequest) {
-            console.log('🤝 Demande de main détectée (pas détenteur):', mainRequest);
-            setLocalFeedback('🤝 Demande de main reçue - vous pouvez maintenant demander la main.');
-          }
+          // Même si on n'a pas le verrou, vérifier s'il y a des demandes de main pour nous (DÉSACTIVÉ TEMPORAIREMENT)
+          // console.log('🔍 Vérification des demandes de main (pas détenteur):', { selectedShop, validWeek, currentUserId });
+          // const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+          // console.log('🔍 Résultat de la vérification des demandes de main (pas détenteur):', mainRequest);
+          // if (mainRequest) {
+          //   console.log('🤝 Demande de main détectée (pas détenteur):', mainRequest);
+          //   setLocalFeedback('🤝 Demande de main reçue - vous pouvez maintenant demander la main.');
+          // }
         }
       }
     }, 3000); // Vérification toutes les 3 secondes pour plus de réactivité
