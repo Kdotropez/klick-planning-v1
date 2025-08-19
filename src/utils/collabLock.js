@@ -208,7 +208,7 @@ export const forceRelease = async (shopId, weekKey, userId) => {
         console.error('❌ Erreur notification force release Supabase:', notifyError);
       }
       
-      // Attendre plus longtemps pour laisser le temps à l'utilisateur de sauvegarder
+      // Attendre 10 secondes pour laisser le temps à l'utilisateur de sauvegarder
       await new Promise(resolve => setTimeout(resolve, 10000));
       
       // Vérifier que le verrou existe toujours avant de le supprimer

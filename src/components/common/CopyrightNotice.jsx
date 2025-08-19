@@ -1,8 +1,19 @@
-import React from 'react';
-
-const APP_VERSION = `v${(typeof __APP_VERSION__ !== 'undefined' && __APP_VERSION__) || import.meta.env?.VITE_APP_VERSION || '3.0.0'}`;
+import React, { useState, useEffect } from 'react';
 
 const CopyrightNotice = () => {
+  const [version, setVersion] = useState('3.8.5');
+
+  useEffect(() => {
+    // Charger la version depuis le fichier version.json
+    fetch('/version.json')
+      .then(response => response.json())
+      .then(data => setVersion(data.version))
+      .catch(error => {
+        console.error('Erreur chargement version:', error);
+        setVersion('3.8.5'); // Version par défaut
+      });
+  }, []);
+
   return (
     <div style={{
       position: 'fixed',
@@ -16,7 +27,7 @@ const CopyrightNotice = () => {
       zIndex: 1000,
       fontFamily: 'monospace'
     }}>
-      © 2025 Nicolas Lefevre - Propriétaire — {APP_VERSION}
+      © 2025 Nicolas Lefevre - Propriétaire — v{version}
     </div>
   );
 };

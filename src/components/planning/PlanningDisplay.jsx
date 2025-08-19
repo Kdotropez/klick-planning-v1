@@ -501,7 +501,7 @@ const PlanningDisplay = ({
     
     run();
     
-    // Vérification périodique du verrou (toutes les 5 secondes pour plus de réactivité)
+    // Vérification périodique du verrou (toutes les 3 secondes pour plus de réactivité)
     const checkInterval = setInterval(async () => {
       if (selectedShop && validWeek) {
         const currentLock = await getLock(selectedShop, validWeek);
@@ -532,23 +532,29 @@ const PlanningDisplay = ({
             if (mainRequest) {
               console.log('🤝 Demande de main normale détectée:', mainRequest);
               console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
-              // Sauvegarder automatiquement les modifications
-              handleManualSave();
-              setLocalFeedback('💾 Modifications sauvegardées automatiquement - Main libérée pour un autre utilisateur.');
               
-              // Libérer le verrou après sauvegarde
-              setTimeout(async () => {
-                try {
-                  if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                  if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                  await releaseLock(selectedShop, validWeek, currentUserId);
-                  setIsReadOnly(true);
-                  setLockInfo(null);
-                  console.log('🔓 Verrou libéré automatiquement après demande de main');
-                } catch (error) {
-                  console.error('❌ Erreur lors de la libération automatique:', error);
-                }
-              }, 2000); // Attendre 2 secondes pour laisser le temps à la sauvegarde
+              // Afficher une notification à l'utilisateur
+              if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
+                // Sauvegarder automatiquement les modifications
+                handleManualSave();
+                setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
+                
+                // Libérer le verrou après sauvegarde
+                setTimeout(async () => {
+                  try {
+                    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
+                    await releaseLock(selectedShop, validWeek, currentUserId);
+                    setIsReadOnly(true);
+                    setLockInfo(null);
+                    console.log('🔓 Verrou libéré automatiquement après demande de main');
+                  } catch (error) {
+                    console.error('❌ Erreur lors de la libération automatique:', error);
+                  }
+                }, 1000); // Réduire à 1 seconde
+              } else {
+                setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
+              }
             }
           }
         }
@@ -2953,20 +2959,24 @@ const PlanningDisplay = ({
                             
                             setLocalFeedback('✅ Main obtenue avec succès ! Rechargement des données...');
                             
-                            // Recharger les données depuis Supabase
-                            try {
-                              const updatedPlanningData = await loadCompletePlanningData();
-                              if (updatedPlanningData) {
-                                setPlanningData(updatedPlanningData);
-                                // Recharger le planning actuel
-                                const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
-                                setPlanning(weekData.planning || {});
-                                setLocalFeedback('✅ Main obtenue avec succès ! Données mises à jour.');
+                            // Recharger les données depuis Supabase avec délai
+                            setTimeout(async () => {
+                              try {
+                                const updatedPlanningData = await loadCompletePlanningData();
+                                if (updatedPlanningData) {
+                                  setPlanningData(updatedPlanningData);
+                                  // Recharger le planning actuel
+                                  const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
+                                  setPlanning(weekData.planning || {});
+                                  setLocalFeedback('✅ Main obtenue avec succès ! Données mises à jour.');
+                                } else {
+                                  setLocalFeedback('✅ Main obtenue avec succès ! (Aucune donnée à recharger)');
+                                }
+                              } catch (error) {
+                                console.error('❌ Erreur lors du rechargement des données:', error);
+                                setLocalFeedback('✅ Main obtenue avec succès ! (Erreur rechargement données)');
                               }
-                            } catch (error) {
-                              console.error('❌ Erreur lors du rechargement des données:', error);
-                              setLocalFeedback('✅ Main obtenue avec succès ! (Erreur rechargement données)');
-                            }
+                            }, 2000); // Attendre 2 secondes pour laisser le temps à la sauvegarde
                           }
                         } catch (error) {
                           console.error('❌ Erreur lors de la vérification de la main:', error);
