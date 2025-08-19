@@ -432,7 +432,7 @@ const LicenseManager = () => {
   );
 };
 
-  const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onRestoreFromSupabase }) => {
+  const StartupScreen = ({ onNewPlanning, onImportPlanning, onExit, onClearLocalStorage, onBackToMain, onRestoreFromSupabase, onContinueWithLocalData, hasLocalData }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
 
 
@@ -700,6 +700,37 @@ const LicenseManager = () => {
             </div>
             
             <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {hasLocalData && (
+                <Button
+                  onClick={onContinueWithLocalData}
+                  style={{
+                    padding: '20px 40px',
+                    fontSize: '1.2rem',
+                    background: 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    display: 'inline-block',
+                    fontWeight: '600',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 6px 20px rgba(255, 193, 7, 0.3)',
+                    minWidth: '250px'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-3px)';
+                    e.currentTarget.style.boxShadow = '0 10px 25px rgba(255, 193, 7, 0.4)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 193, 7, 0.3)';
+                  }}
+                >
+                  <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>💾</span>
+                  Continuer avec les données locales
+                </Button>
+              )}
+              
               <label style={{
                 padding: '20px 40px',
                 fontSize: '1.2rem',

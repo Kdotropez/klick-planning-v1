@@ -124,6 +124,8 @@ const App = () => {
         isArray: Array.isArray(savedData?.shops)
       });
       
+      // Option A : Toujours commencer par l'écran de démarrage
+      // Les données localStorage sont chargées mais on reste sur l'écran de démarrage
       if (savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
         // Vérifier que les données sont complètes et valides
         const isValidData = savedData.shops.every(shop => 
@@ -132,11 +134,10 @@ const App = () => {
         
         if (isValidData) {
           setPlanningData(savedData);
-          setMode('week-selection');
-          // Sélectionner automatiquement la première boutique
-          setSelectedShop(savedData.shops[0].id);
-          console.log('Données valides chargées, passage en mode week-selection');
-          setRestoredInfo('🔄 Données restaurées depuis le stockage local');
+          // Toujours commencer par l'écran de démarrage
+          setMode('startup');
+          console.log('Données valides chargées, mais on reste sur l\'écran de démarrage');
+          setRestoredInfo('💾 Données locales disponibles - Choisissez votre action');
         } else {
           console.log('Données corrompues détectées, nettoyage du localStorage');
           localStorage.clear();
@@ -211,6 +212,18 @@ const App = () => {
 
 
   // Aller directement au planning après restauration depuis Supabase
+  // Continuer avec les données locales
+  const handleContinueWithLocalData = () => {
+    if (planningData && planningData.shops && planningData.shops.length > 0) {
+      setSelectedShop(planningData.shops[0].id);
+      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+      setMode('week-selection');
+      setFeedback('✅ Continuation avec les données locales');
+    } else {
+      setFeedback('❌ Aucune donnée locale disponible');
+    }
+  };
+
   const handleRestoreFromSupabase = async () => {
     console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
     
@@ -642,6 +655,8 @@ const App = () => {
             onExit={handleExit}
             onClearLocalStorage={handleClearLocalStorage}
             onRestoreFromSupabase={handleRestoreFromSupabase}
+            onContinueWithLocalData={handleContinueWithLocalData}
+            hasLocalData={planningData && planningData.shops && planningData.shops.length > 0}
           />
         <CopyrightNotice />
         {/* <LicenseModal
