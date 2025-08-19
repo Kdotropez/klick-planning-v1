@@ -12,13 +12,17 @@ let useSupabase = false;
 export const initLockService = async (config) => {
   try {
     if (config && config.url && config.key) {
+      console.log('🔒 Initialisation du service de verrouillage Supabase...');
       const { createClient } = await import('@supabase/supabase-js');
       supabase = createClient(config.url, config.key);
       useSupabase = true;
+      console.log('✅ Service de verrouillage Supabase initialisé');
     } else {
+      console.log('⚠️ Pas de configuration Supabase, utilisation du localStorage');
       useSupabase = false;
     }
-  } catch (_) {
+  } catch (error) {
+    console.error('❌ Erreur initialisation service verrouillage:', error);
     useSupabase = false;
   }
 };
@@ -36,34 +40,72 @@ const isExpired = (iso, ttlMs) => {
 };
 
 export const getLock = async (shopId, weekKey) => {
+  console.log('🔍 getLock appelé:', { shopId, weekKey, useSupabase });
+  
   if (useSupabase) {
-    const { data } = await supabase
-      .from('planning_locks')
-      .select('*')
-      .eq('shop_id', shopId)
-      .eq('week_key', weekKey)
-      .maybeSingle();
-    return data || null;
+    try {
+      const { data, error } = await supabase
+        .from('planning_locks')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Erreur getLock Supabase:', error);
+        return null;
+      }
+      
+      console.log('🔍 getLock résultat Supabase:', data);
+      return data || null;
+    } catch (error) {
+      console.error('❌ Exception getLock Supabase:', error);
+      return null;
+    }
   }
+  
   try {
     const raw = localStorage.getItem(localKey(shopId, weekKey));
-    return raw ? JSON.parse(raw) : null;
-  } catch {
+    const result = raw ? JSON.parse(raw) : null;
+    console.log('🔍 getLock résultat localStorage:', result);
+    return result;
+  } catch (error) {
+    console.error('❌ Erreur getLock localStorage:', error);
     return null;
   }
 };
 
 export const acquireLock = async (shopId, weekKey, userId, ttlMs = 5 * 60 * 1000) => {
+  console.log('🔒 acquireLock appelé:', { shopId, weekKey, userId, useSupabase });
+  
   const existing = await getLock(shopId, weekKey);
+  console.log('🔒 Verrou existant:', existing);
+  
   if (existing && !isExpired(existing.updated_at || existing.created_at, ttlMs) && existing.user_id !== userId) {
+    console.log('❌ Verrou déjà détenu par:', existing.user_id);
     return { ok: false, lock: existing };
   }
+  
   const lock = { shop_id: shopId, week_key: weekKey, user_id: userId, created_at: nowIso(), updated_at: nowIso() };
+  console.log('🔒 Nouveau verrou à créer:', lock);
+  
   if (useSupabase) {
-    await supabase.from('planning_locks').upsert(lock, { onConflict: 'shop_id,week_key' });
+    try {
+      const { error } = await supabase.from('planning_locks').upsert(lock, { onConflict: 'shop_id,week_key' });
+      if (error) {
+        console.error('❌ Erreur acquireLock Supabase:', error);
+        return { ok: false, lock: null };
+      }
+      console.log('✅ Verrou acquis avec Supabase');
+    } catch (error) {
+      console.error('❌ Exception acquireLock Supabase:', error);
+      return { ok: false, lock: null };
+    }
   } else {
     localStorage.setItem(localKey(shopId, weekKey), JSON.stringify(lock));
+    console.log('✅ Verrou acquis avec localStorage');
   }
+  
   return { ok: true, lock };
 };
 
