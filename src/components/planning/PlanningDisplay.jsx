@@ -526,37 +526,37 @@ const PlanningDisplay = ({
                 setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
               }
             }
+          }
+
+          // Toujours vérifier les demandes de main (le service renverra seulement si CE client est le détenteur)
+          console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
+          const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+          console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
+          if (mainRequest) {
+            console.log('🤝 Demande de main normale détectée:', mainRequest);
+            console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
             
-            // Vérifier les demandes de main normale (quand quelqu'un clique sur "Demander la main")
-            console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
-            const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
-            console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
-            if (mainRequest) {
-              console.log('🤝 Demande de main normale détectée:', mainRequest);
-              console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
+            // Afficher une notification à l'utilisateur
+            if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
+              // Sauvegarder automatiquement les modifications
+              handleManualSave();
+              setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
               
-              // Afficher une notification à l'utilisateur
-              if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
-                // Sauvegarder automatiquement les modifications
-                handleManualSave();
-                setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
-                
-                // Libérer le verrou après sauvegarde
-                setTimeout(async () => {
-                  try {
-                    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                    await releaseLock(selectedShop, validWeek, currentUserId);
-                    setIsReadOnly(true);
-                    setLockInfo(null);
-                    console.log('🔓 Verrou libéré automatiquement après demande de main');
-                  } catch (error) {
-                    console.error('❌ Erreur lors de la libération automatique:', error);
-                  }
-                }, 1000); // Réduire à 1 seconde
-              } else {
-                setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
-              }
+              // Libérer le verrou après sauvegarde
+              setTimeout(async () => {
+                try {
+                  if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                  if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
+                  await releaseLock(selectedShop, validWeek, currentUserId);
+                  setIsReadOnly(true);
+                  setLockInfo(null);
+                  console.log('🔓 Verrou libéré automatiquement après demande de main');
+                } catch (error) {
+                  console.error('❌ Erreur lors de la libération automatique:', error);
+                }
+              }, 1000); // Réduire à 1 seconde
+            } else {
+              setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
             }
           }
         }
