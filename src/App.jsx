@@ -756,41 +756,41 @@ const App = () => {
             onNext={(week) => {
               setSelectedWeek(week);
               
-              // Charger les données de la semaine sélectionnée
-              if (planningData && selectedShop) {
-                (async () => {
-                  // Tentative de chargement distant
-                  const remote = await loadRemotePlanning(selectedShop, week);
-                  
-                  // Récupérer les données locales
-                  const shop = planningData.shops.find(s => s.id === selectedShop);
-                  const localWeekData = shop && shop.weeks && shop.weeks[week] ? shop.weeks[week] : null;
-                  
-                  // Comparer les timestamps pour choisir les données les plus récentes
-                  if (remote && remote.planning && localWeekData && localWeekData.planning) {
-                    const remoteTimestamp = remote.updated_at || remote.created_at || 0;
-                    const localTimestamp = localWeekData.updated_at || localWeekData.created_at || 0;
-                    
-                    if (localTimestamp > remoteTimestamp) {
-                      console.log('📊 Données locales plus récentes, utilisation des données locales');
-                      setPlanning(localWeekData.planning);
-                      if (localWeekData.selectedEmployees) setSelectedEmployees(localWeekData.selectedEmployees);
-                    } else {
-                      console.log('📊 Données distantes plus récentes, utilisation des données distantes');
-                      setPlanning(remote.planning);
-                      if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
-                    }
-                  } else if (remote && remote.planning) {
-                    console.log('📊 Utilisation des données distantes (pas de données locales)');
-                    setPlanning(remote.planning);
-                    if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
-                  } else if (localWeekData && localWeekData.planning) {
-                    console.log('📊 Utilisation des données locales (pas de données distantes)');
-                    setPlanning(localWeekData.planning);
-                    if (localWeekData.selectedEmployees) setSelectedEmployees(localWeekData.selectedEmployees);
-                  }
-                })();
-              }
+              // DÉSACTIVÉ : Charger les données de la semaine sélectionnée (ÉVITE L'ÉCRASEMENT)
+              // if (planningData && selectedShop) {
+              //   (async () => {
+              //     // Tentative de chargement distant
+              //     const remote = await loadRemotePlanning(selectedShop, week);
+              //     
+              //     // Récupérer les données locales
+              //     const shop = planningData.shops.find(s => s.id === selectedShop);
+              //     const localWeekData = shop && shop.weeks && shop.weeks[week] ? shop.weeks[week] : null;
+              //     
+              //     // Comparer les timestamps pour choisir les données les plus récentes
+              //     if (remote && remote.planning && localWeekData && localWeekData.planning) {
+              //       const remoteTimestamp = remote.updated_at || remote.created_at || 0;
+              //       const localTimestamp = localWeekData.updated_at || localWeekData.created_at || 0;
+              //       
+              //       if (localTimestamp > remoteTimestamp) {
+              //         console.log('📊 Données locales plus récentes, utilisation des données locales');
+              //         setPlanning(localWeekData.planning);
+              //         if (localWeekData.selectedEmployees) setSelectedEmployees(localWeekData.selectedEmployees);
+              //       } else {
+              //         console.log('📊 Données distantes plus récentes, utilisation des données distantes');
+              //         setPlanning(remote.planning);
+              //         if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
+              //       }
+              //     } else if (remote && remote.planning) {
+              //       console.log('📊 Utilisation des données distantes (pas de données locales)');
+              //       setPlanning(remote.planning);
+              //       if (remote.selectedEmployees) setSelectedEmployees(remote.selectedEmployees);
+              //     } else if (localWeekData && localWeekData.planning) {
+              //       console.log('📊 Utilisation des données locales (pas de données distantes)');
+              //       setPlanning(localWeekData.planning);
+              //       if (localWeekData.selectedEmployees) setSelectedEmployees(localWeekData.selectedEmployees);
+              //     }
+              //   })();
+              // }
               
               setMode('planning');
             }}
