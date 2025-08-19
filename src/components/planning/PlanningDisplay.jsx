@@ -483,14 +483,15 @@ const PlanningDisplay = ({
               const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
               setPlanningData(updatedPlanningData);
               
-              // Sauvegarder dans Supabase
-              const remoteResult = await saveCompletePlanningData(updatedPlanningData);
-              if (remoteResult) {
-                console.log('✅ Sauvegarde automatique Supabase réussie');
-                setLocalFeedback('💾 Sauvegarde automatique effectuée');
-              } else {
-                console.log('❌ Échec sauvegarde automatique Supabase');
-                setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+              // Sauvegarder d'abord la semaine courante dans Supabase
+              const weekSaved = await saveRemotePlanning(updatedPlanningData, selectedShop, selectedWeek);
+              if (weekSaved) {
+                console.log('✅ Auto-save semaine Supabase OK');
+              }
+              // Puis sauvegarde de backup globale
+              const fullSaved = await saveCompletePlanningData(updatedPlanningData);
+              if (fullSaved) {
+                console.log('✅ Auto-save fichier complet Supabase OK');
               }
             }
           } catch (error) {
@@ -938,19 +939,29 @@ const PlanningDisplay = ({
         setPlanningData(updatedPlanningData);
         saveToLocalStorage('planningData', updatedPlanningData);
         
-        // Sauvegarder le fichier complet dans Supabase
+        // Sauvegarder d'abord la semaine courante (enregistrement visible par boutique/semaine)
+        try {
+          const weekSaved = await saveRemotePlanning(updatedPlanningData, selectedShop, selectedWeek);
+          if (weekSaved) {
+            console.log('✅ Sauvegarde semaine Supabase réussie');
+            setLocalFeedback('💾 Semaine sauvegardée (Supabase)');
+          } else {
+            console.log('❌ Échec sauvegarde semaine Supabase');
+          }
+        } catch (error) {
+          console.error('❌ Erreur sauvegarde semaine Supabase:', error);
+        }
+
+        // Puis sauvegarde du fichier complet (backup)
         try { 
           const remoteResult = await saveCompletePlanningData(updatedPlanningData);
           if (remoteResult) {
             console.log('✅ Sauvegarde complète Supabase réussie');
-            setLocalFeedback('💾 Planning complet sauvegardé dans Supabase');
           } else {
             console.log('❌ Échec sauvegarde complète Supabase');
-            setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
           }
         } catch (error) {
-          console.error('❌ Erreur sauvegarde Supabase:', error);
-          setLocalFeedback('⚠️ Sauvegarde locale OK, erreur Supabase');
+          console.error('❌ Erreur sauvegarde complète Supabase:', error);
         }
         
         setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
