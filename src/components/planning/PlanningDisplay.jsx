@@ -25,7 +25,7 @@ import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmpl
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, requestMain, checkMainRequest } from '@/utils/collabLock';
-import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData } from '@/utils/remoteStore';
+import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
@@ -2892,7 +2892,22 @@ const PlanningDisplay = ({
                             setIsReadOnly(false);
                             if (hbRef.current) clearInterval(hbRef.current);
                             hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
-                            setLocalFeedback('✅ Main obtenue avec succès !');
+                            setLocalFeedback('✅ Main obtenue avec succès ! Rechargement des données...');
+                            
+                            // Recharger les données depuis Supabase
+                            try {
+                              const updatedPlanningData = await loadCompletePlanningData();
+                              if (updatedPlanningData) {
+                                setPlanningData(updatedPlanningData);
+                                // Recharger le planning actuel
+                                const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
+                                setPlanning(weekData.planning || {});
+                                setLocalFeedback('✅ Main obtenue avec succès ! Données mises à jour.');
+                              }
+                            } catch (error) {
+                              console.error('❌ Erreur lors du rechargement des données:', error);
+                              setLocalFeedback('✅ Main obtenue avec succès ! (Erreur rechargement données)');
+                            }
                           }
                         } catch (error) {
                           console.error('❌ Erreur lors de la vérification de la main:', error);
@@ -2942,7 +2957,22 @@ const PlanningDisplay = ({
                               console.log('✅ Verrou forcé avec succès');
                               if (hbRef.current) clearInterval(hbRef.current);
                               hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
-                              setLocalFeedback('✅ Verrou forcé ! Vous avez maintenant la main.');
+                              setLocalFeedback('✅ Verrou forcé ! Rechargement des données...');
+                              
+                              // Recharger les données depuis Supabase
+                              try {
+                                const updatedPlanningData = await loadCompletePlanningData();
+                                if (updatedPlanningData) {
+                                  setPlanningData(updatedPlanningData);
+                                  // Recharger le planning actuel
+                                  const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
+                                  setPlanning(weekData.planning || {});
+                                  setLocalFeedback('✅ Verrou forcé ! Données mises à jour.');
+                                }
+                              } catch (error) {
+                                console.error('❌ Erreur lors du rechargement des données:', error);
+                                setLocalFeedback('✅ Verrou forcé ! (Erreur rechargement données)');
+                              }
                             }
                           } catch (error) {
                             console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);
