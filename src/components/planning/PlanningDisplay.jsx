@@ -505,6 +505,7 @@ const PlanningDisplay = ({
             const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
             if (mainRequest) {
               console.log('🤝 Demande de main normale détectée:', mainRequest);
+              console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
               // Sauvegarder automatiquement les modifications
               handleManualSave();
               setLocalFeedback('💾 Modifications sauvegardées automatiquement - Main libérée pour un autre utilisateur.');
@@ -516,10 +517,11 @@ const PlanningDisplay = ({
                   await releaseLock(selectedShop, validWeek, currentUserId);
                   setIsReadOnly(true);
                   setLockInfo(null);
+                  console.log('🔓 Verrou libéré automatiquement après demande de main');
                 } catch (error) {
                   console.error('❌ Erreur lors de la libération automatique:', error);
                 }
-              }, 1000);
+              }, 2000); // Attendre 2 secondes pour laisser le temps à la sauvegarde
             }
           }
         }

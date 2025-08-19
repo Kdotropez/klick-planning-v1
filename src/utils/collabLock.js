@@ -208,8 +208,8 @@ export const forceRelease = async (shopId, weekKey, userId) => {
         console.error('❌ Erreur notification force release Supabase:', notifyError);
       }
       
-      // Attendre un peu puis forcer la libération
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Attendre plus longtemps pour laisser le temps à l'utilisateur de sauvegarder
+      await new Promise(resolve => setTimeout(resolve, 10000));
       
       // Supprimer le verrou
       const { error } = await supabase
@@ -244,20 +244,26 @@ export const requestMain = async (shopId, weekKey, userId) => {
   
   if (useSupabase) {
     try {
-      // Créer une notification de demande de main
+      // D'abord, récupérer le verrou actuel pour savoir qui a la main
+      const currentLock = await getLock(shopId, weekKey);
+      if (!currentLock) {
+        console.log('❌ Aucun verrou actuel trouvé');
+        return { ok: false };
+      }
+      
+      // Créer une notification de demande de main pour l'utilisateur qui a la main
       const { error: notifyError } = await supabase
         .from('planning_locks')
-        .upsert({
-          shop_id: shopId,
-          week_key: weekKey,
-          user_id: userId,
+        .update({
           main_request: nowIso(),
-          created_at: nowIso(),
           updated_at: nowIso()
-        }, { onConflict: 'shop_id,week_key' });
+        })
+        .eq('shop_id', shopId)
+        .eq('week_key', weekKey);
       
       if (notifyError) {
         console.error('❌ Erreur notification demande de main Supabase:', notifyError);
+        return { ok: false };
       }
       
       console.log('✅ Demande de main envoyée avec Supabase');
@@ -283,7 +289,7 @@ export const checkMainRequest = async (shopId, weekKey, userId) => {
         .select('main_request')
         .eq('shop_id', shopId)
         .eq('week_key', weekKey)
-        .eq('user_id', userId)
+        .eq('user_id', userId) // On vérifie pour l'utilisateur qui a actuellement la main
         .not('main_request', 'is', null)
         .maybeSingle();
       
@@ -293,6 +299,7 @@ export const checkMainRequest = async (shopId, weekKey, userId) => {
       }
       
       if (data && data.main_request) {
+        console.log('🤝 Demande de main détectée pour:', userId);
         // Supprimer la notification après l'avoir lue
         await supabase
           .from('planning_locks')
