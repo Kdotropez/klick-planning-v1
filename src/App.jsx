@@ -265,50 +265,48 @@ const App = () => {
   };
 
   // Aller directement au planning après restauration depuis Supabase
-  const handleRestoreFromSupabase = () => {
+  const handleRestoreFromSupabase = async () => {
     try {
       console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
-      console.log('📊 planningData actuel:', planningData);
+      setFeedback('⏳ Chargement depuis Supabase...');
       
-      // Charger les données depuis localStorage
-      const savedPlanningData = localStorage.getItem('planningData');
-      if (!savedPlanningData) {
-        setFeedback('Aucune donnée trouvée. Veuillez d\'abord restaurer depuis Supabase.');
+      // Charger les données depuis Supabase
+      const { loadCompletePlanningData } = await import('@/utils/remoteStore');
+      const restoredData = await loadCompletePlanningData();
+      
+      if (!restoredData) {
+        setFeedback('❌ Aucune donnée trouvée sur Supabase.');
         return;
       }
       
-      try {
-        const parsedData = JSON.parse(savedPlanningData);
-        console.log('📦 Données chargées depuis localStorage:', parsedData);
-        
-        if (!parsedData.shops || parsedData.shops.length === 0) {
-          setFeedback('Aucune boutique trouvée dans les données restaurées.');
-          return;
-        }
-        
-        // Mettre à jour planningData avec les données restaurées
-        setPlanningData(parsedData);
-        
-        // Sélectionner la première boutique par défaut
-        const firstShop = parsedData.shops[0];
-        setSelectedShop(firstShop.id);
-        
-        // Sélectionner la semaine courante
-        const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
-        setSelectedWeek(currentWeekKey);
-        
-        // Aller à la sélection de semaine pour permettre de choisir une semaine avec des données
-        setMode('week-selection');
-        setFeedback('Planning restauré depuis Supabase ! Sélectionnez une semaine pour commencer.');
-        
-      } catch (error) {
-        console.error('❌ Erreur parsing localStorage:', error);
-        setFeedback('Erreur lors du chargement des données restaurées.');
+      console.log('📦 Données chargées depuis Supabase:', restoredData);
+      
+      if (!restoredData.shops || restoredData.shops.length === 0) {
+        setFeedback('❌ Aucune boutique trouvée dans les données restaurées.');
+        return;
       }
+      
+      // Mettre à jour planningData avec les données restaurées
+      setPlanningData(restoredData);
+      
+      // Sauvegarder dans localStorage pour la persistance locale
+      localStorage.setItem('planningData', JSON.stringify(restoredData));
+      
+      // Sélectionner la première boutique par défaut
+      const firstShop = restoredData.shops[0];
+      setSelectedShop(firstShop.id);
+      
+      // Sélectionner la semaine courante
+      const currentWeekKey = format(new Date(), 'yyyy-MM-dd');
+      setSelectedWeek(currentWeekKey);
+      
+      // Aller à la sélection de semaine pour permettre de choisir une semaine avec des données
+      setMode('week-selection');
+      setFeedback('✅ Planning restauré depuis Supabase ! Sélectionnez une semaine pour commencer.');
       
     } catch (error) {
       console.error('❌ Erreur dans handleRestoreFromSupabase:', error);
-      setFeedback('Erreur lors de la restauration depuis Supabase.');
+      setFeedback('❌ Erreur lors de la restauration depuis Supabase: ' + error.message);
     }
   };
 
