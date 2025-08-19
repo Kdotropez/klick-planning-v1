@@ -487,31 +487,31 @@ const PlanningDisplay = ({
         if (hbRef.current) clearInterval(hbRef.current);
         hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000); // 30s au lieu de 2min
         
-        // Démarrer la sauvegarde automatique toutes les 3 minutes
-        if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-        autoSaveRef.current = setInterval(async () => {
-          try {
-            console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
-            if (selectedShop && selectedWeek) {
-              const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-              setPlanningData(updatedPlanningData);
-              
-              // Sauvegarder d'abord la semaine courante dans Supabase
-              const weekSaved = await saveRemotePlanning(updatedPlanningData, selectedShop, selectedWeek);
-              if (weekSaved) {
-                console.log('✅ Auto-save semaine Supabase OK');
-              }
-              // Puis sauvegarde de backup globale
-              const fullSaved = await saveCompletePlanningData(updatedPlanningData);
-              if (fullSaved) {
-                console.log('✅ Auto-save fichier complet Supabase OK');
-              }
-            }
-          } catch (error) {
-            console.error('❌ Erreur lors de la sauvegarde automatique:', error);
-            setLocalFeedback('❌ Erreur sauvegarde automatique');
-          }
-        }, 3 * 60 * 1000); // 3 minutes
+        // Démarrer la sauvegarde automatique toutes les 3 minutes (DÉSACTIVÉE TEMPORAIREMENT)
+        // if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+        // autoSaveRef.current = setInterval(async () => {
+        //   try {
+        //     console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
+        //     if (selectedShop && selectedWeek) {
+        //       const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        //       setPlanningData(updatedPlanningData);
+        //       
+        //       // Sauvegarder d'abord la semaine courante dans Supabase
+        //       const weekSaved = await saveRemotePlanning(updatedPlanningData, selectedShop, selectedWeek);
+        //       if (weekSaved) {
+        //         console.log('✅ Auto-save semaine Supabase OK');
+        //       }
+        //       // Puis sauvegarde de backup globale
+        //       const fullSaved = await saveCompletePlanningData(updatedPlanningData);
+        //       if (fullSaved) {
+        //         console.log('✅ Auto-save fichier complet Supabase OK');
+        //       }
+        //     }
+        //   } catch (error) {
+        //     console.error('❌ Erreur lors de la sauvegarde automatique:', error);
+        //     setLocalFeedback('❌ Erreur sauvegarde automatique');
+        //   }
+        // }, 3 * 60 * 1000); // 3 minutes
       } else if (lock) {
         console.log('❌ Verrou détenu par:', lock.user_id);
         setLocalFeedback(`🔒 Lecture seule: ${lock.user_id} édite actuellement ce planning`);
@@ -798,7 +798,7 @@ const PlanningDisplay = ({
         }
       }
     }
-  }, [selectedShop, selectedWeek, planningData, forceRefresh]);
+  }, [selectedShop, selectedWeek, forceRefresh]); // Retiré planningData pour éviter le rechargement automatique
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
     if (isReadOnly) {
