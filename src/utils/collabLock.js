@@ -314,12 +314,18 @@ export const forceRelease = async (shopId, weekKey, userId) => {
         // On notifie si une demande existe (pour tous les utilisateurs)
         if (data && data.main_request) {
           console.log('🤝 Demande de main détectée:', data.main_request);
-          // Supprimer la notification après lecture
-          await supabase
-            .from('planning_locks')
-            .update({ main_request: null })
-            .eq('shop_id', shopId)
-            .eq('week_key', weekKey);
+          
+          // Ne supprimer la demande que si c'est le détenteur du verrou qui la lit
+          if (data.user_id === userId) {
+            console.log('🔒 Détenteur du verrou - suppression de la demande');
+            await supabase
+              .from('planning_locks')
+              .update({ main_request: null })
+              .eq('shop_id', shopId)
+              .eq('week_key', weekKey);
+          } else {
+            console.log('👤 Pas détenteur du verrou - demande conservée');
+          }
           
           return data.main_request;
         }

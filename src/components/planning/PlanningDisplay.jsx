@@ -561,23 +561,23 @@ const PlanningDisplay = ({
             
             // Afficher une notification à l'utilisateur
             if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
-              // Sauvegarder automatiquement les modifications
-              handleManualSave();
-              setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
-              
-              // Libérer le verrou après sauvegarde
-              setTimeout(async () => {
-                try {
-                  if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                  if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                  await releaseLock(selectedShop, validWeek, currentUserId);
-                  setIsReadOnly(true);
-                  setLockInfo(null);
-                  console.log('🔓 Verrou libéré automatiquement après demande de main');
-                } catch (error) {
-                  console.error('❌ Erreur lors de la libération automatique:', error);
-                }
-              }, 1000); // Réduire à 1 seconde
+              // Sauvegarder automatiquement les modifications et attendre
+              try {
+                setLocalFeedback('💾 Sauvegarde en cours...');
+                await handleManualSave();
+                setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
+                
+                // Libérer le verrou après sauvegarde réussie
+                if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
+                await releaseLock(selectedShop, validWeek, currentUserId);
+                setIsReadOnly(true);
+                setLockInfo(null);
+                console.log('🔓 Verrou libéré automatiquement après demande de main');
+              } catch (error) {
+                console.error('❌ Erreur lors de la sauvegarde/libération:', error);
+                setLocalFeedback('❌ Erreur lors de la sauvegarde - main conservée');
+              }
             } else {
               setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
             }
