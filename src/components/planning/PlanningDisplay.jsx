@@ -591,6 +591,22 @@ const PlanningDisplay = ({
             console.log('🤝 Demande de main détectée (pas détenteur):', mainRequest);
             setLocalFeedback('🤝 Demande de main reçue - vous pouvez maintenant demander la main.');
           }
+          
+          // Vérifier s'il y a des nouvelles données disponibles depuis Supabase
+          try {
+            const { loadRemotePlanning } = await import('@/utils/remoteStore');
+            const remoteData = await loadRemotePlanning(selectedShop, validWeek);
+            if (remoteData && remoteData.planning) {
+              console.log('📥 Nouvelles données détectées depuis Supabase');
+              setPlanning(remoteData.planning);
+              if (remoteData.selectedEmployees) {
+                setSelectedEmployees(remoteData.selectedEmployees);
+              }
+              setLocalFeedback('📥 Données mises à jour depuis Supabase');
+            }
+          } catch (error) {
+            console.error('❌ Erreur lors du rechargement automatique:', error);
+          }
         }
       }
     }, 3000); // Vérification toutes les 3 secondes pour plus de réactivité

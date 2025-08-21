@@ -323,11 +323,12 @@ export const forceRelease = async (shopId, weekKey, userId) => {
               .update({ main_request: null })
               .eq('shop_id', shopId)
               .eq('week_key', weekKey);
+            return data.main_request; // Retourner la demande pour le détenteur
           } else {
             console.log('👤 Pas détenteur du verrou - demande conservée');
+            // Ne pas retourner la demande pour les non-détenteurs
+            return null;
           }
-          
-          return data.main_request;
         }
         
         return null;
