@@ -243,10 +243,10 @@ const App = () => {
       const supabase = createClient(url, key);
       
       // Charger les données depuis Supabase avec fallback
-      const { loadCompletePlanningData } = await import('@/utils/remoteStore');
+      const { loadCompletePlanningData } = await import('./utils/remoteStore');
       
       // Initialiser le service Supabase pour loadCompletePlanningData
-      const { initLockService } = await import('@/utils/collabLock');
+      const { initLockService } = await import('./utils/collabLock');
       await initLockService({ url, key });
       
       const restoredData = await loadCompletePlanningData();
