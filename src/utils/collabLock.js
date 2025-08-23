@@ -487,15 +487,21 @@ export const requestMain = async (userId) => {
     try {
       const { data, error } = await supabase
         .from('planning_locks')
-        .update({ 
+        .upsert({ 
+          shop_id: 'GLOBAL',
+          week_key: 'GLOBAL',
+          user_id: userId,
           main_request: {
             from: userId,
             timestamp: nowIso(),
             message: 'Toc toc ! Puis-je avoir la main ? 😊'
-          }
+          },
+          created_at: nowIso(),
+          updated_at: nowIso()
+        }, { 
+          onConflict: 'shop_id,week_key',
+          ignoreDuplicates: false 
         })
-        .eq('shop_id', 'GLOBAL')
-        .eq('week_key', 'GLOBAL')
         .select()
         .single();
       

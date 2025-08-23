@@ -1,7 +1,10 @@
 {
-  "version": "3.3.7",
+  "version": "3.3.8",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "🔧 CORRECTION: Fonction \"toc toc\" avec upsert",
+    "⚡ Correction de requestMain pour éviter les erreurs d'update",
+    "🛡️ Utilisation d'upsert pour créer/mettre à jour les demandes de main",
     "🔧 CORRECTION: Résolution des conflits de clé unique",
     "⚡ Utilisation d'upsert au lieu d'insert pour éviter les erreurs 409",
     "🛡️ Protection contre les violations de contrainte unique",
