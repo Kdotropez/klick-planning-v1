@@ -1,7 +1,10 @@
 {
-  "version": "3.4.1",
+  "version": "3.4.2",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "🔧 CORRECTION: Déverrouillage d'urgence réparé",
+    "⚡ Exclusion du déverrouillage d'urgence des protections anti-boucle",
+    "🛡️ Flag spécial pour bypasser les délais lors d'emergency unlock",
     "🔧 CORRECTION: Résolution de la boucle infinie",
     "⚡ Protection contre les boucles infinies lors de la connexion multi-PC",
     "🛡️ Délai minimum de 3s entre les tentatives d'acquisition de verrou",

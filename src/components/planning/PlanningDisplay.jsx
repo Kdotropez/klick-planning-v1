@@ -477,9 +477,9 @@ const PlanningDisplay = ({
       
       console.log('🔒 Vérification du verrou global pour:', { selectedShop, validWeek, currentUserId });
       
-      // Protection contre les boucles infinies
+      // Protection contre les boucles infinies (sauf pour emergency unlock)
       const now = Date.now();
-      if (window.lastLockAttempt && now - window.lastLockAttempt < 3000) {
+      if (window.lastLockAttempt && now - window.lastLockAttempt < 3000 && !window.emergencyUnlockInProgress) {
         console.log('⏳ Délai minimum non respecté, attente...');
         return;
       }
@@ -4229,6 +4229,9 @@ const PlanningDisplay = ({
                   try {
                     setLocalFeedback('🚨 Déverrouillage d\'urgence en cours...');
                     
+                    // Marquer le début du déverrouillage d'urgence
+                    window.emergencyUnlockInProgress = true;
+                    
                     const result = await emergencyUnlock(currentUserId, emergencyCode);
                     
                     if (result.ok) {
@@ -4292,12 +4295,19 @@ const PlanningDisplay = ({
                       setShowEmergencyUnlock(false);
                       setEmergencyCode('');
                       setEmergencyUnlockError('');
+                      
+                      // Réinitialiser le flag d'emergency unlock
+                      window.emergencyUnlockInProgress = false;
                     } else {
                       setEmergencyUnlockError(result.error || 'Erreur lors du déverrouillage');
+                      // Réinitialiser le flag même en cas d'erreur
+                      window.emergencyUnlockInProgress = false;
                     }
                   } catch (error) {
                     console.error('❌ Erreur lors du déverrouillage d\'urgence:', error);
                     setEmergencyUnlockError('Erreur lors du déverrouillage d\'urgence');
+                    // Réinitialiser le flag même en cas d'exception
+                    window.emergencyUnlockInProgress = false;
                   }
                 }}
                 style={{
