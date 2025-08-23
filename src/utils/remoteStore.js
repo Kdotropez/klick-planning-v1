@@ -129,6 +129,17 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       dataVersion: completePlanningData.version
     });
     
+    // Debug détaillé des boutiques et semaines
+    if (completePlanningData.shops) {
+      completePlanningData.shops.forEach((shop, index) => {
+        console.log(`🏪 Boutique ${index + 1}: ${shop.name} (${shop.id})`);
+        if (shop.weeks) {
+          const weekKeys = Object.keys(shop.weeks);
+          console.log(`   📅 Semaines: ${weekKeys.length} semaines (${weekKeys.slice(0, 3).join(', ')}${weekKeys.length > 3 ? '...' : ''})`);
+        }
+      });
+    }
+    
     // Forcer la mise à jour du timestamp en ajoutant updated_at explicitement
     const rowWithTimestamp = {
       ...row,

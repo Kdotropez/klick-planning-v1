@@ -982,9 +982,13 @@ const PlanningDisplay = ({
     }
     try {
       if (selectedShop && selectedWeek) {
+        // Forcer la sauvegarde des données actuelles en mémoire
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
         saveToLocalStorage('planningData', updatedPlanningData);
+        
+        // Attendre un peu pour s'assurer que le state est mis à jour
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Sauvegarder d'abord la semaine courante (enregistrement visible par boutique/semaine)
         try {
@@ -999,16 +1003,20 @@ const PlanningDisplay = ({
           console.error('❌ Erreur sauvegarde semaine Supabase:', error);
         }
 
-        // Puis sauvegarde du fichier complet (backup)
+        // Puis sauvegarde du fichier complet (backup) avec les données fraîches
         try { 
+          console.log('🔄 Sauvegarde complète avec données fraîches...');
           const remoteResult = await saveCompletePlanningData(updatedPlanningData);
           if (remoteResult) {
             console.log('✅ Sauvegarde complète Supabase réussie');
+            setLocalFeedback('💾 Sauvegarde complète réussie');
           } else {
             console.log('❌ Échec sauvegarde complète Supabase');
+            setLocalFeedback('❌ Échec sauvegarde complète');
           }
         } catch (error) {
           console.error('❌ Erreur sauvegarde complète Supabase:', error);
+          setLocalFeedback('❌ Erreur sauvegarde complète');
         }
         
         setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde manuelle
