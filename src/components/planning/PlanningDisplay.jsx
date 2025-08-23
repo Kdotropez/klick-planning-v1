@@ -3300,12 +3300,36 @@ const PlanningDisplay = ({
                 // Utiliser setTimeout pour éviter les conflits de rendu React
                 setTimeout(async () => {
                   try {
+                    setLocalFeedback('💾 Sauvegarde en cours avant libération...');
+                    
+                    // Sauvegarder d'abord les données complètes
+                    if (selectedShop && selectedWeek) {
+                      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                      setPlanningData(updatedPlanningData);
+                      
+                      // Sauvegarder dans Supabase
+                      const { saveCompletePlanningData } = await import('@/utils/remoteStore');
+                      const saveResult = await saveCompletePlanningData(updatedPlanningData);
+                      
+                      if (saveResult) {
+                        console.log('✅ Sauvegarde complète réussie avant libération');
+                        setLocalFeedback('✅ Sauvegarde complète effectuée');
+                      } else {
+                        console.log('⚠️ Échec sauvegarde Supabase, libération quand même');
+                        setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                      }
+                    }
+                    
+                    // Attendre un peu pour s'assurer que la sauvegarde est terminée
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Libérer le verrou
                     if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
                     if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
                     await releaseLock(currentUserId);
                     setIsReadOnly(true);
                     setLockInfo(null);
-                    setLocalFeedback('🔓 Main relâchée');
+                    setLocalFeedback('🔓 Main relâchée - Sauvegarde complète effectuée');
                   } catch (error) {
                     console.error('❌ Erreur lors de la libération de la main:', error);
                     setLocalFeedback('❌ Erreur lors de la libération de la main');
