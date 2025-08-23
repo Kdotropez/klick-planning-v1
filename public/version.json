@@ -1,13 +1,13 @@
 {
-  "version": "3.3.9",
+  "version": "3.4.0",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "🧹 SIMPLIFICATION: Suppression du système \"toc toc\"",
+    "⚡ Simplification du système de verrouillage collaboratif",
+    "🛡️ Suppression des fonctions requestMain et checkMainRequest",
     "🔧 CORRECTION: Déverrouillage d'urgence avec nettoyage des champs",
     "⚡ Correction de emergencyUnlock pour éviter les erreurs de création",
     "🛡️ Nettoyage des champs force_release_request et main_request",
-    "🔧 CORRECTION: Fonction \"toc toc\" avec upsert",
-    "⚡ Correction de requestMain pour éviter les erreurs d'update",
-    "🛡️ Utilisation d'upsert pour créer/mettre à jour les demandes de main",
     "🔧 CORRECTION: Résolution des conflits de clé unique",
     "⚡ Utilisation d'upsert au lieu d'insert pour éviter les erreurs 409",
     "🛡️ Protection contre les violations de contrainte unique",
@@ -39,7 +39,7 @@
   ],
   "features": [
     "Verrouillage global unique par application",
-    "Système de demande de main \"toc toc\" avec notification",
+
     "Système de déverrouillage d'urgence avec code de sécurité",
     "Système de notification de force libération",
     "Sauvegarde automatique lors de la réception d'une force libération",
@@ -48,7 +48,7 @@
     "Renouvellement automatique des verrous actifs",
     "Réactivité immédiate après déverrouillage d'urgence",
     "Synchronisation en temps réel entre les clients",
-    "Interface conviviale pour les demandes de main"
+
   ],
   "technical": [
     "React 18 avec hooks avancés",

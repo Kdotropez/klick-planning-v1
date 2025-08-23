@@ -8,8 +8,6 @@ import { createClient } from '@supabase/supabase-js';
 // - heartbeat(userId) - Maintien du verrou global
 // - forceRelease(userId) - Force libération du verrou global avec notification
 // - checkForceReleaseRequest() - Vérifier les demandes de force libération
-// - requestMain(userId) - Demande polie de la main avec notification "toc toc"
-// - checkMainRequest() - Vérifier les demandes de main
 // - emergencyUnlock(userId, securityCode) - Déverrouillage d'urgence
 
 let supabase = null;
@@ -30,7 +28,6 @@ export const initLockService = ({ url, key }) => {
 
 const globalLockKey = 'global_lock';
 const forceReleaseKey = 'global_force_release';
-const mainRequestKey = 'global_main_request';
 
 const nowIso = () => new Date().toISOString();
 
@@ -308,8 +305,7 @@ export const emergencyUnlock = async (userId, securityCode) => {
          // Ajouter un marqueur spécial pour forcer la détection immédiate
          emergency_unlock: true,
          // Nettoyer les autres champs pour éviter les conflits
-         force_release_request: null,
-         main_request: null
+         force_release_request: null
        };
        
        const { data, error: insertError } = await supabase
@@ -482,110 +478,6 @@ export const cleanupExpiredLocks = async (ttlMs = 2 * 60 * 1000) => {
   }
 };
 
-// Fonction pour demander poliment la main (système "toc toc")
-export const requestMain = async (userId) => {
-  console.log('🚪 requestMain appelé (demande polie de la main):', { userId, useSupabase });
-  
-  if (useSupabase) {
-    try {
-      const { data, error } = await supabase
-        .from('planning_locks')
-        .upsert({ 
-          shop_id: 'GLOBAL',
-          week_key: 'GLOBAL',
-          user_id: userId,
-          main_request: {
-            from: userId,
-            timestamp: nowIso(),
-            message: 'Toc toc ! Puis-je avoir la main ? 😊'
-          },
-          created_at: nowIso(),
-          updated_at: nowIso()
-        }, { 
-          onConflict: 'shop_id,week_key',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('❌ Erreur requestMain Supabase:', error);
-        return { ok: false, error: 'Erreur lors de la demande de main' };
-      }
-      
-      console.log('✅ Demande de main envoyée avec Supabase:', data);
-      return { ok: true, request: data.main_request };
-    } catch (error) {
-      console.error('❌ Exception requestMain Supabase:', error);
-      return { ok: false, error: 'Exception lors de la demande de main' };
-    }
-  } else {
-    // Fallback localStorage
-    const request = {
-      from: userId,
-      timestamp: nowIso(),
-      message: 'Toc toc ! Puis-je avoir la main ? 😊'
-    };
-    
-    localStorage.setItem(mainRequestKey, JSON.stringify(request));
-    console.log('✅ Demande de main envoyée avec localStorage:', request);
-    return { ok: true, request };
-  }
-};
 
-// Fonction pour vérifier les demandes de main
-export const checkMainRequest = async (userId) => {
-  console.log('🔍 checkMainRequest appelé:', { userId, useSupabase });
-  
-  if (useSupabase) {
-    try {
-      const { data, error } = await supabase
-        .from('planning_locks')
-        .select('main_request')
-        .eq('shop_id', 'GLOBAL')
-        .eq('week_key', 'GLOBAL')
-        .not('main_request', 'is', null)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('❌ Erreur checkMainRequest Supabase:', error);
-        return null;
-      }
-      
-      if (data && data.main_request) {
-        console.log('🚪 Demande de main détectée:', data.main_request);
-        
-        // Supprimer la notification après l'avoir lue
-        await supabase
-          .from('planning_locks')
-          .update({ main_request: null })
-          .eq('shop_id', 'GLOBAL')
-          .eq('week_key', 'GLOBAL');
-        
-        return data.main_request;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('❌ Exception checkMainRequest Supabase:', error);
-      return null;
-    }
-  } else {
-    // Fallback localStorage
-    const requestData = localStorage.getItem(mainRequestKey);
-    if (requestData) {
-      try {
-        const request = JSON.parse(requestData);
-        localStorage.removeItem(mainRequestKey);
-        console.log('🚪 Demande de main détectée (localStorage):', request);
-        return request;
-      } catch (error) {
-        localStorage.removeItem(mainRequestKey);
-        return null;
-      }
-    }
-    return null;
-  }
-};
 
 
