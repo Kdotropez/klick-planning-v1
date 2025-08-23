@@ -470,59 +470,51 @@ const PlanningDisplay = ({
       // Nettoyer les verrous expirés au démarrage
       await cleanupExpiredLocks();
       
-      // Vérifier d'abord s'il y a déjà un verrou actif
-      const currentLock = await getLock(selectedShop, validWeek);
+      // Vérifier d'abord s'il y a déjà un verrou global actif
+      const currentLock = await getLock();
       
-      // Si on a déjà le verrou pour cette semaine, ne pas le relâcher et le reprendre
+      // Si on a déjà le verrou global, ne pas le relâcher et le reprendre
       if (currentLock && currentLock.user_id === currentUserId) {
-        console.log('🔒 On a déjà le verrou pour cette semaine, pas de changement');
+        console.log('🔒 On a déjà le verrou global, pas de changement');
         setLockInfo(currentLock);
         setIsReadOnly(false);
         return;
       }
       
-      // Si aucun verrou n'existe et qu'on est le seul utilisateur, ne pas créer de verrou automatiquement
+      // Si aucun verrou n'existe, essayer de l'acquérir
       if (!currentLock) {
-        console.log('🔓 Aucun verrou existant, mode libre pour utilisateur unique');
-        setLockInfo(null);
-        setIsReadOnly(false);
+        console.log('🔓 Aucun verrou global existant, tentative d\'acquisition');
+        const { ok, lock } = await acquireLock(currentUserId);
+        if (ok) {
+          console.log('✅ Verrou global acquis avec succès');
+          setLockInfo(lock);
+          setIsReadOnly(false);
+          if (hbRef.current) clearInterval(hbRef.current);
+          hbRef.current = setInterval(() => heartbeat(currentUserId), 30000); // 30s
+        }
         return;
       }
       
       // Vérifier si le verrou existant est expiré
       const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000;
       if (isExpired) {
-        console.log('🔒 Verrou expiré détecté, tentative de reprise');
-        // Le verrou est expiré, on peut essayer de l'acquérir
+        console.log('🔒 Verrou global expiré détecté, tentative de reprise');
+        const { ok, lock } = await acquireLock(currentUserId);
+        if (ok) {
+          console.log('✅ Verrou global repris avec succès');
+          setLockInfo(lock);
+          setIsReadOnly(false);
+          if (hbRef.current) clearInterval(hbRef.current);
+          hbRef.current = setInterval(() => heartbeat(currentUserId), 30000); // 30s
+        }
       } else if (currentLock.user_id !== currentUserId) {
         // Le verrou est valide et appartient à quelqu'un d'autre
-        console.log('❌ Verrou détenu par un autre utilisateur:', currentLock.user_id);
+        console.log('❌ Verrou global détenu par un autre utilisateur:', currentLock.user_id);
         setLockInfo(currentLock);
         setIsReadOnly(true);
-        setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} édite actuellement ce planning`);
-        return;
+        setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} utilise actuellement l'application`);
       }
       
-      console.log('🔒 Tentative d\'acquisition du verrou:', { selectedShop, validWeek, currentUserId });
-      const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
-      console.log('🔒 Résultat acquisition verrou:', { ok, lock });
-      
-      setLockInfo(lock || null);
-      // isReadOnly = true si on n'a pas le verrou ET si le verrou appartient à quelqu'un d'autre
-      const shouldBeReadOnly = !ok && lock?.user_id !== currentUserId;
-      setIsReadOnly(shouldBeReadOnly);
-      console.log('🔒 État lecture seule:', { 
-        ok, 
-        lockUserId: lock?.user_id, 
-        currentUserId, 
-        shouldBeReadOnly,
-        isReadOnly: shouldBeReadOnly 
-      });
-      
-      if (ok) {
-        console.log('✅ Verrou acquis avec succès');
-        if (hbRef.current) clearInterval(hbRef.current);
-        hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000); // 30s au lieu de 2min
         
         // Démarrer la sauvegarde automatique toutes les 3 minutes (DÉSACTIVÉE TEMPORAIREMENT)
         // if (autoSaveRef.current) clearInterval(autoSaveRef.current);
@@ -582,7 +574,7 @@ const PlanningDisplay = ({
             setIsReadOnly(false);
             console.log('🔓 On a le verrou, lecture seule désactivée');
             // Vérifier les demandes de force release via Supabase
-            const forceReleaseRequest = await checkForceReleaseRequest(selectedShop, validWeek, currentUserId);
+            const forceReleaseRequest = await checkForceReleaseRequest();
             if (forceReleaseRequest) {
               console.log('🚨 Demande de force release détectée:', forceReleaseRequest);
               if (window.confirm('🚨 URGENT : Un autre utilisateur veut forcer la libération du verrou !\n\nVoulez-vous sauvegarder votre travail maintenant ?\n\nCliquez "OK" pour sauvegarder, "Annuler" pour ignorer.')) {
@@ -596,8 +588,8 @@ const PlanningDisplay = ({
           }
 
           // Vérifier les demandes de main pour tous les utilisateurs
-          console.log('🔍 Vérification des demandes de main pour:', { selectedShop, validWeek, currentUserId });
-          const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+          console.log('🔍 Vérification des demandes de main pour:', { currentUserId });
+          const mainRequest = await checkMainRequest();
           console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
           if (mainRequest) {
             console.log('🤝 Demande de main normale détectée:', mainRequest);
@@ -614,7 +606,7 @@ const PlanningDisplay = ({
                 // Libérer le verrou après sauvegarde réussie
                 if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
                 if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                await releaseLock(selectedShop, validWeek, currentUserId);
+                await releaseLock(currentUserId);
                 setIsReadOnly(true);
                 setLockInfo(null);
                 console.log('🔓 Verrou libéré automatiquement après demande de main');
@@ -628,8 +620,8 @@ const PlanningDisplay = ({
           }
         } else {
           // Même si on n'a pas le verrou, vérifier s'il y a des demandes de main pour nous
-          console.log('🔍 Vérification des demandes de main (pas détenteur):', { selectedShop, validWeek, currentUserId });
-          const mainRequest = await checkMainRequest(selectedShop, validWeek, currentUserId);
+          console.log('🔍 Vérification des demandes de main (pas détenteur):', { currentUserId });
+          const mainRequest = await checkMainRequest();
           console.log('🔍 Résultat de la vérification des demandes de main (pas détenteur):', mainRequest);
           if (mainRequest) {
             console.log('🤝 Demande de main détectée (pas détenteur):', mainRequest);
@@ -667,7 +659,7 @@ const PlanningDisplay = ({
       clearInterval(checkInterval);
       if (selectedShop && validWeek) {
         console.log('🔓 Libération du verrou');
-        releaseLock(selectedShop, validWeek, currentUserId);
+        releaseLock(currentUserId);
       }
     };
   }, [selectedShop, validWeek, currentUserId]);
@@ -1102,7 +1094,7 @@ const PlanningDisplay = ({
     try {
       console.log('🔓 Force release du verrou...');
       const { forceRelease } = await import('@/utils/collabLock');
-      const result = await forceRelease(selectedShop, selectedWeek, currentUserId);
+      const result = await forceRelease(currentUserId);
       if (result) {
         setLocalFeedback('🔓 Verrou libéré avec force');
         setIsReadOnly(false);
@@ -3116,7 +3108,7 @@ const PlanningDisplay = ({
                     console.log('🤝 Envoi de demande de main');
                     
                     // Envoyer une demande de main à l'utilisateur actuel
-                    const { ok } = await requestMain(selectedShop, validWeek, currentUserId);
+                    const { ok } = await requestMain();
                     
                     if (ok) {
                       setLocalFeedback('🤝 Demande de main envoyée. En attente de libération...');
@@ -3213,7 +3205,7 @@ const PlanningDisplay = ({
                       setLocalFeedback('⏳ Demande de sauvegarde envoyée à l\'utilisateur distant...');
                       
                       // Utiliser la nouvelle fonction forceRelease
-                      const { ok } = await forceRelease(selectedShop, validWeek, currentUserId);
+                      const { ok } = await forceRelease(currentUserId);
                       
                       if (ok) {
                         // Attendre un peu puis réessayer d'acquérir le verrou
@@ -3314,7 +3306,7 @@ const PlanningDisplay = ({
                   try {
                     if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
                     if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                    await releaseLock(selectedShop, validWeek, currentUserId);
+                    await releaseLock(currentUserId);
                     setIsReadOnly(true);
                     setLockInfo(null);
                     setLocalFeedback('🔓 Main relâchée');

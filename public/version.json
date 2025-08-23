@@ -1,5 +1,5 @@
 {
-  "version": "3.2.3",
+  "version": "3.3.0",
   "buildDate": "2025-08-19T00:00:00.000Z",
   "changelog": [
     "🤒 Nouveau statut 'Maladie' avec gestuelle (1er + dernier créneau)",
@@ -20,7 +20,10 @@
     "🔧 Amélioration de la gestion des verrous lors du changement de semaine",
     "⚡ Nettoyage périodique des verrous orphelins (toutes les 30s)",
     "🔍 Ajout d'un outil de diagnostic et nettoyage des verrous",
-    "🔓 Fonction de force libération pour verrous persistants"
+    "🔓 Fonction de force libération pour verrous persistants",
+    "🌐 NOUVEAU: Système de verrouillage global unique",
+    "🔒 Un seul PC peut utiliser l'application à la fois",
+    "⚡ Simplification du système de verrouillage collaboratif"
   ],
   "features": [
     "Système de verrouillage collaboratif en temps réel",
