@@ -1027,7 +1027,7 @@ const PlanningDisplay = ({
       console.error('Erreur sauvegarde manuelle:', error);
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
-  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData]);
+  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData, setLocalFeedback, setHasUnsavedChanges, isReadOnly]);
 
   // Fonction de test de connexion Supabase
   const testSupabase = useCallback(async () => {
