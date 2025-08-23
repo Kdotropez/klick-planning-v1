@@ -1,5 +1,5 @@
 {
-  "version": "3.2.2",
+  "version": "3.2.3",
   "buildDate": "2025-08-19T00:00:00.000Z",
   "changelog": [
     "🤒 Nouveau statut 'Maladie' avec gestuelle (1er + dernier créneau)",
@@ -18,7 +18,9 @@
     "✅ Vérification de l'existence du verrou avant suppression",
     "🧹 Ajout du nettoyage automatique des verrous expirés",
     "🔧 Amélioration de la gestion des verrous lors du changement de semaine",
-    "⚡ Nettoyage périodique des verrous orphelins (toutes les 30s)"
+    "⚡ Nettoyage périodique des verrous orphelins (toutes les 30s)",
+    "🔍 Ajout d'un outil de diagnostic et nettoyage des verrous",
+    "🔓 Fonction de force libération pour verrous persistants"
   ],
   "features": [
     "Système de verrouillage collaboratif en temps réel",

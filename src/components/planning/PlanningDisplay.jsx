@@ -1116,6 +1116,46 @@ const PlanningDisplay = ({
     }
   }, [selectedShop, selectedWeek, currentUserId]);
 
+  // Fonction pour diagnostiquer et nettoyer les verrous
+  const diagnoseAndCleanLocks = useCallback(async () => {
+    try {
+      console.log('🔍 Diagnostic et nettoyage des verrous...');
+      const { diagnoseAllLocks, forceUnlockSpecificUser, clearAllLocks } = await import('@/utils/debugLocks');
+      
+      // Diagnostiquer tous les verrous
+      await diagnoseAllLocks();
+      
+      // Demander à l'utilisateur quelle action effectuer
+      const action = window.prompt(
+        '🔍 Diagnostic des verrous terminé.\n\n' +
+        'Choisissez une action:\n' +
+        '1. Forcer la libération de user_1p4ddz9\n' +
+        '2. Nettoyer tous les verrous (utilisateur unique)\n' +
+        '3. Annuler\n\n' +
+        'Entrez 1, 2 ou 3:'
+      );
+      
+      if (action === '1') {
+        await forceUnlockSpecificUser('user_1p4ddz9');
+        setLocalFeedback('🔓 Verrous de user_1p4ddz9 supprimés');
+        // Recharger la page pour appliquer les changements
+        setTimeout(() => window.location.reload(), 1000);
+      } else if (action === '2') {
+        if (window.confirm('⚠️ ATTENTION : Nettoyer TOUS les verrous ?\n\nCette action va supprimer tous les verrous actifs.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+          await clearAllLocks();
+          setLocalFeedback('🧹 Tous les verrous supprimés');
+          // Recharger la page pour appliquer les changements
+          setTimeout(() => window.location.reload(), 1000);
+        }
+      } else {
+        setLocalFeedback('❌ Action annulée');
+      }
+    } catch (error) {
+      console.error('❌ Erreur diagnostic verrous:', error);
+      setLocalFeedback('❌ Erreur diagnostic verrous');
+    }
+  }, []);
+
   // Fonction pour nettoyer Supabase
   const cleanSupabaseData = useCallback(async () => {
     if (window.confirm('⚠️ ATTENTION : Nettoyer Supabase\n\nCette action va supprimer toutes les données dans Supabase.\n\nÊtes-vous sûr de vouloir continuer ?')) {
@@ -1822,6 +1862,7 @@ const PlanningDisplay = ({
             cleanSupabaseData={cleanSupabaseData}
             diagnoseSupabase={diagnoseSupabase}
             forceReleaseLock={forceReleaseLock}
+            diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
           />
         </div>
