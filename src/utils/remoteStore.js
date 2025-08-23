@@ -129,9 +129,15 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       dataVersion: completePlanningData.version
     });
     
+    // Forcer la mise à jour du timestamp en ajoutant updated_at explicitement
+    const rowWithTimestamp = {
+      ...row,
+      updated_at: new Date().toISOString()
+    };
+    
     const { data, error } = await supabase
       .from('plannings')
-      .upsert(row, { onConflict: 'shop_id,week_key' });
+      .upsert(rowWithTimestamp, { onConflict: 'shop_id,week_key' });
     
     if (error) {
       console.error('❌ Erreur lors de l\'insertion:', error);
