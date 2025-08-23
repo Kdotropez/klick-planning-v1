@@ -308,6 +308,9 @@ const App = () => {
     }
   };
 
+  // Alias pour handleImportData (utilisé dans certains composants)
+  const handleImportData = handleImportPlanning;
+
   const handleExit = () => {
     if (window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) {
       window.close();
@@ -569,14 +572,6 @@ const App = () => {
           setFeedback('❌ Échec export Excel');
         }
       };
-      return;
-      // Ancien prompt supprimé
-      const ok = true;
-      if (ok === true) {
-        setFeedback('📊 Export Excel réussi !');
-      } else {
-        setFeedback('❌ Échec export Excel');
-      }
     } catch (error) {
       console.error('Erreur lors de l\'export Excel:', error);
       setFeedback('❌ Échec export Excel');
@@ -617,6 +612,8 @@ const App = () => {
     setMode('new');
     setCurrentStep(2); // Étape de configuration des boutiques
   };
+
+
 
   // Rendu conditionnel
   if (mode === 'main-startup') {
