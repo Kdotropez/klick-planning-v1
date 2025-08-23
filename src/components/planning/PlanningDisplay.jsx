@@ -50,7 +50,8 @@ const PlanningDisplay = ({
   onBackToWeekSelection,
   onBackToConfig,
   setFeedback,
-  onDeleteEmployee
+  onDeleteEmployee,
+  onRestoreFromSupabase
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
@@ -1770,6 +1771,7 @@ const PlanningDisplay = ({
             cleanSupabaseData={cleanSupabaseData}
             diagnoseSupabase={diagnoseSupabase}
             forceReleaseLock={forceReleaseLock}
+            handleRestoreFromSupabase={onRestoreFromSupabase}
           />
         </div>
       ) : (

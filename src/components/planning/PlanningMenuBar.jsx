@@ -25,6 +25,7 @@ const PlanningMenuBar = ({
   onReset,
   setShowGlobalDayViewModalV2,
   handleManualSave,
+  handleRestoreFromSupabase,
   // Modules
   onOpenDashboard,
   onOpenShopStats,
@@ -300,6 +301,28 @@ const PlanningMenuBar = ({
 
           <Button
             className="button-primary"
+            onClick={handleRestoreFromSupabase}
+            style={{
+              backgroundColor: '#6f42c1',
+              color: '#fff',
+              padding: '12px 18px',
+              fontSize: '15px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#5a32a3'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6f42c1'}
+          >
+            🔄 RESTAURE SUPABASE
+          </Button>
+
+          <Button
+            className="button-primary"
             onClick={onCreateJSONBackup}
             style={{
               backgroundColor: '#20c997',
@@ -458,6 +481,7 @@ const PlanningMenuBar = ({
           <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Vue globale par jour" onClick={() => setShowGlobalDayViewModalV2(true)}>📊 Vue globale</Button>
           <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Exporter" onClick={onExport}>⬇️ Exporter</Button>
           <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Sauvegarder" onClick={handleManualSave}>💾 Sauvegarder</Button>
+          <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Restaurer depuis Supabase" onClick={handleRestoreFromSupabase}>🔄 Restaurer</Button>
           <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Importer" onClick={handleImportClick}>📥 Importer</Button>
           <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Diagnostic" onClick={() => {}}>🔧 Diagnostic</Button>
           <Button style={{ padding: '10px 14px', fontSize: '14px', whiteSpace: 'nowrap' }} title="Nettoyer cache" onClick={() => {}}>🧹 Cache</Button>

@@ -889,6 +889,7 @@ const App = () => {
               onBackToWeekSelection={handleBackToWeekSelection}
               onBackToConfig={handleBackToConfig}
               setFeedback={setFeedback}
+              onRestoreFromSupabase={handleRestoreFromSupabase}
             />
           <CopyrightNotice />
         </div>
