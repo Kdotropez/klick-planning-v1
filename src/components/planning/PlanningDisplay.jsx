@@ -467,6 +467,25 @@ const PlanningDisplay = ({
     const run = async () => {
       if (!selectedShop || !validWeek) return;
       
+      // Vérifier d'abord s'il y a déjà un verrou actif
+      const currentLock = await getLock(selectedShop, validWeek);
+      
+      // Si on a déjà le verrou pour cette semaine, ne pas le relâcher et le reprendre
+      if (currentLock && currentLock.user_id === currentUserId) {
+        console.log('🔒 On a déjà le verrou pour cette semaine, pas de changement');
+        setLockInfo(currentLock);
+        setIsReadOnly(false);
+        return;
+      }
+      
+      // Si aucun verrou n'existe et qu'on est le seul utilisateur, ne pas créer de verrou automatiquement
+      if (!currentLock) {
+        console.log('🔓 Aucun verrou existant, mode libre pour utilisateur unique');
+        setLockInfo(null);
+        setIsReadOnly(false);
+        return;
+      }
+      
       console.log('🔒 Tentative d\'acquisition du verrou:', { selectedShop, validWeek, currentUserId });
       const { ok, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
       console.log('🔒 Résultat acquisition verrou:', { ok, lock });
