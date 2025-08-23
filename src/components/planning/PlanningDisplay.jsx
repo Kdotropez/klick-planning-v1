@@ -477,6 +477,14 @@ const PlanningDisplay = ({
       
       console.log('🔒 Vérification du verrou global pour:', { selectedShop, validWeek, currentUserId });
       
+      // Protection contre les boucles infinies
+      const now = Date.now();
+      if (window.lastLockAttempt && now - window.lastLockAttempt < 3000) {
+        console.log('⏳ Délai minimum non respecté, attente...');
+        return;
+      }
+      window.lastLockAttempt = now;
+      
       // Nettoyer les verrous expirés au démarrage seulement
       if (!window.lockInitialized) {
         await cleanupExpiredLocks();
@@ -547,11 +555,17 @@ const PlanningDisplay = ({
     
     run();
     
-    // Vérification périodique du verrou (toutes les 2 secondes pour plus de réactivité)
+    // Vérification périodique du verrou (toutes les 5 secondes pour éviter les boucles)
     const checkInterval = setInterval(async () => {
       if (selectedShop && validWeek) {
-        // Nettoyer les verrous expirés périodiquement (toutes les 60 secondes)
+        // Protection contre les boucles infinies dans la vérification périodique
         const now = Date.now();
+        if (checkInterval.lastCheck && now - checkInterval.lastCheck < 5000) {
+          return;
+        }
+        checkInterval.lastCheck = now;
+        
+        // Nettoyer les verrous expirés périodiquement (toutes les 60 secondes)
         if (!checkInterval.lastCleanup || now - checkInterval.lastCleanup > 60000) {
           await cleanupExpiredLocks();
           checkInterval.lastCleanup = now;
@@ -639,8 +653,6 @@ const PlanningDisplay = ({
                 }
               }
             }
-            
-
           }
         } else {
           // Aucun verrou existant

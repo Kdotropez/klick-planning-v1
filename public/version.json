@@ -1,7 +1,11 @@
 {
-  "version": "3.4.0",
+  "version": "3.4.1",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "🔧 CORRECTION: Résolution de la boucle infinie",
+    "⚡ Protection contre les boucles infinies lors de la connexion multi-PC",
+    "🛡️ Délai minimum de 3s entre les tentatives d'acquisition de verrou",
+    "⏱️ Vérification périodique réduite à 5s au lieu de 2s",
     "🧹 SIMPLIFICATION: Suppression du système \"toc toc\"",
     "⚡ Simplification du système de verrouillage collaboratif",
     "🛡️ Suppression des fonctions requestMain et checkMainRequest",
