@@ -541,10 +541,6 @@ const PlanningDisplay = ({
         //     setLocalFeedback('❌ Erreur sauvegarde automatique');
         //   }
         // }, 3 * 60 * 1000); // 3 minutes
-      } else if (lock) {
-        console.log('❌ Verrou détenu par:', lock.user_id);
-        setLocalFeedback(`🔒 Lecture seule: ${lock.user_id} édite actuellement ce planning`);
-      }
     };
     
     run();
@@ -559,7 +555,7 @@ const PlanningDisplay = ({
           checkInterval.lastCleanup = now;
         }
         
-        const currentLock = await getLock(selectedShop, validWeek);
+        const currentLock = await getLock();
         if (currentLock) {
           const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000; // 2 minutes au lieu de 5
           if (isExpired) {
@@ -3116,13 +3112,13 @@ const PlanningDisplay = ({
                       // Attendre et vérifier périodiquement si on obtient la main
                       const checkInterval = setInterval(async () => {
                         try {
-                          const { ok: acquireOk, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                          const { ok: acquireOk, lock } = await acquireLock(currentUserId);
                           if (acquireOk) {
                             clearInterval(checkInterval);
                             setLockInfo(lock || null);
                             setIsReadOnly(false);
                             if (hbRef.current) clearInterval(hbRef.current);
-                            hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                            hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
                             
                             // Démarrer la sauvegarde automatique toutes les 3 minutes
                             if (autoSaveRef.current) clearInterval(autoSaveRef.current);
@@ -3211,13 +3207,13 @@ const PlanningDisplay = ({
                         // Attendre un peu puis réessayer d'acquérir le verrou
                         setTimeout(async () => {
                           try {
-                            const { ok: acquireOk, lock } = await acquireLock(selectedShop, validWeek, currentUserId);
+                            const { ok: acquireOk, lock } = await acquireLock(currentUserId);
                             setLockInfo(lock || null);
                             setIsReadOnly(!acquireOk && lock?.user_id !== currentUserId);
                             if (acquireOk) {
                               console.log('✅ Verrou forcé avec succès');
                               if (hbRef.current) clearInterval(hbRef.current);
-                              hbRef.current = setInterval(() => heartbeat(selectedShop, validWeek, currentUserId), 30000);
+                              hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
                               
                               // Démarrer la sauvegarde automatique toutes les 3 minutes
                               if (autoSaveRef.current) clearInterval(autoSaveRef.current);
