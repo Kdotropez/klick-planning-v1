@@ -468,8 +468,13 @@ const PlanningDisplay = ({
     const run = async () => {
       if (!selectedShop || !validWeek) return;
       
-      // Nettoyer les verrous expirés au démarrage
-      await cleanupExpiredLocks();
+      console.log('🔒 Vérification du verrou global pour:', { selectedShop, validWeek, currentUserId });
+      
+      // Nettoyer les verrous expirés au démarrage seulement
+      if (!window.lockInitialized) {
+        await cleanupExpiredLocks();
+        window.lockInitialized = true;
+      }
       
       // Vérifier d'abord s'il y a déjà un verrou global actif
       const currentLock = await getLock();
@@ -479,6 +484,11 @@ const PlanningDisplay = ({
         console.log('🔒 On a déjà le verrou global, pas de changement');
         setLockInfo(currentLock);
         setIsReadOnly(false);
+        
+        // S'assurer que le heartbeat est actif
+        if (!hbRef.current) {
+          hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+        }
         return;
       }
       
@@ -492,12 +502,19 @@ const PlanningDisplay = ({
           setIsReadOnly(false);
           if (hbRef.current) clearInterval(hbRef.current);
           hbRef.current = setInterval(() => heartbeat(currentUserId), 30000); // 30s
+        } else {
+          console.log('❌ Échec acquisition du verrou global');
+          setIsReadOnly(true);
+          setLockInfo(null);
         }
         return;
       }
       
       // Vérifier si le verrou existant est expiré
-      const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000;
+      const lockTime = new Date(currentLock.updated_at || currentLock.created_at);
+      const age = Date.now() - lockTime.getTime();
+      const isExpired = age > 2 * 60 * 1000; // 2 minutes
+      
       if (isExpired) {
         console.log('🔒 Verrou global expiré détecté, tentative de reprise');
         const { ok, lock } = await acquireLock(currentUserId);
@@ -507,6 +524,10 @@ const PlanningDisplay = ({
           setIsReadOnly(false);
           if (hbRef.current) clearInterval(hbRef.current);
           hbRef.current = setInterval(() => heartbeat(currentUserId), 30000); // 30s
+        } else {
+          console.log('❌ Échec reprise du verrou global');
+          setIsReadOnly(true);
+          setLockInfo(null);
         }
       } else if (currentLock.user_id !== currentUserId) {
         // Le verrou est valide et appartient à quelqu'un d'autre
@@ -515,53 +536,37 @@ const PlanningDisplay = ({
         setIsReadOnly(true);
         setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} utilise actuellement l'application`);
       }
-      
-        
-        // Démarrer la sauvegarde automatique toutes les 3 minutes (DÉSACTIVÉE TEMPORAIREMENT)
-        // if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-        // autoSaveRef.current = setInterval(async () => {
-        //   try {
-        //     console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
-        //     if (selectedShop && selectedWeek) {
-        //       const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-        //       setPlanningData(updatedPlanningData);
-        //       
-        //       // Sauvegarder d'abord la semaine courante dans Supabase
-        //       const weekSaved = await saveRemotePlanning(updatedPlanningData, selectedShop, selectedWeek);
-        //       if (weekSaved) {
-        //         console.log('✅ Auto-save semaine Supabase OK');
-        //       }
-        //       // Puis sauvegarde de backup globale
-        //       const fullSaved = await saveCompletePlanningData(updatedPlanningData);
-        //       if (fullSaved) {
-        //         console.log('✅ Auto-save fichier complet Supabase OK');
-        //       }
-        //     }
-        //   } catch (error) {
-        //     console.error('❌ Erreur lors de la sauvegarde automatique:', error);
-        //     setLocalFeedback('❌ Erreur sauvegarde automatique');
-        //   }
-        // }, 3 * 60 * 1000); // 3 minutes
     };
     
     run();
     
-    // Vérification périodique du verrou (toutes les 3 secondes pour plus de réactivité)
+    // Vérification périodique du verrou (toutes les 5 secondes pour plus de stabilité)
     const checkInterval = setInterval(async () => {
       if (selectedShop && validWeek) {
-        // Nettoyer les verrous expirés périodiquement (toutes les 30 secondes)
+        // Nettoyer les verrous expirés périodiquement (toutes les 60 secondes)
         const now = Date.now();
-        if (!checkInterval.lastCleanup || now - checkInterval.lastCleanup > 30000) {
+        if (!checkInterval.lastCleanup || now - checkInterval.lastCleanup > 60000) {
           await cleanupExpiredLocks();
           checkInterval.lastCleanup = now;
         }
         
         const currentLock = await getLock();
         if (currentLock) {
-          const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000; // 2 minutes au lieu de 5
+          const lockTime = new Date(currentLock.updated_at || currentLock.created_at);
+          const age = Date.now() - lockTime.getTime();
+          const isExpired = age > 2 * 60 * 1000; // 2 minutes
+          
           if (isExpired) {
-            console.log('🔒 Verrou expiré, tentative de reprise');
-            run(); // Réessayer d'acquérir le verrou
+            console.log('🔒 Verrou expiré détecté, tentative de reprise');
+            const { ok, lock } = await acquireLock(currentUserId);
+            if (ok) {
+              console.log('✅ Verrou repris après expiration');
+              setLockInfo(lock);
+              setIsReadOnly(false);
+              if (!hbRef.current) {
+                hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+              }
+            }
           } else if (currentLock.user_id !== currentUserId) {
             setIsReadOnly(true);
             setLockInfo(currentLock);
@@ -570,7 +575,8 @@ const PlanningDisplay = ({
             // On a le verrou, s'assurer qu'on n'est pas en lecture seule
             setIsReadOnly(false);
             console.log('🔓 On a le verrou, lecture seule désactivée');
-                      // Vérifier les demandes de force release via Supabase
+            
+            // Vérifier les demandes de force release via Supabase
             const forceReleaseRequest = await checkForceReleaseRequest(currentUserId);
             if (forceReleaseRequest) {
               console.log('🔓 Demande de force release reçue, sauvegarde et libération automatique...');
@@ -608,30 +614,21 @@ const PlanningDisplay = ({
               }
             }
           }
-
-
         } else {
-          // Même si on n'a pas le verrou, vérifier s'il y a des nouvelles données disponibles depuis Supabase
-          
-          // Vérifier s'il y a des nouvelles données disponibles depuis Supabase
-          try {
-            const { loadRemotePlanning } = await import('@/utils/remoteStore');
-            const remoteData = await loadRemotePlanning(selectedShop, validWeek);
-            if (remoteData && remoteData.planning) {
-              console.log('📥 Nouvelles données détectées depuis Supabase');
-              setPlanning(remoteData.planning);
-              if (remoteData.selectedEmployees) {
-                setSelectedEmployees(remoteData.selectedEmployees);
-              }
-              setDataFreshness('supabase');
-              setLocalFeedback('📥 Données mises à jour depuis Supabase');
+          // Aucun verrou, essayer d'en acquérir un
+          console.log('🔓 Aucun verrou détecté, tentative d\'acquisition');
+          const { ok, lock } = await acquireLock(currentUserId);
+          if (ok) {
+            console.log('✅ Verrou acquis lors de la vérification périodique');
+            setLockInfo(lock);
+            setIsReadOnly(false);
+            if (!hbRef.current) {
+              hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
             }
-          } catch (error) {
-            console.error('❌ Erreur lors du rechargement automatique:', error);
           }
         }
       }
-    }, 3000); // Vérification toutes les 3 secondes pour plus de réactivité
+    }, 5000); // Vérification toutes les 5 secondes pour plus de stabilité
     
     return () => {
       if (hbRef.current) {

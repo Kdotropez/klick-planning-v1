@@ -1,48 +1,30 @@
 {
-  "version": "3.3.2",
-  "buildDate": "2025-08-19T00:00:00.000Z",
+  "version": "3.3.3",
+  "buildDate": "2025-01-27T12:00:00.000Z",
   "changelog": [
-    "🔒 Système de verrouillage collaboratif par semaine",
-    "⚡ Sauvegarde automatique toutes les 3 minutes",
-    "🔄 Synchronisation en temps réel avec Supabase",
-    "📊 Indicateurs visuels de l'état du verrou",
-    "🛡️ Protection contre les modifications simultanées",
-    "💾 Sauvegarde locale et distante",
-    "🔍 Vérification automatique des verrous expirés",
-    "⚡ Nettoyage périodique des verrous orphelins (toutes les 30s)",
-    "🔍 Ajout d'un outil de diagnostic et nettoyage des verrous",
-    "🔓 Fonction de force libération pour verrous persistants",
-    "🌐 NOUVEAU: Système de verrouillage global unique",
-    "🔒 Un seul PC peut utiliser l'application à la fois",
-    "⚡ Simplification du système de verrouillage collaboratif",
-    "📊 NOUVEAU: Indicateur de fraîcheur des données",
-    "📥 Affichage visuel quand les données proviennent de Supabase",
-    "💾 Indication claire de l'origine des données (locale/Supabase)",
-    "🔄 NOUVEAU: Système de notification de force libération",
-    "🔓 Suppression du bouton 'Demander la main'",
-    "💾 Sauvegarde automatique lors de la réception d'une force libération",
-    "⚡ Libération automatique du verrou après sauvegarde"
+    "🔧 AMÉLIORATION: Système de verrouillage global optimisé",
+    "🔄 Renouvellement automatique du verrou pour le même utilisateur",
+    "⚡ Réduction des conflits lors des changements de semaine",
+    "🛡️ Protection contre les acquisitions de verrou multiples",
+    "⏱️ Vérification périodique plus stable (5s au lieu de 3s)",
+    "🧹 Nettoyage des verrous expirés moins agressif",
+    "🔒 Gestion améliorée des états de verrouillage",
+    "📊 Meilleure stabilité du système collaboratif"
   ],
   "features": [
-    "Verrouillage collaboratif",
-    "Sauvegarde automatique",
-    "Synchronisation Supabase",
-    "Interface responsive",
-    "Gestion des employés",
-    "Planification hebdomadaire",
-    "Statistiques en temps réel",
-    "Export des données",
-    "Import des données",
-    "Gestion des boutiques",
-    "Verrouillage global unique",
-    "Notification de force libération",
-    "Sauvegarde automatique lors de force libération"
+    "Verrouillage global unique par application",
+    "Système de notification de force libération",
+    "Sauvegarde automatique lors de la réception d'une force libération",
+    "Indicateur de fraîcheur des données",
+    "Gestion robuste des verrous expirés",
+    "Renouvellement automatique des verrous actifs"
   ],
-  "technical": {
-    "framework": "React 18",
-    "buildTool": "Vite",
-    "database": "Supabase",
-    "deployment": "Vercel",
-    "locking": "Global lock with notification system"
-  }
+  "technical": [
+    "React 18 avec hooks avancés",
+    "Supabase pour la persistance et le verrouillage",
+    "localStorage pour le cache local",
+    "Système de heartbeat pour maintenir les verrous",
+    "Gestion d'état optimisée avec useRef et useEffect",
+    "Architecture modulaire et extensible"
+  ]
 }

@@ -69,16 +69,50 @@ export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
   
   if (existing) {
     const now = new Date();
-    const lockTime = new Date(existing.updated_at);
+    const lockTime = new Date(existing.updated_at || existing.created_at);
     const age = now - lockTime;
     
-    if (age < ttlMs && existing.user_id !== userId) {
-      console.log('❌ Verrou actif détenu par un autre utilisateur');
+    // Si le verrou appartient déjà à cet utilisateur, le renouveler
+    if (existing.user_id === userId) {
+      console.log('🔄 Renouvellement du verrou existant pour le même utilisateur');
+      if (useSupabase) {
+        try {
+          const { data, error } = await supabase
+            .from('planning_locks')
+            .update({ updated_at: nowIso() })
+            .eq('shop_id', 'GLOBAL')
+            .eq('week_key', 'GLOBAL')
+            .eq('user_id', userId)
+            .select()
+            .single();
+          
+          if (error) {
+            console.error('❌ Erreur renouvellement verrou Supabase:', error);
+            return { ok: false, lock: existing };
+          }
+          console.log('✅ Verrou renouvelé avec Supabase');
+          return { ok: true, lock: data };
+        } catch (error) {
+          console.error('❌ Exception renouvellement verrou Supabase:', error);
+          return { ok: false, lock: existing };
+        }
+      } else {
+        existing.updated_at = nowIso();
+        localStorage.setItem(globalLockKey, JSON.stringify(existing));
+        console.log('✅ Verrou renouvelé avec localStorage');
+        return { ok: true, lock: existing };
+      }
+    }
+    
+    // Si le verrou est actif et appartient à un autre utilisateur
+    if (age < ttlMs) {
+      console.log('❌ Verrou actif détenu par un autre utilisateur:', existing.user_id);
       return { ok: false, lock: existing };
     }
     
+    // Si le verrou est expiré, le nettoyer avant d'en créer un nouveau
     if (age >= ttlMs) {
-      console.log('🔓 Verrou expiré, nettoyage...');
+      console.log('🔓 Verrou expiré, nettoyage avant acquisition...');
       await cleanupExpiredLocks(ttlMs);
     }
   }
@@ -112,7 +146,8 @@ export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
         console.error('❌ Erreur acquireLock Supabase:', error);
         return { ok: false, lock: null };
       }
-      console.log('✅ Verrou global acquis avec Supabase');
+      console.log('✅ Verrou global acquis avec Supabase:', data);
+      return { ok: true, lock: data };
     } catch (error) {
       console.error('❌ Exception acquireLock Supabase:', error);
       return { ok: false, lock: null };
@@ -120,9 +155,8 @@ export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
   } else {
     localStorage.setItem(globalLockKey, JSON.stringify(lock));
     console.log('✅ Verrou global acquis avec localStorage');
+    return { ok: true, lock };
   }
-  
-  return { ok: true, lock };
 };
 
 export const releaseLock = async (userId) => {
