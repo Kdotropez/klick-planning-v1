@@ -24,7 +24,7 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, requestMain, checkMainRequest, cleanupExpiredLocks } from '@/utils/collabLock';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, cleanupExpiredLocks } from '@/utils/collabLock';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -570,60 +570,48 @@ const PlanningDisplay = ({
             // On a le verrou, s'assurer qu'on n'est pas en lecture seule
             setIsReadOnly(false);
             console.log('🔓 On a le verrou, lecture seule désactivée');
-            // Vérifier les demandes de force release via Supabase
-            const forceReleaseRequest = await checkForceReleaseRequest();
+                      // Vérifier les demandes de force release via Supabase
+            const forceReleaseRequest = await checkForceReleaseRequest(currentUserId);
             if (forceReleaseRequest) {
-              console.log('🚨 Demande de force release détectée:', forceReleaseRequest);
-              if (window.confirm('🚨 URGENT : Un autre utilisateur veut forcer la libération du verrou !\n\nVoulez-vous sauvegarder votre travail maintenant ?\n\nCliquez "OK" pour sauvegarder, "Annuler" pour ignorer.')) {
-                // Sauvegarder automatiquement
-                handleManualSave();
-                setLocalFeedback('💾 Travail sauvegardé automatiquement suite à la demande.');
-              } else {
-                setLocalFeedback('⚠️ Sauvegarde refusée - risque de perte de données.');
+              console.log('🔓 Demande de force release reçue, sauvegarde et libération automatique...');
+              setLocalFeedback('🔓 Demande de force release reçue, sauvegarde en cours...');
+              
+              // Sauvegarder automatiquement
+              if (selectedShop && selectedWeek) {
+                const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                setPlanningData(updatedPlanningData);
+                
+                // Sauvegarder dans Supabase
+                const { saveCompletePlanningData } = await import('@/utils/remoteStore');
+                const saveResult = await saveCompletePlanningData(updatedPlanningData);
+                
+                if (saveResult) {
+                  console.log('✅ Sauvegarde automatique réussie avant force release');
+                  setLocalFeedback('✅ Sauvegarde automatique effectuée, libération du verrou...');
+                } else {
+                  console.log('⚠️ Échec sauvegarde Supabase avant force release');
+                  setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                }
+              }
+              
+              // Libérer le verrou
+              const releaseResult = await releaseLock(currentUserId);
+              if (releaseResult.ok) {
+                console.log('✅ Verrou libéré suite à force release');
+                setLocalFeedback('✅ Verrou libéré suite à force release');
+                setIsReadOnly(true);
+                setLockInfo(null);
+                
+                // Arrêter les intervalles
+                if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
               }
             }
           }
 
-          // Vérifier les demandes de main pour tous les utilisateurs
-          console.log('🔍 Vérification des demandes de main pour:', { currentUserId });
-          const mainRequest = await checkMainRequest();
-          console.log('🔍 Résultat de la vérification des demandes de main:', mainRequest);
-          if (mainRequest) {
-            console.log('🤝 Demande de main normale détectée:', mainRequest);
-            console.log('🔒 Utilisateur actuel qui a la main:', currentUserId);
-            
-            // Afficher une notification à l'utilisateur
-            if (window.confirm('🤝 Un autre utilisateur demande la main !\n\nVoulez-vous sauvegarder et libérer la main maintenant ?\n\nCliquez "OK" pour sauvegarder et libérer, "Annuler" pour ignorer.')) {
-              // Sauvegarder automatiquement les modifications et attendre
-              try {
-                setLocalFeedback('💾 Sauvegarde en cours...');
-                await handleManualSave();
-                setLocalFeedback('💾 Modifications sauvegardées - Main libérée pour un autre utilisateur.');
-                
-                // Libérer le verrou après sauvegarde réussie
-                if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                await releaseLock(currentUserId);
-                setIsReadOnly(true);
-                setLockInfo(null);
-                console.log('🔓 Verrou libéré automatiquement après demande de main');
-              } catch (error) {
-                console.error('❌ Erreur lors de la sauvegarde/libération:', error);
-                setLocalFeedback('❌ Erreur lors de la sauvegarde - main conservée');
-              }
-            } else {
-              setLocalFeedback('⚠️ Demande de main ignorée - vous gardez la main.');
-            }
-          }
+
         } else {
-          // Même si on n'a pas le verrou, vérifier s'il y a des demandes de main pour nous
-          console.log('🔍 Vérification des demandes de main (pas détenteur):', { currentUserId });
-          const mainRequest = await checkMainRequest();
-          console.log('🔍 Résultat de la vérification des demandes de main (pas détenteur):', mainRequest);
-          if (mainRequest) {
-            console.log('🤝 Demande de main détectée (pas détenteur):', mainRequest);
-            setLocalFeedback('🤝 Demande de main reçue - vous pouvez maintenant demander la main.');
-          }
+          // Même si on n'a pas le verrou, vérifier s'il y a des nouvelles données disponibles depuis Supabase
           
           // Vérifier s'il y a des nouvelles données disponibles depuis Supabase
           try {
@@ -3098,105 +3086,7 @@ const PlanningDisplay = ({
             <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
               🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.
             </span>
-            <button
-              onClick={() => {
-                // Utiliser setTimeout pour éviter les conflits de rendu React
-                setTimeout(async () => {
-                  try {
-                    console.log('🤝 Envoi de demande de main');
-                    
-                    // Envoyer une demande de main à l'utilisateur actuel
-                    const { ok } = await requestMain();
-                    
-                    if (ok) {
-                      setLocalFeedback('🤝 Demande de main envoyée. En attente de libération...');
-                      
-                      // Attendre et vérifier périodiquement si on obtient la main
-                      const checkInterval = setInterval(async () => {
-                        try {
-                          const { ok: acquireOk, lock } = await acquireLock(currentUserId);
-                          if (acquireOk) {
-                            clearInterval(checkInterval);
-                            setLockInfo(lock || null);
-                            setIsReadOnly(false);
-                            if (hbRef.current) clearInterval(hbRef.current);
-                            hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
-                            
-                            // Démarrer la sauvegarde automatique toutes les 3 minutes
-                            if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-                            autoSaveRef.current = setInterval(async () => {
-                              try {
-                                console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
-                                if (selectedShop && selectedWeek) {
-                                  const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-                                  setPlanningData(updatedPlanningData);
-                                  
-                                  // Sauvegarder dans Supabase
-                                  const remoteResult = await saveCompletePlanningData(updatedPlanningData);
-                                  if (remoteResult) {
-                                    console.log('✅ Sauvegarde automatique Supabase réussie');
-                                    setLocalFeedback('💾 Sauvegarde automatique effectuée');
-                                  } else {
-                                    console.log('❌ Échec sauvegarde automatique Supabase');
-                                    setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
-                                  }
-                                }
-                              } catch (error) {
-                                console.error('❌ Erreur lors de la sauvegarde automatique:', error);
-                                setLocalFeedback('❌ Erreur sauvegarde automatique');
-                              }
-                            }, 3 * 60 * 1000); // 3 minutes
-                            
-                            setLocalFeedback('✅ Main obtenue avec succès ! Rechargement des données...');
-                            setDataFreshness('loading');
-                            
-                            // Recharger les données depuis Supabase avec délai
-                            setTimeout(async () => {
-                              try {
-                                const updatedPlanningData = await loadCompletePlanningData();
-                                if (updatedPlanningData) {
-                                  setPlanningData(updatedPlanningData);
-                                  // Recharger le planning actuel
-                                  const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
-                                  setPlanning(weekData.planning || {});
-                                  setDataFreshness('supabase');
-                                  setLocalFeedback('✅ Main obtenue avec succès ! Données mises à jour depuis Supabase.');
-                                } else {
-                                  setDataFreshness('local');
-                                  setLocalFeedback('✅ Main obtenue avec succès ! (Aucune donnée à recharger)');
-                                }
-                              } catch (error) {
-                                console.error('❌ Erreur lors du rechargement des données:', error);
-                                setDataFreshness('local');
-                                setLocalFeedback('✅ Main obtenue avec succès ! (Erreur rechargement données)');
-                              }
-                            }, 2000); // Attendre 2 secondes pour laisser le temps à la sauvegarde
-                          }
-                        } catch (error) {
-                          console.error('❌ Erreur lors de la vérification de la main:', error);
-                        }
-                      }, 2000); // Vérifier toutes les 2 secondes
-                      
-                      // Arrêter de vérifier après 30 secondes
-                      setTimeout(() => {
-                        clearInterval(checkInterval);
-                        if (isReadOnly) {
-                          setLocalFeedback('⏰ Timeout: La demande de main a expiré. Réessayez.');
-                        }
-                      }, 30000);
-                    } else {
-                      setLocalFeedback('❌ Erreur lors de l\'envoi de la demande de main');
-                    }
-                  } catch (error) {
-                    console.error('❌ Erreur lors de la demande de main:', error);
-                    setLocalFeedback('❌ Erreur lors de la demande de main');
-                  }
-                }, 0);
-              }}
-              style={{ background: '#ffc107', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
-            >
-              Demander la main
-            </button>
+
             <button
               onClick={() => {
                 if (window.confirm('⚠️ FORCER LA LIBÉRATION\n\nCette action va :\n1. Demander à l\'utilisateur actuel de sauvegarder son travail\n2. Forcer la libération du verrou\n3. Vous donner la main\n\nÊtes-vous sûr de vouloir continuer ?')) {
@@ -3206,82 +3096,94 @@ const PlanningDisplay = ({
                       console.log('🔓 Force release du verrou');
                       setLocalFeedback('⏳ Demande de sauvegarde envoyée à l\'utilisateur distant...');
                       
-                      // Utiliser la nouvelle fonction forceRelease
+                      // Envoyer la notification de force release
                       const { ok } = await forceRelease(currentUserId);
                       
                       if (ok) {
-                        // Attendre un peu puis réessayer d'acquérir le verrou
-                        setTimeout(async () => {
-                          try {
-                            const { ok: acquireOk, lock } = await acquireLock(currentUserId);
-                            setLockInfo(lock || null);
-                            setIsReadOnly(!acquireOk && lock?.user_id !== currentUserId);
-                            if (acquireOk) {
-                              console.log('✅ Verrou forcé avec succès');
-                              if (hbRef.current) clearInterval(hbRef.current);
-                              hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+                        setLocalFeedback('🔓 Demande de force libération envoyée. Attente de la libération...');
+                        
+                        // Attendre que l'autre PC libère le verrou
+                        const waitForRelease = async () => {
+                          for (let i = 0; i < 30; i++) { // Attendre max 30 secondes
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            
+                            const currentLock = await getLock();
+                            if (!currentLock) {
+                              console.log('✅ Verrou libéré par l\'autre PC');
+                              setLocalFeedback('✅ Verrou libéré ! Tentative d\'acquisition...');
                               
-                              // Démarrer la sauvegarde automatique toutes les 3 minutes
-                              if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-                              autoSaveRef.current = setInterval(async () => {
+                              // Essayer d'acquérir le verrou
+                              const acquireResult = await acquireLock(currentUserId);
+                              if (acquireResult.ok) {
+                                console.log('✅ Verrou acquis après force release');
+                                setIsReadOnly(false);
+                                setLockInfo(acquireResult.lock);
+                                setDataFreshness('loading');
+                                
+                                // Démarrer les intervalles
+                                if (hbRef.current) clearInterval(hbRef.current);
+                                hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+                                
+                                if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+                                autoSaveRef.current = setInterval(async () => {
+                                  try {
+                                    console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
+                                    if (selectedShop && selectedWeek) {
+                                      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                                      setPlanningData(updatedPlanningData);
+                                      
+                                      const remoteResult = await saveCompletePlanningData(updatedPlanningData);
+                                      if (remoteResult) {
+                                        console.log('✅ Sauvegarde automatique Supabase réussie');
+                                        setLocalFeedback('💾 Sauvegarde automatique effectuée');
+                                      } else {
+                                        console.log('❌ Échec sauvegarde automatique Supabase');
+                                        setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('❌ Erreur lors de la sauvegarde automatique:', error);
+                                    setLocalFeedback('❌ Erreur sauvegarde automatique');
+                                  }
+                                }, 3 * 60 * 1000);
+                                
+                                // Recharger les données depuis Supabase
                                 try {
-                                  console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
-                                  if (selectedShop && selectedWeek) {
-                                    const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                                  const updatedPlanningData = await loadCompletePlanningData();
+                                  if (updatedPlanningData && updatedPlanningData.shops && updatedPlanningData.shops.length > 0) {
                                     setPlanningData(updatedPlanningData);
                                     
-                                    // Sauvegarder dans Supabase
-                                    const remoteResult = await saveCompletePlanningData(updatedPlanningData);
-                                    if (remoteResult) {
-                                      console.log('✅ Sauvegarde automatique Supabase réussie');
-                                      setLocalFeedback('💾 Sauvegarde automatique effectuée');
-                                    } else {
-                                      console.log('❌ Échec sauvegarde automatique Supabase');
-                                      setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
-                                    }
-                                  }
-                                } catch (error) {
-                                  console.error('❌ Erreur lors de la sauvegarde automatique:', error);
-                                  setLocalFeedback('❌ Erreur sauvegarde automatique');
-                                }
-                              }, 3 * 60 * 1000); // 3 minutes
-                              
-                              setLocalFeedback('✅ Verrou forcé ! Rechargement des données...');
-                              setDataFreshness('loading');
-                              
-                              // Attendre un peu plus longtemps pour s'assurer que les données sont sauvegardées
-                              setTimeout(async () => {
-                                try {
-                                  console.log('🔄 Rechargement des données après force release...');
-                                  const updatedPlanningData = await loadCompletePlanningData();
-                                  if (updatedPlanningData) {
-                                    console.log('📊 Données rechargées:', updatedPlanningData);
-                                    setPlanningData(updatedPlanningData);
-                                    // Recharger le planning actuel
                                     const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
-                                    console.log('📅 Planning de la semaine rechargé:', weekData);
                                     setPlanning(weekData.planning || {});
+                                    setLocalSelectedEmployees(weekData.selectedEmployees || []);
+                                    
+                                    if (updatedPlanningData.selectedEmployees) {
+                                      setSelectedEmployees(updatedPlanningData.selectedEmployees);
+                                    }
                                     setDataFreshness('supabase');
-                                    setLocalFeedback('✅ Verrou forcé ! Données mises à jour depuis Supabase.');
+                                    setLocalFeedback('✅ Verrou acquis ! Données mises à jour depuis Supabase.');
                                   } else {
-                                    console.log('⚠️ Aucune donnée à recharger');
                                     setDataFreshness('local');
-                                    setLocalFeedback('✅ Verrou forcé ! (Aucune donnée à recharger)');
+                                    setLocalFeedback('✅ Verrou acquis ! (Aucune donnée à recharger)');
                                   }
                                 } catch (error) {
                                   console.error('❌ Erreur lors du rechargement des données:', error);
                                   setDataFreshness('local');
-                                  setLocalFeedback('✅ Verrou forcé ! (Erreur rechargement données)');
+                                  setLocalFeedback('✅ Verrou acquis ! (Erreur rechargement données)');
                                 }
-                              }, 5000); // Attendre 5 secondes pour laisser le temps à la sauvegarde
+                              } else {
+                                setLocalFeedback('❌ Échec acquisition du verrou après force release');
+                              }
+                              return;
                             }
-                          } catch (error) {
-                            console.error('❌ Erreur lors de l\'acquisition du verrou forcé:', error);
-                            setLocalFeedback('❌ Erreur lors de l\'acquisition du verrou');
                           }
-                        }, 2000);
+                          
+                          setLocalFeedback('❌ Timeout: L\'autre PC n\'a pas libéré le verrou');
+                        };
+                        
+                        waitForRelease();
                       } else {
-                        setLocalFeedback('❌ Échec du force release');
+                        setLocalFeedback('❌ Échec envoi de la demande de force libération');
                       }
                     } catch (error) {
                       console.error('❌ Erreur lors du force release:', error);

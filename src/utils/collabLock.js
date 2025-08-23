@@ -1,29 +1,21 @@
-// Simple collaborative lock service with optional Supabase backend
 // API:
 // - initLockService({ url, key })
 // - acquireLock(userId) - Verrou global unique
 // - releaseLock(userId) - Libération du verrou global
 // - getLock() - Récupération du verrou global
 // - heartbeat(userId) - Maintien du verrou global
-// - forceRelease(userId) - Force libération du verrou global
+// - forceRelease(userId) - Force libération du verrou global avec notification
+// - checkForceReleaseRequest() - Vérifier les demandes de force libération
 
 let supabase = null;
 let useSupabase = false;
 
-export const initLockService = async (config) => {
-  try {
-    if (config && config.url && config.key) {
-      console.log('🔒 Initialisation du service de verrouillage Supabase...');
-      const { createClient } = await import('@supabase/supabase-js');
-      supabase = createClient(config.url, config.key);
-      useSupabase = true;
-      console.log('✅ Service de verrouillage Supabase initialisé');
-    } else {
-      console.log('⚠️ Pas de configuration Supabase, utilisation du localStorage');
-      useSupabase = false;
-    }
-  } catch (error) {
-    console.error('❌ Erreur initialisation service verrouillage:', error);
+export const initLockService = ({ url, key }) => {
+  console.log('🔧 initLockService appelé:', { url, key });
+  if (url && key) {
+    useSupabase = true;
+    // Initialisation Supabase si nécessaire
+  } else {
     useSupabase = false;
   }
 };
@@ -32,14 +24,6 @@ const globalLockKey = 'global_lock';
 const forceReleaseKey = 'global_force_release';
 
 const nowIso = () => new Date().toISOString();
-
-const isExpired = (iso, ttlMs) => {
-  try {
-    return Date.now() - new Date(iso).getTime() > ttlMs;
-  } catch (_) {
-    return true;
-  }
-};
 
 export const getLock = async () => {
   console.log('🔍 getLock appelé (verrou global)');
@@ -59,21 +43,21 @@ export const getLock = async () => {
       }
       
       console.log('🔍 getLock résultat Supabase:', data);
-      return data || null;
+      return data;
     } catch (error) {
       console.error('❌ Exception getLock Supabase:', error);
       return null;
     }
-  }
-  
-  try {
-    const raw = localStorage.getItem(globalLockKey);
-    const result = raw ? JSON.parse(raw) : null;
-    console.log('🔍 getLock résultat localStorage:', result);
-    return result;
-  } catch (error) {
-    console.error('❌ Erreur getLock localStorage:', error);
-    return null;
+  } else {
+    try {
+      const raw = localStorage.getItem(globalLockKey);
+      const result = raw ? JSON.parse(raw) : null;
+      console.log('🔍 getLock résultat localStorage:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Erreur getLock localStorage:', error);
+      return null;
+    }
   }
 };
 
@@ -83,9 +67,20 @@ export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
   const existing = await getLock();
   console.log('🔒 Verrou existant:', existing);
   
-  if (existing && !isExpired(existing.updated_at || existing.created_at, ttlMs) && existing.user_id !== userId) {
-    console.log('❌ Verrou déjà détenu par:', existing.user_id);
-    return { ok: false, lock: existing };
+  if (existing) {
+    const now = new Date();
+    const lockTime = new Date(existing.updated_at);
+    const age = now - lockTime;
+    
+    if (age < ttlMs && existing.user_id !== userId) {
+      console.log('❌ Verrou actif détenu par un autre utilisateur');
+      return { ok: false, lock: existing };
+    }
+    
+    if (age >= ttlMs) {
+      console.log('🔓 Verrou expiré, nettoyage...');
+      await cleanupExpiredLocks(ttlMs);
+    }
   }
   
   const lock = { 
@@ -99,15 +94,20 @@ export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
   
   if (useSupabase) {
     try {
-      // Supprimer d'abord l'ancien verrou s'il existe
-      await supabase
+      // Supprimer les anciens verrous
+      const { error: deleteError } = await supabase
         .from('planning_locks')
         .delete()
         .eq('shop_id', 'GLOBAL')
         .eq('week_key', 'GLOBAL');
       
       // Insérer le nouveau verrou
-      const { error } = await supabase.from('planning_locks').insert(lock);
+      const { data, error } = await supabase
+        .from('planning_locks')
+        .insert(lock)
+        .select()
+        .single();
+      
       if (error) {
         console.error('❌ Erreur acquireLock Supabase:', error);
         return { ok: false, lock: null };
@@ -188,28 +188,29 @@ export const heartbeat = async (userId) => {
   return { ok: true };
 };
 
-// Fonction pour forcer la libération du verrou global
+// Fonction pour forcer la libération du verrou global avec notification
 export const forceRelease = async (userId) => {
   console.log('🔓 forceRelease appelé (verrou global):', { userId, useSupabase });
   
   if (useSupabase) {
     try {
-      // Attendre 5 secondes pour laisser le temps à l'utilisateur de sauvegarder
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
-      // Supprimer le verrou
-      const { error } = await supabase
+      // Créer une notification de force release
+      const { error: notifyError } = await supabase
         .from('planning_locks')
-        .delete()
-        .eq('shop_id', 'GLOBAL')
-        .eq('week_key', 'GLOBAL');
+        .upsert({
+          shop_id: 'GLOBAL',
+          week_key: 'GLOBAL',
+          user_id: userId,
+          force_release_request: nowIso(),
+          created_at: nowIso(),
+          updated_at: nowIso()
+        }, { onConflict: 'shop_id,week_key' });
       
-      if (error) {
-        console.error('❌ Erreur forceRelease Supabase:', error);
-        return { ok: false };
+      if (notifyError) {
+        console.error('❌ Erreur notification force release Supabase:', notifyError);
       }
       
-      console.log('✅ Force release global réussi avec Supabase');
+      console.log('✅ Notification de force release envoyée');
       return { ok: true };
     } catch (error) {
       console.error('❌ Exception forceRelease Supabase:', error);
@@ -217,10 +218,55 @@ export const forceRelease = async (userId) => {
     }
   } else {
     // Fallback localStorage
-    localStorage.removeItem(globalLockKey);
     localStorage.setItem(forceReleaseKey, nowIso());
-    console.log('✅ Force release global réussi avec localStorage');
+    console.log('✅ Notification de force release envoyée avec localStorage');
     return { ok: true };
+  }
+};
+
+// Fonction pour vérifier les demandes de force release
+export const checkForceReleaseRequest = async (userId) => {
+  if (useSupabase) {
+    try {
+      const { data, error } = await supabase
+        .from('planning_locks')
+        .select('force_release_request')
+        .eq('shop_id', 'GLOBAL')
+        .eq('week_key', 'GLOBAL')
+        .not('force_release_request', 'is', null)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('❌ Erreur checkForceReleaseRequest Supabase:', error);
+        return null;
+      }
+      
+      if (data && data.force_release_request) {
+        console.log('🔓 Demande de force release détectée:', data.force_release_request);
+        
+        // Supprimer la notification après l'avoir lue
+        await supabase
+          .from('planning_locks')
+          .update({ force_release_request: null })
+          .eq('shop_id', 'GLOBAL')
+          .eq('week_key', 'GLOBAL');
+        
+        return data.force_release_request;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Exception checkForceReleaseRequest Supabase:', error);
+      return null;
+    }
+  } else {
+    // Fallback localStorage
+    const requestTime = localStorage.getItem(forceReleaseKey);
+    if (requestTime) {
+      localStorage.removeItem(forceReleaseKey);
+      return requestTime;
+    }
+    return null;
   }
 };
 
@@ -230,50 +276,52 @@ export const cleanupExpiredLocks = async (ttlMs = 2 * 60 * 1000) => {
   
   if (useSupabase) {
     try {
-      const cutoffTime = new Date(Date.now() - ttlMs).toISOString();
-      
-      const { data, error } = await supabase
+      const cutoff = new Date(Date.now() - ttlMs).toISOString();
+      const { error } = await supabase
         .from('planning_locks')
         .delete()
-        .lt('updated_at', cutoffTime);
+        .eq('shop_id', 'GLOBAL')
+        .eq('week_key', 'GLOBAL')
+        .lt('updated_at', cutoff);
       
       if (error) {
         console.error('❌ Erreur cleanupExpiredLocks Supabase:', error);
-        return { ok: false, count: 0 };
+      } else {
+        console.log('✅ Nettoyage des verrous expirés Supabase terminé');
       }
-      
-      console.log('✅ Verrous expirés nettoyés avec Supabase');
-      return { ok: true, count: data?.length || 0 };
     } catch (error) {
       console.error('❌ Exception cleanupExpiredLocks Supabase:', error);
-      return { ok: false, count: 0 };
     }
   } else {
-    // Fallback localStorage - nettoyer les clés expirées
     try {
       let cleanedCount = 0;
       const keys = Object.keys(localStorage);
       const lockKeys = keys.filter(key => key.startsWith('lock_') || key === globalLockKey);
       
       for (const key of lockKeys) {
-        try {
-          const lockData = JSON.parse(localStorage.getItem(key));
-          if (lockData && isExpired(lockData.updated_at || lockData.created_at, ttlMs)) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const lock = JSON.parse(raw);
+            const lockTime = new Date(lock.updated_at);
+            const age = Date.now() - lockTime.getTime();
+            
+            if (age >= ttlMs) {
+              localStorage.removeItem(key);
+              cleanedCount++;
+            }
+          } catch (e) {
             localStorage.removeItem(key);
             cleanedCount++;
           }
-        } catch (e) {
-          // Ignorer les clés corrompues
-          localStorage.removeItem(key);
-          cleanedCount++;
         }
       }
       
-      console.log('✅ Verrous expirés nettoyés avec localStorage:', cleanedCount);
-      return { ok: true, count: cleanedCount };
+      if (cleanedCount > 0) {
+        console.log(`✅ Nettoyage localStorage: ${cleanedCount} verrous expirés supprimés`);
+      }
     } catch (error) {
-      console.error('❌ Exception cleanupExpiredLocks localStorage:', error);
-      return { ok: false, count: 0 };
+      console.error('❌ Erreur cleanupExpiredLocks localStorage:', error);
     }
   }
 };
@@ -286,11 +334,6 @@ export const requestMain = async (shopId, weekKey, userId) => {
 
 export const checkMainRequest = async (shopId, weekKey, userId) => {
   console.log('⚠️ checkMainRequest non supporté avec verrou global');
-  return null;
-};
-
-export const checkForceReleaseRequest = async (shopId, weekKey, userId) => {
-  console.log('⚠️ checkForceReleaseRequest non supporté avec verrou global');
   return null;
 };
 
