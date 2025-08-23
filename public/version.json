@@ -1,7 +1,10 @@
 {
-  "version": "3.3.8",
+  "version": "3.3.9",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "🔧 CORRECTION: Déverrouillage d'urgence avec nettoyage des champs",
+    "⚡ Correction de emergencyUnlock pour éviter les erreurs de création",
+    "🛡️ Nettoyage des champs force_release_request et main_request",
     "🔧 CORRECTION: Fonction \"toc toc\" avec upsert",
     "⚡ Correction de requestMain pour éviter les erreurs d'update",
     "🛡️ Utilisation d'upsert pour créer/mettre à jour les demandes de main",

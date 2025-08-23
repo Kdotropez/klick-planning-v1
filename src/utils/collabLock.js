@@ -297,33 +297,36 @@ export const emergencyUnlock = async (userId, securityCode) => {
       }
       
       console.log('✅ Déverrouillage d\'urgence réussi avec Supabase');
-      
-      // Créer immédiatement un nouveau verrou pour cet utilisateur avec un timestamp très récent
-      const newLock = { 
-        shop_id: 'GLOBAL', 
-        week_key: 'GLOBAL', 
-        user_id: userId, 
-        created_at: nowIso(), 
-        updated_at: nowIso(),
-        // Ajouter un marqueur spécial pour forcer la détection immédiate
-        emergency_unlock: true
-      };
-      
-      const { data, error: insertError } = await supabase
-        .from('planning_locks')
-        .upsert(newLock, { 
-          onConflict: 'shop_id,week_key',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        console.error('❌ Erreur création nouveau verrou après emergencyUnlock:', insertError);
-        return { ok: false, error: 'Erreur lors de la création du nouveau verrou' };
-      }
-      
-      console.log('✅ Nouveau verrou créé après déverrouillage d\'urgence:', data);
+       
+       // Créer immédiatement un nouveau verrou pour cet utilisateur avec un timestamp très récent
+       const newLock = { 
+         shop_id: 'GLOBAL', 
+         week_key: 'GLOBAL', 
+         user_id: userId, 
+         created_at: nowIso(), 
+         updated_at: nowIso(),
+         // Ajouter un marqueur spécial pour forcer la détection immédiate
+         emergency_unlock: true,
+         // Nettoyer les autres champs pour éviter les conflits
+         force_release_request: null,
+         main_request: null
+       };
+       
+       const { data, error: insertError } = await supabase
+         .from('planning_locks')
+         .upsert(newLock, { 
+           onConflict: 'shop_id,week_key',
+           ignoreDuplicates: false 
+         })
+         .select()
+         .single();
+       
+       if (insertError) {
+         console.error('❌ Erreur création nouveau verrou après emergencyUnlock:', insertError);
+         return { ok: false, error: 'Erreur lors de la création du nouveau verrou' };
+       }
+       
+       console.log('✅ Nouveau verrou créé après déverrouillage d\'urgence:', data);
       
       // Forcer une mise à jour immédiate pour s'assurer que les autres clients détectent le changement
       setTimeout(async () => {
