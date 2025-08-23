@@ -24,7 +24,7 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, cleanupExpiredLocks } from '@/utils/collabLock';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, cleanupExpiredLocks, emergencyUnlock, getCurrentSecurityCode } from '@/utils/collabLock';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -149,6 +149,11 @@ const PlanningDisplay = ({
   
   // État pour forcer le rafraîchissement
   const [forceRefresh, setForceRefresh] = useState(0);
+  
+  // États pour le déverrouillage d'urgence
+  const [showEmergencyUnlock, setShowEmergencyUnlock] = useState(false);
+  const [emergencyCode, setEmergencyCode] = useState('');
+  const [emergencyUnlockError, setEmergencyUnlockError] = useState('');
 
   // Mode de barre d'outils (smart/classic) avec persistance
   const [toolbarMode, setToolbarMode] = useState(() => {
@@ -3193,6 +3198,13 @@ const PlanningDisplay = ({
             >
               Forcer la libération
             </button>
+            <button
+              onClick={() => setShowEmergencyUnlock(true)}
+              style={{ background: '#ff6b35', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', color: 'white', marginLeft: '5px' }}
+              title="Déverrouillage d'urgence avec code de sécurité"
+            >
+              🚨 Déverrouillage d'urgence
+            </button>
           </>
         ) : (
           <>
@@ -4085,6 +4097,194 @@ const PlanningDisplay = ({
                   <p style={{ margin: '0', opacity: '0.9' }}>Gestion des ventes et paiements</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de déverrouillage d'urgence */}
+      {showEmergencyUnlock && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            maxWidth: '400px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h2 style={{ color: '#dc3545', marginBottom: '20px' }}>
+              🚨 Déverrouillage d'urgence
+            </h2>
+            
+            <p style={{ marginBottom: '20px', color: '#666' }}>
+              <strong>ATTENTION :</strong> Cette action va forcer la libération du verrou sans notification à l'autre utilisateur.
+            </p>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ marginBottom: '10px', color: '#333' }}>
+                <strong>Code de sécurité requis :</strong>
+              </p>
+              <p style={{ 
+                background: '#f8f9fa', 
+                padding: '10px', 
+                borderRadius: '6px', 
+                fontFamily: 'monospace',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: '#dc3545'
+              }}>
+                {getCurrentSecurityCode()}
+              </p>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                (Jour + Mois : {new Date().getDate().toString().padStart(2, '0')} + {(new Date().getMonth() + 1).toString().padStart(2, '0')})
+              </p>
+            </div>
+            
+            <input
+              type="text"
+              value={emergencyCode}
+              onChange={(e) => setEmergencyCode(e.target.value)}
+              placeholder="Entrez le code de sécurité"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #ddd',
+                borderRadius: '6px',
+                fontSize: '16px',
+                marginBottom: '15px',
+                textAlign: 'center',
+                fontFamily: 'monospace'
+              }}
+              maxLength={4}
+            />
+            
+            {emergencyUnlockError && (
+              <p style={{ color: '#dc3545', marginBottom: '15px', fontSize: '14px' }}>
+                ❌ {emergencyUnlockError}
+              </p>
+            )}
+            
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  setShowEmergencyUnlock(false);
+                  setEmergencyCode('');
+                  setEmergencyUnlockError('');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: '2px solid #6c757d',
+                  borderRadius: '6px',
+                  background: 'white',
+                  color: '#6c757d',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Annuler
+              </button>
+              
+              <button
+                onClick={async () => {
+                  try {
+                    setLocalFeedback('🚨 Déverrouillage d\'urgence en cours...');
+                    
+                    const result = await emergencyUnlock(currentUserId, emergencyCode);
+                    
+                    if (result.ok) {
+                      console.log('✅ Déverrouillage d\'urgence réussi');
+                      setIsReadOnly(false);
+                      setLockInfo(result.lock);
+                      setDataFreshness('loading');
+                      
+                      // Démarrer les intervalles
+                      if (hbRef.current) clearInterval(hbRef.current);
+                      hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+                      
+                      if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+                      autoSaveRef.current = setInterval(async () => {
+                        try {
+                          console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
+                          if (selectedShop && selectedWeek) {
+                            const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                            setPlanningData(updatedPlanningData);
+                            
+                            const remoteResult = await saveCompletePlanningData(updatedPlanningData);
+                            if (remoteResult) {
+                              console.log('✅ Sauvegarde automatique Supabase réussie');
+                              setLocalFeedback('💾 Sauvegarde automatique effectuée');
+                            } else {
+                              console.log('❌ Échec sauvegarde automatique Supabase');
+                              setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                            }
+                          }
+                        } catch (error) {
+                          console.error('❌ Erreur lors de la sauvegarde automatique:', error);
+                          setLocalFeedback('❌ Erreur sauvegarde automatique');
+                        }
+                      }, 3 * 60 * 1000);
+                      
+                      // Recharger les données depuis Supabase
+                      try {
+                        const updatedPlanningData = await loadCompletePlanningData();
+                        if (updatedPlanningData && updatedPlanningData.shops && updatedPlanningData.shops.length > 0) {
+                          setPlanningData(updatedPlanningData);
+                          
+                          const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
+                          setPlanning(weekData.planning || {});
+                          setLocalSelectedEmployees(weekData.selectedEmployees || []);
+                          
+                          if (updatedPlanningData.selectedEmployees) {
+                            setSelectedEmployees(updatedPlanningData.selectedEmployees);
+                          }
+                          setDataFreshness('supabase');
+                          setLocalFeedback('✅ Déverrouillage d\'urgence réussi ! Données mises à jour depuis Supabase.');
+                        } else {
+                          setDataFreshness('local');
+                          setLocalFeedback('✅ Déverrouillage d\'urgence réussi ! (Aucune donnée à recharger)');
+                        }
+                      } catch (error) {
+                        console.error('❌ Erreur lors du rechargement des données:', error);
+                        setDataFreshness('local');
+                        setLocalFeedback('✅ Déverrouillage d\'urgence réussi ! (Erreur rechargement données)');
+                      }
+                      
+                      setShowEmergencyUnlock(false);
+                      setEmergencyCode('');
+                      setEmergencyUnlockError('');
+                    } else {
+                      setEmergencyUnlockError(result.error || 'Erreur lors du déverrouillage');
+                    }
+                  } catch (error) {
+                    console.error('❌ Erreur lors du déverrouillage d\'urgence:', error);
+                    setEmergencyUnlockError('Erreur lors du déverrouillage d\'urgence');
+                  }
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: '#dc3545',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                Déverrouiller
+              </button>
             </div>
           </div>
         </div>

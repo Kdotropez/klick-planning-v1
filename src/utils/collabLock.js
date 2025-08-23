@@ -258,6 +258,95 @@ export const forceRelease = async (userId) => {
   }
 };
 
+// Fonction de déverrouillage d'urgence avec code de sécurité
+export const emergencyUnlock = async (userId, securityCode) => {
+  console.log('🚨 emergencyUnlock appelé (verrou global):', { userId, securityCode, useSupabase });
+  
+  // Générer le code de sécurité basé sur la date actuelle
+  const now = new Date();
+  const day = now.getDate().toString().padStart(2, '0');
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const expectedCode = day + month;
+  
+  console.log('🔐 Code attendu:', expectedCode, 'Code fourni:', securityCode);
+  
+  if (securityCode !== expectedCode) {
+    console.log('❌ Code de sécurité incorrect');
+    return { ok: false, error: 'Code de sécurité incorrect' };
+  }
+  
+  console.log('✅ Code de sécurité valide, déverrouillage d\'urgence...');
+  
+  if (useSupabase) {
+    try {
+      // Supprimer directement le verrou sans notification
+      const { error } = await supabase
+        .from('planning_locks')
+        .delete()
+        .eq('shop_id', 'GLOBAL')
+        .eq('week_key', 'GLOBAL');
+      
+      if (error) {
+        console.error('❌ Erreur emergencyUnlock Supabase:', error);
+        return { ok: false, error: 'Erreur lors du déverrouillage' };
+      }
+      
+      console.log('✅ Déverrouillage d\'urgence réussi avec Supabase');
+      
+      // Créer immédiatement un nouveau verrou pour cet utilisateur
+      const newLock = { 
+        shop_id: 'GLOBAL', 
+        week_key: 'GLOBAL', 
+        user_id: userId, 
+        created_at: nowIso(), 
+        updated_at: nowIso() 
+      };
+      
+      const { data, error: insertError } = await supabase
+        .from('planning_locks')
+        .insert(newLock)
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error('❌ Erreur création nouveau verrou après emergencyUnlock:', insertError);
+        return { ok: false, error: 'Erreur lors de la création du nouveau verrou' };
+      }
+      
+      console.log('✅ Nouveau verrou créé après déverrouillage d\'urgence:', data);
+      return { ok: true, lock: data };
+      
+    } catch (error) {
+      console.error('❌ Exception emergencyUnlock Supabase:', error);
+      return { ok: false, error: 'Exception lors du déverrouillage' };
+    }
+  } else {
+    // Fallback localStorage
+    localStorage.removeItem(globalLockKey);
+    localStorage.removeItem(forceReleaseKey);
+    
+    const newLock = { 
+      shop_id: 'GLOBAL', 
+      week_key: 'GLOBAL', 
+      user_id: userId, 
+      created_at: nowIso(), 
+      updated_at: nowIso() 
+    };
+    
+    localStorage.setItem(globalLockKey, JSON.stringify(newLock));
+    console.log('✅ Déverrouillage d\'urgence réussi avec localStorage');
+    return { ok: true, lock: newLock };
+  }
+};
+
+// Fonction pour obtenir le code de sécurité actuel (pour affichage)
+export const getCurrentSecurityCode = () => {
+  const now = new Date();
+  const day = now.getDate().toString().padStart(2, '0');
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  return day + month;
+};
+
 // Fonction pour vérifier les demandes de force release
 export const checkForceReleaseRequest = async (userId) => {
   if (useSupabase) {

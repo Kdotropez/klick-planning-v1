@@ -1,8 +1,13 @@
 {
-  "version": "3.3.3",
-  "buildDate": "2025-01-27T12:00:00.000Z",
+  "version": "3.3.4",
+  "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
-    "🔧 AMÉLIORATION: Système de verrouillage global optimisé",
+    "🚨 NOUVEAU: Système de déverrouillage d'urgence",
+    "🔐 Code de sécurité basé sur la date (JJMM)",
+    "⚡ Déverrouillage forcé sans notification à l'autre PC",
+    "🛡️ Protection contre les verrous bloqués",
+    "📱 Interface modale sécurisée pour le déverrouillage",
+    "🔧 Amélioration du système de verrouillage global",
     "🔄 Renouvellement automatique du verrou pour le même utilisateur",
     "⚡ Réduction des conflits lors des changements de semaine",
     "🛡️ Protection contre les acquisitions de verrou multiples",
@@ -13,6 +18,7 @@
   ],
   "features": [
     "Verrouillage global unique par application",
+    "Système de déverrouillage d'urgence avec code de sécurité",
     "Système de notification de force libération",
     "Sauvegarde automatique lors de la réception d'une force libération",
     "Indicateur de fraîcheur des données",
