@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 // API:
 // - initLockService({ url, key })
 // - acquireLock(userId) - Verrou global unique
@@ -14,9 +16,12 @@ export const initLockService = ({ url, key }) => {
   console.log('🔧 initLockService appelé:', { url, key });
   if (url && key) {
     useSupabase = true;
-    // Initialisation Supabase si nécessaire
+    // Initialisation du client Supabase
+    supabase = createClient(url, key);
+    console.log('✅ Client Supabase initialisé');
   } else {
     useSupabase = false;
+    supabase = null;
   }
 };
 
