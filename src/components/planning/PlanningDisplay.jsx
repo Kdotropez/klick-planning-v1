@@ -86,6 +86,7 @@ const PlanningDisplay = ({
   // Collaboration lock
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [lockInfo, setLockInfo] = useState(null);
+  const [dataFreshness, setDataFreshness] = useState('local'); // 'local', 'supabase', 'loading'
   const currentUserIdRef = useRef(null);
   const hbRef = useRef(null);
   const autoSaveRef = useRef(null);
@@ -634,6 +635,7 @@ const PlanningDisplay = ({
               if (remoteData.selectedEmployees) {
                 setSelectedEmployees(remoteData.selectedEmployees);
               }
+              setDataFreshness('supabase');
               setLocalFeedback('📥 Données mises à jour depuis Supabase');
             }
           } catch (error) {
@@ -3146,6 +3148,7 @@ const PlanningDisplay = ({
                             }, 3 * 60 * 1000); // 3 minutes
                             
                             setLocalFeedback('✅ Main obtenue avec succès ! Rechargement des données...');
+                            setDataFreshness('loading');
                             
                             // Recharger les données depuis Supabase avec délai
                             setTimeout(async () => {
@@ -3156,12 +3159,15 @@ const PlanningDisplay = ({
                                   // Recharger le planning actuel
                                   const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
                                   setPlanning(weekData.planning || {});
-                                  setLocalFeedback('✅ Main obtenue avec succès ! Données mises à jour.');
+                                  setDataFreshness('supabase');
+                                  setLocalFeedback('✅ Main obtenue avec succès ! Données mises à jour depuis Supabase.');
                                 } else {
+                                  setDataFreshness('local');
                                   setLocalFeedback('✅ Main obtenue avec succès ! (Aucune donnée à recharger)');
                                 }
                               } catch (error) {
                                 console.error('❌ Erreur lors du rechargement des données:', error);
+                                setDataFreshness('local');
                                 setLocalFeedback('✅ Main obtenue avec succès ! (Erreur rechargement données)');
                               }
                             }, 2000); // Attendre 2 secondes pour laisser le temps à la sauvegarde
@@ -3241,6 +3247,7 @@ const PlanningDisplay = ({
                               }, 3 * 60 * 1000); // 3 minutes
                               
                               setLocalFeedback('✅ Verrou forcé ! Rechargement des données...');
+                              setDataFreshness('loading');
                               
                               // Attendre un peu plus longtemps pour s'assurer que les données sont sauvegardées
                               setTimeout(async () => {
@@ -3254,13 +3261,16 @@ const PlanningDisplay = ({
                                     const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
                                     console.log('📅 Planning de la semaine rechargé:', weekData);
                                     setPlanning(weekData.planning || {});
-                                    setLocalFeedback('✅ Verrou forcé ! Données mises à jour.');
+                                    setDataFreshness('supabase');
+                                    setLocalFeedback('✅ Verrou forcé ! Données mises à jour depuis Supabase.');
                                   } else {
                                     console.log('⚠️ Aucune donnée à recharger');
+                                    setDataFreshness('local');
                                     setLocalFeedback('✅ Verrou forcé ! (Aucune donnée à recharger)');
                                   }
                                 } catch (error) {
                                   console.error('❌ Erreur lors du rechargement des données:', error);
+                                  setDataFreshness('local');
                                   setLocalFeedback('✅ Verrou forcé ! (Erreur rechargement données)');
                                 }
                               }, 5000); // Attendre 5 secondes pour laisser le temps à la sauvegarde
@@ -3289,6 +3299,21 @@ const PlanningDisplay = ({
           <>
             <span style={{ color: '#28a745', fontWeight: 'bold' }}>
               🟢 Vous avez la main.
+              {dataFreshness === 'supabase' && (
+                <span style={{ color: '#007bff', marginLeft: '10px', fontSize: '0.9em' }}>
+                  📥 Données fraîches depuis Supabase
+                </span>
+              )}
+              {dataFreshness === 'loading' && (
+                <span style={{ color: '#ffc107', marginLeft: '10px', fontSize: '0.9em' }}>
+                  ⏳ Chargement des données...
+                </span>
+              )}
+              {dataFreshness === 'local' && (
+                <span style={{ color: '#6c757d', marginLeft: '10px', fontSize: '0.9em' }}>
+                  💾 Données locales
+                </span>
+              )}
               {localStorage.getItem(`force_save_request_${selectedShop}_${validWeek}`) && 
                 <span style={{ color: '#dc3545', marginLeft: '10px' }}>
                   🚨 DEMANDE DE FORCE RELEASE !
@@ -3302,23 +3327,25 @@ const PlanningDisplay = ({
                   try {
                     setLocalFeedback('💾 Sauvegarde en cours avant libération...');
                     
-                    // Sauvegarder d'abord les données complètes
-                    if (selectedShop && selectedWeek) {
-                      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-                      setPlanningData(updatedPlanningData);
-                      
-                      // Sauvegarder dans Supabase
-                      const { saveCompletePlanningData } = await import('@/utils/remoteStore');
-                      const saveResult = await saveCompletePlanningData(updatedPlanningData);
-                      
-                      if (saveResult) {
-                        console.log('✅ Sauvegarde complète réussie avant libération');
-                        setLocalFeedback('✅ Sauvegarde complète effectuée');
-                      } else {
-                        console.log('⚠️ Échec sauvegarde Supabase, libération quand même');
-                        setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
-                      }
-                    }
+                            // Sauvegarder d'abord les données complètes
+        if (selectedShop && selectedWeek) {
+          const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+          setPlanningData(updatedPlanningData);
+          
+          // Sauvegarder dans Supabase
+          const { saveCompletePlanningData } = await import('@/utils/remoteStore');
+          const saveResult = await saveCompletePlanningData(updatedPlanningData);
+          
+          if (saveResult) {
+            console.log('✅ Sauvegarde complète réussie avant libération');
+            setLocalFeedback('✅ Sauvegarde complète effectuée');
+            setDataFreshness('supabase');
+          } else {
+            console.log('⚠️ Échec sauvegarde Supabase, libération quand même');
+            setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+            setDataFreshness('local');
+          }
+        }
                     
                     // Attendre un peu pour s'assurer que la sauvegarde est terminée
                     await new Promise(resolve => setTimeout(resolve, 1000));

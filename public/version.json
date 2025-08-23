@@ -1,5 +1,5 @@
 {
-  "version": "3.3.0",
+  "version": "3.3.1",
   "buildDate": "2025-08-19T00:00:00.000Z",
   "changelog": [
     "🤒 Nouveau statut 'Maladie' avec gestuelle (1er + dernier créneau)",
@@ -21,9 +21,12 @@
     "⚡ Nettoyage périodique des verrous orphelins (toutes les 30s)",
     "🔍 Ajout d'un outil de diagnostic et nettoyage des verrous",
     "🔓 Fonction de force libération pour verrous persistants",
-    "🌐 NOUVEAU: Système de verrouillage global unique",
-    "🔒 Un seul PC peut utiliser l'application à la fois",
-    "⚡ Simplification du système de verrouillage collaboratif"
+          "🌐 NOUVEAU: Système de verrouillage global unique",
+      "🔒 Un seul PC peut utiliser l'application à la fois",
+      "⚡ Simplification du système de verrouillage collaboratif",
+      "📊 NOUVEAU: Indicateur de fraîcheur des données",
+      "📥 Affichage visuel quand les données proviennent de Supabase",
+      "💾 Indication claire de l'origine des données (locale/Supabase)"
   ],
   "features": [
     "Système de verrouillage collaboratif en temps réel",
