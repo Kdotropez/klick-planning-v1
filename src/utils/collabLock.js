@@ -392,4 +392,58 @@ export const checkForceReleaseRequest = async (shopId, weekKey, userId) => {
   }
 };
 
+// Nouvelle fonction pour nettoyer les verrous expirés
+export const cleanupExpiredLocks = async (ttlMs = 2 * 60 * 1000) => {
+  console.log('🧹 cleanupExpiredLocks appelé');
+  
+  if (useSupabase) {
+    try {
+      const cutoffTime = new Date(Date.now() - ttlMs).toISOString();
+      
+      const { data, error } = await supabase
+        .from('planning_locks')
+        .delete()
+        .lt('updated_at', cutoffTime);
+      
+      if (error) {
+        console.error('❌ Erreur cleanupExpiredLocks Supabase:', error);
+        return { ok: false, count: 0 };
+      }
+      
+      console.log('✅ Verrous expirés nettoyés avec Supabase');
+      return { ok: true, count: data?.length || 0 };
+    } catch (error) {
+      console.error('❌ Exception cleanupExpiredLocks Supabase:', error);
+      return { ok: false, count: 0 };
+    }
+  } else {
+    // Fallback localStorage - nettoyer les clés expirées
+    try {
+      let cleanedCount = 0;
+      const keys = Object.keys(localStorage);
+      const lockKeys = keys.filter(key => key.startsWith('lock_'));
+      
+      for (const key of lockKeys) {
+        try {
+          const lockData = JSON.parse(localStorage.getItem(key));
+          if (lockData && isExpired(lockData.updated_at || lockData.created_at, ttlMs)) {
+            localStorage.removeItem(key);
+            cleanedCount++;
+          }
+        } catch (e) {
+          // Ignorer les clés corrompues
+          localStorage.removeItem(key);
+          cleanedCount++;
+        }
+      }
+      
+      console.log('✅ Verrous expirés nettoyés avec localStorage:', cleanedCount);
+      return { ok: true, count: cleanedCount };
+    } catch (error) {
+      console.error('❌ Exception cleanupExpiredLocks localStorage:', error);
+      return { ok: false, count: 0 };
+    }
+  }
+};
+
 

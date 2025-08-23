@@ -1,5 +1,5 @@
 {
-  "version": "3.10.16",
+  "version": "3.2.2",
   "buildDate": "2025-08-19T00:00:00.000Z",
   "changelog": [
     "🤒 Nouveau statut 'Maladie' avec gestuelle (1er + dernier créneau)",
@@ -15,7 +15,10 @@
     "📊 Amélioration du rechargement des données après force release",
     "🤝 Ajout de logging pour déboguer les demandes de main",
     "⏱️ Attente de 3 secondes pour le rechargement des données",
-    "✅ Vérification de l'existence du verrou avant suppression"
+    "✅ Vérification de l'existence du verrou avant suppression",
+    "🧹 Ajout du nettoyage automatique des verrous expirés",
+    "🔧 Amélioration de la gestion des verrous lors du changement de semaine",
+    "⚡ Nettoyage périodique des verrous orphelins (toutes les 30s)"
   ],
   "features": [
     "Système de verrouillage collaboratif en temps réel",

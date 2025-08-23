@@ -24,7 +24,7 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, requestMain, checkMainRequest } from '@/utils/collabLock';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, requestMain, checkMainRequest, cleanupExpiredLocks } from '@/utils/collabLock';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -467,6 +467,9 @@ const PlanningDisplay = ({
     const run = async () => {
       if (!selectedShop || !validWeek) return;
       
+      // Nettoyer les verrous expirés au démarrage
+      await cleanupExpiredLocks();
+      
       // Vérifier d'abord s'il y a déjà un verrou actif
       const currentLock = await getLock(selectedShop, validWeek);
       
@@ -483,6 +486,20 @@ const PlanningDisplay = ({
         console.log('🔓 Aucun verrou existant, mode libre pour utilisateur unique');
         setLockInfo(null);
         setIsReadOnly(false);
+        return;
+      }
+      
+      // Vérifier si le verrou existant est expiré
+      const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000;
+      if (isExpired) {
+        console.log('🔒 Verrou expiré détecté, tentative de reprise');
+        // Le verrou est expiré, on peut essayer de l'acquérir
+      } else if (currentLock.user_id !== currentUserId) {
+        // Le verrou est valide et appartient à quelqu'un d'autre
+        console.log('❌ Verrou détenu par un autre utilisateur:', currentLock.user_id);
+        setLockInfo(currentLock);
+        setIsReadOnly(true);
+        setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} édite actuellement ce planning`);
         return;
       }
       
@@ -543,6 +560,13 @@ const PlanningDisplay = ({
     // Vérification périodique du verrou (toutes les 3 secondes pour plus de réactivité)
     const checkInterval = setInterval(async () => {
       if (selectedShop && validWeek) {
+        // Nettoyer les verrous expirés périodiquement (toutes les 30 secondes)
+        const now = Date.now();
+        if (!checkInterval.lastCleanup || now - checkInterval.lastCleanup > 30000) {
+          await cleanupExpiredLocks();
+          checkInterval.lastCleanup = now;
+        }
+        
         const currentLock = await getLock(selectedShop, validWeek);
         if (currentLock) {
           const isExpired = Date.now() - new Date(currentLock.updated_at || currentLock.created_at).getTime() > 2 * 60 * 1000; // 2 minutes au lieu de 5
