@@ -24,7 +24,7 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, cleanupExpiredLocks, emergencyUnlock, getCurrentSecurityCode } from '@/utils/collabLock';
+import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, cleanupExpiredLocks, emergencyUnlock, getCurrentSecurityCode, requestMain, checkMainRequest } from '@/utils/collabLock';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -154,6 +154,10 @@ const PlanningDisplay = ({
   const [showEmergencyUnlock, setShowEmergencyUnlock] = useState(false);
   const [emergencyCode, setEmergencyCode] = useState('');
   const [emergencyUnlockError, setEmergencyUnlockError] = useState('');
+
+  // États pour la demande de main "toc toc"
+  const [showMainRequestModal, setShowMainRequestModal] = useState(false);
+  const [mainRequestInfo, setMainRequestInfo] = useState(null);
 
   // Mode de barre d'outils (smart/classic) avec persistance
   const [toolbarMode, setToolbarMode] = useState(() => {
@@ -636,6 +640,14 @@ const PlanningDisplay = ({
                   setLocalFeedback('❌ Échec sauvegarde automatique');
                 }
               }
+            }
+            
+            // Vérifier les demandes de main "toc toc"
+            const mainRequest = await checkMainRequest(currentUserId);
+            if (mainRequest) {
+              console.log('🚪 Demande de main reçue:', mainRequest);
+              setMainRequestInfo(mainRequest);
+              setShowMainRequestModal(true);
             }
           }
         } else {
@@ -3226,6 +3238,26 @@ const PlanningDisplay = ({
             >
               🚨 Déverrouillage d'urgence
             </button>
+            <button
+              onClick={async () => {
+                try {
+                  setLocalFeedback('🚪 Envoi de la demande "toc toc"...');
+                  const result = await requestMain(currentUserId);
+                  if (result.ok) {
+                    setLocalFeedback('✅ Demande "toc toc" envoyée ! En attente de réponse...');
+                  } else {
+                    setLocalFeedback('❌ Erreur lors de l\'envoi de la demande');
+                  }
+                } catch (error) {
+                  console.error('❌ Erreur requestMain:', error);
+                  setLocalFeedback('❌ Erreur lors de la demande de main');
+                }
+              }}
+              style={{ background: '#17a2b8', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', color: 'white', marginLeft: '5px' }}
+              title="Demander poliment la main à l'autre utilisateur"
+            >
+              🚪 Toc toc !
+            </button>
           </>
         ) : (
           <>
@@ -4294,6 +4326,148 @@ const PlanningDisplay = ({
                 }}
               >
                 Déverrouiller
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de demande de main "toc toc" */}
+      {showMainRequestModal && mainRequestInfo && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🚪</div>
+            
+            <h2 style={{ color: '#17a2b8', marginBottom: '20px' }}>
+              Toc toc ! Demande de main
+            </h2>
+            
+            <div style={{ 
+              background: '#f8f9fa', 
+              padding: '20px', 
+              borderRadius: '8px', 
+              marginBottom: '25px',
+              border: '2px solid #17a2b8'
+            }}>
+              <p style={{ margin: '0 0 10px 0', fontSize: '18px', fontWeight: 'bold', color: '#17a2b8' }}>
+                {mainRequestInfo.message}
+              </p>
+              <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>
+                Demande de <strong>{mainRequestInfo.from}</strong>
+              </p>
+              <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#999' }}>
+                {new Date(mainRequestInfo.timestamp).toLocaleString('fr-FR')}
+              </p>
+            </div>
+            
+            <p style={{ marginBottom: '25px', color: '#666', fontSize: '16px' }}>
+              Voulez-vous libérer la main pour permettre à <strong>{mainRequestInfo.from}</strong> d'accéder à l'application ?
+            </p>
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  setShowMainRequestModal(false);
+                  setMainRequestInfo(null);
+                  setLocalFeedback('❌ Demande de main refusée');
+                }}
+                style={{
+                  padding: '12px 24px',
+                  border: '2px solid #6c757d',
+                  borderRadius: '6px',
+                  background: 'white',
+                  color: '#6c757d',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                Refuser
+              </button>
+              
+              <button
+                onClick={async () => {
+                  try {
+                    setLocalFeedback('💾 Sauvegarde en cours avant libération...');
+                    
+                    // Sauvegarder d'abord les données complètes
+                    if (selectedShop && selectedWeek) {
+                      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+                      setPlanningData(updatedPlanningData);
+                      
+                      // Sauvegarder dans Supabase
+                      const { saveCompletePlanningData } = await import('@/utils/remoteStore');
+                      const saveResult = await saveCompletePlanningData(updatedPlanningData);
+                      
+                      if (saveResult) {
+                        console.log('✅ Sauvegarde complète réussie avant libération');
+                        setLocalFeedback('✅ Sauvegarde complète effectuée');
+                        setDataFreshness('supabase');
+                      } else {
+                        console.log('⚠️ Échec sauvegarde Supabase, libération quand même');
+                        setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                        setDataFreshness('local');
+                      }
+                    }
+                    
+                    // Attendre un peu pour s'assurer que la sauvegarde est terminée
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Libérer le verrou
+                    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
+                    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
+                    
+                    const releaseResult = await releaseLock(currentUserId);
+                    if (releaseResult.ok) {
+                      console.log('✅ Verrou libéré suite à demande de main');
+                      setLockInfo(null);
+                      setIsReadOnly(true);
+                      setLocalFeedback('✅ Main libérée pour ' + mainRequestInfo.from);
+                    } else {
+                      console.error('❌ Échec libération du verrou');
+                      setLocalFeedback('❌ Échec libération du verrou');
+                    }
+                    
+                    setShowMainRequestModal(false);
+                    setMainRequestInfo(null);
+                  } catch (error) {
+                    console.error('❌ Erreur lors de la libération:', error);
+                    setLocalFeedback('❌ Erreur lors de la libération');
+                    setShowMainRequestModal(false);
+                    setMainRequestInfo(null);
+                  }
+                }}
+                style={{
+                  padding: '12px 24px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: '#17a2b8',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                ✅ Accepter et libérer
               </button>
             </div>
           </div>

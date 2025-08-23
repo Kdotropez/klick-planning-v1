@@ -1,7 +1,15 @@
 {
-  "version": "3.3.5",
+  "version": "3.3.7",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "🔧 CORRECTION: Résolution des conflits de clé unique",
+    "⚡ Utilisation d'upsert au lieu d'insert pour éviter les erreurs 409",
+    "🛡️ Protection contre les violations de contrainte unique",
+    "🚪 Système de demande de main \"toc toc\"",
+    "😊 Demande polie de la main avec notification",
+    "📱 Modal conviviale pour accepter/refuser la demande",
+    "💾 Sauvegarde automatique lors de l'acceptation",
+    "🔄 Synchronisation en temps réel des demandes",
     "⚡ AMÉLIORATION: Réactivité immédiate du déverrouillage d'urgence",
     "🔒 Verrouillage immédiat des autres PC après déverrouillage d'urgence",
     "⏱️ Vérification périodique plus fréquente (2s au lieu de 5s)",
@@ -25,6 +33,7 @@
   ],
   "features": [
     "Verrouillage global unique par application",
+    "Système de demande de main \"toc toc\" avec notification",
     "Système de déverrouillage d'urgence avec code de sécurité",
     "Système de notification de force libération",
     "Sauvegarde automatique lors de la réception d'une force libération",
@@ -32,7 +41,8 @@
     "Gestion robuste des verrous expirés",
     "Renouvellement automatique des verrous actifs",
     "Réactivité immédiate après déverrouillage d'urgence",
-    "Synchronisation en temps réel entre les clients"
+    "Synchronisation en temps réel entre les clients",
+    "Interface conviviale pour les demandes de main"
   ],
   "technical": [
     "React 18 avec hooks avancés",
@@ -41,6 +51,7 @@
     "Système de heartbeat pour maintenir les verrous",
     "Gestion d'état optimisée avec useRef et useEffect",
     "Architecture modulaire et extensible",
-    "Détection de changements de verrou en temps réel"
+    "Détection de changements de verrou en temps réel",
+    "Système de notification bidirectionnel"
   ]
 }
