@@ -24,7 +24,8 @@ import ShopStatsPage from './ShopStatsPage';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
-import { initLockService, acquireLock, releaseLock, heartbeat, getLock, forceRelease, checkForceReleaseRequest, cleanupExpiredLocks, emergencyUnlock, getCurrentSecurityCode } from '@/utils/collabLock';
+import { usePlanningLock } from '../../hooks/usePlanningLock';
+import LockBanner from '../common/LockBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -83,13 +84,8 @@ const PlanningDisplay = ({
   // État pour la page de gestion boutique
   const [showGestionBoutique, setShowGestionBoutique] = useState(false);
 
-  // Collaboration lock
-  const [isReadOnly, setIsReadOnly] = useState(false);
-  const [lockInfo, setLockInfo] = useState(null);
-  const [dataFreshness, setDataFreshness] = useState('local'); // 'local', 'supabase', 'loading'
+  // Nouveau système de verrou à bail
   const currentUserIdRef = useRef(null);
-  const hbRef = useRef(null);
-  const autoSaveRef = useRef(null);
   if (!currentUserIdRef.current) {
     try {
       const stored = localStorage.getItem('user_id');
@@ -105,6 +101,22 @@ const PlanningDisplay = ({
     }
   }
   const currentUserId = currentUserIdRef.current;
+  
+  // Identifiant de ressource pour le verrou (boutique + semaine)
+  const resourceId = `${selectedShop?.id || 'unknown'}:${selectedWeek || format(new Date(), 'yyyy-MM-dd')}`;
+  
+  // Hook de gestion du verrou
+  const { status, isOwner, readOnly, lockInfo, release, emergency } = usePlanningLock(resourceId, currentUserId);
+  
+  // Fonction wrapper pour la sauvegarde qui respecte le verrou
+  const safeSaveWeekPlanning = useCallback((planningData, shop, week, planning, employees) => {
+    if (readOnly) {
+      console.warn('Tentative de sauvegarde en mode lecture seule - ignorée');
+      setLocalFeedback('⚠️ Mode lecture seule - sauvegarde impossible');
+      return planningData;
+    }
+    return saveWeekPlanning(planningData, shop, week, planning, employees);
+  }, [readOnly]);
   
   // État pour afficher/masquer le récapitulatif employé
   const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
@@ -150,9 +162,7 @@ const PlanningDisplay = ({
   // État pour forcer le rafraîchissement
   const [forceRefresh, setForceRefresh] = useState(0);
   
-  // États pour le déverrouillage d'urgence
-  const [showEmergencyUnlock, setShowEmergencyUnlock] = useState(false);
-  const [emergencyCode, setEmergencyCode] = useState('');
+  // États pour le déverrouillage d'urgence (maintenant géré par le hook)
   const [emergencyUnlockError, setEmergencyUnlockError] = useState('');
 
 
@@ -433,7 +443,7 @@ const PlanningDisplay = ({
     // Sauvegarde silencieuse du planning actuel avant le changement de jour
     if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
       try {
-        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        const updatedPlanningData = safeSaveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
         console.log('💾 Sauvegarde silencieuse lors du changement de jour');
       } catch (error) {
@@ -463,231 +473,12 @@ const PlanningDisplay = ({
     setSelectedEmployees(localSelectedEmployees);
   }, [localSelectedEmployees, setSelectedEmployees]);
 
-  // Init lock service (Supabase si variables présentes)
-  useEffect(() => {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const key = import.meta.env.VITE_SUPABASE_KEY;
-    initLockService(url && key ? { url, key } : null);
-  }, []);
+  // Le nouveau système de verrou à bail gère automatiquement tout cela
 
-  // Gestion du verrou par (boutique, semaine)
-  useEffect(() => {
-    const run = async () => {
-      if (!selectedShop || !validWeek) return;
-      
-      console.log('🔒 Vérification du verrou global pour:', { selectedShop, validWeek, currentUserId });
-      
-      // Protection contre les boucles infinies (sauf pour emergency unlock)
-      const now = Date.now();
-      if (window.lastLockAttempt && now - window.lastLockAttempt < 3000 && !window.emergencyUnlockInProgress) {
-        console.log('⏳ Délai minimum non respecté, attente...');
-        return;
-      }
-      window.lastLockAttempt = now;
-      
-      // Nettoyer les verrous expirés au démarrage seulement
-      if (!window.lockInitialized) {
-        await cleanupExpiredLocks();
-        window.lockInitialized = true;
-      }
-      
-      // Vérifier d'abord s'il y a déjà un verrou global actif
-      const currentLock = await getLock();
-      
-      // Si on a déjà le verrou global, ne pas le relâcher et le reprendre
-      if (currentLock && currentLock.user_id === currentUserId) {
-        console.log('🔒 On a déjà le verrou global, pas de changement');
-        setLockInfo(currentLock);
-        setIsReadOnly(false);
-        
-        // S'assurer que le heartbeat est actif
-        if (!hbRef.current) {
-          hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
-        }
-        return;
-      }
-      
-      // Si aucun verrou n'existe, essayer de l'acquérir
-      if (!currentLock) {
-        console.log('🔓 Aucun verrou global existant, tentative d\'acquisition');
-        const { ok, lock } = await acquireLock(currentUserId);
-        if (ok) {
-          console.log('✅ Verrou global acquis avec succès');
-          setLockInfo(lock);
-          setIsReadOnly(false);
-          if (hbRef.current) clearInterval(hbRef.current);
-          hbRef.current = setInterval(() => heartbeat(currentUserId), 30000); // 30s
-        } else {
-          console.log('❌ Échec acquisition du verrou global');
-          setIsReadOnly(true);
-          setLockInfo(null);
-        }
-        return;
-      }
-      
-      // Vérifier si le verrou existant est expiré
-      const lockTime = new Date(currentLock.updated_at || currentLock.created_at);
-      const age = Date.now() - lockTime.getTime();
-      const isExpired = age > 2 * 60 * 1000; // 2 minutes
-      
-      if (isExpired) {
-        console.log('🔒 Verrou global expiré détecté, tentative de reprise');
-        const { ok, lock } = await acquireLock(currentUserId);
-        if (ok) {
-          console.log('✅ Verrou global repris avec succès');
-          setLockInfo(lock);
-          setIsReadOnly(false);
-          if (hbRef.current) clearInterval(hbRef.current);
-          hbRef.current = setInterval(() => heartbeat(currentUserId), 30000); // 30s
-        } else {
-          console.log('❌ Échec reprise du verrou global');
-          setIsReadOnly(true);
-          setLockInfo(null);
-        }
-      } else if (currentLock.user_id !== currentUserId) {
-        // Le verrou est valide et appartient à quelqu'un d'autre
-        console.log('❌ Verrou global détenu par un autre utilisateur:', currentLock.user_id);
-        setLockInfo(currentLock);
-        setIsReadOnly(true);
-        setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} utilise actuellement l'application`);
-      }
-    };
+  // Le nouveau système de verrou à bail gère automatiquement tout cela
+  // Le nouveau système de verrou à bail gère automatiquement tout cela
     
-    run();
-    
-    // Vérification périodique du verrou (toutes les 5 secondes pour éviter les boucles)
-    const checkInterval = setInterval(async () => {
-      if (selectedShop && validWeek) {
-        // Protection contre les boucles infinies dans la vérification périodique
-        const now = Date.now();
-        if (checkInterval.lastCheck && now - checkInterval.lastCheck < 5000) {
-          return;
-        }
-        checkInterval.lastCheck = now;
-        
-        // Nettoyer les verrous expirés périodiquement (toutes les 60 secondes)
-        if (!checkInterval.lastCleanup || now - checkInterval.lastCleanup > 60000) {
-          await cleanupExpiredLocks();
-          checkInterval.lastCleanup = now;
-        }
-        
-        const currentLock = await getLock();
-        
-        // Vérifier si le verrou a changé (pour détecter les déverrouillages d'urgence)
-        const lockChanged = !lockInfo || !currentLock || 
-          lockInfo.user_id !== currentLock.user_id ||
-          lockInfo.updated_at !== currentLock.updated_at ||
-          currentLock.emergency_unlock === true;
-        
-        if (currentLock) {
-          const lockTime = new Date(currentLock.updated_at || currentLock.created_at);
-          const age = Date.now() - lockTime.getTime();
-          const isExpired = age > 2 * 60 * 1000; // 2 minutes
-          
-          if (isExpired) {
-            console.log('🔒 Verrou expiré détecté, tentative de reprise');
-            const { ok, lock } = await acquireLock(currentUserId);
-            if (ok) {
-              console.log('✅ Verrou repris après expiration');
-              setLockInfo(lock);
-              setIsReadOnly(false);
-              if (!hbRef.current) {
-                hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
-              }
-            }
-          } else if (currentLock.user_id !== currentUserId) {
-            // Le verrou appartient à quelqu'un d'autre
-            if (lockChanged) {
-              console.log('🔒 Verrou détenu par un autre utilisateur (changement détecté):', currentLock.user_id);
-              setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} utilise actuellement l'application`);
-            }
-            setIsReadOnly(true);
-            setLockInfo(currentLock);
-            
-            // Si c'est un déverrouillage d'urgence, forcer une vérification immédiate
-            if (currentLock.emergency_unlock === true) {
-              console.log('🚨 Déverrouillage d\'urgence détecté, mise à jour immédiate du statut');
-              setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} a repris le contrôle (déverrouillage d'urgence)`);
-            }
-          } else if (currentLock.user_id === currentUserId) {
-            // On a le verrou, s'assurer qu'on n'est pas en lecture seule
-            if (lockChanged) {
-              console.log('🔓 On a le verrou (changement détecté), lecture seule désactivée');
-            }
-            setIsReadOnly(false);
-            
-            // Vérifier les demandes de force release via Supabase
-            const forceReleaseRequest = await checkForceReleaseRequest(currentUserId);
-            if (forceReleaseRequest) {
-              console.log('🔓 Demande de force release reçue, sauvegarde et libération automatique...');
-              setLocalFeedback('🔓 Demande de force release reçue, sauvegarde en cours...');
-              
-              // Sauvegarder automatiquement
-              if (selectedShop && selectedWeek) {
-                const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-                setPlanningData(updatedPlanningData);
-                
-                // Sauvegarder dans Supabase
-                const { saveCompletePlanningData } = await import('@/utils/remoteStore');
-                const saveResult = await saveCompletePlanningData(updatedPlanningData);
-                
-                if (saveResult) {
-                  console.log('✅ Sauvegarde automatique réussie avant force release');
-                  setLocalFeedback('✅ Sauvegarde automatique réussie, libération du verrou...');
-                  
-                  // Libérer le verrou après sauvegarde
-                  const releaseResult = await releaseLock(currentUserId);
-                  if (releaseResult.ok) {
-                    console.log('✅ Verrou libéré après force release');
-                    setLockInfo(null);
-                    setIsReadOnly(true);
-                    if (hbRef.current) {
-                      clearInterval(hbRef.current);
-                      hbRef.current = null;
-                    }
-                    setLocalFeedback('🔓 Verrou libéré, en attente de reprise...');
-                  }
-                } else {
-                  console.error('❌ Échec sauvegarde automatique avant force release');
-                  setLocalFeedback('❌ Échec sauvegarde automatique');
-                }
-              }
-            }
-          }
-        } else {
-          // Aucun verrou existant
-          if (lockChanged) {
-            console.log('🔓 Aucun verrou détecté, tentative d\'acquisition');
-            const { ok, lock } = await acquireLock(currentUserId);
-            if (ok) {
-              console.log('✅ Verrou acquis après détection d\'absence');
-              setLockInfo(lock);
-              setIsReadOnly(false);
-              if (!hbRef.current) {
-                hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
-              }
-            }
-          }
-        }
-      }
-    }, 2000); // Vérification toutes les 2 secondes pour plus de réactivité
-    
-    return () => {
-      if (hbRef.current) {
-        clearInterval(hbRef.current);
-        hbRef.current = null;
-      }
-      if (autoSaveRef.current) {
-        clearInterval(autoSaveRef.current);
-        autoSaveRef.current = null;
-      }
-      clearInterval(checkInterval);
-      if (selectedShop && validWeek) {
-        console.log('🔓 Libération du verrou');
-        releaseLock(currentUserId);
-      }
-    };
-  }, [selectedShop, validWeek, currentUserId, lockInfo]);
+  // Le nouveau système de verrou à bail gère automatiquement tout cela
 
   // Inclure automatiquement tout nouvel employé de la boutique dans la sélection locale
   useEffect(() => {
@@ -1735,6 +1526,14 @@ const PlanningDisplay = ({
       maxWidth: '100vw',
       margin: '0 auto'
     }}>
+      {/* Bandeau de statut du verrou */}
+      <LockBanner 
+        status={status} 
+        lockInfo={lockInfo} 
+        onRelease={release} 
+        onEmergency={emergency} 
+      />
+      
       {localFeedback && (
         <p style={{ 
           fontFamily: 'Roboto, sans-serif', 
