@@ -1,7 +1,14 @@
 {
-  "version": "3.3.4",
+  "version": "3.3.5",
   "buildDate": "2025-01-27T12:30:00.000Z",
   "changelog": [
+    "⚡ AMÉLIORATION: Réactivité immédiate du déverrouillage d'urgence",
+    "🔒 Verrouillage immédiat des autres PC après déverrouillage d'urgence",
+    "⏱️ Vérification périodique plus fréquente (2s au lieu de 5s)",
+    "🔄 Détection automatique des changements de verrou",
+    "🚨 Marqueur spécial pour les déverrouillages d'urgence",
+    "📡 Synchronisation améliorée entre les clients",
+    "🔧 Optimisation de la détection des changements d'état",
     "🚨 NOUVEAU: Système de déverrouillage d'urgence",
     "🔐 Code de sécurité basé sur la date (JJMM)",
     "⚡ Déverrouillage forcé sans notification à l'autre PC",
@@ -23,7 +30,9 @@
     "Sauvegarde automatique lors de la réception d'une force libération",
     "Indicateur de fraîcheur des données",
     "Gestion robuste des verrous expirés",
-    "Renouvellement automatique des verrous actifs"
+    "Renouvellement automatique des verrous actifs",
+    "Réactivité immédiate après déverrouillage d'urgence",
+    "Synchronisation en temps réel entre les clients"
   ],
   "technical": [
     "React 18 avec hooks avancés",
@@ -31,6 +40,7 @@
     "localStorage pour le cache local",
     "Système de heartbeat pour maintenir les verrous",
     "Gestion d'état optimisée avec useRef et useEffect",
-    "Architecture modulaire et extensible"
+    "Architecture modulaire et extensible",
+    "Détection de changements de verrou en temps réel"
   ]
 }

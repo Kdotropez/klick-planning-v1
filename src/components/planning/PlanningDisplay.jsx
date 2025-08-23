@@ -545,7 +545,7 @@ const PlanningDisplay = ({
     
     run();
     
-    // Vérification périodique du verrou (toutes les 5 secondes pour plus de stabilité)
+    // Vérification périodique du verrou (toutes les 2 secondes pour plus de réactivité)
     const checkInterval = setInterval(async () => {
       if (selectedShop && validWeek) {
         // Nettoyer les verrous expirés périodiquement (toutes les 60 secondes)
@@ -556,6 +556,13 @@ const PlanningDisplay = ({
         }
         
         const currentLock = await getLock();
+        
+        // Vérifier si le verrou a changé (pour détecter les déverrouillages d'urgence)
+        const lockChanged = !lockInfo || !currentLock || 
+          lockInfo.user_id !== currentLock.user_id ||
+          lockInfo.updated_at !== currentLock.updated_at ||
+          currentLock.emergency_unlock === true;
+        
         if (currentLock) {
           const lockTime = new Date(currentLock.updated_at || currentLock.created_at);
           const age = Date.now() - lockTime.getTime();
@@ -573,13 +580,25 @@ const PlanningDisplay = ({
               }
             }
           } else if (currentLock.user_id !== currentUserId) {
+            // Le verrou appartient à quelqu'un d'autre
+            if (lockChanged) {
+              console.log('🔒 Verrou détenu par un autre utilisateur (changement détecté):', currentLock.user_id);
+              setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} utilise actuellement l'application`);
+            }
             setIsReadOnly(true);
             setLockInfo(currentLock);
-            console.log('🔒 Verrou détenu par un autre utilisateur:', currentLock.user_id);
+            
+            // Si c'est un déverrouillage d'urgence, forcer une vérification immédiate
+            if (currentLock.emergency_unlock === true) {
+              console.log('🚨 Déverrouillage d\'urgence détecté, mise à jour immédiate du statut');
+              setLocalFeedback(`🔒 Lecture seule: ${currentLock.user_id} a repris le contrôle (déverrouillage d'urgence)`);
+            }
           } else if (currentLock.user_id === currentUserId) {
             // On a le verrou, s'assurer qu'on n'est pas en lecture seule
+            if (lockChanged) {
+              console.log('🔓 On a le verrou (changement détecté), lecture seule désactivée');
+            }
             setIsReadOnly(false);
-            console.log('🔓 On a le verrou, lecture seule désactivée');
             
             // Vérifier les demandes de force release via Supabase
             const forceReleaseRequest = await checkForceReleaseRequest(currentUserId);
@@ -598,42 +617,44 @@ const PlanningDisplay = ({
                 
                 if (saveResult) {
                   console.log('✅ Sauvegarde automatique réussie avant force release');
-                  setLocalFeedback('✅ Sauvegarde automatique effectuée, libération du verrou...');
+                  setLocalFeedback('✅ Sauvegarde automatique réussie, libération du verrou...');
+                  
+                  // Libérer le verrou après sauvegarde
+                  const releaseResult = await releaseLock(currentUserId);
+                  if (releaseResult.ok) {
+                    console.log('✅ Verrou libéré après force release');
+                    setLockInfo(null);
+                    setIsReadOnly(true);
+                    if (hbRef.current) {
+                      clearInterval(hbRef.current);
+                      hbRef.current = null;
+                    }
+                    setLocalFeedback('🔓 Verrou libéré, en attente de reprise...');
+                  }
                 } else {
-                  console.log('⚠️ Échec sauvegarde Supabase avant force release');
-                  setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
+                  console.error('❌ Échec sauvegarde automatique avant force release');
+                  setLocalFeedback('❌ Échec sauvegarde automatique');
                 }
-              }
-              
-              // Libérer le verrou
-              const releaseResult = await releaseLock(currentUserId);
-              if (releaseResult.ok) {
-                console.log('✅ Verrou libéré suite à force release');
-                setLocalFeedback('✅ Verrou libéré suite à force release');
-                setIsReadOnly(true);
-                setLockInfo(null);
-                
-                // Arrêter les intervalles
-                if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
               }
             }
           }
         } else {
-          // Aucun verrou, essayer d'en acquérir un
-          console.log('🔓 Aucun verrou détecté, tentative d\'acquisition');
-          const { ok, lock } = await acquireLock(currentUserId);
-          if (ok) {
-            console.log('✅ Verrou acquis lors de la vérification périodique');
-            setLockInfo(lock);
-            setIsReadOnly(false);
-            if (!hbRef.current) {
-              hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+          // Aucun verrou existant
+          if (lockChanged) {
+            console.log('🔓 Aucun verrou détecté, tentative d\'acquisition');
+            const { ok, lock } = await acquireLock(currentUserId);
+            if (ok) {
+              console.log('✅ Verrou acquis après détection d\'absence');
+              setLockInfo(lock);
+              setIsReadOnly(false);
+              if (!hbRef.current) {
+                hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
+              }
             }
           }
         }
       }
-    }, 5000); // Vérification toutes les 5 secondes pour plus de stabilité
+    }, 2000); // Vérification toutes les 2 secondes pour plus de réactivité
     
     return () => {
       if (hbRef.current) {
@@ -650,7 +671,7 @@ const PlanningDisplay = ({
         releaseLock(currentUserId);
       }
     };
-  }, [selectedShop, validWeek, currentUserId]);
+  }, [selectedShop, validWeek, currentUserId, lockInfo]);
 
   // Inclure automatiquement tout nouvel employé de la boutique dans la sélection locale
   useEffect(() => {
@@ -4137,27 +4158,16 @@ const PlanningDisplay = ({
               <p style={{ marginBottom: '10px', color: '#333' }}>
                 <strong>Code de sécurité requis :</strong>
               </p>
-              <p style={{ 
-                background: '#f8f9fa', 
-                padding: '10px', 
-                borderRadius: '6px', 
-                fontFamily: 'monospace',
-                fontSize: '18px',
-                fontWeight: 'bold',
-                color: '#dc3545'
-              }}>
-                {getCurrentSecurityCode()}
-              </p>
-              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-                (Jour + Mois : {new Date().getDate().toString().padStart(2, '0')} + {(new Date().getMonth() + 1).toString().padStart(2, '0')})
+              <p style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>
+                Entrez le code de sécurité pour confirmer le déverrouillage d'urgence
               </p>
             </div>
             
             <input
-              type="text"
+              type="password"
               value={emergencyCode}
               onChange={(e) => setEmergencyCode(e.target.value)}
-              placeholder="Entrez le code de sécurité"
+              placeholder="Code de sécurité"
               style={{
                 width: '100%',
                 padding: '12px',

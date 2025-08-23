@@ -298,13 +298,15 @@ export const emergencyUnlock = async (userId, securityCode) => {
       
       console.log('✅ Déverrouillage d\'urgence réussi avec Supabase');
       
-      // Créer immédiatement un nouveau verrou pour cet utilisateur
+      // Créer immédiatement un nouveau verrou pour cet utilisateur avec un timestamp très récent
       const newLock = { 
         shop_id: 'GLOBAL', 
         week_key: 'GLOBAL', 
         user_id: userId, 
         created_at: nowIso(), 
-        updated_at: nowIso() 
+        updated_at: nowIso(),
+        // Ajouter un marqueur spécial pour forcer la détection immédiate
+        emergency_unlock: true
       };
       
       const { data, error: insertError } = await supabase
@@ -319,6 +321,25 @@ export const emergencyUnlock = async (userId, securityCode) => {
       }
       
       console.log('✅ Nouveau verrou créé après déverrouillage d\'urgence:', data);
+      
+      // Forcer une mise à jour immédiate pour s'assurer que les autres clients détectent le changement
+      setTimeout(async () => {
+        try {
+          await supabase
+            .from('planning_locks')
+            .update({ 
+              updated_at: nowIso(),
+              emergency_unlock: null // Nettoyer le marqueur
+            })
+            .eq('shop_id', 'GLOBAL')
+            .eq('week_key', 'GLOBAL')
+            .eq('user_id', userId);
+          console.log('✅ Mise à jour forcée du verrou d\'urgence terminée');
+        } catch (error) {
+          console.error('❌ Erreur mise à jour forcée:', error);
+        }
+      }, 100);
+      
       return { ok: true, lock: data };
       
     } catch (error) {
@@ -335,7 +356,8 @@ export const emergencyUnlock = async (userId, securityCode) => {
       week_key: 'GLOBAL', 
       user_id: userId, 
       created_at: nowIso(), 
-      updated_at: nowIso() 
+      updated_at: nowIso(),
+      emergency_unlock: true
     };
     
     localStorage.setItem(globalLockKey, JSON.stringify(newLock));
