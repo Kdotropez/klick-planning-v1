@@ -670,7 +670,7 @@ const PlanningDisplay = ({
   }, [selectedShop, selectedWeek, forceRefresh]); // Retiré planningData pour éviter le rechargement automatique
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
-    if (isReadOnly) {
+    if (readOnly) {
       setLocalFeedback('🔒 Lecture seule: demandez la main pour modifier.');
       return;
     }
@@ -780,7 +780,7 @@ const PlanningDisplay = ({
       );
       
       // SAUVEGARDE AUTOMATIQUE IMMÉDIATE (seulement si on a la main)
-      if (selectedShop && selectedWeek && !isReadOnly) {
+      if (selectedShop && selectedWeek && !readOnly) {
         try {
           const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
           setPlanningData(updatedPlanningData);
@@ -828,7 +828,7 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(async () => {
-    if (isReadOnly) {
+    if (readOnly) {
       setLocalFeedback('🔒 Lecture seule: sauvegarde désactivée.');
       return;
     }
@@ -879,7 +879,7 @@ const PlanningDisplay = ({
       console.error('Erreur sauvegarde manuelle:', error);
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
-  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData, setLocalFeedback, setHasUnsavedChanges, isReadOnly]);
+  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly]);
 
   // Fonction de test de connexion Supabase
   const testSupabase = useCallback(async () => {
@@ -914,7 +914,7 @@ const PlanningDisplay = ({
       const result = await forceRelease(currentUserId);
       if (result) {
         setLocalFeedback('🔓 Verrou libéré avec force');
-        setIsReadOnly(false);
+        // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
         setLockInfo(null);
       } else {
         setLocalFeedback('❌ Échec libération forcée');
@@ -1087,14 +1087,14 @@ const PlanningDisplay = ({
         setLocalFeedback('❌ Erreur lors de la sauvegarde JSON');
       }
     }
-  }, [planningData, selectedShop, selectedWeek, planning, isReadOnly]);
+  }, [planningData, selectedShop, selectedWeek, planning, readOnly]);
 
   // État pour la prochaine sauvegarde automatique
   const [nextAutoBackup, setNextAutoBackup] = useState(null);
 
   // Sauvegarde automatique JSON toutes les 5 minutes
   useEffect(() => {
-    if (!isReadOnly && planningData && Object.keys(planningData.shops || {}).length > 0) {
+    if (!readOnly && planningData && Object.keys(planningData.shops || {}).length > 0) {
       // Calculer la prochaine sauvegarde
       const now = new Date();
       const nextBackup = new Date(now.getTime() + 5 * 60 * 1000); // +5 minutes
@@ -1109,11 +1109,11 @@ const PlanningDisplay = ({
 
       return () => clearInterval(autoBackupInterval);
     }
-  }, [planningData, createAutoBackupJSON, isReadOnly]);
+  }, [planningData, createAutoBackupJSON, readOnly]);
 
   const changeWeek = (direction) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (!isReadOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (!readOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
@@ -1149,7 +1149,7 @@ const PlanningDisplay = ({
 
   const changeToSpecificWeek = (weekDate) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (!isReadOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (!readOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
         const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
         setPlanningData(updatedPlanningData);
@@ -2911,9 +2911,9 @@ const PlanningDisplay = ({
       {/* PLANNING - DIRECTEMENT APRÈS LE TITRE ET LES RÉCAPITULATIFS */}
       {/* Bandeau collaboratif (toujours visible) */}
       <div style={{
-        backgroundColor: isReadOnly ? '#fff3cd' : '#e8f5e9',
-        color: isReadOnly ? '#856404' : '#1b5e20',
-        border: `1px solid ${isReadOnly ? '#ffeeba' : '#a5d6a7'}`,
+        backgroundColor: readOnly ? '#fff3cd' : '#e8f5e9',
+        color: readOnly ? '#856404' : '#1b5e20',
+        border: `1px solid ${readOnly ? '#ffeeba' : '#a5d6a7'}`,
         borderRadius: 6,
         padding: '8px 12px',
         fontFamily: 'Roboto, sans-serif',
@@ -2921,7 +2921,7 @@ const PlanningDisplay = ({
         alignItems: 'center',
         gap: 10
       }}>
-        {isReadOnly ? (
+        {readOnly ? (
           <>
             <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
               🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.
@@ -2956,7 +2956,7 @@ const PlanningDisplay = ({
                               const acquireResult = await acquireLock(currentUserId);
                               if (acquireResult.ok) {
                                 console.log('✅ Verrou acquis après force release');
-                                setIsReadOnly(false);
+                                // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
                                 setLockInfo(acquireResult.lock);
                                 setDataFreshness('loading');
                                 
@@ -3104,7 +3104,7 @@ const PlanningDisplay = ({
                     if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
                     if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
                     await releaseLock(currentUserId);
-                    setIsReadOnly(true);
+                    // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
                     setLockInfo(null);
                     setLocalFeedback('🔓 Main relâchée - Sauvegarde complète effectuée');
                   } catch (error) {
@@ -3429,7 +3429,7 @@ const PlanningDisplay = ({
             planning={planning}
             onToggleSlot={toggleSlot}
             onSetDayStatus={(employeeId, dayIndex, status) => {
-              if (isReadOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
+              if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
               const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
               setPlanning(prev => {
                 const updated = { ...prev };
@@ -4037,7 +4037,7 @@ const PlanningDisplay = ({
                     
                     if (result.ok) {
                       console.log('✅ Déverrouillage d\'urgence réussi');
-                      setIsReadOnly(false);
+                      // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
                       setLockInfo(result.lock);
                       setDataFreshness('loading');
                       
