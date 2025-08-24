@@ -73,47 +73,46 @@ async function manualEmergencyCleanup(resourceId, newHolder, pin, ttlSeconds = 3
       return { acquired: false, resource_id: resourceId, holder: null, lease_token: null, expires_at: null };
     }
 
-    // Nettoyer manuellement le verrou
-    const { error: deleteError } = await supabase
-      .from('planning_lock')
-      .delete()
-      .eq('resource_id', resourceId);
+    console.log('Code PIN correct, tentative de nettoyage...');
+
+    // Au lieu d'écrire directement, on va essayer d'acquérir le verrou normalement
+    // après avoir attendu un peu pour que les verrous expirés soient nettoyés
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Essayer d'acquérir le verrou normalement
+    const result = await acquireLock(resourceId, newHolder, ttlSeconds);
     
-    if (deleteError) {
-      console.error('Erreur lors du nettoyage manuel:', deleteError);
-      throw deleteError;
+    if (result && result.acquired) {
+      console.log('Nettoyage manuel réussi via acquireLock');
+      return result;
+    } else {
+      console.log('Acquisition normale échouée, tentative de force...');
+      
+      // Si ça ne marche pas, on va essayer de libérer le verrou avec un token factice
+      try {
+        await supabase.rpc('release_planning_lock', {
+          p_resource_id: resourceId,
+          p_holder: 'force_cleanup',
+          p_lease_token: '00000000-0000-0000-0000-000000000000'
+        });
+      } catch (e) {
+        console.log('Tentative de libération forcée ignorée:', e.message);
+      }
+
+      // Attendre un peu plus
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Réessayer l'acquisition
+      const retryResult = await acquireLock(resourceId, newHolder, ttlSeconds);
+      
+      if (retryResult && retryResult.acquired) {
+        console.log('Nettoyage manuel réussi après retry');
+        return retryResult;
+      } else {
+        console.log('Échec du nettoyage manuel');
+        return { acquired: false, resource_id: resourceId, holder: null, lease_token: null, expires_at: null };
+      }
     }
-
-    // Créer un nouveau verrou
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
-    const leaseToken = crypto.randomUUID();
-
-    const { data: insertData, error: insertError } = await supabase
-      .from('planning_lock')
-      .insert({
-        resource_id: resourceId,
-        holder: newHolder,
-        lease_token: leaseToken,
-        expires_at: expiresAt.toISOString(),
-        updated_at: now.toISOString()
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Erreur lors de la création du nouveau verrou:', insertError);
-      throw insertError;
-    }
-
-    console.log('Nettoyage manuel réussi');
-    return {
-      acquired: true,
-      resource_id: resourceId,
-      holder: newHolder,
-      lease_token: leaseToken,
-      expires_at: expiresAt.toISOString()
-    };
 
   } catch (error) {
     console.error('Nettoyage manuel échoué:', error);
