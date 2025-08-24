@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { format, addDays, addMinutes, parse } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import '../../assets/styles.css';
 
 const PlanningTable = ({ 
@@ -25,6 +26,9 @@ const PlanningTable = ({
   const [edgeSelection, setEdgeSelection] = useState(null); // { employeeId, dayIndex, edge: 'first' | 'last', ts }
   const edgeTimerRef = useRef(null);
   let clickTimeout = null;
+
+  // Détection d'appareil tactile
+  const { isTouchDevice, isTablet } = useDeviceDetection();
 
   const getEndTime = (startTime, interval) => {
     if (!startTime) return '-';
@@ -162,11 +166,11 @@ const PlanningTable = ({
   const handleTouchStart = (employeeId, slotIndex, dayIndex, event) => {
     console.log('handleTouchStart called:', { employeeId, slotIndex, dayIndex });
     event.preventDefault();
+    event.stopPropagation();
     
     // Vérifier si l'employé est verrouillé
     if (lockedEmployees.includes(employeeId)) {
       console.log('EMPLOYÉ VERROUILLÉ - Modification bloquée (touch):', employeeId);
-      event.stopPropagation();
       return;
     }
     
@@ -178,6 +182,18 @@ const PlanningTable = ({
       console.error('Invalid props:', { planning, selectedWeek, currentDay, selectedEmployees });
       return;
     }
+    
+    // Ajouter un feedback visuel immédiat pour l'interaction tactile
+    const target = event.currentTarget;
+    target.style.transform = 'scale(0.95)';
+    target.style.backgroundColor = 'rgba(0, 123, 255, 0.2)';
+    
+    // Restaurer l'apparence après un court délai
+    setTimeout(() => {
+      target.style.transform = '';
+      target.style.backgroundColor = '';
+    }, 150);
+    
     const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
     const dayData = planning?.[employeeId]?.[dayKey];
     // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
@@ -241,6 +257,17 @@ const PlanningTable = ({
       }
     }
     onToggleSlot(employeeId, slotIndex, dayIndex, !currentValue);
+  };
+
+  // Nouvelle fonction pour gérer les événements tactiles de manière plus robuste
+  const handleTouchEnd = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleTouchMove = (event) => {
+    // Empêcher le scroll pendant l'interaction avec les cellules
+    event.preventDefault();
   };
 
   useEffect(() => {
@@ -449,9 +476,20 @@ const PlanningTable = ({
                   return (
                     <td
                       key={slotIndex}
-                      className={`scrollable-col ${isChecked ? `clicked-${employeeIndex % 7}` : ''}`}
-                      style={slotStyle}
+                      className={`scrollable-col ${isChecked ? `clicked-${employeeIndex % 7}` : ''} ${isTouchDevice ? 'touch-device' : ''} ${isTablet ? 'tablet-device' : ''}`}
+                      style={{
+                        ...slotStyle,
+                        // Styles conditionnels pour les appareils tactiles
+                        ...(isTouchDevice && {
+                          minWidth: '44px',
+                          minHeight: '44px',
+                          padding: '8px 4px',
+                          cursor: 'pointer'
+                        })
+                      }}
                       onTouchStart={(e) => handleTouchStart(employeeId, slotIndex, currentDay, e)}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchMove={handleTouchMove}
                       onMouseDown={(e) => {
                         // Toujours déléguer au handler qui gère aussi la suppression de statut via gestuelle
                         handleMouseDown(employeeId, slotIndex, currentDay, e);

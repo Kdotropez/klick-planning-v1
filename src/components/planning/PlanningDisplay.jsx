@@ -26,6 +26,7 @@ import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
 import LockBanner from '../common/LockBanner';
+import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import '@/assets/styles.css';
@@ -1527,12 +1528,13 @@ const PlanningDisplay = ({
       margin: '0 auto'
     }}>
       {/* Bandeau de statut du verrou */}
-      <LockBanner 
-        status={status} 
-        lockInfo={lockInfo} 
-        onRelease={release} 
-        onEmergency={emergency} 
-      />
+              <LockBanner
+          status={status}
+          lockInfo={lockInfo}
+          onRelease={release}
+          onEmergency={emergency}
+        />
+        <TouchOptimizationBanner />
       
       {localFeedback && (
         <p style={{ 

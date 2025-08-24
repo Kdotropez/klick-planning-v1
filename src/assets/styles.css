@@ -685,6 +685,117 @@ body {
     }
 }
 
+/* Optimisations pour appareils tactiles */
+@media (hover: none) and (pointer: coarse) {
+    /* Augmenter la taille des zones de clic pour les appareils tactiles */
+    .scrollable-col {
+        min-width: 44px !important; /* Taille minimale recommandée pour le tactile */
+        max-width: 60px !important;
+        min-height: 44px !important;
+        padding: 8px 4px !important;
+        cursor: pointer;
+        -webkit-tap-highlight-color: rgba(0, 123, 255, 0.3);
+        touch-action: manipulation;
+    }
+    
+    .scrollable-col .checkmark {
+        font-size: 16px !important;
+        line-height: 1.2;
+    }
+    
+    /* Améliorer la visibilité des zones cliquables */
+    .scrollable-col:hover {
+        background-color: rgba(0, 123, 255, 0.1) !important;
+        border-color: #007bff !important;
+    }
+    
+    /* Zone de clic étendue pour les cellules */
+    .scrollable-col::before {
+        content: '';
+        position: absolute;
+        top: -4px;
+        left: -4px;
+        right: -4px;
+        bottom: -4px;
+        z-index: 1;
+    }
+    
+    /* Améliorer l'accessibilité tactile */
+    .planning-table td {
+        position: relative;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+    
+    /* Feedback visuel pour les interactions tactiles */
+    .scrollable-col:active {
+        background-color: rgba(0, 123, 255, 0.2) !important;
+        transform: scale(0.95);
+        transition: transform 0.1s ease;
+    }
+}
+
+/* Styles spécifiques pour les appareils tactiles détectés */
+.scrollable-col.touch-device {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 8px 4px !important;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(0, 123, 255, 0.3);
+    touch-action: manipulation;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.scrollable-col.touch-device .checkmark {
+    font-size: 16px !important;
+    line-height: 1.2;
+}
+
+.scrollable-col.touch-device:hover {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    border-color: #007bff !important;
+}
+
+.scrollable-col.touch-device:active {
+    background-color: rgba(0, 123, 255, 0.2) !important;
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+}
+
+/* Styles spécifiques pour les tablettes */
+.scrollable-col.tablet-device {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    padding: 10px 6px !important;
+}
+
+.scrollable-col.tablet-device .checkmark {
+    font-size: 18px !important;
+}
+
+/* Amélioration de l'accessibilité pour les appareils tactiles */
+@media (hover: none) and (pointer: coarse) {
+    .planning-table {
+        touch-action: pan-x pan-y;
+    }
+    
+    .table-container {
+        -webkit-overflow-scrolling: touch;
+        overflow-scrolling: touch;
+    }
+    
+    /* Empêcher le zoom sur double-tap */
+    .scrollable-col {
+        touch-action: manipulation;
+    }
+}
+
 /* Styles pour l'impression */
 @media print {
     body {

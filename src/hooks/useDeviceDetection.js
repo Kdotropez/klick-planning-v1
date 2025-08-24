@@ -1,60 +1,52 @@
 import { useState, useEffect } from 'react';
 
-export const useDeviceDetection = () => {
-  const [deviceInfo, setDeviceInfo] = useState({
-    isTouchDevice: false,
-    isTablet: false,
-    isIPad: false,
-    isMobile: false,
-    screenWidth: 0,
-    screenHeight: 0
-  });
+export function useDeviceDetection() {
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const detectDevice = () => {
-      const userAgent = navigator.userAgent.toLowerCase();
+      // Détection des appareils tactiles
+      const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsTouchDevice(hasTouchScreen);
+
+      // Détection de la taille d'écran pour tablette/mobile
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
       
-      // Détection des appareils tactiles
-      const isTouchDevice = 'ontouchstart' in window || 
-                           navigator.maxTouchPoints > 0 || 
-                           navigator.msMaxTouchPoints > 0;
+      // Détection tablette (Surface, iPad, etc.)
+      const isTabletDevice = hasTouchScreen && 
+        ((screenWidth >= 768 && screenWidth <= 1024) || 
+         (screenHeight >= 768 && screenHeight <= 1024) ||
+         /iPad|Android(?=.*\bMobile\b)(?=.*\bSafari\b)|Surface/i.test(navigator.userAgent));
       
-      // Détection spécifique iPad
-      const isIPad = /ipad/.test(userAgent) || 
-                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      
-      // Détection tablette (largeur d'écran entre 768px et 1024px ou iPad)
-      const isTablet = isIPad || 
-                      (screenWidth >= 768 && screenWidth <= 1024) ||
-                      (screenWidth >= 1024 && screenWidth <= 1366 && isTouchDevice);
+      setIsTablet(isTabletDevice);
       
       // Détection mobile
-      const isMobile = screenWidth < 768 || 
-                      /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-
-      setDeviceInfo({
-        isTouchDevice,
-        isTablet,
-        isIPad,
-        isMobile,
-        screenWidth,
-        screenHeight
-      });
+      const isMobileDevice = hasTouchScreen && 
+        (screenWidth < 768 || 
+         /Android(?=.*\bMobile\b)|iPhone|iPod/i.test(navigator.userAgent));
+      
+      setIsMobile(isMobileDevice);
     };
 
-    // Détection initiale
     detectDevice();
-
-    // Réécouter les changements de taille d'écran
-    window.addEventListener('resize', detectDevice);
     
-    // Nettoyage
+    // Réécouter lors du changement d'orientation
+    window.addEventListener('resize', detectDevice);
+    window.addEventListener('orientationchange', detectDevice);
+
     return () => {
       window.removeEventListener('resize', detectDevice);
+      window.removeEventListener('orientationchange', detectDevice);
     };
   }, []);
 
-  return deviceInfo;
-}; 
+  return {
+    isTouchDevice,
+    isTablet,
+    isMobile,
+    isDesktop: !isTouchDevice && !isTablet && !isMobile
+  };
+} 
