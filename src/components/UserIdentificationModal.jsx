@@ -13,18 +13,18 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
     setIsLoading(true);
 
     try {
-      // Vérifier le code utilisateur
-      const userInfo = VALID_USER_CODES[userCode.toUpperCase()];
+      // Vérifier le code secret utilisateur
+      const userInfo = VALID_USER_CODES[userCode];
       
       if (!userInfo) {
-        setError('❌ Code utilisateur invalide. Veuillez vérifier votre code.');
+        setError('❌ Code secret invalide. Veuillez vérifier votre code.');
         setIsLoading(false);
         return;
       }
 
       // Créer l'objet utilisateur
       const user = {
-        code: userCode.toUpperCase(),
+        code: userCode,
         name: userInfo.name,
         role: userInfo.role,
         loginTime: new Date().toISOString(),
@@ -108,7 +108,7 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
               textShadow: '0 4px 8px rgba(0,0,0,0.3)',
               letterSpacing: '2px'
             }}>
-              Identification
+              Identification Secrète
             </h1>
             <p style={{
               fontSize: '1.1rem',
@@ -117,7 +117,7 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
               opacity: '0.9',
               textShadow: '0 2px 4px rgba(0,0,0,0.2)'
             }}>
-              Veuillez saisir votre code d'accès
+              Veuillez saisir votre code secret
             </p>
           </div>
 
@@ -132,14 +132,14 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
                 fontWeight: '600',
                 textShadow: '0 2px 4px rgba(0,0,0,0.2)'
               }}>
-                Code Utilisateur :
+                Code Secret :
               </label>
               <input
-                type="text"
+                type="password"
                 value={userCode}
                 onChange={(e) => setUserCode(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ex: ADMIN001, MANAGER001..."
+                placeholder="Entrez votre code secret..."
                 style={{
                   width: '100%',
                   padding: '15px 20px',

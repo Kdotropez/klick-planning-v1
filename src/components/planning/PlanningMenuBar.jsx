@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft, FaTools } from 'react-icons/fa';
+import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft, FaTools, FaUsers } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
+import { checkUserPermission } from '../../config/userCodes';
+import UserManagementModal from '../admin/UserManagementModal';
 import '../../assets/styles.css';
 
 const PlanningMenuBar = ({
@@ -74,6 +76,7 @@ const PlanningMenuBar = ({
     retour: false,
     modules: false
   });
+  const [showUserManagement, setShowUserManagement] = useState(false);
   const [toolbarMode, setToolbarMode] = useState(() => {
     try {
       return localStorage.getItem('planning_toolbar_mode') || 'smart';
@@ -457,6 +460,11 @@ const PlanningMenuBar = ({
             <MenuItem onClick={diagnoseAndCleanLocks}>
               🔍 Diagnostic & Nettoyage Verrous
             </MenuItem>
+            {currentUser && checkUserPermission(currentUser.code, 'canManageUsers') && (
+              <MenuItem onClick={() => setShowUserManagement(true)}>
+                👥 Gestion Utilisateurs
+              </MenuItem>
+            )}
             <MenuItem onClick={() => {}}>
               🧹 Nettoyer cache
             </MenuItem>
@@ -542,6 +550,13 @@ const PlanningMenuBar = ({
         accept=".json"
         onChange={handleFileChange}
         style={{ display: 'none' }}
+      />
+
+      {/* Modal de gestion des utilisateurs */}
+      <UserManagementModal
+        isOpen={showUserManagement}
+        onClose={() => setShowUserManagement(false)}
+        currentUser={currentUser}
       />
     </div>
   );
