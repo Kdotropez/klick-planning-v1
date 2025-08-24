@@ -163,8 +163,7 @@ const PlanningDisplay = ({
   // État pour forcer le rafraîchissement
   const [forceRefresh, setForceRefresh] = useState(0);
   
-  // États pour le déverrouillage d'urgence (maintenant géré par le hook)
-  const [emergencyUnlockError, setEmergencyUnlockError] = useState('');
+  // États pour le déverrouillage d'urgence (maintenant géré par le hook usePlanningLock)
 
 
 
@@ -906,24 +905,7 @@ const PlanningDisplay = ({
     }
   }, []);
 
-  // Fonction pour forcer la libération du verrou
-  const forceReleaseLock = useCallback(async () => {
-    try {
-      console.log('🔓 Force release du verrou...');
-      const { forceRelease } = await import('@/utils/collabLock');
-      const result = await forceRelease(currentUserId);
-      if (result) {
-        setLocalFeedback('🔓 Verrou libéré avec force');
-        // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
-        setLockInfo(null);
-      } else {
-        setLocalFeedback('❌ Échec libération forcée');
-      }
-    } catch (error) {
-      console.error('❌ Erreur force release:', error);
-      setLocalFeedback('❌ Erreur force release');
-    }
-  }, [selectedShop, selectedWeek, currentUserId]);
+
 
   // Fonction pour diagnostiquer et nettoyer les verrous
   const diagnoseAndCleanLocks = useCallback(async () => {
@@ -1679,7 +1661,7 @@ const PlanningDisplay = ({
             testSupabase={testSupabase}
             cleanSupabaseData={cleanSupabaseData}
             diagnoseSupabase={diagnoseSupabase}
-            forceReleaseLock={forceReleaseLock}
+    
             diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
           />
@@ -2927,117 +2909,9 @@ const PlanningDisplay = ({
               🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.
             </span>
 
+
             <button
-              onClick={() => {
-                if (window.confirm('⚠️ FORCER LA LIBÉRATION\n\nCette action va :\n1. Demander à l\'utilisateur actuel de sauvegarder son travail\n2. Forcer la libération du verrou\n3. Vous donner la main\n\nÊtes-vous sûr de vouloir continuer ?')) {
-                  // Utiliser setTimeout pour éviter les conflits de rendu React
-                  setTimeout(async () => {
-                    try {
-                      console.log('🔓 Force release du verrou');
-                      setLocalFeedback('⏳ Demande de sauvegarde envoyée à l\'utilisateur distant...');
-                      
-                      // Envoyer la notification de force release
-                      const { ok } = await forceRelease(currentUserId);
-                      
-                      if (ok) {
-                        setLocalFeedback('🔓 Demande de force libération envoyée. Attente de la libération...');
-                        
-                        // Attendre que l'autre PC libère le verrou
-                        const waitForRelease = async () => {
-                          for (let i = 0; i < 30; i++) { // Attendre max 30 secondes
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            
-                            const currentLock = await getLock();
-                            if (!currentLock) {
-                              console.log('✅ Verrou libéré par l\'autre PC');
-                              setLocalFeedback('✅ Verrou libéré ! Tentative d\'acquisition...');
-                              
-                              // Essayer d'acquérir le verrou
-                              const acquireResult = await acquireLock(currentUserId);
-                              if (acquireResult.ok) {
-                                console.log('✅ Verrou acquis après force release');
-                                // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
-                                setLockInfo(acquireResult.lock);
-                                setDataFreshness('loading');
-                                
-                                // Démarrer les intervalles
-                                if (hbRef.current) clearInterval(hbRef.current);
-                                hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
-                                
-                                if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-                                autoSaveRef.current = setInterval(async () => {
-                                  try {
-                                    console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
-                                    if (selectedShop && selectedWeek) {
-                                      const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-                                      setPlanningData(updatedPlanningData);
-                                      
-                                      const remoteResult = await saveCompletePlanningData(updatedPlanningData);
-                                      if (remoteResult) {
-                                        console.log('✅ Sauvegarde automatique Supabase réussie');
-                                        setLocalFeedback('💾 Sauvegarde automatique effectuée');
-                                      } else {
-                                        console.log('❌ Échec sauvegarde automatique Supabase');
-                                        setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
-                                      }
-                                    }
-                                  } catch (error) {
-                                    console.error('❌ Erreur lors de la sauvegarde automatique:', error);
-                                    setLocalFeedback('❌ Erreur sauvegarde automatique');
-                                  }
-                                }, 3 * 60 * 1000);
-                                
-                                // Recharger les données depuis Supabase
-                                try {
-                                  const updatedPlanningData = await loadCompletePlanningData();
-                                  if (updatedPlanningData && updatedPlanningData.shops && updatedPlanningData.shops.length > 0) {
-                                    setPlanningData(updatedPlanningData);
-                                    
-                                    const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
-                                    setPlanning(weekData.planning || {});
-                                    setLocalSelectedEmployees(weekData.selectedEmployees || []);
-                                    
-                                    if (updatedPlanningData.selectedEmployees) {
-                                      setSelectedEmployees(updatedPlanningData.selectedEmployees);
-                                    }
-                                    setDataFreshness('supabase');
-                                    setLocalFeedback('✅ Verrou acquis ! Données mises à jour depuis Supabase.');
-                                  } else {
-                                    setDataFreshness('local');
-                                    setLocalFeedback('✅ Verrou acquis ! (Aucune donnée à recharger)');
-                                  }
-                                } catch (error) {
-                                  console.error('❌ Erreur lors du rechargement des données:', error);
-                                  setDataFreshness('local');
-                                  setLocalFeedback('✅ Verrou acquis ! (Erreur rechargement données)');
-                                }
-                              } else {
-                                setLocalFeedback('❌ Échec acquisition du verrou après force release');
-                              }
-                              return;
-                            }
-                          }
-                          
-                          setLocalFeedback('❌ Timeout: L\'autre PC n\'a pas libéré le verrou');
-                        };
-                        
-                        waitForRelease();
-                      } else {
-                        setLocalFeedback('❌ Échec envoi de la demande de force libération');
-                      }
-                    } catch (error) {
-                      console.error('❌ Erreur lors du force release:', error);
-                      setLocalFeedback('❌ Erreur lors du force release');
-                    }
-                  }, 0);
-                }
-              }}
-              style={{ background: '#dc3545', color: 'white', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', marginLeft: '5px' }}
-            >
-              Forcer la libération
-            </button>
-            <button
-              onClick={() => setShowEmergencyUnlock(true)}
+              onClick={() => emergency()}
               style={{ background: '#ff6b35', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', color: 'white', marginLeft: '5px' }}
               title="Déverrouillage d'urgence avec code de sécurité"
             >
@@ -3049,70 +2923,9 @@ const PlanningDisplay = ({
           <>
             <span style={{ color: '#28a745', fontWeight: 'bold' }}>
               🟢 Vous avez la main.
-              {dataFreshness === 'supabase' && (
-                <span style={{ color: '#007bff', marginLeft: '10px', fontSize: '0.9em' }}>
-                  📥 Données fraîches depuis Supabase
-                </span>
-              )}
-              {dataFreshness === 'loading' && (
-                <span style={{ color: '#ffc107', marginLeft: '10px', fontSize: '0.9em' }}>
-                  ⏳ Chargement des données...
-                </span>
-              )}
-              {dataFreshness === 'local' && (
-                <span style={{ color: '#6c757d', marginLeft: '10px', fontSize: '0.9em' }}>
-                  💾 Données locales
-                </span>
-              )}
-              {localStorage.getItem(`force_save_request_${selectedShop}_${validWeek}`) && 
-                <span style={{ color: '#dc3545', marginLeft: '10px' }}>
-                  🚨 DEMANDE DE FORCE RELEASE !
-                </span>
-              }
             </span>
             <button
-              onClick={() => {
-                // Utiliser setTimeout pour éviter les conflits de rendu React
-                setTimeout(async () => {
-                  try {
-                    setLocalFeedback('💾 Sauvegarde en cours avant libération...');
-                    
-                            // Sauvegarder d'abord les données complètes
-        if (selectedShop && selectedWeek) {
-          const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-          setPlanningData(updatedPlanningData);
-          
-          // Sauvegarder dans Supabase
-          const { saveCompletePlanningData } = await import('@/utils/remoteStore');
-          const saveResult = await saveCompletePlanningData(updatedPlanningData);
-          
-          if (saveResult) {
-            console.log('✅ Sauvegarde complète réussie avant libération');
-            setLocalFeedback('✅ Sauvegarde complète effectuée');
-            setDataFreshness('supabase');
-          } else {
-            console.log('⚠️ Échec sauvegarde Supabase, libération quand même');
-            setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
-            setDataFreshness('local');
-          }
-        }
-                    
-                    // Attendre un peu pour s'assurer que la sauvegarde est terminée
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    
-                    // Libérer le verrou
-                    if (hbRef.current) { clearInterval(hbRef.current); hbRef.current = null; }
-                    if (autoSaveRef.current) { clearInterval(autoSaveRef.current); autoSaveRef.current = null; }
-                    await releaseLock(currentUserId);
-                    // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
-                    setLockInfo(null);
-                    setLocalFeedback('🔓 Main relâchée - Sauvegarde complète effectuée');
-                  } catch (error) {
-                    console.error('❌ Erreur lors de la libération de la main:', error);
-                    setLocalFeedback('❌ Erreur lors de la libération de la main');
-                  }
-                }, 0);
-              }}
+              onClick={() => release()}
               style={{ background: '#9e9e9e', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
             >
               Relâcher la main
@@ -3941,192 +3754,7 @@ const PlanningDisplay = ({
         </div>
       )}
 
-      {/* Modal de déverrouillage d'urgence */}
-      {showEmergencyUnlock && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            background: 'white',
-            padding: '30px',
-            borderRadius: '12px',
-            maxWidth: '400px',
-            width: '90%',
-            textAlign: 'center',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)'
-          }}>
-            <h2 style={{ color: '#dc3545', marginBottom: '20px' }}>
-              🚨 Déverrouillage d'urgence
-            </h2>
-            
-            <p style={{ marginBottom: '20px', color: '#666' }}>
-              <strong>ATTENTION :</strong> Cette action va forcer la libération du verrou sans notification à l'autre utilisateur.
-            </p>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <p style={{ marginBottom: '10px', color: '#333' }}>
-                <strong>Code de sécurité requis :</strong>
-              </p>
-              <p style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>
-                Entrez le code de sécurité pour confirmer le déverrouillage d'urgence
-              </p>
-            </div>
-            
-            <input
-              type="password"
-              value={emergencyCode}
-              onChange={(e) => setEmergencyCode(e.target.value)}
-              placeholder="Code de sécurité"
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '2px solid #ddd',
-                borderRadius: '6px',
-                fontSize: '16px',
-                marginBottom: '15px',
-                textAlign: 'center',
-                fontFamily: 'monospace'
-              }}
-              maxLength={4}
-            />
-            
-            {emergencyUnlockError && (
-              <p style={{ color: '#dc3545', marginBottom: '15px', fontSize: '14px' }}>
-                ❌ {emergencyUnlockError}
-              </p>
-            )}
-            
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button
-                onClick={() => {
-                  setShowEmergencyUnlock(false);
-                  setEmergencyCode('');
-                  setEmergencyUnlockError('');
-                }}
-                style={{
-                  padding: '10px 20px',
-                  border: '2px solid #6c757d',
-                  borderRadius: '6px',
-                  background: 'white',
-                  color: '#6c757d',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                Annuler
-              </button>
-              
-              <button
-                onClick={async () => {
-                  try {
-                    setLocalFeedback('🚨 Déverrouillage d\'urgence en cours...');
-                    
-                    // Marquer le début du déverrouillage d'urgence
-                    window.emergencyUnlockInProgress = true;
-                    
-                    const result = await emergencyUnlock(currentUserId, emergencyCode);
-                    
-                    if (result.ok) {
-                      console.log('✅ Déverrouillage d\'urgence réussi');
-                      // Note: setIsReadOnly n'existe plus, géré par le hook usePlanningLock
-                      setLockInfo(result.lock);
-                      setDataFreshness('loading');
-                      
-                      // Démarrer les intervalles
-                      if (hbRef.current) clearInterval(hbRef.current);
-                      hbRef.current = setInterval(() => heartbeat(currentUserId), 30000);
-                      
-                      if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-                      autoSaveRef.current = setInterval(async () => {
-                        try {
-                          console.log('💾 Sauvegarde automatique toutes les 3 minutes...');
-                          if (selectedShop && selectedWeek) {
-                            const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-                            setPlanningData(updatedPlanningData);
-                            
-                            const remoteResult = await saveCompletePlanningData(updatedPlanningData);
-                            if (remoteResult) {
-                              console.log('✅ Sauvegarde automatique Supabase réussie');
-                              setLocalFeedback('💾 Sauvegarde automatique effectuée');
-                            } else {
-                              console.log('❌ Échec sauvegarde automatique Supabase');
-                              setLocalFeedback('⚠️ Sauvegarde locale OK, échec Supabase');
-                            }
-                          }
-                        } catch (error) {
-                          console.error('❌ Erreur lors de la sauvegarde automatique:', error);
-                          setLocalFeedback('❌ Erreur sauvegarde automatique');
-                        }
-                      }, 3 * 60 * 1000);
-                      
-                      // Recharger les données depuis Supabase
-                      try {
-                        const updatedPlanningData = await loadCompletePlanningData();
-                        if (updatedPlanningData && updatedPlanningData.shops && updatedPlanningData.shops.length > 0) {
-                          setPlanningData(updatedPlanningData);
-                          
-                          const weekData = getWeekPlanning(updatedPlanningData, selectedShop, selectedWeek);
-                          setPlanning(weekData.planning || {});
-                          setLocalSelectedEmployees(weekData.selectedEmployees || []);
-                          
-                          if (updatedPlanningData.selectedEmployees) {
-                            setSelectedEmployees(updatedPlanningData.selectedEmployees);
-                          }
-                          setDataFreshness('supabase');
-                          setLocalFeedback('✅ Déverrouillage d\'urgence réussi ! Données mises à jour depuis Supabase.');
-                        } else {
-                          setDataFreshness('local');
-                          setLocalFeedback('✅ Déverrouillage d\'urgence réussi ! (Aucune donnée à recharger)');
-                        }
-                      } catch (error) {
-                        console.error('❌ Erreur lors du rechargement des données:', error);
-                        setDataFreshness('local');
-                        setLocalFeedback('✅ Déverrouillage d\'urgence réussi ! (Erreur rechargement données)');
-                      }
-                      
-                      setShowEmergencyUnlock(false);
-                      setEmergencyCode('');
-                      setEmergencyUnlockError('');
-                      
-                      // Réinitialiser le flag d'emergency unlock
-                      window.emergencyUnlockInProgress = false;
-                    } else {
-                      setEmergencyUnlockError(result.error || 'Erreur lors du déverrouillage');
-                      // Réinitialiser le flag même en cas d'erreur
-                      window.emergencyUnlockInProgress = false;
-                    }
-                  } catch (error) {
-                    console.error('❌ Erreur lors du déverrouillage d\'urgence:', error);
-                    setEmergencyUnlockError('Erreur lors du déverrouillage d\'urgence');
-                    // Réinitialiser le flag même en cas d'exception
-                    window.emergencyUnlockInProgress = false;
-                  }
-                }}
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  background: '#dc3545',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                Déverrouiller
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
 
     </div>
