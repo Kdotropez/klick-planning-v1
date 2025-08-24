@@ -417,7 +417,8 @@ const EmployeeMonthlyDetailModal = ({
         'PAUSE': '',
         'RETOUR': '',
         'SORTIE': '',
-        'Heures': ''
+        'Heures': '',
+        'Statut': ''
       });
       
       // Jours de la semaine
@@ -431,13 +432,17 @@ const EmployeeMonthlyDetailModal = ({
         const dayPlanning = allEmployeePlanning[dayStr];
         const status = dayPlanning && typeof dayPlanning[selectedShop] === 'string' ? dayPlanning[selectedShop] : (isOff ? 'Congé ☀️' : null);
         
+        // Déterminer si c'est une maladie
+        const isSick = status && typeof status === 'string' && status.toLowerCase().includes('maladie');
+        
         data.push({
           'Jour': `${dayName} ${dayDate}`,
-          'ENTRÉE': status ? status : (workHours.entry ? `${workHours.entry} H` : '-'),
+          'ENTRÉE': status ? (isSick ? 'MALADIE' : status) : (workHours.entry ? `${workHours.entry} H` : '-'),
           'PAUSE': status ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
           'RETOUR': status ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
           'SORTIE': status ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-          'Heures': status ? '0.0 h' : `${workHours.hours} h`
+          'Heures': status ? '0.0 h' : `${workHours.hours} h`,
+          'Statut': isSick ? 'MALADIE' : (status ? 'CONGÉ' : 'TRAVAIL')
         });
       });
     });
@@ -449,7 +454,8 @@ const EmployeeMonthlyDetailModal = ({
       'PAUSE': '',
       'RETOUR': '',
       'SORTIE': '',
-      'Heures': `${calculateSelectedShopHours()} H`
+      'Heures': `${calculateSelectedShopHours()} H`,
+      'Statut': ''
     });
     
     // Si l'employé travaille dans plusieurs boutiques, ajouter un résumé
@@ -460,7 +466,8 @@ const EmployeeMonthlyDetailModal = ({
         'PAUSE': '',
         'RETOUR': '',
         'SORTIE': '',
-        'Heures': ''
+        'Heures': '',
+        'Statut': ''
       });
       data.push({
         'Jour': 'Résumé multi-boutiques:',
@@ -468,7 +475,8 @@ const EmployeeMonthlyDetailModal = ({
         'PAUSE': '',
         'RETOUR': '',
         'SORTIE': '',
-        'Heures': ''
+        'Heures': '',
+        'Statut': ''
       });
       employeeShops.forEach((shop) => {
         data.push({
@@ -477,7 +485,8 @@ const EmployeeMonthlyDetailModal = ({
           'PAUSE': '',
           'RETOUR': '',
           'SORTIE': '',
-          'Heures': `${calculateShopHours(shop.id)} H`
+          'Heures': `${calculateShopHours(shop.id)} H`,
+          'Statut': ''
         });
       });
       data.push({
@@ -486,7 +495,8 @@ const EmployeeMonthlyDetailModal = ({
         'PAUSE': '',
         'RETOUR': '',
         'SORTIE': '',
-        'Heures': `${calculateTotalMonthHours()} H`
+        'Heures': `${calculateTotalMonthHours()} H`,
+        'Statut': ''
       });
     }
     

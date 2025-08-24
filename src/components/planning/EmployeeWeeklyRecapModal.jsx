@@ -220,13 +220,17 @@ const EmployeeWeeklyRecapModal = ({
        const isOff = !!status;
        const workHours = calculateWorkHours(i);
        
+       // Déterminer si c'est une maladie
+       const isSick = status && typeof status === 'string' && status.toLowerCase().includes('maladie');
+       
        data.push({
          'Jour': `${dayName} ${dayDate}`,
-         'ENTRÉE': isOff ? (status || 'Congé ☀️') : (workHours.entry ? `${workHours.entry} H` : '-'),
+         'ENTRÉE': isOff ? (isSick ? 'MALADIE' : (status || 'Congé ☀️')) : (workHours.entry ? `${workHours.entry} H` : '-'),
          'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
          'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-         'Heures effectives': isOff ? '0.0 h' : `${workHours.hours} h`
+         'Heures effectives': isOff ? '0.0 h' : `${workHours.hours} h`,
+         'Statut': isSick ? 'MALADIE' : (isOff ? 'CONGÉ' : 'TRAVAIL')
        });
      }
     

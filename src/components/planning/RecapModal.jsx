@@ -59,10 +59,27 @@ const RecapModal = ({
     // Gérer les statuts sentinelles (Maladie/Congé) et formats legacy
     if (typeof dayValue === 'string') {
       const status = dayValue;
-      return { start: status, pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: shopName || 'Plage' };
+      const isSick = status.toLowerCase().includes('maladie');
+      return { 
+        start: isSick ? 'MALADIE' : status, 
+        pause: '-', 
+        resume: '-', 
+        end: '-', 
+        hours: '0.0 h', 
+        shop: shopName || 'Plage',
+        status: isSick ? 'MALADIE' : 'CONGÉ'
+      };
     }
     if (!Array.isArray(dayValue) || dayValue.every(slot => !slot)) {
-      return { start: 'Congé ☀️', pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: shopName || 'Plage' };
+      return { 
+        start: 'Congé ☀️', 
+        pause: '-', 
+        resume: '-', 
+        end: '-', 
+        hours: '0.0 h', 
+        shop: shopName || 'Plage',
+        status: 'CONGÉ'
+      };
     }
 
     const slots = dayValue;
@@ -79,7 +96,15 @@ const RecapModal = ({
     }
     
     if (selectedSlots.length === 0) {
-      return { start: 'Congé ☀️', pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: shopName || 'Plage' };
+      return { 
+        start: 'Congé ☀️', 
+        pause: '-', 
+        resume: '-', 
+        end: '-', 
+        hours: '0.0 h', 
+        shop: shopName || 'Plage',
+        status: 'CONGÉ'
+      };
     }
     
     // Trier par index pour avoir l'ordre chronologique
@@ -125,7 +150,8 @@ const RecapModal = ({
       resume: resume ? `${resume} H` : '-',
       end: end ? `${end} H` : '-',
       hours: `${hours.toFixed(1)} h`,
-      shop: shopName
+      shop: shopName,
+      status: 'TRAVAIL'
     };
   };
 
@@ -266,7 +292,7 @@ const RecapModal = ({
   const exportToExcel = () => {
     console.log('RecapModal: Exporting to Excel for', { showRecapModal, employee });
     const wsData = [
-      ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives'],
+      ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives', 'Statut'],
       ...recapData.flatMap(dayData => 
         dayData.employees.map((emp, empIndex) => [
           empIndex === 0 ? dayData.day : '',
@@ -275,12 +301,13 @@ const RecapModal = ({
           emp.pause,
           emp.resume,
           emp.end,
-          emp.hours
+          emp.hours,
+          emp.status || 'TRAVAIL'
         ])
       )
     ];
     if (isWeekRecap || isEmployeeWeekRecap) {
-      wsData.push(['Total semaine', '', '', '', '', '', `${totalWeekHours.toFixed(1)} h`]);
+      wsData.push(['Total semaine', '', '', '', '', '', `${totalWeekHours.toFixed(1)} h`, '']);
     }
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
