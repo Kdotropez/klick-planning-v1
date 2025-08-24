@@ -246,43 +246,7 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
             </div>
           </form>
 
-          {/* Codes disponibles (pour le développement) */}
-          <div style={{
-            marginTop: '30px',
-            padding: '20px',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '12px',
-            border: '1px solid rgba(255, 255, 255, 0.2)'
-          }}>
-            <h3 style={{
-              color: '#ffffff',
-              fontSize: '1.1rem',
-              margin: '0 0 15px 0',
-              textAlign: 'center',
-              fontWeight: '600',
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}>
-              📋 Codes disponibles (Développement)
-            </h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '10px',
-              fontSize: '0.9rem'
-            }}>
-              {Object.entries(VALID_USER_CODES).map(([code, info]) => (
-                <div key={code} style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: '6px',
-                  color: '#ffffff',
-                  fontSize: '0.85rem'
-                }}>
-                  <strong>{code}</strong> - {info.name}
-                </div>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

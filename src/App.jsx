@@ -114,6 +114,19 @@ const App = () => {
   // Charger les données depuis localStorage au démarrage
   useEffect(() => {
     try {
+      // Vérifier si un utilisateur est déjà connecté
+      const currentUser = localStorage.getItem('current_user');
+      if (currentUser) {
+        try {
+          const user = JSON.parse(currentUser);
+          setCurrentUser(user);
+          console.log('🆔 Utilisateur déjà connecté:', user);
+        } catch (e) {
+          console.log('❌ Erreur parsing utilisateur, nettoyage');
+          localStorage.removeItem('current_user');
+        }
+      }
+
       // Charger les données depuis localStorage si elles existent
       const savedData = loadFromLocalStorage('planningData');
       console.log('Données chargées depuis localStorage:', savedData);
@@ -126,9 +139,8 @@ const App = () => {
         isArray: Array.isArray(savedData?.shops)
       });
       
-      // Option A : Toujours commencer par l'écran de démarrage
-      // Les données localStorage sont chargées mais on reste sur l'écran de démarrage
-      if (savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
+      // Si un utilisateur est connecté et qu'il y a des données valides, aller au démarrage principal
+      if (currentUser && savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
         // Vérifier que les données sont complètes et valides
         const isValidData = savedData.shops.every(shop => 
           shop.id && shop.name && shop.config && Array.isArray(shop.employees)
@@ -136,40 +148,45 @@ const App = () => {
         
         if (isValidData) {
           setPlanningData(savedData);
-          // Toujours commencer par l'écran de démarrage
-          setMode('startup');
-          console.log('Données valides chargées, mais on reste sur l\'écran de démarrage');
+          setMode('main-startup');
+          console.log('Utilisateur connecté et données valides, passage au démarrage principal');
           setRestoredInfo('💾 Données locales disponibles - Choisissez votre action');
         } else {
           console.log('Données corrompues détectées, nettoyage du localStorage');
           localStorage.clear();
-          setMode('startup');
+          setMode('identification');
           setRestoredInfo('');
         }
-      } else if (savedData && savedData.version === "2.0" && (!savedData.shops || savedData.shops.length === 0)) {
-        // Données vides ou corrompues, nettoyer et retourner à l'écran de démarrage
-        console.log('Données vides détectées, nettoyage du localStorage');
-        console.log('Structure des données:', {
-          version: savedData.version,
-          hasShops: !!savedData.shops,
-          shopsLength: savedData.shops?.length,
-          allKeys: Object.keys(savedData)
-        });
-        localStorage.clear();
-        setMode('startup');
-        setRestoredInfo('');
+      } else if (savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
+        // Données valides mais pas d'utilisateur connecté
+        const isValidData = savedData.shops.every(shop => 
+          shop.id && shop.name && shop.config && Array.isArray(shop.employees)
+        );
+        
+        if (isValidData) {
+          setPlanningData(savedData);
+          setMode('identification');
+          console.log('Données valides mais pas d\'utilisateur connecté, identification requise');
+        } else {
+          console.log('Données corrompues détectées, nettoyage du localStorage');
+          localStorage.clear();
+          setMode('identification');
+          setRestoredInfo('');
+        }
       } else {
-        // Aucune donnée ou format incorrect, nettoyer et retourner à l'écran de démarrage
-        console.log('Aucune donnée valide trouvée, nettoyage du localStorage');
-        localStorage.clear();
-        setMode('startup');
+        // Aucune donnée ou format incorrect, commencer par l'identification
+        console.log('Aucune donnée valide trouvée, identification requise');
+        if (savedData && savedData.version !== "2.0") {
+          localStorage.clear();
+        }
+        setMode('identification');
         setRestoredInfo('');
       }
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       console.log('Nettoyage du localStorage suite à l\'erreur');
       localStorage.clear();
-      setMode('startup');
+      setMode('identification');
       setRestoredInfo('');
     }
   }, []);

@@ -71,11 +71,6 @@ const PlanningMenuBar = ({
   // Utilisateur connecté
   currentUser = null
 }) => {
-  const [openMenus, setOpenMenus] = useState({
-    tools: false,
-    retour: false,
-    modules: false
-  });
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [toolbarMode, setToolbarMode] = useState(() => {
     try {
@@ -92,20 +87,7 @@ const PlanningMenuBar = ({
   
   const fileInputRef = useRef(null);
 
-  const toggleMenu = (menuName) => {
-    setOpenMenus(prev => ({
-      ...prev,
-      [menuName]: !prev[menuName]
-    }));
-  };
 
-  const closeAllMenus = () => {
-    setOpenMenus({
-      tools: false,
-      retour: false,
-      modules: false
-    });
-  };
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -120,77 +102,7 @@ const PlanningMenuBar = ({
     event.target.value = '';
   };
 
-  const MenuButton = ({ icon, label, isOpen, onClick, children, badge }) => (
-    <div style={{ position: 'relative' }}>
-      <Button
-        className="menu-button"
-        onClick={onClick}
-        style={{
-          backgroundColor: '#1e88e5',
-          color: '#fff',
-          padding: '10px 16px',
-          fontSize: '14px',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          justifyContent: 'space-between',
-          whiteSpace: 'nowrap'
-        }}
-        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {icon}
-          {label}
-        </div>
-        {isOpen ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-      </Button>
-      {badge}
-      
-      {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            backgroundColor: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            minWidth: '200px',
-            maxHeight: '400px',
-            overflowY: 'auto'
-          }}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
 
-  const MenuItem = ({ onClick, children, style = {} }) => (
-    <div
-      onClick={() => {
-        onClick();
-        closeAllMenus();
-      }}
-      style={{
-        padding: '10px 16px',
-        cursor: 'pointer',
-        borderBottom: '1px solid #f0f0f0',
-        fontSize: '14px',
-        ...style
-      }}
-      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-      onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-    >
-      {children}
-    </div>
-  );
 
   return (
     <div 
@@ -200,13 +112,7 @@ const PlanningMenuBar = ({
         gap: '10px', 
         marginBottom: '15px'
       }}
-      onClick={(e) => {
-        // Fermer les menus si on clique en dehors
-        const target = e.target;
-        if (target && typeof target.closest === 'function' && !target.closest('.menu-button')) {
-          closeAllMenus();
-        }
-      }}
+
     >
       {/* Bandeau supérieur avec mode et utilisateur */}
       <div style={{ 
@@ -262,15 +168,15 @@ const PlanningMenuBar = ({
       </div>
 
       {toolbarMode === 'smart' ? (
-        // Mode intelligent: grille stricte 7x2, boutons étirés, pas de débordement
+        // Mode intelligent: grille équilibrée 4x2, boutons étirés, pas de débordement
         <div style={{ 
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
+          gridTemplateColumns: 'repeat(4, 1fr)',
           gridTemplateRows: 'repeat(2, minmax(50px, auto))',
           gridAutoFlow: 'row',
           justifyItems: 'stretch',
           alignItems: 'stretch',
-          gap: '10px',
+          gap: '8px',
           overflowX: 'hidden',
           paddingBottom: '4px'
         }}>
@@ -280,14 +186,14 @@ const PlanningMenuBar = ({
             style={{
               backgroundColor: '#1e88e5',
               color: '#fff',
-              padding: '12px 18px',
-              fontSize: '15px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '6px',
               whiteSpace: 'nowrap'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
@@ -302,14 +208,14 @@ const PlanningMenuBar = ({
             style={{
               backgroundColor: '#28a745',
               color: '#fff',
-              padding: '12px 18px',
-              fontSize: '15px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '6px',
               whiteSpace: 'nowrap'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
@@ -324,14 +230,14 @@ const PlanningMenuBar = ({
             style={{
               backgroundColor: '#17a2b8',
               color: '#fff',
-              padding: '12px 18px',
-              fontSize: '15px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '6px',
               whiteSpace: 'nowrap'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#138496'}
@@ -346,14 +252,14 @@ const PlanningMenuBar = ({
             style={{
               backgroundColor: '#6f42c1',
               color: '#fff',
-              padding: '12px 18px',
-              fontSize: '15px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '6px',
               whiteSpace: 'nowrap'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#5a32a3'}
@@ -368,14 +274,14 @@ const PlanningMenuBar = ({
             style={{
               backgroundColor: '#20c997',
               color: '#fff',
-              padding: '12px 18px',
-              fontSize: '15px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '6px',
               whiteSpace: 'nowrap'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
@@ -390,8 +296,8 @@ const PlanningMenuBar = ({
             style={{
               backgroundColor: '#ffc107',
               color: '#212529',
-              padding: '12px 18px',
-              fontSize: '15px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
@@ -406,115 +312,274 @@ const PlanningMenuBar = ({
             📥 Importer les données
           </Button>
 
-          {/* Menus - intégrés dans la même grille */}
-          <MenuButton
-            icon={<FaTools />}
-            label="Outils"
-            isOpen={openMenus.tools}
-            onClick={() => toggleMenu('tools')}
-            badge={
-              outboxSize > 0 ? (
-                <span
-                  title={`Synchronisation en attente: ${outboxSize}`}
-                  style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    right: '-4px',
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    backgroundColor: '#ff9800'
-                  }}
-                />
-              ) : (
-                <span
-                  title="Synchronisation à jour"
-                  style={{
-                    position: 'absolute',
-                    top: '-4px',
-                    right: '-4px',
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    backgroundColor: '#4caf50'
-                  }}
-                />
-              )
-            }
+          {/* Boutons Outils - remplacement des menus déroulants */}
+          <Button
+            className="button-primary"
+            onClick={() => onForceSync && onForceSync()}
+            style={{
+              backgroundColor: '#ff9800',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f57c00'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ff9800'}
           >
-            <MenuItem onClick={() => onForceSync && onForceSync()}>
-              🔄 Forcer la synchro {outboxSize > 0 ? `(${outboxSize})` : ''}
-            </MenuItem>
-            <MenuItem onClick={testSupabase}>
-              🧪 Test Supabase
-            </MenuItem>
-            <MenuItem onClick={cleanSupabaseData}>
-              🧹 Nettoyer Supabase
-            </MenuItem>
-            <MenuItem onClick={diagnoseSupabase}>
-              🔧 Diagnostic Supabase
-            </MenuItem>
-            <MenuItem onClick={forceReleaseLock}>
-              🔓 Forcer libération verrou
-            </MenuItem>
-            <MenuItem onClick={diagnoseAndCleanLocks}>
-              🔍 Diagnostic & Nettoyage Verrous
-            </MenuItem>
-            {currentUser && checkUserPermission(currentUser.code, 'canManageUsers') && (
-              <MenuItem onClick={() => setShowUserManagement(true)}>
-                👥 Gestion Utilisateurs
-              </MenuItem>
-            )}
-            <MenuItem onClick={() => {}}>
-              🧹 Nettoyer cache
-            </MenuItem>
-            <MenuItem onClick={() => {}}>
-              📋 Logs système
-            </MenuItem>
-          </MenuButton>
+            🔄 Synchro {outboxSize > 0 ? `(${outboxSize})` : ''}
+          </Button>
 
-          <MenuButton
-            icon={<FaChartBar />}
-            label="Modules"
-            isOpen={openMenus.modules}
-            onClick={() => toggleMenu('modules')}
+          <Button
+            className="button-primary"
+            onClick={diagnoseAndCleanLocks}
+            style={{
+              backgroundColor: '#3f51b5',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#303f9f'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#3f51b5'}
           >
-            <MenuItem onClick={() => onOpenDashboard && onOpenDashboard()}>
-              📊 Ouvrir le Dashboard
-            </MenuItem>
-            <MenuItem onClick={() => onOpenShopStats && onOpenShopStats()}>
-              📈 Statistiques Boutique
-            </MenuItem>
-            <MenuItem onClick={() => onOpenGestion && onOpenGestion()}>
-              🛠️ Gestion Boutique
-            </MenuItem>
-            <MenuItem onClick={() => onOpenNotes && onOpenNotes()}>
-              📝 Notes
-            </MenuItem>
-          </MenuButton>
+            🔍 Diagnostic Verrous
+          </Button>
 
-          <MenuButton
-            icon={<FaArrowLeft />}
-            label="Retour"
-            isOpen={openMenus.retour}
-            onClick={() => toggleMenu('retour')}
+          {currentUser && checkUserPermission(currentUser.code, 'canManageUsers') && (
+            <Button
+              className="button-primary"
+              onClick={() => setShowUserManagement(true)}
+              style={{
+                backgroundColor: '#4caf50',
+                color: '#fff',
+                padding: '10px 14px',
+                fontSize: '13px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#388e3c'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#4caf50'}
+            >
+              👥 Gestion Utilisateurs
+            </Button>
+          )}
+
+          {/* Boutons Modules */}
+          <Button
+            className="button-primary"
+            onClick={() => onOpenDashboard && onOpenDashboard()}
+            style={{
+              backgroundColor: '#2196f3',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1976d2'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2196f3'}
           >
-            <MenuItem onClick={onBackToStartup}>
-              🏠 Écran de démarrage
-            </MenuItem>
-            <MenuItem onClick={onBackToConfig}>
-              ⚙️ Configuration boutiques
-            </MenuItem>
-            <MenuItem onClick={onBack}>
-              👥 Gestion employés
-            </MenuItem>
-            <MenuItem onClick={onBackToShop}>
-              🏪 Sélection boutique
-            </MenuItem>
-            <MenuItem onClick={onBackToWeek}>
-              📅 Sélection semaine
-            </MenuItem>
-          </MenuButton>
+            📊 Dashboard
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={() => onOpenShopStats && onOpenShopStats()}
+            style={{
+              backgroundColor: '#673ab7',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#512da8'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#673ab7'}
+          >
+            📈 Stats Boutique
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={() => onOpenGestion && onOpenGestion()}
+            style={{
+              backgroundColor: '#ff9800',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f57c00'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ff9800'}
+          >
+            🛠️ Gestion
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={() => onOpenNotes && onOpenNotes()}
+            style={{
+              backgroundColor: '#8bc34a',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#689f38'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#8bc34a'}
+          >
+            📝 Notes
+          </Button>
+
+          {/* Boutons Retour */}
+          <Button
+            className="button-primary"
+            onClick={onBackToStartup}
+            style={{
+              backgroundColor: '#f44336',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#d32f2f'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f44336'}
+          >
+            🏠 Démarrage
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={onBackToConfig}
+            style={{
+              backgroundColor: '#795548',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#5d4037'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#795548'}
+          >
+            ⚙️ Config
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={onBack}
+            style={{
+              backgroundColor: '#607d8b',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#455a64'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#607d8b'}
+          >
+            👥 Employés
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={onBackToShop}
+            style={{
+              backgroundColor: '#9c27b0',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7b1fa2'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#9c27b0'}
+          >
+            🏪 Boutique
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={onBackToWeek}
+            style={{
+              backgroundColor: '#3f51b5',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#303f9f'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#3f51b5'}
+          >
+            📅 Semaine
+          </Button>
         </div>
       ) : (
         // Mode classique: tous les boutons à plat, sans menus

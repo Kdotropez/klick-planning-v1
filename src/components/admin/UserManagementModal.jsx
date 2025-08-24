@@ -289,7 +289,18 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
                           style={{ padding: '4px', borderRadius: '4px', border: '1px solid #ddd', width: '80px' }}
                         />
                       ) : (
-                        <span style={{ fontFamily: 'monospace' }}>••••</span>
+                        <span style={{ 
+                          fontFamily: 'monospace', 
+                          backgroundColor: '#f8f9fa',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #dee2e6',
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          color: '#495057'
+                        }}>
+                          {user.secretCode}
+                        </span>
                       )}
                     </td>
                     <td style={{ padding: '10px', textAlign: 'center' }}>
