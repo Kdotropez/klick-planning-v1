@@ -12,6 +12,7 @@ import CopyrightNotice from './components/common/CopyrightNotice';
 // import './utils/licenseCreator';
 import MainStartupScreen from './components/MainStartupScreen';
 import StartupScreen from './components/StartupScreen';
+import UserIdentificationModal from './components/UserIdentificationModal';
 
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
@@ -91,7 +92,7 @@ const App = () => {
   };
 
   // États de l'application
-  const [mode, setMode] = useState('main-startup'); // 'main-startup', 'startup', 'new', 'imported', 'week-selection', 'planning', 'cash-register'
+  const [mode, setMode] = useState('identification'); // 'identification', 'main-startup', 'startup', 'new', 'imported', 'week-selection', 'planning', 'cash-register'
   const [planningData, setPlanningData] = useState(createNewPlanningData());
   const [currentStep, setCurrentStep] = useState(1); // 1: création boutiques, 2: config, 3: employés, 4: affectation
   const [currentShopIndex, setCurrentShopIndex] = useState(0);
@@ -108,6 +109,7 @@ const App = () => {
   const [showLicenseModal, setShowLicenseModal] = useState(false);
   const [licenseError, setLicenseError] = useState('');
   const [showLicenseManager, setShowLicenseManager] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Charger les données depuis localStorage au démarrage
   useEffect(() => {
@@ -194,6 +196,20 @@ const App = () => {
 
   // Vérification de licence désactivée
   // useEffect(() => { ... }, [planningData]);
+
+  // Gestion de l'identification
+  const handleUserIdentification = (user) => {
+    console.log('🆔 Utilisateur identifié:', user);
+    setCurrentUser(user);
+    setMode('main-startup');
+    setFeedback(`👋 Bienvenue ${user.name} !`);
+  };
+
+  const handleIdentificationCancel = () => {
+    // Optionnel : rediriger vers une page d'erreur ou fermer l'app
+    alert('Identification requise pour accéder à l\'application.');
+    // Ou simplement rester sur l'écran d'identification
+  };
 
   // Gestion du démarrage
   const handleNewPlanning = () => {
@@ -906,6 +922,18 @@ const App = () => {
       <ErrorBoundary>
         <LicenseManager />
         <CopyrightNotice />
+      </ErrorBoundary>
+    );
+  }
+
+  // Mode identification
+  if (mode === 'identification') {
+    return (
+      <ErrorBoundary>
+        <UserIdentificationModal 
+          onIdentification={handleUserIdentification}
+          onCancel={handleIdentificationCancel}
+        />
       </ErrorBoundary>
     );
   }

@@ -85,20 +85,60 @@ const PlanningDisplay = ({
   // État pour la page de gestion boutique
   const [showGestionBoutique, setShowGestionBoutique] = useState(false);
 
-  // Nouveau système de verrou à bail
+  // Nouveau système de verrou à bail avec identification personnalisée
   const currentUserIdRef = useRef(null);
   if (!currentUserIdRef.current) {
     try {
+      // Vérifier d'abord s'il y a un utilisateur identifié
+      const currentUser = localStorage.getItem('current_user');
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        currentUserIdRef.current = `user_${user.code}_${Date.now()}`;
+        console.log('🆔 Utilisation de l\'identifiant utilisateur personnalisé:', currentUserIdRef.current);
+      } else {
+        // Fallback vers l'ancien système si pas d'utilisateur identifié
       const stored = localStorage.getItem('user_id');
       if (stored) {
         currentUserIdRef.current = stored;
       } else {
-        const gen = 'user_' + Math.random().toString(36).slice(2, 9);
+          // Génération d'un ID plus spécifique à la machine
+          const generateMachineSpecificId = () => {
+            // Informations disponibles dans le navigateur
+            const userAgent = navigator.userAgent;
+            const platform = navigator.platform;
+            const language = navigator.language;
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const screenRes = `${screen.width}x${screen.height}`;
+            const colorDepth = screen.colorDepth;
+            
+            // Créer une "empreinte" de la machine
+            const machineFingerprint = `${platform}_${language}_${timezone}_${screenRes}_${colorDepth}`;
+            
+            // Hash simple de l'empreinte + timestamp
+            let hash = 0;
+            for (let i = 0; i < machineFingerprint.length; i++) {
+              const char = machineFingerprint.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash; // Convert to 32bit integer
+            }
+            
+            // Ajouter un timestamp pour l'unicité
+            const timestamp = Date.now().toString(36);
+            const random = Math.random().toString(36).slice(2, 5);
+            
+            return `user_${Math.abs(hash).toString(36)}_${timestamp}_${random}`;
+          };
+          
+          const gen = generateMachineSpecificId();
         localStorage.setItem('user_id', gen);
         currentUserIdRef.current = gen;
+          
+          console.log('🆔 Nouvel identifiant utilisateur généré (fallback):', gen);
+        }
       }
     } catch (_) {
       currentUserIdRef.current = 'user_local';
+      console.warn('⚠️ Erreur lors de la génération de l\'ID utilisateur, utilisation du fallback');
     }
   }
   const currentUserId = currentUserIdRef.current;
@@ -108,6 +148,16 @@ const PlanningDisplay = ({
   
   // Hook de gestion du verrou
   const { status, isOwner, readOnly, lockInfo, release, emergency } = usePlanningLock(resourceId, currentUserId);
+
+  // Récupérer les informations de l'utilisateur connecté
+  const currentUser = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (_) {
+      return null;
+    }
+  }, []);
   
   // Fonction wrapper pour la sauvegarde qui respecte le verrou
   const safeSaveWeekPlanning = useCallback((planningData, shop, week, planning, employees) => {
@@ -1661,9 +1711,9 @@ const PlanningDisplay = ({
             testSupabase={testSupabase}
             cleanSupabaseData={cleanSupabaseData}
             diagnoseSupabase={diagnoseSupabase}
-    
             diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
+            currentUser={currentUser}
           />
         </div>
       ) : (

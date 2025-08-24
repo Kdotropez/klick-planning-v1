@@ -64,7 +64,10 @@ const PlanningMenuBar = ({
   diagnoseAndCleanLocks,
   // Sync/Outbox (optionnels)
   outboxSize = 0,
-  onForceSync
+  onForceSync,
+  
+  // Utilisateur connecté
+  currentUser = null
 }) => {
   const [openMenus, setOpenMenus] = useState({
     tools: false,
@@ -202,8 +205,42 @@ const PlanningMenuBar = ({
         }
       }}
     >
-      {/* Bandeau de mode */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Bandeau supérieur avec mode et utilisateur */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '10px'
+      }}>
+        {/* Indicateur utilisateur connecté */}
+        {currentUser && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 12px',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            borderRadius: '16px',
+            border: '1px solid rgba(40, 167, 69, 0.3)',
+            fontSize: '12px',
+            color: '#28a745',
+            fontWeight: '500'
+          }}>
+            <span style={{ fontSize: '14px' }}>👤</span>
+            <span>{currentUser.name}</span>
+            <span style={{ 
+              fontSize: '10px', 
+              opacity: '0.7',
+              backgroundColor: 'rgba(40, 167, 69, 0.2)',
+              padding: '2px 6px',
+              borderRadius: '8px'
+            }}>
+              {currentUser.role}
+            </span>
+          </div>
+        )}
+        
+        {/* Bandeau de mode */}
         <Button
           title="Basculer l'affichage de la barre"
           onClick={() => setToolbarMode(toolbarMode === 'smart' ? 'classic' : 'smart')}
