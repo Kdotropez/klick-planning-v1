@@ -163,7 +163,6 @@ const PlanningDisplay = ({
   const safeSaveWeekPlanning = useCallback((planningData, shop, week, planning, employees) => {
     if (readOnly) {
       console.warn('Tentative de sauvegarde en mode lecture seule - ignorée');
-      setLocalFeedback('⚠️ Mode lecture seule - sauvegarde impossible');
       return planningData;
     }
     return saveWeekPlanning(planningData, shop, week, planning, employees);
@@ -217,19 +216,7 @@ const PlanningDisplay = ({
 
 
 
-  // Mode de barre d'outils (smart/classic) avec persistance
-  const [toolbarMode, setToolbarMode] = useState(() => {
-    try {
-      return localStorage.getItem('planning_toolbar_mode') || 'classic';
-    } catch (_) {
-      return 'classic';
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem('planning_toolbar_mode', toolbarMode);
-    } catch (_) {}
-  }, [toolbarMode]);
+
   
 
 
@@ -719,10 +706,9 @@ const PlanningDisplay = ({
   }, [selectedShop, selectedWeek, forceRefresh]); // Retiré planningData pour éviter le rechargement automatique
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
-    if (readOnly) {
-      setLocalFeedback('🔒 Lecture seule: demandez la main pour modifier.');
-      return;
-    }
+          if (readOnly) {
+        return;
+      }
     // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
     if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
@@ -877,10 +863,9 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(async () => {
-    if (readOnly) {
-      setLocalFeedback('🔒 Lecture seule: sauvegarde désactivée.');
-      return;
-    }
+          if (readOnly) {
+        return;
+      }
     try {
       if (selectedShop && selectedWeek) {
         // Forcer la sauvegarde des données actuelles en mémoire
@@ -1071,7 +1056,6 @@ const PlanningDisplay = ({
   // Fonction de sauvegarde automatique JSON
   const createAutoBackupJSON = useCallback((type = 'auto') => {
     if (isReadOnly) {
-      setLocalFeedback('🔒 Lecture seule: sauvegarde JSON désactivée.');
       return;
     }
     if (planningData && Object.keys(planningData.shops || {}).length > 0) {
@@ -1559,13 +1543,6 @@ const PlanningDisplay = ({
       maxWidth: '100vw',
       margin: '0 auto'
     }}>
-      {/* Bandeau de statut du verrou */}
-              <LockBanner
-          status={status}
-          lockInfo={lockInfo}
-          onRelease={release}
-          onEmergency={emergency}
-        />
         <TouchOptimizationBanner />
       
       {localFeedback && (
@@ -1664,675 +1641,52 @@ const PlanningDisplay = ({
         </div>
       )}
 
-      {/* Sélecteur de mode de barre */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
-        <button
-          onClick={() => setToolbarMode(toolbarMode === 'smart' ? 'classic' : 'smart')}
-          style={{
-            backgroundColor: '#f1f3f5',
-            color: '#333',
-            padding: '6px 10px',
-            fontSize: '12px',
-            border: '1px solid #dee2e6',
-            borderRadius: '6px',
-            cursor: 'pointer'
-          }}
-          title={toolbarMode === 'smart' ? 'Basculer en mode classique' : 'Basculer en mode intelligent'}
-        >
-          {toolbarMode === 'smart' ? 'Mode classique' : 'Mode intelligent'}
-        </button>
-      </div>
+
 
       {/* Menu Actions - Juste après le titre */}
-      {toolbarMode === 'smart' ? (
-        <div style={{ width: '100%' }}>
-          <PlanningMenuBar
-            currentShop={selectedShop}
-            shops={shops}
-            currentWeek={validWeek}
-            changeWeek={changeWeek}
-            changeShop={changeShop}
-            changeMonth={changeMonth}
-            onBack={onBackToEmployees}
-            onBackToShop={onBackToShopSelection}
-            onBackToWeek={onBackToWeekSelection}
-            onBackToConfig={onBackToConfig}
-            onBackToStartup={onBackToStartup}
-            onExport={handleExport}
-            onImport={onImport}
-            onReset={() => setShowResetModal(true)}
-            setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
-            handleManualSave={handleManualSave}
-            onCreateJSONBackup={createAutoBackupJSON}
-            onOpenDashboard={() => setShowDashboard(true)}
-            onOpenShopStats={() => setShowShopStatsPage(true)}
-            onOpenGestion={() => setShowGestionBoutique(true)}
-            onOpenNotes={() => setShowNotesModal(true)}
-            testSupabase={testSupabase}
-            cleanSupabaseData={cleanSupabaseData}
-            diagnoseSupabase={diagnoseSupabase}
-            diagnoseAndCleanLocks={diagnoseAndCleanLocks}
-            handleRestoreFromSupabase={onRestoreFromSupabase}
-            currentUser={currentUser}
-          />
-        </div>
-      ) : (
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(7, 1fr)',
-        gridTemplateRows: 'repeat(2, minmax(50px, auto))',
-        gridAutoFlow: 'row',
-        justifyItems: 'stretch',
-        alignItems: 'stretch',
-        gap: deviceInfo.isTablet ? '12px' : '10px',
-        padding: deviceInfo.isTablet ? '18px 22px' : '16px 20px',
-        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-        borderRadius: deviceInfo.isTablet ? '16px' : '12px',
-        border: '2px solid #dee2e6',
-        marginBottom: deviceInfo.isTablet ? '22px' : '18px',
-        width: '100%',
-        boxSizing: 'border-box',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-        overflowX: 'hidden',
-        paddingBottom: '8px'
-      }}>
-        <button
-          onClick={() => setShowGlobalDayViewModalV2(true)}
-          style={{
-            background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(25, 118, 210, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #1565c0 0%, #0d47a1 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(25, 118, 210, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(25, 118, 210, 0.4)';
-          }}
-        >
-          Vue Jour
-        </button>
-        
-        <button
-          onClick={() => setShowDashboard(true)}
-          style={{
-            background: 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(123, 31, 162, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #4a148c 0%, #311b92 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(123, 31, 162, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(123, 31, 162, 0.4)';
-          }}
-        >
-          Dashboard
-        </button>
-        
-        <button
-          onClick={() => {
-            console.log('🚨🚨🚨 PlanningDisplay: SHOP STATS BUTTON CLICKED 🚨🚨🚨');
-            setShowShopStatsPage(true);
-            console.log('🚨🚨🚨 PlanningDisplay: showShopStatsPage set to true 🚨🚨🚨');
-          }}
-          style={{
-            background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(255, 152, 0, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 152, 0, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 152, 0, 0.4)';
-          }}
-        >
-          Stats
-        </button>
-        
-        <button
-          onClick={() => setShowGestionBoutique(true)}
-          style={{
-            background: 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(40, 167, 69, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #1e7e34 0%, #155724 100%)';
-            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 10px 24px rgba(40, 167, 69, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #28a745 0%, #1e7e34 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.4)';
-          }}
-        >
-          Gestion
-        </button>
-        
-        <button
-          onClick={handleExport}
-          style={{
-            background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(46, 125, 50, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #1b5e20 0%, #0d4f1c 100%)';
-            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 10px 24px rgba(46, 125, 50, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(46, 125, 50, 0.4)';
-          }}
-        >
-          Export
-        </button>
-        
-        {/* Tooltip pour expliquer les différences */}
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          color: 'white',
-          padding: '8px 12px',
-          borderRadius: '6px',
-          fontSize: '11px',
-          whiteSpace: 'nowrap',
-          zIndex: 1000,
-          pointerEvents: 'none',
-          opacity: 0,
-          transition: 'opacity 0.3s ease'
-        }} id="tooltip">
-          Cliquez pour voir les différences
-        </div>
-        
-        <button
-          onClick={handleImportClick}
-          style={{
-            background: 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(245, 124, 0, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #e65100 0%, #bf360c 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 124, 0, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #f57c00 0%, #e65100 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(245, 124, 0, 0.4)';
-          }}
-        >
-          Import
-        </button>
-        
-        <button
-          onClick={() => setShowCopyPastePage(true)}
-          style={{
-            background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(23, 162, 184, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #138496 0%, #0f6674 100%)';
-            e.currentTarget.style.transform = 'translateY(-4px) scale(1.03)';
-            e.currentTarget.style.boxShadow = '0 10px 24px rgba(23, 162, 184, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(23, 162, 184, 0.4)';
-          }}
-        >
-          Copier
-        </button>
-        
-        <button
-          onClick={handleManualSave}
-          style={{
-            background: hasUnsavedChanges 
-              ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
-              : 'linear-gradient(135deg, #28a745 0%, #218838 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: hasUnsavedChanges 
-              ? '0 2px 8px rgba(220, 53, 69, 0.4)' 
-              : '0 2px 8px rgba(40, 167, 69, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = hasUnsavedChanges 
-              ? 'linear-gradient(135deg, #c82333 0%, #a71e2a 100%)' 
-              : 'linear-gradient(135deg, #218838 0%, #1e7e34 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = hasUnsavedChanges 
-              ? '0 4px 12px rgba(220, 53, 69, 0.6)' 
-              : '0 4px 12px rgba(40, 167, 69, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = hasUnsavedChanges 
-              ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
-              : 'linear-gradient(135deg, #28a745 0%, #218838 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = hasUnsavedChanges 
-              ? '0 2px 8px rgba(220, 53, 69, 0.4)' 
-              : '0 2px 8px rgba(40, 167, 69, 0.4)';
-          }}
-        >
-          {hasUnsavedChanges ? '⚠️' : ''} SAUVE SUPABASE
-        </button>
-        
-        <button
-          onClick={() => setShowNotesModal(true)}
-          style={{
-            background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)',
-            color: '#212529',
-            padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-            fontSize: deviceInfo.isTablet ? '13px' : '12px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(255, 193, 7, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '44px' : '40px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #e0a800 0%, #b8860b 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 193, 7, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 193, 7, 0.4)';
-          }}
-        >
-          Notes
-        </button>
-        
-        <button
-          onClick={() => setShowResetModal(true)}
-          style={{
-            background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(220, 53, 69, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #c82333 0%, #a71e2a 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 53, 69, 0.4)';
-          }}
-        >
-          Effacer
-        </button>
-        
-        <button
-          onClick={() => toggleMenu('retour')}
-          style={{
-            background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(108, 117, 125, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #495057 0%, #343a40 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(108, 117, 125, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #6c757d 0%, #495057 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(108, 117, 125, 0.4)';
-          }}
-        >
-          Retour
-        </button>
-        
-        {/* Bouton de restauration temporaire */}
-        <button
-          onClick={restoreFromBackup}
-          style={{
-            background: 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(253, 126, 20, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #e55a00 0%, #cc4a00 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(253, 126, 20, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #fd7e14 0%, #e55a00 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(253, 126, 20, 0.4)';
-          }}
-        >
-          🔄 Restaurer
-        </button>
-        
-        {/* Bouton de sauvegarde JSON manuelle */}
-        <button
-          onClick={createAutoBackupJSON}
-          style={{
-            background: 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)',
-            color: 'white',
-            padding: deviceInfo.isTablet ? '8px 12px' : '6px 10px',
-            fontSize: deviceInfo.isTablet ? 'clamp(12px, 2.1vw, 16px)' : 'clamp(12px, 2.4vw, 15px)',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            transition: 'all 0.3s ease',
-            boxShadow: '0 2px 8px rgba(32, 201, 151, 0.4)',
-            whiteSpace: 'nowrap',
-            minHeight: deviceInfo.isTablet ? '32px' : '28px',
-            minWidth: deviceInfo.isTablet ? '80px' : '70px',
-            letterSpacing: '0.3px',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(32, 201, 151, 0.6)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #20c997 0%, #17a2b8 100%)';
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(32, 201, 151, 0.4)';
-          }}
-        >
-          💾 JSON
-        </button>
+      <div style={{ width: '100%' }}>
+        <PlanningMenuBar
+          currentShop={selectedShop}
+          shops={shops}
+          currentWeek={validWeek}
+          changeWeek={changeWeek}
+          changeShop={changeShop}
+          changeMonth={changeMonth}
+          onBack={onBackToEmployees}
+          onBackToShop={onBackToShopSelection}
+          onBackToWeek={onBackToWeekSelection}
+          onBackToConfig={onBackToConfig}
+          onBackToStartup={onBackToStartup}
+          onExport={handleExport}
+          onImport={onImport}
+          onReset={() => setShowResetModal(true)}
+          setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+          handleManualSave={handleManualSave}
+          onCreateJSONBackup={createAutoBackupJSON}
+          onOpenDashboard={() => setShowDashboard(true)}
+          onOpenShopStats={() => setShowShopStatsPage(true)}
+          onOpenGestion={() => setShowGestionBoutique(true)}
+          onOpenNotes={() => setShowNotesModal(true)}
+          testSupabase={testSupabase}
+          cleanSupabaseData={cleanSupabaseData}
+          diagnoseSupabase={diagnoseSupabase}
+          diagnoseAndCleanLocks={diagnoseAndCleanLocks}
+          handleRestoreFromSupabase={onRestoreFromSupabase}
+          currentUser={currentUser}
+          // Nouveaux props pour les boutons déplacés
+          setShowResetModal={setShowResetModal}
+          toggleMenu={toggleMenu}
+          restoreFromBackup={restoreFromBackup}
+          createAutoBackupJSON={createAutoBackupJSON}
+          autoLockEnabled={autoLockEnabled}
+          setAutoLockEnabled={setAutoLockEnabled}
+          copyWeekToNextWeek={copyWeekToNextWeek}
+          validationState={validationState}
+        />
       </div>
-      )}
 
-      {/* Menu déroulant Retour */}
-      {openMenus.retour && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          backgroundColor: '#fff',
-          border: '2px solid #dee2e6',
-          borderRadius: '8px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-          zIndex: 1000,
-          minWidth: '250px',
-          padding: '10px 0'
-        }}>
-          <button
-            onClick={onBackToStartup}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            🏠 Écran de démarrage
-          </button>
-          <button
-            onClick={onBackToConfig}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            ⚙️ Configuration boutiques
-          </button>
-          <button
-            onClick={onBackToEmployees}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            👥 Gestion employés
-          </button>
-          <button
-            onClick={onBackToShopSelection}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            🏪 Sélection boutique
-          </button>
-          <button
-            onClick={onBackToWeekSelection}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-          >
-            📅 Sélection semaine
-          </button>
-        </div>
-      )}
+
+
 
       {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
       <div style={{ 
@@ -2940,6 +2294,14 @@ const PlanningDisplay = ({
         </>
       )}
 
+      {/* Bandeau de statut du verrou - APRÈS LE RÉCAPITULATIF EMPLOYÉ */}
+      <LockBanner
+        status={status}
+        lockInfo={lockInfo}
+        onRelease={release}
+        onEmergency={emergency}
+      />
+
       {/* PLANNING - DIRECTEMENT APRÈS LE TITRE ET LES RÉCAPITULATIFS */}
       {/* Bandeau collaboratif (toujours visible) */}
       <div style={{
@@ -2955,19 +2317,7 @@ const PlanningDisplay = ({
       }}>
         {readOnly ? (
           <>
-            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
-              🔒 Lecture seule — verrou acquis par {lockInfo?.user_id || 'un autre utilisateur'}.
-            </span>
-
-
-            <button
-              onClick={() => emergency()}
-              style={{ background: '#ff6b35', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', color: 'white', marginLeft: '5px' }}
-              title="Déverrouillage d'urgence avec code de sécurité"
-            >
-              🚨 Déverrouillage d'urgence
-            </button>
-
+            {/* Message #6 removed as requested */}
           </>
         ) : (
           <>
@@ -3290,10 +2640,10 @@ const PlanningDisplay = ({
             selectedEmployees={localSelectedEmployees}
             onEmployeeToggle={handleEmployeeToggle}
             planning={planning}
-            onToggleSlot={toggleSlot}
-            onSetDayStatus={(employeeId, dayIndex, status) => {
-              if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
-              const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+                            onToggleSlot={toggleSlot}
+                onSetDayStatus={(employeeId, dayIndex, status) => {
+                  if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
+                  const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
               setPlanning(prev => {
                 const updated = { ...prev };
                 if (!updated[employeeId]) updated[employeeId] = {};

@@ -1,12 +1,13 @@
 // src/hooks/usePlanningLock.js
 import { useEffect, useRef, useState } from 'react';
 import { acquireLock, renewLock, releaseLock, emergencyTakeover, subscribeLock } from '../utils/lockService';
+import { saveCompletePlanningData } from '../utils/remoteStore';
 
-const HEARTBEAT_SEC = 10;  // renouvelle toutes les 10 s
-const TTL_SEC       = 30;  // bail de 30 s
+const HEARTBEAT_SEC = 30;   // renouvelle toutes les 30 s (plus fréquent)
+const TTL_SEC       = 600;  // bail de 600 s (10 minutes - plus long)
 
-// Système de verrouillage réactivé avec le nouveau système simple
-const LOCK_SYSTEM_DISABLED = false;
+// Système de verrouillage DÉSACTIVÉ pour permettre le travail libre
+const LOCK_SYSTEM_DISABLED = true;
 
 export function usePlanningLock(resourceId, holderId) {
   const [status, setStatus] = useState(LOCK_SYSTEM_DISABLED ? 'owner' : 'loading'); // loading | owner | readonly | lost

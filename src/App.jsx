@@ -32,6 +32,7 @@ import {
 } from './utils/planningDataManager';
 import './App.css';
 import { loadRemotePlanning } from './utils/remoteStore';
+import { versionChecker } from './utils/versionChecker';
 
 const App = () => {
   // Fonctions de licence intégrées (Vercel-compatible)
@@ -114,6 +115,11 @@ const App = () => {
   // Charger les données depuis localStorage au démarrage
   useEffect(() => {
     try {
+      // Initialiser le vérificateur de version
+      versionChecker.init().catch(error => {
+        console.error('❌ Erreur initialisation VersionChecker:', error);
+      });
+
       // Vérifier si un utilisateur est déjà connecté
       const currentUser = localStorage.getItem('current_user');
       if (currentUser) {
