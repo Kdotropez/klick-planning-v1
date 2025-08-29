@@ -438,19 +438,11 @@ const PlanningDisplay = ({
       emp.canWorkIn && emp.canWorkIn.includes(selectedShop)
     );
     
-    // Logique spéciale pour Christine : l'inclure dans Saint-Tropez même si ce n'est pas sa boutique principale
-    if (selectedShop === 'saint-tropez') {
-      const christine = allEmployees.find(emp => emp.name === 'CHRISTINE');
-      if (christine && christine.canWorkIn && christine.canWorkIn.includes('saint-tropez')) {
-        // S'assurer que Christine est dans la liste
-        if (!employeesForThisShop.find(emp => emp.id === christine.id)) {
-          employeesForThisShop.push(christine);
-        }
-        console.log('✅ Christine ajoutée à Saint-Tropez pour septembre');
-      }
-    }
-    
+    // Logique générale pour tous les employés multi-boutiques
+    // Inclure tous les employés qui peuvent travailler dans cette boutique, même si ce n'est pas leur boutique principale
     console.log(`Employés pour ${selectedShop}:`, employeesForThisShop.map(emp => emp.name));
+    console.log(`Employés multi-boutiques détectés:`, employeesForThisShop.filter(emp => emp.canWorkIn && emp.canWorkIn.length > 1).map(emp => emp.name));
+    
     setCurrentShopEmployees(employeesForThisShop);
   }, [planningData, selectedShop]);
 

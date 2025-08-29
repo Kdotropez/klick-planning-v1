@@ -196,39 +196,7 @@ const RecapButtons = ({
     console.log(`DEBUG - getEmployeeShops appelé avec employee: "${employee}"`);
     console.log(`DEBUG - Type de employee:`, typeof employee);
     
-    // Solution simplifiée : forcer l'affichage pour les employés multi-boutiques connus
-    const multiShopEmployees = ['VALOU', 'ANGELIQUE'];
-    
-    console.log(`DEBUG - multiShopEmployees:`, multiShopEmployees);
-    console.log(`DEBUG - employee.includes(employee):`, multiShopEmployees.includes(employee));
-    
-    if (multiShopEmployees.includes(employee)) {
-      console.log(`Employé multi-boutique détecté: ${employee}`);
-      
-      // Calculer les heures réelles pour chaque boutique
-      const shopsWithHours = [];
-      
-      planningData.shops.forEach(shop => {
-        const shopHours = calculateEmployeeShopHours(employee, shop.id);
-        console.log(`DEBUG - ${employee} dans ${shop.name}: ${shopHours}h`);
-        
-        // Inclure la boutique seulement si elle a des heures
-        if (parseFloat(shopHours) > 0) {
-          shopsWithHours.push({
-            id: shop.id,
-            name: shop.name,
-            hours: shopHours
-          });
-        }
-      });
-      
-      console.log(`Boutiques avec heures pour ${employee}:`, shopsWithHours);
-      return shopsWithHours;
-    }
-    
-    // Pour les autres employés, logique normale
-    const employeeShops = new Map();
-    const monthWeeks = getMonthWeeks(currentWeek);
+    // Logique générale pour tous les employés multi-boutiques
     const allEmployees = getAllEmployees(planningData);
     const employeeData = allEmployees.find(emp => emp.id === employee);
     
@@ -238,6 +206,37 @@ const RecapButtons = ({
     }
     
     console.log(`Employé ${employee} peut travailler dans:`, employeeData.canWorkIn);
+    
+    // Si l'employé travaille dans plusieurs boutiques, calculer les heures pour chaque boutique
+    if (employeeData.canWorkIn.length > 1) {
+      console.log(`Employé multi-boutique détecté: ${employee}`);
+      
+      // Calculer les heures réelles pour chaque boutique
+      const shopsWithHours = [];
+      
+      planningData.shops.forEach(shop => {
+        if (employeeData.canWorkIn.includes(shop.id)) {
+          const shopHours = calculateEmployeeShopHours(employee, shop.id);
+          console.log(`DEBUG - ${employee} dans ${shop.name}: ${shopHours}h`);
+          
+          // Inclure la boutique seulement si elle a des heures
+          if (parseFloat(shopHours) > 0) {
+            shopsWithHours.push({
+              id: shop.id,
+              name: shop.name,
+              hours: shopHours
+            });
+          }
+        }
+      });
+      
+      console.log(`Boutiques avec heures pour ${employee}:`, shopsWithHours);
+      return shopsWithHours;
+    }
+    
+    // Pour les employés dans une seule boutique, logique normale
+    const employeeShops = new Map();
+    const monthWeeks = getMonthWeeks(currentWeek);
     
     for (const shopId of employeeData.canWorkIn) {
       const shop = planningData.shops.find(s => s.id === shopId);
@@ -440,9 +439,13 @@ const RecapButtons = ({
             </Button>
           )}
           {(() => {
-            // FORCER l'affichage des boutons séparés pour VALOU et ANGELIQUE
-            if (employeeName === 'VALOU' || employeeName === 'ANGELIQUE') {
-              console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId})`);
+            // Logique générale pour tous les employés multi-boutiques
+            const allEmployees = getAllEmployees(planningData);
+            const employeeData = allEmployees.find(emp => emp.id === employeeId);
+            const isMultiShopEmployee = employeeData && employeeData.canWorkIn && employeeData.canWorkIn.length > 1;
+            
+            if (isMultiShopEmployee) {
+              console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId}) - Multi-boutique`);
               
               // Créer des boutons séparés pour chaque boutique
               const allShops = planningData?.shops || [];
