@@ -338,7 +338,7 @@ const PlanningDisplay = ({
   
   // S'assurer que la configuration est valide
   if (!config || !Array.isArray(config.timeSlots) || config.timeSlots.length === 0) {
-    console.warn('Configuration des tranches horaires invalide, utilisation de la configuration par défaut:', { 
+    console.log('Configuration des tranches horaires invalide, utilisation de la configuration par défaut:', { 
       currentShopData, 
       originalConfig: config 
     });
@@ -353,10 +353,12 @@ const PlanningDisplay = ({
     
     // Si après nettoyage il n'y a plus de tranches, utiliser la configuration par défaut
     if (config.timeSlots.length === 0) {
-      console.warn('Aucune tranche horaire valide trouvée, utilisation de la configuration par défaut');
+      console.log('Aucune tranche horaire valide trouvée, utilisation de la configuration par défaut');
       config = defaultConfig;
     }
   }
+
+
 
   // Charger l'état de validation depuis le localStorage
   useEffect(() => {
@@ -422,6 +424,35 @@ const PlanningDisplay = ({
   
   // État pour tous les employés de toutes les boutiques
   const [allEmployees, setAllEmployees] = useState([]);
+
+  // Mettre à jour les employés de la boutique actuelle avec logique spéciale pour Christine
+  useEffect(() => {
+    if (!planningData || !selectedShop) {
+      setCurrentShopEmployees([]);
+      return;
+    }
+    
+    // Récupérer tous les employés qui peuvent travailler dans cette boutique
+    const allEmployees = getAllEmployees(planningData);
+    const employeesForThisShop = allEmployees.filter(emp => 
+      emp.canWorkIn && emp.canWorkIn.includes(selectedShop)
+    );
+    
+    // Logique spéciale pour Christine : l'inclure dans Saint-Tropez même si ce n'est pas sa boutique principale
+    if (selectedShop === 'saint-tropez') {
+      const christine = allEmployees.find(emp => emp.name === 'CHRISTINE');
+      if (christine && christine.canWorkIn && christine.canWorkIn.includes('saint-tropez')) {
+        // S'assurer que Christine est dans la liste
+        if (!employeesForThisShop.find(emp => emp.id === christine.id)) {
+          employeesForThisShop.push(christine);
+        }
+        console.log('✅ Christine ajoutée à Saint-Tropez pour septembre');
+      }
+    }
+    
+    console.log(`Employés pour ${selectedShop}:`, employeesForThisShop.map(emp => emp.name));
+    setCurrentShopEmployees(employeesForThisShop);
+  }, [planningData, selectedShop]);
 
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
