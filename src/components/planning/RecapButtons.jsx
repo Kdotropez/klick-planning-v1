@@ -206,34 +206,41 @@ const RecapButtons = ({
       console.log(`DEBUG - ID trouvé pour ${employee}: ${employeeId}`);
     }
     
-         // Logique : chercher dans la semaine actuelle seulement
-     const shopsWithHours = [];
-     
-     planningData.shops.forEach(shop => {
-       // Vérifier si l'employé a des données dans cette boutique pour la semaine actuelle
-       let hasDataInShop = false;
-       let totalShopHours = 0;
-       
-               // Chercher dans la semaine actuelle seulement
-        const weekData = shop.weeks?.[currentWeek];
-        if (weekData && weekData.planning && weekData.planning[employeeId]) {
-          hasDataInShop = true;
-          // Calculer les heures directement depuis les données
-          let weekHours = 0;
-          for (let i = 0; i < 7; i++) {
-            const dayDate = format(addDays(new Date(currentWeek), i), 'yyyy-MM-dd');
-            const daySlots = weekData.planning[employeeId]?.[dayDate];
-            if (daySlots && Array.isArray(daySlots)) {
-              const trueSlots = daySlots.filter(slot => slot === true).length;
-              const slotDuration = shop.config?.slotDuration || 0.5;
-              weekHours += trueSlots * slotDuration;
+    // Logique : chercher dans toutes les semaines pour inclure les employés historiques
+    const shopsWithHours = [];
+    
+    planningData.shops.forEach(shop => {
+      // Vérifier si l'employé a des données dans cette boutique (historique ou actuel)
+      let hasDataInShop = false;
+      let totalShopHours = 0;
+      
+      // Chercher dans toutes les semaines pour détecter les employés historiques
+      if (shop.weeks) {
+        Object.keys(shop.weeks).forEach(weekKey => {
+          const weekData = shop.weeks[weekKey];
+          if (weekData && weekData.planning && weekData.planning[employeeId]) {
+            hasDataInShop = true;
+            
+            // Si c'est la semaine actuelle, calculer les heures
+            if (weekKey === currentWeek) {
+              let weekHours = 0;
+              for (let i = 0; i < 7; i++) {
+                const dayDate = format(addDays(new Date(currentWeek), i), 'yyyy-MM-dd');
+                const daySlots = weekData.planning[employeeId]?.[dayDate];
+                if (daySlots && Array.isArray(daySlots)) {
+                  const trueSlots = daySlots.filter(slot => slot === true).length;
+                  const slotDuration = shop.config?.slotDuration || 0.5;
+                  weekHours += trueSlots * slotDuration;
+                }
+              }
+              totalShopHours = weekHours;
             }
           }
-          totalShopHours = weekHours;
-        }
+        });
+      }
       
-      if (hasDataInShop && totalShopHours > 0) {
-        console.log(`DEBUG - ${employee} dans ${shop.name}: ${totalShopHours.toFixed(1)}h (toutes semaines)`);
+      if (hasDataInShop) {
+        console.log(`DEBUG - ${employee} dans ${shop.name}: ${totalShopHours.toFixed(1)}h (données historiques ou actuelles)`);
         shopsWithHours.push({
           id: shop.id,
           name: shop.name,
@@ -242,7 +249,7 @@ const RecapButtons = ({
       }
     });
     
-    console.log(`Boutiques avec heures pour ${employee}:`, shopsWithHours);
+    console.log(`Boutiques avec données pour ${employee}:`, shopsWithHours);
     return shopsWithHours;
   };
 

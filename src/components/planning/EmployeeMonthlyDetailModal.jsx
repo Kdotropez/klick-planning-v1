@@ -74,6 +74,10 @@ const EmployeeMonthlyDetailModal = ({
               if (Array.isArray(slots) && slots.some(slot => slot === true)) {
                 hasPlanningData = true;
               }
+              // Inclure aussi les statuts (maladie, congé, etc.)
+              if (typeof slots === 'string' && slots.trim() !== '') {
+                hasPlanningData = true;
+              }
             });
           }
         });

@@ -214,8 +214,8 @@ const ShopStatsPage = ({
 
   // Fonction pour obtenir les employés de la boutique
   const getShopEmployees = () => {
-    // Récupérer uniquement les employés qui ont des heures effectives dans cette boutique
-    const employeesWithHours = new Set();
+    // Récupérer les employés qui ont des données historiques ou actuelles dans cette boutique
+    const employeesWithData = new Set();
     const selectedShopData = planningData.shops.find(shop => shop.id === currentShop);
     
     if (selectedShopData && selectedShopData.weeks) {
@@ -223,18 +223,22 @@ const ShopStatsPage = ({
         const weekData = selectedShopData.weeks[weekKey];
         if (weekData && weekData.planning) {
           Object.keys(weekData.planning).forEach(employeeId => {
-            // Vérifier si l'employé a effectivement des heures dans cette semaine
+            // Vérifier si l'employé a effectivement des données dans cette semaine
             const employeePlanning = weekData.planning[employeeId];
             if (employeePlanning) {
-              let hasHours = false;
+              let hasData = false;
               Object.keys(employeePlanning).forEach(dayKey => {
                 const slots = employeePlanning[dayKey];
                 if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                  hasHours = true;
+                  hasData = true;
+                }
+                // Inclure aussi les statuts (maladie, congé, etc.)
+                if (typeof slots === 'string' && slots.trim() !== '') {
+                  hasData = true;
                 }
               });
-              if (hasHours) {
-                employeesWithHours.add(employeeId);
+              if (hasData) {
+                employeesWithData.add(employeeId);
               }
             }
           });
@@ -242,7 +246,7 @@ const ShopStatsPage = ({
       });
     }
     
-    const shopEmployeeIds = Array.from(employeesWithHours);
+    const shopEmployeeIds = Array.from(employeesWithData);
     
     // Convertir les IDs en objets employés complets
     const shopEmployees = shopEmployeeIds.map(employeeId => {
