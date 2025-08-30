@@ -1,7 +1,18 @@
 {
-  "version": "3.10.26",
+  "version": "3.10.27",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.27",
+      "date": "2025-01-27",
+      "features": [
+        "📊 OPTIMISATION: Vue hebdomadaire condensée sur une seule page",
+        "🎯 Layout en grille pour afficher tous les jours côte à côte",
+        "📏 Réduction des espacements et tailles de police pour optimiser l'espace",
+        "📱 Interface plus compacte et lisible sur une seule page",
+        "🔄 Mise en page responsive adaptée aux différentes tailles d'écran"
+      ]
+    },
     {
       "version": "3.10.26",
       "date": "2025-01-27",
