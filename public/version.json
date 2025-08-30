@@ -2,16 +2,27 @@
   "version": "3.10.33",
   "lastUpdate": "2025-01-27",
   "changelog": [
-    {
-      "version": "3.10.33",
-      "date": "2025-01-27",
-      "features": [
-        "🔧 CORRECTION: Suppression de la logique automatique de maladie sur clic simple",
-        "✅ Restauration du comportement normal de clic sur tous les créneaux",
-        "🎯 La gestuelle maladie ne se déclenche plus par accident",
-        "📱 Amélioration de la fiabilité des interactions utilisateur"
-      ]
-    },
+            {
+          "version": "3.10.33",
+          "date": "2025-01-27",
+          "features": [
+            "🔧 CORRECTION: Suppression de la logique automatique de maladie sur clic simple",
+            "✅ Restauration du comportement normal de clic sur tous les créneaux",
+            "🎯 La gestuelle maladie ne se déclenche plus par accident",
+            "📱 Amélioration de la fiabilité des interactions utilisateur"
+          ]
+        },
+        {
+          "version": "3.10.34",
+          "date": "2025-01-27",
+          "features": [
+            "🚨 CORRECTION URGENTE: Restauration des heures d'ouverture d'origine",
+            "✅ Suppression des heures 06:00-07:30 qui affectaient toutes les boutiques",
+            "✅ Suppression des heures 14:30-17:30 qui affectaient toutes les boutiques",
+            "🔧 Restauration des heures par défaut: 09:00-19:00",
+            "📋 Correction de l'erreur qui modifiait la configuration globale"
+          ]
+        },
     {
       "version": "3.10.32",
       "date": "2025-01-27",

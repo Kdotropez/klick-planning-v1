@@ -113,7 +113,7 @@ const ShopConfig = ({ shop, onConfigUpdate, onNext, onBack }) => {
             gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
             gap: '8px'
           }}>
-            {['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'].map(time => (
+                         {['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'].map(time => (
               <Button
                 key={time}
                 onClick={() => handleConfigChange('startTime', time)}
@@ -148,7 +148,7 @@ const ShopConfig = ({ shop, onConfigUpdate, onNext, onBack }) => {
             gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
             gap: '8px'
           }}>
-                         {['14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '23:59'].map(time => (
+                         {['18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '23:59'].map(time => (
               <Button
                 key={time}
                 onClick={() => handleConfigChange('endTime', time)}
