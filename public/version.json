@@ -1,7 +1,17 @@
 {
-  "version": "3.10.29",
+  "version": "3.10.30",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.30",
+      "date": "2025-01-27",
+      "features": [
+        "⏰ ÉTENDUE: Heures de fin étendues de 14h30 à 23h59",
+        "🌅 Support des fermetures précoces (14h30, 15h00, 15h30, etc.)",
+        "🕐 Configuration flexible pour tous types d'horaires de fermeture",
+        "✅ Compatibilité avec les boutiques à horaires variables"
+      ]
+    },
     {
       "version": "3.10.29",
       "date": "2025-01-27",
