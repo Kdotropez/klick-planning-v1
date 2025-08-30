@@ -1,7 +1,19 @@
 {
-  "version": "3.10.25",
+  "version": "3.10.26",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.26",
+      "date": "2025-01-27",
+      "features": [
+        "📊 NOUVEAU: Vue hebdomadaire professionnelle dans la modale 'Vue globale par jour'",
+        "👥 Affichage des employés avec leurs horaires par jour",
+        "🕐 Fusion automatique des créneaux consécutifs pour une lecture optimale",
+        "📄 Export PDF de la vue hebdomadaire avec mise en page professionnelle",
+        "🎨 Interface moderne avec cartes par jour et badges d'horaires",
+        "✅ Quatrième onglet 'Vue hebdomadaire' ajouté à la modale"
+      ]
+    },
     {
       "version": "3.10.25",
       "date": "2025-01-27",

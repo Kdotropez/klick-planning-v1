@@ -452,35 +452,163 @@ const GlobalDayViewModalV2 = ({
     </div>
   );
 
+  // Vue hebdomadaire professionnelle
+  const WeeklyTab = () => {
+    // Fonction pour obtenir les horaires d'un employé pour un jour
+    const getEmployeeSchedule = (employeeId, dayKey) => {
+      const dayPlanning = planning[employeeId]?.[dayKey];
+      if (!dayPlanning) return null;
+
+      const schedules = [];
+      let currentStart = null;
+      let currentEnd = null;
+
+      dayPlanning.forEach((isSelected, slotIndex) => {
+        if (isSelected) {
+          const slotTime = timeSlots[slotIndex];
+          if (!currentStart) {
+            currentStart = slotTime;
+          }
+          currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+        } else if (currentStart) {
+          schedules.push({
+            start: currentStart,
+            end: currentEnd
+          });
+          currentStart = null;
+          currentEnd = null;
+        }
+      });
+
+      // Ajouter le dernier créneau si nécessaire
+      if (currentStart) {
+        schedules.push({
+          start: currentStart,
+          end: currentEnd
+        });
+      }
+
+      return schedules;
+    };
+
+    // Fonction pour fusionner les créneaux consécutifs
+    const mergeConsecutiveSlots = (schedules) => {
+      if (schedules.length <= 1) return schedules;
+
+      const merged = [];
+      let current = schedules[0];
+
+      for (let i = 1; i < schedules.length; i++) {
+        const next = schedules[i];
+        if (current.end === next.start) {
+          current.end = next.end;
+        } else {
+          merged.push(current);
+          current = next;
+        }
+      }
+      merged.push(current);
+      return merged;
+    };
+
+    return (
+      <div className="weekly-tab">
+        <div className="weekly-header">
+          <h3>Planning hebdomadaire - {selectedShop}</h3>
+          <p>Semaine du {globalStats.weekRange}</p>
+        </div>
+
+        <div className="weekly-schedule" id="weekly-schedule-export">
+          {dayData.map((day, dayIndex) => {
+            if (day.totalHours === 0) return null;
+
+            return (
+              <div key={dayIndex} className="day-schedule-card">
+                <div className="day-header">
+                  <h4>{day.day} {format(day.date, 'dd/MM/yyyy', { locale: fr })}</h4>
+                  <div className="day-summary">
+                    <span>Ouverture: {day.openTime}</span>
+                    <span>Fermeture: {day.closeTime}</span>
+                    <span>Total: {day.totalHours}h</span>
+                  </div>
+                </div>
+
+                <div className="employees-schedule">
+                  {selectedEmployees.map(employeeId => {
+                    const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+                    if (!employee) return null;
+
+                    const schedules = getEmployeeSchedule(employeeId, day.dateKey);
+                    if (!schedules || schedules.length === 0) return null;
+
+                    const mergedSchedules = mergeConsecutiveSlots(schedules);
+
+                    return (
+                      <div key={employeeId} className="employee-schedule-row">
+                        <div className="employee-name">
+                          <strong>{employee.name}</strong>
+                        </div>
+                        <div className="employee-hours">
+                          {mergedSchedules.map((schedule, index) => (
+                            <span key={index} className="time-slot">
+                              {schedule.start} - {schedule.end}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const exportToPDF = async () => {
     try {
       // Attendre que le DOM soit mis à jour
       await new Promise(resolve => setTimeout(resolve, 200));
       
-      const tableContainer = document.querySelector('.table-scroll-container');
-      if (!tableContainer) {
-        console.error('Conteneur du tableau non trouvé');
+      let container, title, filename;
+      
+      if (activeTab === 'weekly') {
+        // Export de la vue hebdomadaire
+        container = document.querySelector('.weekly-schedule');
+        title = `Planning hebdomadaire - ${selectedShop}`;
+        filename = `planning_hebdomadaire_${selectedShop}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      } else {
+        // Export de la vue globale (comportement existant)
+        container = document.querySelector('.table-scroll-container');
+        title = `Vue globale par jour - ${selectedShop}`;
+        filename = `vue_globale_${selectedShop}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      }
+      
+      if (!container) {
+        console.error('Conteneur non trouvé');
         return;
       }
 
-      // Capturer le tableau avec html2canvas pour une image fidèle
-      const canvas = await html2canvas(tableContainer, {
-        scale: 3, // Haute résolution pour une image fidèle
+      // Capturer le contenu avec html2canvas pour une image fidèle
+      const canvas = await html2canvas(container, {
+        scale: 2, // Haute résolution pour une image fidèle
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
-        width: tableContainer.scrollWidth,
-        height: tableContainer.scrollHeight,
+        width: container.scrollWidth,
+        height: container.scrollHeight,
         scrollX: 0,
         scrollY: 0,
-        windowWidth: tableContainer.scrollWidth,
-        windowHeight: tableContainer.scrollHeight
+        windowWidth: container.scrollWidth,
+        windowHeight: container.scrollHeight
       });
 
       // Créer le PDF
       const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF({ 
-        orientation: 'landscape',
+        orientation: activeTab === 'weekly' ? 'portrait' : 'landscape',
         unit: 'mm',
         format: 'a4'
       });
@@ -495,18 +623,20 @@ const GlobalDayViewModalV2 = ({
       // Ajouter le titre
       pdf.setFontSize(16);
       pdf.setFont('Helvetica', 'bold');
-      pdf.text(`Vue globale par jour - ${selectedShop}`, pdfWidth / 2, 15, { align: 'center' });
+      pdf.text(title, pdfWidth / 2, 15, { align: 'center' });
       
       pdf.setFontSize(12);
       pdf.setFont('Helvetica', 'normal');
       pdf.text(`Semaine du ${globalStats.weekRange}`, pdfWidth / 2, 25, { align: 'center' });
-      pdf.text(`Total: ${globalStats.totalHours}h sur ${globalStats.totalDays} jours`, pdfWidth / 2, 32, { align: 'center' });
+      if (activeTab !== 'weekly') {
+        pdf.text(`Total: ${globalStats.totalHours}h sur ${globalStats.totalDays} jours`, pdfWidth / 2, 32, { align: 'center' });
+      }
 
-      // Ajouter l'image du tableau
-      const yPosition = 40;
+      // Ajouter l'image du contenu
+      const yPosition = activeTab === 'weekly' ? 35 : 40;
       pdf.addImage(imgData, 'PNG', 10, yPosition, imgWidth, imgHeight);
 
-      pdf.save(`vue_globale_${selectedShop}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      pdf.save(filename);
     } catch (error) {
       console.error('Erreur lors de l\'export PDF:', error);
       alert('Erreur lors de l\'export PDF. Veuillez réessayer.');
@@ -580,6 +710,12 @@ const GlobalDayViewModalV2 = ({
             >
               <FaChartBar /> Tableau complet
             </button>
+            <button 
+              className={`tab ${activeTab === 'weekly' ? 'active' : ''}`}
+              onClick={() => setActiveTab('weekly')}
+            >
+              <FaUsers /> Vue hebdomadaire
+            </button>
           </div>
 
           {/* Contenu des onglets */}
@@ -587,6 +723,7 @@ const GlobalDayViewModalV2 = ({
             {activeTab === 'overview' && <OverviewTab />}
             {activeTab === 'detail' && <DetailTab />}
             {activeTab === 'table' && <TableTab />}
+            {activeTab === 'weekly' && <WeeklyTab />}
           </div>
         </div>
 
@@ -1160,6 +1297,117 @@ const GlobalDayViewModalV2 = ({
 
         .schedule-col {
           width: 10%;
+        }
+
+        /* Styles pour la vue hebdomadaire */
+        .weekly-tab {
+          padding: 20px;
+          max-height: 70vh;
+          overflow-y: auto;
+        }
+
+        .weekly-header {
+          text-align: center;
+          margin-bottom: 30px;
+          padding: 20px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-radius: 10px;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .weekly-header h3 {
+          margin: 0 0 10px 0;
+          font-size: 24px;
+          font-weight: bold;
+        }
+
+        .weekly-header p {
+          margin: 0;
+          font-size: 16px;
+          opacity: 0.9;
+        }
+
+        .weekly-schedule {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .day-schedule-card {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+          overflow: hidden;
+          border: 1px solid #e0e0e0;
+        }
+
+        .day-header {
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          padding: 15px 20px;
+          border-bottom: 2px solid #dee2e6;
+        }
+
+        .day-header h4 {
+          margin: 0 0 8px 0;
+          font-size: 18px;
+          font-weight: bold;
+          color: #495057;
+        }
+
+        .day-summary {
+          display: flex;
+          gap: 20px;
+          font-size: 14px;
+          color: #6c757d;
+        }
+
+        .day-summary span {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .employees-schedule {
+          padding: 20px;
+        }
+
+        .employee-schedule-row {
+          display: flex;
+          align-items: center;
+          padding: 12px 0;
+          border-bottom: 1px solid #f1f3f4;
+        }
+
+        .employee-schedule-row:last-child {
+          border-bottom: none;
+        }
+
+        .employee-name {
+          width: 150px;
+          min-width: 150px;
+          font-size: 16px;
+          font-weight: 600;
+          color: #2c3e50;
+        }
+
+        .employee-hours {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          flex: 1;
+        }
+
+        .time-slot {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 14px;
+          font-weight: 500;
+          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+          white-space: nowrap;
+        }
           min-width: 55px;
         }
 
