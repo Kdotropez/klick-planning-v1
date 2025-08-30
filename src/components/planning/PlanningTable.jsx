@@ -119,6 +119,14 @@ const PlanningTable = ({
         edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
         // Ne pas return ici pour permettre le clic normal
       }
+    } else {
+      // Si on clique sur un créneau autre que premier/dernier, annuler la sélection de maladie
+      if (edgeSelection && 
+          edgeSelection.employeeId === employeeId && 
+          edgeSelection.dayIndex === dayIndex) {
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        setEdgeSelection(null);
+      }
     }
 
     // Sinon, comportement normal (drag/toggle)
@@ -254,6 +262,14 @@ const PlanningTable = ({
         if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
         edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
         // Ne pas return ici pour permettre le clic normal
+      }
+    } else {
+      // Si on clique sur un créneau autre que premier/dernier, annuler la sélection de maladie
+      if (edgeSelection && 
+          edgeSelection.employeeId === employeeId && 
+          edgeSelection.dayIndex === dayIndex) {
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        setEdgeSelection(null);
       }
     }
     onToggleSlot(employeeId, slotIndex, dayIndex, !currentValue);

@@ -1,7 +1,17 @@
 {
-  "version": "3.10.31",
+  "version": "3.10.32",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.32",
+      "date": "2025-01-27",
+      "features": [
+        "🧠 INTELLIGENCE: Logique améliorée pour différencier maladie et planning normal",
+        "✅ Annulation automatique de la sélection maladie si clic sur créneaux intermédiaires",
+        "🎯 Distinction claire entre geste maladie (premier+dernier) et planning normal",
+        "🔧 Optimisation de l'expérience utilisateur pour éviter les erreurs"
+      ]
+    },
     {
       "version": "3.10.31",
       "date": "2025-01-27",
