@@ -632,11 +632,14 @@ const App = () => {
   };
 
   const handleBackToShopSelection = () => {
-    // S'assurer qu'une boutique est sélectionnée
-    if (!selectedShop && planningData.shops && planningData.shops.length > 0) {
-      setSelectedShop(planningData.shops[0].id);
-    }
-    setMode('week-selection');
+    // Rediriger vers la création de boutiques pour permettre l'ajout de nouvelles boutiques
+    setMode('new');
+    setCurrentStep(1); // Étape de création des boutiques
+  };
+
+  const handleBackToShopManagement = () => {
+    // Rediriger vers la sélection de boutiques existantes
+    setMode('startup');
   };
 
   const handleBackToWeekSelection = () => {
@@ -922,6 +925,7 @@ const App = () => {
               onBackToStartup={handleBackToStartup}
               onBackToEmployees={handleBackToEmployees}
               onBackToShopSelection={handleBackToShopSelection}
+              onBackToShopManagement={handleBackToShopManagement}
               onBackToWeekSelection={handleBackToWeekSelection}
               onBackToConfig={handleBackToConfig}
               setFeedback={setFeedback}

@@ -49,6 +49,7 @@ const PlanningDisplay = ({
   onBackToStartup,
   onBackToEmployees,
   onBackToShopSelection,
+  onBackToShopManagement,
   onBackToWeekSelection,
   onBackToConfig,
   setFeedback,
@@ -563,7 +564,7 @@ const PlanningDisplay = ({
     if (!Array.isArray(selectedEmployees) || selectedEmployees.length === 0) {
       console.log('🔧 Initialisation avec tous les employés de la boutique:', allIds);
       setLocalSelectedEmployees(allIds);
-    } else {
+        } else {
       // Filtrer selectedEmployees pour ne garder que ceux de la boutique actuelle
       const validEmployees = selectedEmployees.filter(id => allIds.includes(id));
       if (validEmployees.length !== selectedEmployees.length) {
@@ -601,7 +602,7 @@ const PlanningDisplay = ({
       setLocalFeedback('❌ Erreur lors du renommage');
     }
   }, [setPlanningData]);
-
+  
   // Mettre à jour le planning global
   useEffect(() => {
     setGlobalPlanning(planning);
@@ -1693,6 +1694,7 @@ const PlanningDisplay = ({
             changeMonth={changeMonth}
             onBack={onBackToEmployees}
             onBackToShop={onBackToShopSelection}
+            onBackToShopManagement={onBackToShopManagement}
             onBackToWeek={onBackToWeekSelection}
             onBackToConfig={onBackToConfig}
             onBackToStartup={onBackToStartup}

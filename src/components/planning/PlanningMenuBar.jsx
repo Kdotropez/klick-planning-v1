@@ -17,6 +17,7 @@ const PlanningMenuBar = ({
   changeMonth,
   onBack,
   onBackToShop,
+  onBackToShopManagement,
   onBackToWeek,
   onBackToConfig,
   onBackToStartup,
@@ -484,7 +485,29 @@ const PlanningMenuBar = ({
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7b1fa2'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#9c27b0'}
         >
-          🏪 Boutique
+          ➕ Nouvelle Boutique
+        </Button>
+
+        <Button
+          className="button-primary"
+          onClick={onBackToShopManagement}
+          style={{
+            backgroundColor: '#ff9800',
+            color: '#fff',
+            padding: '10px 14px',
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f57c00'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ff9800'}
+        >
+          🏪 Gérer Boutiques
         </Button>
 
         <Button

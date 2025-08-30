@@ -1,7 +1,19 @@
 {
-  "version": "3.10.24",
+  "version": "3.10.25",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.25",
+      "date": "2025-01-27",
+      "features": [
+        "🏪 NOUVEAU: Boutons de gestion des boutiques depuis l'interface de planning",
+        "➕ Bouton 'Nouvelle Boutique' pour créer de nouvelles boutiques",
+        "🏪 Bouton 'Gérer Boutiques' pour accéder à la sélection de boutiques existantes",
+        "🔧 Correction de la navigation vers la création de boutiques",
+        "✅ Accès direct à ShopCreation et ShopSelection depuis PlanningDisplay",
+        "📱 Interface améliorée pour la gestion des boutiques"
+      ]
+    },
     {
       "version": "3.10.24",
       "date": "2025-01-27",
