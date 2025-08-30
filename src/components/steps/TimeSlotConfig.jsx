@@ -8,7 +8,7 @@ import '@/assets/styles.css';
 
 const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop }) => {
     const intervals = [15, 30, 60];
-    const startTimeOptions = ['09:00', '09:30', '10:00', 'other'];
+    const startTimeOptions = ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', 'other'];
     const endTimeOptions = ['19:00', '20:00', '22:00', '23:00', '23:59', '00:00', '01:00', '02:00', '03:00', 'other'];
 
     const validateTimeFormat = (time) => {

@@ -113,7 +113,7 @@ const ShopConfig = ({ shop, onConfigUpdate, onNext, onBack }) => {
             gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
             gap: '8px'
           }}>
-            {['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'].map(time => (
+            {['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30'].map(time => (
               <Button
                 key={time}
                 onClick={() => handleConfigChange('startTime', time)}

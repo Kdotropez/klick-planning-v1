@@ -1,7 +1,17 @@
 {
-  "version": "3.10.28",
+  "version": "3.10.29",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.29",
+      "date": "2025-01-27",
+      "features": [
+        "⏰ ÉTENDUE: Créneaux horaires étendus de 6h00 à 11h30",
+        "🌅 Support des heures matinales (6h00, 6h30, 7h00, 7h30)",
+        "🕐 Configuration flexible pour les boutiques ouvrant tôt",
+        "✅ Compatibilité avec tous les types d'horaires d'ouverture"
+      ]
+    },
     {
       "version": "3.10.28",
       "date": "2025-01-27",
