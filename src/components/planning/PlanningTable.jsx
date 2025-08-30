@@ -117,7 +117,7 @@ const PlanningTable = ({
         setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
         if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
         edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
-        return;
+        // Ne pas return ici pour permettre le clic normal
       }
     }
 
@@ -253,7 +253,7 @@ const PlanningTable = ({
         setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
         if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
         edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
-        return;
+        // Ne pas return ici pour permettre le clic normal
       }
     }
     onToggleSlot(employeeId, slotIndex, dayIndex, !currentValue);

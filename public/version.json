@@ -1,7 +1,17 @@
 {
-  "version": "3.10.30",
+  "version": "3.10.31",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.31",
+      "date": "2025-01-27",
+      "features": [
+        "🔧 CORRECTION: Clics sur les premiers et derniers créneaux horaires",
+        "✅ Restauration de la fonctionnalité de clic normal sur tous les créneaux",
+        "🎯 Conservation de la gestuelle maladie/congé pour les créneaux extrêmes",
+        "📱 Amélioration de la compatibilité tactile et souris"
+      ]
+    },
     {
       "version": "3.10.30",
       "date": "2025-01-27",
