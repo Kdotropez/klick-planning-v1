@@ -114,8 +114,11 @@ const PlanningTable = ({
           return;
         }
       } else {
-        // Ne pas démarrer la sélection de maladie automatiquement
-        // Laisser le clic normal fonctionner
+        // Démarrer la sélection de maladie
+        setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+        // Ne pas return ici pour permettre le clic normal
       }
     }
 
@@ -248,8 +251,11 @@ const PlanningTable = ({
           return;
         }
       } else {
-        // Ne pas démarrer la sélection de maladie automatiquement
-        // Laisser le clic normal fonctionner
+        // Démarrer la sélection de maladie
+        setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+        edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+        // Ne pas return ici pour permettre le clic normal
       }
     }
     onToggleSlot(employeeId, slotIndex, dayIndex, !currentValue);
