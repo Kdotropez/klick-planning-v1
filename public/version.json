@@ -1,7 +1,17 @@
 {
-  "version": "3.10.27",
+  "version": "3.10.28",
   "lastUpdate": "2025-01-27",
   "changelog": [
+    {
+      "version": "3.10.28",
+      "date": "2025-01-27",
+      "features": [
+        "🔍 RÉTABLISSEMENT: Bouton Dashboard ajouté dans la barre de menu",
+        "📊 Accès direct au tableau de bord depuis l'interface de planning",
+        "🎯 Navigation simplifiée vers les statistiques et analyses",
+        "✅ Correction de l'accessibilité du dashboard existant"
+      ]
+    },
     {
       "version": "3.10.27",
       "date": "2025-01-27",

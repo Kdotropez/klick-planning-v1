@@ -313,6 +313,28 @@ const PlanningMenuBar = ({
 
         <Button
           className="button-primary"
+          onClick={onOpenDashboard}
+          style={{
+            backgroundColor: '#9c27b0',
+            color: '#fff',
+            padding: '10px 14px',
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7b1fa2'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#9c27b0'}
+        >
+          📊 Dashboard
+        </Button>
+
+        <Button
+          className="button-primary"
           onClick={onBackToStartup}
           style={{
             backgroundColor: '#f44336',
