@@ -214,7 +214,7 @@ const ShopStatsPage = ({
 
   // Fonction pour obtenir les employés de la boutique
   const getShopEmployees = () => {
-    // Récupérer les employés qui ont des données historiques ou actuelles dans cette boutique
+    // Récupérer les employés qui ont des données dans cette boutique
     const employeesWithData = new Set();
     const selectedShopData = planningData.shops.find(shop => shop.id === currentShop);
     
@@ -230,10 +230,6 @@ const ShopStatsPage = ({
               Object.keys(employeePlanning).forEach(dayKey => {
                 const slots = employeePlanning[dayKey];
                 if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                  hasData = true;
-                }
-                // Inclure aussi les statuts (maladie, congé, etc.)
-                if (typeof slots === 'string' && slots.trim() !== '') {
                   hasData = true;
                 }
               });

@@ -1,20 +1,17 @@
 {
-  "version": "3.10.23",
+  "version": "3.10.24",
   "lastUpdate": "2025-01-27",
   "changelog": [
     {
-      "version": "3.10.23",
+      "version": "3.10.24",
       "date": "2025-01-27",
       "features": [
-        "🧠 FILTRAGE INTELLIGENT des employés par période",
-        "👥 Affichage des employés avec données récentes (3 derniers mois)",
-        "📊 Masquage automatique des employés sans données récentes",
-        "🔍 Accès aux données historiques via récapitulatifs",
-        "📅 Gestion des employés saisonniers (juillet/août vs septembre)",
-        "✅ Conservation des données historiques pour consultation",
-        "🎯 Interface épurée avec employés actifs uniquement",
-        "📋 Prise en compte des statuts (maladie, congé) dans le filtrage",
-        "🔄 Logique de filtrage cohérente dans tous les modules"
+        "🔧 CORRECTION: Restauration du filtrage des employés par boutique",
+        "🚫 Annulation du filtrage intelligent qui causait des problèmes",
+        "✅ Retour à la logique originale de filtrage par canWorkIn",
+        "👥 Employés visibles uniquement dans leurs boutiques assignées",
+        "🔄 Correction des fonctions getEmployeeShops dans tous les modules",
+        "📊 Maintien de l'export Excel avec absences maladie fonctionnel"
       ]
     },
     {

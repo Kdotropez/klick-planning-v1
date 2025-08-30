@@ -699,70 +699,12 @@ const PlanningDisplay = ({
       // Mettre à jour tous les employés de toutes les boutiques
       setAllEmployees(validShopEmployees);
       
-      // Fonction pour vérifier si un employé a des données de planning récentes
-      const hasRecentPlanningData = (employeeId) => {
-        if (!planningData?.shops) return false;
-        
-        // Vérifier les 3 derniers mois (pour inclure les employés saisonniers)
-        const currentDate = new Date(selectedWeek);
-        const threeMonthsAgo = new Date(currentDate);
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        
-        // Parcourir toutes les boutiques pour cet employé
-        for (const shop of planningData.shops) {
-          if (!shop.weeks) continue;
-          
-          for (const weekKey of Object.keys(shop.weeks)) {
-            const weekDate = new Date(weekKey);
-            
-            // Vérifier si la semaine est dans les 3 derniers mois
-            if (weekDate >= threeMonthsAgo) {
-              const weekData = shop.weeks[weekKey];
-              if (weekData?.planning?.[employeeId]) {
-                // Vérifier si l'employé a des données de planning dans cette semaine
-                const employeePlanning = weekData.planning[employeeId];
-                for (const dayKey of Object.keys(employeePlanning)) {
-                  const dayData = employeePlanning[dayKey];
-                  if (Array.isArray(dayData) && dayData.some(slot => slot === true)) {
-                    return true; // L'employé a des données récentes
-                  }
-                  if (typeof dayData === 'string' && dayData.trim() !== '') {
-                    return true; // L'employé a des statuts récents (maladie, congé, etc.)
-                  }
-                }
-              }
-            }
-          }
-        }
-        return false;
-      };
+
       
-      // Filtrer les employés pour cette boutique avec logique intelligente
+      // Filtrer les employés pour cette boutique (logique originale)
       const shopEmployees = validShopEmployees.filter(emp => {
         const can = emp.canWorkIn;
-        
-        // 1. Inclure les employés affectés à cette boutique
-        const isAssignedToShop = Array.isArray(can) && can.includes(selectedShop);
-        
-        // 2. Inclure les employés sans affectation (nouveaux employés)
-        const isNewEmployee = !Array.isArray(can) || can.length === 0;
-        
-        // 3. Inclure les employés qui ont des données de planning récentes (même s'ils ne sont plus affectés)
-        const hasRecentData = hasRecentPlanningData(emp.id);
-        
-        // Logique de filtrage :
-        // - Afficher si affecté à la boutique OU
-        // - Afficher si nouvel employé OU  
-        // - Afficher si a des données récentes (pour permettre l'accès aux récapitulatifs)
-        const shouldShow = isAssignedToShop || isNewEmployee || hasRecentData;
-        
-        if (!shouldShow) {
-          console.log(`👤 Employé masqué: ${emp.name} (${emp.id}) - Plus de données récentes et non affecté à ${selectedShop}`);
-        } else if (hasRecentData && !isAssignedToShop) {
-          console.log(`👤 Employé affiché (données historiques): ${emp.name} (${emp.id}) - A des données récentes mais non affecté à ${selectedShop}`);
-        }
-        
-        return shouldShow;
+        return Array.isArray(can) && can.includes(selectedShop);
       });
       
       const currentShopEmployeeIds = shopEmployees.map(emp => emp.id);
