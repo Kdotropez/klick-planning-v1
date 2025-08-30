@@ -21,7 +21,7 @@ import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
@@ -542,12 +542,39 @@ const PlanningDisplay = ({
 
   // Inclure automatiquement tout nouvel employé de la boutique dans la sélection locale
   useEffect(() => {
-    const currentIds = (currentShopEmployees || []).map(emp => emp.id);
+    if (!currentShopEmployees || currentShopEmployees.length === 0) return;
+    
+    const currentIds = currentShopEmployees.map(emp => emp.id);
     const missing = currentIds.filter(id => !localSelectedEmployees.includes(id));
+    
     if (missing.length > 0) {
+      console.log('🔧 Ajout automatique des employés manquants:', missing);
       setLocalSelectedEmployees(prev => [...prev, ...missing]);
     }
-  }, [currentShopEmployees]);
+  }, [currentShopEmployees, localSelectedEmployees]);
+
+  // Mettre à jour localSelectedEmployees quand selectedEmployees change (pour la première initialisation)
+  useEffect(() => {
+    if (!currentShopEmployees || currentShopEmployees.length === 0) return;
+    
+    const allIds = currentShopEmployees.map(e => e.id);
+    
+    // Si selectedEmployees est vide ou ne contient pas d'employés de la boutique actuelle
+    if (!Array.isArray(selectedEmployees) || selectedEmployees.length === 0) {
+      console.log('🔧 Initialisation avec tous les employés de la boutique:', allIds);
+      setLocalSelectedEmployees(allIds);
+    } else {
+      // Filtrer selectedEmployees pour ne garder que ceux de la boutique actuelle
+      const validEmployees = selectedEmployees.filter(id => allIds.includes(id));
+      if (validEmployees.length !== selectedEmployees.length) {
+        console.log('🔧 Filtrage des employés sélectionnés:', selectedEmployees, '→', validEmployees);
+        setLocalSelectedEmployees(validEmployees);
+      } else if (JSON.stringify(validEmployees.sort()) !== JSON.stringify(localSelectedEmployees.sort())) {
+        console.log('🔧 Mise à jour des employés sélectionnés:', localSelectedEmployees, '→', validEmployees);
+        setLocalSelectedEmployees(validEmployees);
+      }
+    }
+  }, [selectedEmployees, currentShopEmployees]);
 
   // Suppression employé désactivée: handler retiré
 
@@ -575,17 +602,6 @@ const PlanningDisplay = ({
     }
   }, [setPlanningData]);
 
-  // Mettre à jour localSelectedEmployees quand selectedEmployees change (pour la première initialisation)
-  useEffect(() => {
-    const allIds = (currentShopEmployees || []).map(e => e.id);
-    if (Array.isArray(selectedEmployees) && selectedEmployees.length > 0) {
-      setLocalSelectedEmployees(selectedEmployees);
-    } else {
-      // Si vide, par défaut: tous les employés de la boutique
-      setLocalSelectedEmployees(allIds);
-    }
-  }, [selectedEmployees, currentShopEmployees]);
-  
   // Mettre à jour le planning global
   useEffect(() => {
     setGlobalPlanning(planning);
@@ -730,8 +746,8 @@ const PlanningDisplay = ({
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
           if (readOnly) {
-        return;
-      }
+      return;
+    }
     // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
     if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
@@ -887,8 +903,8 @@ const PlanningDisplay = ({
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(async () => {
           if (readOnly) {
-        return;
-      }
+      return;
+    }
     try {
       if (selectedShop && selectedWeek) {
         // Forcer la sauvegarde des données actuelles en mémoire
@@ -1078,7 +1094,7 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde automatique JSON
   const createAutoBackupJSON = useCallback((type = 'auto') => {
-    if (isReadOnly) {
+    if (readOnly) {
       return;
     }
     if (planningData && Object.keys(planningData.shops || {}).length > 0) {
@@ -1667,34 +1683,34 @@ const PlanningDisplay = ({
 
 
       {/* Menu Actions - Juste après le titre */}
-      <div style={{ width: '100%' }}>
-        <PlanningMenuBar
-          currentShop={selectedShop}
-          shops={shops}
-          currentWeek={validWeek}
-          changeWeek={changeWeek}
-          changeShop={changeShop}
-          changeMonth={changeMonth}
-          onBack={onBackToEmployees}
-          onBackToShop={onBackToShopSelection}
-          onBackToWeek={onBackToWeekSelection}
-          onBackToConfig={onBackToConfig}
-          onBackToStartup={onBackToStartup}
-          onExport={handleExport}
-          onImport={onImport}
-          onReset={() => setShowResetModal(true)}
-          setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
-          handleManualSave={handleManualSave}
-          onCreateJSONBackup={createAutoBackupJSON}
-          onOpenDashboard={() => setShowDashboard(true)}
-          onOpenShopStats={() => setShowShopStatsPage(true)}
-          onOpenGestion={() => setShowGestionBoutique(true)}
-          onOpenNotes={() => setShowNotesModal(true)}
-          testSupabase={testSupabase}
-          cleanSupabaseData={cleanSupabaseData}
-          diagnoseSupabase={diagnoseSupabase}
-          diagnoseAndCleanLocks={diagnoseAndCleanLocks}
-          handleRestoreFromSupabase={onRestoreFromSupabase}
+        <div style={{ width: '100%' }}>
+          <PlanningMenuBar
+            currentShop={selectedShop}
+            shops={shops}
+            currentWeek={validWeek}
+            changeWeek={changeWeek}
+            changeShop={changeShop}
+            changeMonth={changeMonth}
+            onBack={onBackToEmployees}
+            onBackToShop={onBackToShopSelection}
+            onBackToWeek={onBackToWeekSelection}
+            onBackToConfig={onBackToConfig}
+            onBackToStartup={onBackToStartup}
+            onExport={handleExport}
+            onImport={onImport}
+            onReset={() => setShowResetModal(true)}
+            setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+            handleManualSave={handleManualSave}
+            onCreateJSONBackup={createAutoBackupJSON}
+            onOpenDashboard={() => setShowDashboard(true)}
+            onOpenShopStats={() => setShowShopStatsPage(true)}
+            onOpenGestion={() => setShowGestionBoutique(true)}
+            onOpenNotes={() => setShowNotesModal(true)}
+            testSupabase={testSupabase}
+            cleanSupabaseData={cleanSupabaseData}
+            diagnoseSupabase={diagnoseSupabase}
+            diagnoseAndCleanLocks={diagnoseAndCleanLocks}
+            handleRestoreFromSupabase={onRestoreFromSupabase}
           currentUser={currentUser}
           // Nouveaux props pour les boutons déplacés
           setShowResetModal={setShowResetModal}
@@ -1705,8 +1721,8 @@ const PlanningDisplay = ({
           setAutoLockEnabled={setAutoLockEnabled}
           copyWeekToNextWeek={copyWeekToNextWeek}
           validationState={validationState}
-        />
-      </div>
+          />
+        </div>
 
 
 
@@ -1904,8 +1920,8 @@ const PlanningDisplay = ({
                   </button>
                   
                   {(() => {
-                    // FORCER l'affichage des boutons séparés pour VALOU et ANGELIQUE
-                    if (employeeName === 'VALOU' || employeeName === 'ANGELIQUE') {
+                    // FORCER l'affichage des boutons séparés pour VALOU, ANGELIQUE et CHRISTINE
+                    if (employeeName === 'VALOU' || employeeName === 'ANGELIQUE' || employeeName === 'CHRISTINE') {
                       console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId})`);
                       
                       // Calculer les heures pour chaque boutique
@@ -2663,10 +2679,10 @@ const PlanningDisplay = ({
             selectedEmployees={localSelectedEmployees}
             onEmployeeToggle={handleEmployeeToggle}
             planning={planning}
-                            onToggleSlot={toggleSlot}
-                onSetDayStatus={(employeeId, dayIndex, status) => {
+            onToggleSlot={toggleSlot}
+            onSetDayStatus={(employeeId, dayIndex, status) => {
                   if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
-                  const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+              const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
               setPlanning(prev => {
                 const updated = { ...prev };
                 if (!updated[employeeId]) updated[employeeId] = {};

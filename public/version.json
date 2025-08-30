@@ -6,13 +6,13 @@
       "version": "3.10.22",
       "date": "2025-01-27",
       "features": [
-        "🔓 DÉSACTIVATION TEMPORAIRE du système de verrouillage multi-utilisateur",
-        "⚡ Travail libre sans blocage ni restriction",
-        "🔧 Correction du problème de verrouillage persistant",
-        "🛡️ Mode propriétaire permanent pour éviter les conflits",
-        "📱 Interface fonctionnelle sans message 'Mode lecture seule'",
-        "🚨 Solution d'urgence pour permettre le travail immédiat",
-        "⚠️ Sécurité multi-utilisateur temporairement désactivée"
+        "🔧 CORRECTION: Export Excel avec absences maladie",
+        "📊 Prise en compte des statuts 'Maladie' dans l'export Excel",
+        "✅ Affichage correct des absences maladie dans les feuilles par employé",
+        "🔧 Correction de la fonction calculateEmployeeWeeklyHours",
+        "🔧 Correction de la fonction findDayDataForEmployee",
+        "📋 Traitement des statuts string (maladie, congé) dans l'export",
+        "🎯 Export Excel fonctionnel depuis les boutons de fonctions"
       ]
     },
     {

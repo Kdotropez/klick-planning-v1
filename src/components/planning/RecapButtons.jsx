@@ -189,91 +189,61 @@ const RecapButtons = ({
     return totalHours.toFixed(1);
   };
 
-  // Obtenir les boutiques où un employé travaille ET a des données
+    // Obtenir les boutiques où un employé travaille ET a des données
   const getEmployeeShops = (employee) => {
     if (!planningData || !currentWeek) return [];
     
     console.log(`DEBUG - getEmployeeShops appelé avec employee: "${employee}"`);
     console.log(`DEBUG - Type de employee:`, typeof employee);
+    console.log(`DEBUG - currentWeek: "${currentWeek}"`);
     
-    // Logique générale pour tous les employés multi-boutiques
-    const allEmployees = getAllEmployees(planningData);
-    const employeeData = allEmployees.find(emp => emp.id === employee);
-    
-    if (!employeeData || !employeeData.canWorkIn || employeeData.canWorkIn.length === 0) {
-      console.log(`Employé ${employee} non trouvé ou pas de boutiques assignées`);
-      return [];
+    // Trouver l'ID de l'employé
+    let employeeId = employee;
+    const allEmployees = planningData.shops?.flatMap(shop => shop.employees || []) || [];
+    const employeeData = allEmployees.find(emp => emp.name === employee || emp.id === employee);
+    if (employeeData) {
+      employeeId = employeeData.id;
+      console.log(`DEBUG - ID trouvé pour ${employee}: ${employeeId}`);
     }
     
-    console.log(`Employé ${employee} peut travailler dans:`, employeeData.canWorkIn);
-    
-    // Si l'employé travaille dans plusieurs boutiques, calculer les heures pour chaque boutique
-    if (employeeData.canWorkIn.length > 1) {
-      console.log(`Employé multi-boutique détecté: ${employee}`);
-      
-      // Calculer les heures réelles pour chaque boutique
-      const shopsWithHours = [];
-      
-      planningData.shops.forEach(shop => {
-        if (employeeData.canWorkIn.includes(shop.id)) {
-          const shopHours = calculateEmployeeShopHours(employee, shop.id);
-          console.log(`DEBUG - ${employee} dans ${shop.name}: ${shopHours}h`);
-          
-          // Inclure la boutique seulement si elle a des heures
-          if (parseFloat(shopHours) > 0) {
-            shopsWithHours.push({
-              id: shop.id,
-              name: shop.name,
-              hours: shopHours
-            });
-          }
-        }
-      });
-      
-      console.log(`Boutiques avec heures pour ${employee}:`, shopsWithHours);
-      return shopsWithHours;
-    }
-    
-    // Pour les employés dans une seule boutique, logique normale
-    const employeeShops = new Map();
-    const monthWeeks = getMonthWeeks(currentWeek);
-    
-    for (const shopId of employeeData.canWorkIn) {
-      const shop = planningData.shops.find(s => s.id === shopId);
-      if (!shop) continue;
-      
-      let hasHoursInShop = false;
-      
-      for (const weekStart of monthWeeks) {
-        const weekData = shop.weeks?.[weekStart];
-        if (weekData && weekData.planning && weekData.planning[employee]) {
-          const employeeWeekData = weekData.planning[employee];
-          
+         // Logique : chercher dans la semaine actuelle seulement
+     const shopsWithHours = [];
+     
+     planningData.shops.forEach(shop => {
+       // Vérifier si l'employé a des données dans cette boutique pour la semaine actuelle
+       let hasDataInShop = false;
+       let totalShopHours = 0;
+       
+               // Chercher dans la semaine actuelle seulement
+        const weekData = shop.weeks?.[currentWeek];
+        if (weekData && weekData.planning && weekData.planning[employeeId]) {
+          hasDataInShop = true;
+          // Calculer les heures directement depuis les données
+          let weekHours = 0;
           for (let i = 0; i < 7; i++) {
-            const dayDate = format(addDays(new Date(weekStart), i), 'yyyy-MM-dd');
-            if (employeeWeekData[dayDate] && Array.isArray(employeeWeekData[dayDate])) {
-              const trueSlots = employeeWeekData[dayDate].filter(slot => slot === true).length;
-              if (trueSlots > 0) {
-                hasHoursInShop = true;
-                break;
-              }
+            const dayDate = format(addDays(new Date(currentWeek), i), 'yyyy-MM-dd');
+            const daySlots = weekData.planning[employeeId]?.[dayDate];
+            if (daySlots && Array.isArray(daySlots)) {
+              const trueSlots = daySlots.filter(slot => slot === true).length;
+              const slotDuration = shop.config?.slotDuration || 0.5;
+              weekHours += trueSlots * slotDuration;
             }
           }
-          if (hasHoursInShop) break;
+          totalShopHours = weekHours;
         }
-      }
       
-      if (hasHoursInShop) {
-        employeeShops.set(shopId, {
-          id: shopId,
-          name: shop.name
+      if (hasDataInShop && totalShopHours > 0) {
+        console.log(`DEBUG - ${employee} dans ${shop.name}: ${totalShopHours.toFixed(1)}h (toutes semaines)`);
+        shopsWithHours.push({
+          id: shop.id,
+          name: shop.name,
+          hours: totalShopHours.toFixed(1)
         });
       }
-    }
+    });
     
-    const uniqueShops = Array.from(employeeShops.values());
-    console.log(`Boutiques trouvées pour employé ${employee}:`, uniqueShops);
-    return uniqueShops;
+    console.log(`Boutiques avec heures pour ${employee}:`, shopsWithHours);
+    return shopsWithHours;
   };
 
   // Calculer les heures hebdomadaires pour la boutique
@@ -328,10 +298,13 @@ const RecapButtons = ({
     return currentShopEmployees?.length || 0;
   };
 
+  // Utiliser getAllEmployees pour avoir tous les employés, pas seulement ceux de la boutique actuelle
+  const allEmployees = getAllEmployees(planningData);
+  
   return (
     <div className="recap-buttons" style={{ display: 'flex', flexDirection: 'row', overflowX: 'auto', justifyContent: 'center', gap: '12px', marginBottom: '15px' }}>
-      {console.log('DEBUG - currentShopEmployees:', currentShopEmployees)}
-      {(currentShopEmployees || []).map((employee, index) => {
+      {console.log('DEBUG - allEmployees:', allEmployees)}
+      {(allEmployees || []).map((employee, index) => {
         const employeeId = employee.id;
         const employeeName = employee?.name || employeeId;
         
@@ -438,96 +411,24 @@ const RecapButtons = ({
               SEMAINE CAL: {calculateEmployeeWeekHours(employeeId)}h
             </Button>
           )}
-          {(() => {
-            // Logique générale pour tous les employés multi-boutiques
-            const allEmployees = getAllEmployees(planningData);
-            const employeeData = allEmployees.find(emp => emp.id === employeeId);
-            const isMultiShopEmployee = employeeData && employeeData.canWorkIn && employeeData.canWorkIn.length > 1;
-            
-            if (isMultiShopEmployee) {
-              console.log(`FORCING SEPARATE BUTTONS FOR ${employeeName} (ID: ${employeeId}) - Multi-boutique`);
-              
-              // Créer des boutons séparés pour chaque boutique
-              const allShops = planningData?.shops || [];
-              const shopsWithHours = [];
-              
-              allShops.forEach(shop => {
-                const shopHours = calculateEmployeeShopHours(employeeId, shop.id);
-                if (parseFloat(shopHours) > 0) {
-                  shopsWithHours.push({
-                    id: shop.id,
-                    name: shop.name,
-                    hours: shopHours
-                  });
-                }
-              });
-              
-              console.log(`Shops with hours for ${employeeName}:`, shopsWithHours);
-              
-              if (shopsWithHours.length > 1) {
-                return (
-                  <div style={{ width: '100%' }}>
-                    {shopsWithHours.map((shop, shopIndex) => (
-                      <Button
-                        key={shop.id}
-                        className="button-recap"
-                        onClick={() => {
-                          console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shop.name, 'Heures:', shop.hours);
-                          setSelectedEmployeeForMonthlyRecap(employeeId);
-                          setShowEmployeeMonthlyRecap(true);
-                        }}
-                        style={{
-                          backgroundColor: '#1e88e5',
-                          color: '#fff',
-                          padding: '4px 8px',
-                          fontSize: '10px',
-                          width: '100%',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          marginBottom: shopIndex < shopsWithHours.length - 1 ? '2px' : '0'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-                      >
-                        {shop.name}: {shop.hours}h
-                      </Button>
-                    ))}
-                    {/* Bouton total global séparé */}
-                    <Button
-                      className="button-recap"
-                      onClick={() => {
-                        console.log('Bouton MOIS RÉEL TOTAL GLOBAL cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeTotalMultiShopHours(employeeId));
-                        setSelectedEmployeeForMonthlyRecap(employeeId);
-                        setShowEmployeeMonthlyRecap(true);
-                      }}
-                      style={{
-                        backgroundColor: '#28a745',
-                        color: '#fff',
-                        padding: '4px 8px',
-                        fontSize: '10px',
-                        width: '100%',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        marginTop: '2px'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-                      onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
-                    >
-                      TOTAL GLOBAL: {calculateEmployeeTotalMultiShopHours(employeeId)}h
-                    </Button>
-                  </div>
-                );
-              }
-            }
-            
-            // Pour tous les autres employés, logique normale
-            const employeeShops = getEmployeeShops(employeeId);
-            console.log(`DEBUG - employeeShops pour ${employeeId}:`, employeeShops);
-            console.log(`DEBUG - employeeShops.length:`, employeeShops.length);
-            
-            if (employeeShops.length <= 1) {
+                     {(() => {
+             // Logique générale pour tous les employés multi-boutiques
+             const allEmployees = getAllEmployees(planningData);
+             const employeeData = allEmployees.find(emp => emp.id === employeeId);
+             const isMultiShopEmployee = employeeData && employeeData.canWorkIn && employeeData.canWorkIn.length > 1;
+             
+             // Pour tous les employés, utiliser getEmployeeShops
+             const employeeShops = getEmployeeShops(employeeId);
+             console.log(`DEBUG - employeeShops pour ${employeeId}:`, employeeShops);
+             console.log(`DEBUG - employeeShops.length:`, employeeShops.length);
+             
+             // Si l'employé n'est pas dans getAllEmployees mais a des heures dans plusieurs boutiques, le traiter comme multi-boutique
+             if (!employeeData && employeeShops.length > 1) {
+               console.log(`DEBUG - ${employeeId} n'est pas dans getAllEmployees mais a ${employeeShops.length} boutiques avec des heures`);
+             }
+             
+                          // Logique unifiée : si l'employé a des heures dans plusieurs boutiques, afficher les boutons séparés
+             if (employeeShops.length <= 1) {
               // Employé dans une seule boutique ou pas de données multi-boutiques
               return (
                 <Button

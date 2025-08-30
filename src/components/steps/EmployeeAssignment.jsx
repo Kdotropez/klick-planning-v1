@@ -32,9 +32,21 @@ const EmployeeAssignment = ({ planningData, onEmployeeUpdate, onNext, onBack, se
   const employees = getSelectedEmployees();
 
   const handleEmployeeShopToggle = (employeeId, shopId, canWork) => {
+    console.log('🔄 Toggle affectation:', { employeeId, shopId, canWork });
     onEmployeeUpdate({ type: 'updateShops', employeeId, shopId, canWork });
-    // Forcer la mise à jour
+    
+    // Forcer la mise à jour de l'interface
     setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+    
+    // Forcer la synchronisation avec Supabase après un délai
+    setTimeout(() => {
+      console.log('🔄 Synchronisation forcée après modification d\'affectation');
+      // Déclencher un événement pour forcer la synchronisation
+      const syncEvent = new CustomEvent('forceSyncAfterAssignment', {
+        detail: { employeeId, shopId, canWork }
+      });
+      window.dispatchEvent(syncEvent);
+    }, 500);
   };
 
   const handleEmployeeToggle = (employeeId) => {

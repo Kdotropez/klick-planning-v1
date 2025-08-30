@@ -92,6 +92,8 @@ export const addEmployee = (planningData, employee) => {
 };
 
 export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) => {
+  console.log('🔧 updateEmployeeShops appelé:', { employeeId, shopId, canWork });
+  
   const updatedShops = planningData.shops.map(shop => {
     // Mettre à jour les employés de cette boutique
     const updatedEmployees = shop.employees.map(emp => {
@@ -101,9 +103,15 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
         
         if (canWork && !updatedCanWorkIn.includes(shopId)) {
           updatedCanWorkIn.push(shopId);
+          console.log(`✅ Ajouté ${shopId} à canWorkIn de ${emp.name} dans ${shop.name}`);
         } else if (!canWork && updatedCanWorkIn.includes(shopId)) {
           updatedCanWorkIn = updatedCanWorkIn.filter(id => id !== shopId);
+          console.log(`❌ Retiré ${shopId} de canWorkIn de ${emp.name} dans ${shop.name}`);
         }
+        
+        // S'assurer que canWorkIn ne contient que des boutiques valides
+        const validShopIds = planningData.shops.map(s => s.id);
+        updatedCanWorkIn = updatedCanWorkIn.filter(id => validShopIds.includes(id));
         
         return {
           ...emp,
@@ -119,10 +127,20 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
     };
   });
   
-  return {
+  const result = {
     ...planningData,
     shops: updatedShops
   };
+  
+  console.log('🔧 updateEmployeeShops - Résultat:', result.shops.map(shop => ({
+    name: shop.name,
+    employees: shop.employees.filter(emp => emp.id === employeeId).map(emp => ({
+      name: emp.name,
+      canWorkIn: emp.canWorkIn
+    }))
+  })));
+  
+  return result;
 };
 
 // Gestion des semaines
@@ -326,8 +344,12 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           // Filtrer: ignorer les jours hors du mois courant
           if (day < monthStart || day > monthEnd) continue;
           const daySlots = weekData?.[dayKey];
-          // Ignorer les statuts sentinelles (chaînes)
-          if (typeof daySlots === 'string') continue;
+          
+          // Traiter les statuts (maladie, congé, etc.)
+          if (typeof daySlots === 'string') {
+            continue; // Pas d'heures pour les statuts
+          }
+          
           if (Array.isArray(daySlots)) {
             trueSlotsCount += daySlots.filter(Boolean).length;
           }
@@ -597,11 +619,32 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     };
 
     const findDayDataForEmployee = (employeeId, date) => {
-      // Retourne { shopName, shopId, slots, interval, timeSlots }
+      // Retourne { shopName, shopId, slots, interval, timeSlots, status }
       const dayKey = format(date, 'yyyy-MM-dd');
       const monday = getMonday(date);
       const weekKey = format(monday, 'yyyy-MM-dd');
       if (!Array.isArray(planningData.shops)) return null;
+      
+      // Chercher d'abord les statuts (maladie, congé, etc.)
+      for (const shop of planningData.shops) {
+        const week = shop.weeks?.[weekKey];
+        const empPlanning = week?.planning?.[employeeId];
+        const slots = empPlanning?.[dayKey];
+        
+        if (typeof slots === 'string') {
+          // C'est un statut (maladie, congé, etc.)
+          return {
+            shopName: shop.name || shop.id,
+            shopId: shop.id,
+            slots: null,
+            interval: shop?.config?.interval || 30,
+            timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
+            status: slots
+          };
+        }
+      }
+      
+      // Chercher ensuite les créneaux sélectionnés
       for (const shop of planningData.shops) {
         const week = shop.weeks?.[weekKey];
         const empPlanning = week?.planning?.[employeeId];
@@ -612,7 +655,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             shopId: shop.id,
             slots,
             interval: shop?.config?.interval || 30,
-            timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : []
+            timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
+            status: null
           };
         }
       }
@@ -660,30 +704,49 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
             const dd = findDayDataForEmployee(emp.id, day);
             const dayLabel = `${format(day, 'EEEE', { locale: fr })} ${format(day, 'dd/MM', { locale: fr })}`;
-            if (dd && Array.isArray(dd.timeSlots) && dd.timeSlots.length > 0) {
-              const wt = getWorkTimesFromSlots(dd.timeSlots, dd.interval, dd.slots);
-              const dnh = calculateDayNightFromSlots(dd.timeSlots, dd.interval, dd.slots);
-              const prev = shopTotals.get(dd.shopId) || 0;
-              shopTotals.set(dd.shopId, prev + wt.hours);
-              const prevNight = shopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
-              shopNightTotals.set(dd.shopId, { t1: prevNight.t1 + dnh.t1, t2: prevNight.t2 + dnh.t2 });
-              weekShopTotals.set(dd.shopId, (weekShopTotals.get(dd.shopId) || 0) + wt.hours);
-              const wsnPrev = weekShopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
-              weekShopNightTotals.set(dd.shopId, { t1: wsnPrev.t1 + dnh.t1, t2: wsnPrev.t2 + dnh.t2 });
-              weekHoursTotal += wt.hours;
-              weekT1Total += dnh.t1; weekT2Total += dnh.t2;
-              data.push({
-                'Jour': dayLabel,
-                'BOUTIQUE': dd.shopName,
-                'ENTRÉE': wt.entry ? `${wt.entry} H` : '-',
-                'PAUSE': wt.pause ? `${wt.pause} H` : '-',
-                'RETOUR': wt.returnTime ? `${wt.returnTime} H` : '-',
-                'SORTIE': wt.exit ? `${wt.exit} H` : '-',
-                'Heures': `${wt.hours.toFixed(1)} h`,
-                'T1': `${dnh.t1.toFixed(1)} h`,
-                'T2': `${dnh.t2.toFixed(1)} h`
-              });
-                } else {
+            
+            if (dd) {
+              if (dd.status) {
+                // C'est un statut (maladie, congé, etc.)
+                const isSick = dd.status.toLowerCase().includes('maladie');
+                data.push({
+                  'Jour': dayLabel,
+                  'BOUTIQUE': dd.shopName,
+                  'ENTRÉE': isSick ? 'MALADIE' : dd.status,
+                  'PAUSE': '-',
+                  'RETOUR': '-',
+                  'SORTIE': '-',
+                  'Heures': '0.0 h',
+                  'T1': '0.0 h',
+                  'T2': '0.0 h'
+                });
+              } else if (Array.isArray(dd.timeSlots) && dd.timeSlots.length > 0) {
+                // C'est du travail avec des créneaux sélectionnés
+                const wt = getWorkTimesFromSlots(dd.timeSlots, dd.interval, dd.slots);
+                const dnh = calculateDayNightFromSlots(dd.timeSlots, dd.interval, dd.slots);
+                const prev = shopTotals.get(dd.shopId) || 0;
+                shopTotals.set(dd.shopId, prev + wt.hours);
+                const prevNight = shopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
+                shopNightTotals.set(dd.shopId, { t1: prevNight.t1 + dnh.t1, t2: prevNight.t2 + dnh.t2 });
+                weekShopTotals.set(dd.shopId, (weekShopTotals.get(dd.shopId) || 0) + wt.hours);
+                const wsnPrev = weekShopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
+                weekShopNightTotals.set(dd.shopId, { t1: wsnPrev.t1 + dnh.t1, t2: wsnPrev.t2 + dnh.t2 });
+                weekHoursTotal += wt.hours;
+                weekT1Total += dnh.t1; weekT2Total += dnh.t2;
+                data.push({
+                  'Jour': dayLabel,
+                  'BOUTIQUE': dd.shopName,
+                  'ENTRÉE': wt.entry ? `${wt.entry} H` : '-',
+                  'PAUSE': wt.pause ? `${wt.pause} H` : '-',
+                  'RETOUR': wt.returnTime ? `${wt.returnTime} H` : '-',
+                  'SORTIE': wt.exit ? `${wt.exit} H` : '-',
+                  'Heures': `${wt.hours.toFixed(1)} h`,
+                  'T1': `${dnh.t1.toFixed(1)} h`,
+                  'T2': `${dnh.t2.toFixed(1)} h`
+                });
+              }
+            } else {
+              // Aucune donnée pour ce jour (congé par défaut)
               data.push({
                 'Jour': dayLabel,
                 'BOUTIQUE': '-',

@@ -100,32 +100,34 @@ const EmployeeMonthlyDetailModal = ({
       return allPlanning;
     }
     
+    
+    
     planningData.shops.forEach(shop => {
       if (shop && shop.weeks && typeof shop.weeks === 'object') {
         Object.keys(shop.weeks).forEach(weekKey => {
           const weekData = shop.weeks[weekKey];
           if (weekData && weekData.planning && weekData.planning[selectedEmployeeForMonthlyDetail]) {
-            // Ajouter l'ID de la boutique aux données seulement si l'employé a des créneaux sélectionnés
+            // Ajouter l'ID de la boutique aux données pour TOUS les jours du mois
             Object.keys(weekData.planning[selectedEmployeeForMonthlyDetail]).forEach(dayStr => {
               // Vérifier que le jour appartient au mois en cours
               const dayDate = new Date(dayStr);
               const monthStart = startOfMonth(new Date(selectedWeek));
               const monthEnd = endOfMonth(new Date(selectedWeek));
               
-
-              
               if (dayDate >= monthStart && dayDate <= monthEnd) {
                 const slots = weekData.planning[selectedEmployeeForMonthlyDetail][dayStr];
-                // Inclure statuts sentinelles (Congé / Maladie) ou jours avec créneaux sélectionnés
-                if (typeof slots === 'string') {
-                  if (!allPlanning[dayStr]) {
-                    allPlanning[dayStr] = {};
-                  }
-                  allPlanning[dayStr][shop.id] = slots;
-                } else if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                  if (!allPlanning[dayStr]) {
-                    allPlanning[dayStr] = {};
-                  }
+                
+                // Inclure TOUS les jours, même ceux sans créneaux sélectionnés
+                if (!allPlanning[dayStr]) {
+                  allPlanning[dayStr] = {};
+                }
+                
+                                 // Si c'est un statut (string), l'inclure directement
+                 if (typeof slots === 'string') {
+                   allPlanning[dayStr][shop.id] = slots;
+                 } 
+                // Si c'est un tableau, l'inclure même s'il n'y a pas de créneaux sélectionnés
+                else if (Array.isArray(slots)) {
                   allPlanning[dayStr][shop.id] = slots;
                 }
               }
@@ -134,6 +136,7 @@ const EmployeeMonthlyDetailModal = ({
         });
       }
     });
+    
     
     return allPlanning;
   }, [planningData, selectedEmployeeForMonthlyDetail, selectedWeek, localForceRefresh, forceRefresh]);
@@ -208,6 +211,17 @@ const EmployeeMonthlyDetailModal = ({
     // Retourner la première boutique trouvée (normalement une seule par jour)
     const shopId = Object.keys(dayPlanning)[0];
     return shopId ? employeeShops.find(s => s.id === shopId) : null;
+  };
+
+  // Obtenir toutes les boutiques pour un jour donné (pour les employés multi-boutiques)
+  const getAllShopsForDay = (date) => {
+    const dayStr = format(date, 'yyyy-MM-dd');
+    const dayPlanning = allEmployeePlanning[dayStr];
+    if (!dayPlanning) return [];
+    
+    return Object.keys(dayPlanning).map(shopId => {
+      return employeeShops.find(s => s.id === shopId);
+    }).filter(Boolean);
   };
 
   // Vérifier si un créneau est sélectionné
@@ -318,6 +332,93 @@ const EmployeeMonthlyDetailModal = ({
     return { entry, pause, return: returnTime, exit, hours };
   };
 
+  // Calculer les heures de travail pour un jour et une boutique spécifique
+  const calculateWorkHoursForShop = (date, shopId) => {
+    const dayStr = format(date, 'yyyy-MM-dd');
+    const dayPlanning = allEmployeePlanning[dayStr];
+    
+    if (!dayPlanning || !dayPlanning[shopId]) {
+      return { entry: null, pause: null, return: null, exit: null, hours: 0 };
+    }
+    
+    const slots = dayPlanning[shopId];
+    if (typeof slots === 'string') {
+      return { entry: null, pause: null, return: null, exit: null, hours: 0 };
+    }
+    
+    const selectedSlots = [];
+    
+    // Récupérer tous les créneaux sélectionnés pour cette date dans cette boutique
+    config.timeSlots.forEach((time, index) => {
+      if (slots && Array.isArray(slots) && slots[index]) {
+        selectedSlots.push({ time, index });
+      }
+    });
+    
+    if (selectedSlots.length === 0) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
+    
+    // Trier par index pour avoir l'ordre chronologique
+    selectedSlots.sort((a, b) => a.index - b.index);
+    
+    const entry = selectedSlots[0].time;
+    // Calculer la fin réelle du dernier créneau (ex: 21:30 -> 22:00)
+    const lastSelected = selectedSlots[selectedSlots.length - 1];
+    let exit = lastSelected.time;
+    if (config?.timeSlots && typeof lastSelected.index === 'number') {
+      const nextSlotTime = config.timeSlots[lastSelected.index + 1];
+      if (nextSlotTime) {
+        exit = nextSlotTime;
+      } else {
+        const exitStartDate = new Date(`2000-01-01T${lastSelected.time}:00`);
+        const exitEndDate = new Date(exitStartDate.getTime() + (config.interval || 30) * 60 * 1000);
+        exit = format(exitEndDate, 'HH:mm');
+      }
+    }
+    
+    // Détecter les pauses (gaps dans les créneaux sélectionnés)
+    let pause = null;
+    let returnTime = null;
+    
+    for (let i = 0; i < selectedSlots.length - 1; i++) {
+      const currentIndex = selectedSlots[i].index;
+      const nextIndex = selectedSlots[i + 1].index;
+      
+      // Si il y a un gap de plus d'un créneau, c'est une pause
+      if (nextIndex - currentIndex > 1) {
+        const currentTime = config.timeSlots[currentIndex];
+        const nextTime = config.timeSlots[nextIndex];
+        
+        // Calculer l'heure de fin du créneau actuel
+        const currentTimeDate = new Date(`2000-01-01T${currentTime}:00`);
+        const endTimeDate = new Date(currentTimeDate.getTime() + (config.interval || 30) * 60 * 1000);
+        const endTime = format(endTimeDate, 'HH:mm');
+        
+        pause = endTime;
+        returnTime = nextTime;
+        break;
+      }
+    }
+    
+    // Calculer le total des heures pour cette boutique
+    const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: slots } }, config);
+    
+    return { entry, pause, return: returnTime, exit, hours };
+  };
+
+  // Vérifier si un jour est en congé pour une boutique spécifique
+  const isDayOffForShop = (date, shopId) => {
+    const dayStr = format(date, 'yyyy-MM-dd');
+    const dayPlanning = allEmployeePlanning[dayStr];
+    
+    if (!dayPlanning || !dayPlanning[shopId]) {
+      return true;
+    }
+    
+    const slots = dayPlanning[shopId];
+    if (typeof slots === 'string') return true;
+    return !slots || slots.every(slot => !slot);
+  };
+
   const exportToPDF = () => {
     console.log('EmployeeMonthlyDetailModal: Exporting to PDF');
     const doc = new jsPDF();
@@ -350,22 +451,71 @@ const EmployeeMonthlyDetailModal = ({
       // Ligne d'en-tête de semaine
       body.push([weekTitle, '', '', '', '', '']);
       
-      // Jours de la semaine
-      weekDays.forEach(({ date }) => {
-        const dayName = getDayName(date);
-        const dayDate = format(date, 'dd/MM', { locale: fr });
-        const isOff = isDayOff(date);
-        const workHours = calculateWorkHours(date);
-        
-        body.push([
-          `${dayName} ${dayDate}`,
-          isOff ? 'Congé ☀️' : (workHours.entry ? `${workHours.entry} H` : '-'),
-          isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-          isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-          isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-          isOff ? '0.0 h' : `${workHours.hours} h`
-        ]);
-      });
+             // Jours de la semaine
+       weekDays.forEach(({ date }) => {
+         const dayName = getDayName(date);
+         const dayDate = format(date, 'dd/MM', { locale: fr });
+         const dayStr = format(date, 'yyyy-MM-dd');
+         const dayPlanning = allEmployeePlanning[dayStr];
+         
+         // Vérifier les statuts dans toutes les boutiques pour ce jour
+         let status = null;
+         let isSick = false;
+         let hasWorkHours = false;
+         
+         if (dayPlanning) {
+           Object.keys(dayPlanning).forEach(shopId => {
+             const shopStatus = dayPlanning[shopId];
+             if (typeof shopStatus === 'string') {
+               // C'est un statut (Congé, Maladie, etc.)
+               if (shopStatus.toLowerCase().includes('maladie')) {
+                 status = shopStatus;
+                 isSick = true;
+               } else if (!status) {
+                 // Garder le premier statut trouvé (priorité à la maladie)
+                 status = shopStatus;
+               }
+             } else if (Array.isArray(shopStatus) && shopStatus.some(slot => slot === true)) {
+               // Il y a des heures de travail dans cette boutique
+               hasWorkHours = true;
+             }
+           });
+         }
+         
+         // Si pas de statut mais pas d'heures non plus, c'est un congé
+         if (!status && !hasWorkHours) {
+           status = 'Congé ☀️';
+         }
+         
+         // Si pas de données du tout pour ce jour, c'est un congé
+         if (!dayPlanning) {
+           status = 'Congé ☀️';
+           hasWorkHours = false;
+         }
+         
+         // Calculer les heures de travail pour l'export (toutes boutiques confondues)
+         let totalHours = 0;
+         
+         if (hasWorkHours) {
+           // Calculer les heures totales de toutes les boutiques
+           Object.keys(dayPlanning).forEach(shopId => {
+             const shopSlots = dayPlanning[shopId];
+             if (Array.isArray(shopSlots)) {
+               const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: shopSlots } }, config);
+               totalHours += hours;
+             }
+           });
+         }
+         
+         body.push([
+           `${dayName} ${dayDate}`,
+           status ? (isSick ? 'MALADIE' : status) : '-',
+           status ? '-' : '-',
+           status ? '-' : '-',
+           status ? '-' : '-',
+           status ? '0.0 h' : `${totalHours} h`
+         ]);
+       });
     });
     
     // Total de la boutique sélectionnée
@@ -421,30 +571,77 @@ const EmployeeMonthlyDetailModal = ({
         'Statut': ''
       });
       
-      // Jours de la semaine
-      weekDays.forEach(({ date }) => {
-        const dayName = getDayName(date);
-        const dayDate = format(date, 'dd/MM', { locale: fr });
-        const isOff = isDayOff(date);
-        const workHours = calculateWorkHours(date);
-        // Récupérer le statut exact pour la boutique sélectionnée
-        const dayStr = format(date, 'yyyy-MM-dd');
-        const dayPlanning = allEmployeePlanning[dayStr];
-        const status = dayPlanning && typeof dayPlanning[selectedShop] === 'string' ? dayPlanning[selectedShop] : (isOff ? 'Congé ☀️' : null);
-        
-        // Déterminer si c'est une maladie
-        const isSick = status && typeof status === 'string' && status.toLowerCase().includes('maladie');
-        
-        data.push({
-          'Jour': `${dayName} ${dayDate}`,
-          'ENTRÉE': status ? (isSick ? 'MALADIE' : status) : (workHours.entry ? `${workHours.entry} H` : '-'),
-          'PAUSE': status ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-          'RETOUR': status ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-          'SORTIE': status ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-          'Heures': status ? '0.0 h' : `${workHours.hours} h`,
-          'Statut': isSick ? 'MALADIE' : (status ? 'CONGÉ' : 'TRAVAIL')
-        });
-      });
+             // Jours de la semaine
+       weekDays.forEach(({ date }) => {
+         const dayName = getDayName(date);
+         const dayDate = format(date, 'dd/MM', { locale: fr });
+         const dayStr = format(date, 'yyyy-MM-dd');
+         const dayPlanning = allEmployeePlanning[dayStr];
+         
+         // Vérifier les statuts dans toutes les boutiques pour ce jour
+         let status = null;
+         let isSick = false;
+         let hasWorkHours = false;
+         
+         if (dayPlanning) {
+           Object.keys(dayPlanning).forEach(shopId => {
+             const shopStatus = dayPlanning[shopId];
+             
+             if (typeof shopStatus === 'string') {
+               // C'est un statut (Congé, Maladie, etc.)
+               if (shopStatus.toLowerCase().includes('maladie')) {
+                 status = shopStatus;
+                 isSick = true;
+               } else if (!status) {
+                 // Garder le premier statut trouvé (priorité à la maladie)
+                 status = shopStatus;
+               }
+             } else if (Array.isArray(shopStatus) && shopStatus.some(slot => slot === true)) {
+               // Il y a des heures de travail dans cette boutique
+               hasWorkHours = true;
+             }
+           });
+         }
+         
+         // Si pas de statut mais pas d'heures non plus, c'est un congé
+         if (!status && !hasWorkHours) {
+           status = 'Congé ☀️';
+         }
+         
+         // Si pas de données du tout pour ce jour, c'est un congé
+         if (!dayPlanning) {
+           status = 'Congé ☀️';
+           hasWorkHours = false;
+         }
+         
+         // Calculer les heures de travail pour l'export (toutes boutiques confondues)
+         let totalHours = 0;
+         let workHours = { entry: null, pause: null, return: null, exit: null, hours: 0 };
+         
+         if (hasWorkHours) {
+           // Calculer les heures totales de toutes les boutiques
+           Object.keys(dayPlanning).forEach(shopId => {
+             const shopSlots = dayPlanning[shopId];
+             if (Array.isArray(shopSlots)) {
+               const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyDetail, dayStr, { [selectedEmployeeForMonthlyDetail]: { [dayStr]: shopSlots } }, config);
+               totalHours += hours;
+             }
+           });
+           
+           // Pour l'export, on peut simplifier les heures de travail
+           workHours.hours = totalHours;
+         }
+         
+         data.push({
+           'Jour': `${dayName} ${dayDate}`,
+           'ENTRÉE': status ? (isSick ? 'MALADIE' : status) : (workHours.entry ? `${workHours.entry} H` : '-'),
+           'PAUSE': status ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
+           'RETOUR': status ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
+           'SORTIE': status ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
+           'Heures': status ? '0.0 h' : `${workHours.hours} h`,
+           'Statut': isSick ? 'MALADIE' : (status ? 'CONGÉ' : 'TRAVAIL')
+         });
+       });
     });
     
     // Total de la boutique sélectionnée
@@ -1119,55 +1316,99 @@ const EmployeeMonthlyDetailModal = ({
                     weekDays.forEach(({ date, index }) => {
                       const dayName = getDayName(date);
                       const dayDate = format(date, 'dd/MM', { locale: fr });
-                      const isOff = isDayOff(date);
-                      const workHours = calculateWorkHours(date);
-                      const shopForDay = getShopForDay(date);
+                      const allShopsForDay = getAllShopsForDay(date);
                       
-                                           rows.push(
-                         <tr key={index} style={{
-                           backgroundColor: weekColor
-                         }}>
-                                                     <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontWeight: '600', fontSize: '10px' }}>
+                      // Si l'employé travaille dans plusieurs boutiques ce jour-là, créer une ligne pour chaque boutique
+                      if (allShopsForDay.length > 0) {
+                        allShopsForDay.forEach((shop, shopIndex) => {
+                          const isOff = isDayOffForShop(date, shop.id);
+                          const workHours = calculateWorkHoursForShop(date, shop.id);
+                          
+                          rows.push(
+                            <tr key={`${index}-${shop.id}`} style={{
+                              backgroundColor: weekColor
+                            }}>
+                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontWeight: '600', fontSize: '10px' }}>
+                                {shopIndex === 0 ? `${dayName} ${dayDate}` : ''}
+                              </td>
+                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                {isOff ? (() => {
+                                  const dayStr = format(date, 'yyyy-MM-dd');
+                                  const dayPlanning = allEmployeePlanning[dayStr];
+                                  const status = dayPlanning && typeof dayPlanning[shop.id] === 'string' ? dayPlanning[shop.id] : 'Congé ☀️';
+                                  const isSick = typeof status === 'string' && status.toLowerCase().includes('maladie');
+                                  return (
+                                    <span style={{ color: isSick ? '#dc3545' : '#FF9800', fontWeight: '600', fontSize: '9px' }}>
+                                      {status}
+                                    </span>
+                                  );
+                                })() : (
+                                  shop.name
+                                )}
+                              </td>
+                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                {isOff ? '-' : (workHours.entry ? `${workHours.entry} H` : '-')}
+                              </td>
+                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                {isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-')}
+                              </td>
+                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                {isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-')}
+                              </td>
+                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                {isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-')}
+                              </td>
+                              <td style={{ 
+                                border: '1px solid #ddd', 
+                                padding: '2px 3px', 
+                                fontWeight: '600',
+                                fontSize: '10px',
+                                color: isOff ? '#FF9800' : '#333'
+                              }}>
+                                {isOff ? '0.0 h' : `${workHours.hours} h`}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      } else {
+                        // Aucune boutique pour ce jour (congé)
+                        const isOff = true;
+                        rows.push(
+                          <tr key={index} style={{
+                            backgroundColor: weekColor
+                          }}>
+                            <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontWeight: '600', fontSize: '10px' }}>
                               {dayName} {dayDate}
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              {isOff ? (() => {
-                                const dayStr = format(date, 'yyyy-MM-dd');
-                                const dayPlanning = allEmployeePlanning[dayStr];
-                                const status = dayPlanning && typeof dayPlanning[selectedShop] === 'string' ? dayPlanning[selectedShop] : 'Congé ☀️';
-                                const isSick = typeof status === 'string' && status.toLowerCase().includes('maladie');
-                                return (
-                                  <span style={{ color: isSick ? '#dc3545' : '#FF9800', fontWeight: '600', fontSize: '9px' }}>
-                                    {status}
-                                  </span>
-                                );
-                              })() : (
-                                shopForDay ? shopForDay.name : '-'
-                              )}
+                              <span style={{ color: '#FF9800', fontWeight: '600', fontSize: '9px' }}>
+                                Congé ☀️
+                              </span>
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              {isOff ? '-' : (workHours.entry ? `${workHours.entry} H` : '-')}
+                              -
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              {isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-')}
+                              -
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              {isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-')}
+                              -
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              {isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-')}
+                              -
                             </td>
                             <td style={{ 
                               border: '1px solid #ddd', 
                               padding: '2px 3px', 
                               fontWeight: '600',
                               fontSize: '10px',
-                              color: isOff ? '#FF9800' : '#333'
+                              color: '#FF9800'
                             }}>
-                              {isOff ? '0.0 h' : `${workHours.hours} h`}
+                              0.0 h
                             </td>
-                         </tr>
-                       );
+                          </tr>
+                        );
+                      }
                     });
                 });
                 
