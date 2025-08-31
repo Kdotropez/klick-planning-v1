@@ -807,6 +807,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     // Créer le fichier Excel (plusieurs feuilles)
     const wsDetail = XLSX.utils.aoa_to_sheet(excelData);
     const wsGlobal = XLSX.utils.aoa_to_sheet(globalSummaryData);
+    const wsWeeklyDetailed = XLSX.utils.aoa_to_sheet(weeklyDetailedData);
 
     // Construire la feuille "Heures de nuit" (par boutique → par semaine → colonnes T1/T2 par employé)
     const buildNightHoursSheet = () => {
@@ -870,6 +871,90 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
     const nightHoursData = buildNightHoursSheet();
 
+    // Construire la feuille "Rapport Hebdomadaire Détaillé" (tous employés par tranche horaire)
+    const buildWeeklyDetailedSheet = () => {
+      const rows = [];
+      if (!planningData.shops || !Array.isArray(planningData.shops)) return rows;
+
+      // Récupérer tous les employés uniques
+      const allEmployeesMap = new Map();
+      (planningData.shops || []).forEach(shop => {
+        (shop.employees || []).forEach(emp => {
+          if (emp && emp.id && !allEmployeesMap.has(emp.id)) {
+            allEmployeesMap.set(emp.id, emp);
+          }
+        });
+      });
+      const allEmployees = Array.from(allEmployeesMap.values());
+
+      // Pour chaque semaine du mois
+      monthWeeks.forEach(weekStart => {
+        rows.push([]);
+        rows.push([`=== SEMAINE: ${getWeekRange(weekStart)} ===`]);
+        rows.push([]);
+
+        // En-têtes: Employé | Lundi | Mardi | Mercredi | Jeudi | Vendredi | Samedi | Dimanche | Total semaine
+        const headers = ['Employé'];
+        for (let i = 0; i < 7; i++) {
+          const day = new Date(weekStart);
+          day.setDate(weekStart.getDate() + i);
+          const dayName = format(day, 'EEEE', { locale: fr });
+          const dayDate = format(day, 'dd/MM', { locale: fr });
+          headers.push(`${dayName} ${dayDate}`);
+        }
+        headers.push('Total semaine');
+        rows.push(headers);
+
+        // Pour chaque employé
+        allEmployees.forEach(emp => {
+          const row = [emp.name || emp.id];
+          let weekTotal = 0;
+
+          // Pour chaque jour de la semaine
+          for (let i = 0; i < 7; i++) {
+            const day = new Date(weekStart);
+            day.setDate(weekStart.getDate() + i);
+            const dayKey = format(day, 'yyyy-MM-dd');
+            
+            // Chercher les données de l'employé pour ce jour
+            let dayData = null;
+            for (const shop of planningData.shops) {
+              const week = shop.weeks?.[format(weekStart, 'yyyy-MM-dd')];
+              const empPlanning = week?.planning?.[emp.id];
+              const slots = empPlanning?.[dayKey];
+              
+              if (slots) {
+                if (typeof slots === 'string') {
+                  // C'est un statut (maladie, congé, etc.)
+                  dayData = slots;
+                  break;
+                } else if (Array.isArray(slots) && slots.some(Boolean)) {
+                  // C'est du travail avec des créneaux
+                  const timeSlots = shop.config?.timeSlots || [];
+                  const interval = shop.config?.interval || 30;
+                  const workTimes = getWorkTimesFromSlots(timeSlots, interval, slots);
+                  dayData = `${workTimes.entry || '-'} - ${workTimes.exit || '-'} (${workTimes.hours.toFixed(1)}h)`;
+                  weekTotal += workTimes.hours;
+                  break;
+                }
+              }
+            }
+            
+            row.push(dayData || 'Congé ☀️');
+          }
+          
+          row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '0.0 H');
+          rows.push(row);
+        });
+
+        rows.push([]);
+      });
+
+      return rows;
+    };
+
+    const weeklyDetailedData = buildWeeklyDetailedSheet();
+
     // Mise en forme basique: largeurs de colonnes
     // Feuille Planning Détaillé: Semaine + N employés + Total
     wsDetail['!cols'] = [{ wch: 34 }];
@@ -885,6 +970,11 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     const shopsCount = planningData?.shops?.length || 0;
     for (let i = 0; i < shopsCount; i++) wsGlobal['!cols'].push({ wch: 14 });
     wsGlobal['!cols'].push({ wch: 16 });
+
+    // Feuille Rapport Hebdomadaire: Employé + 7 jours + Total
+    wsWeeklyDetailed['!cols'] = [{ wch: 20 }]; // Employé
+    for (let i = 0; i < 7; i++) wsWeeklyDetailed['!cols'].push({ wch: 25 }); // 7 jours
+    wsWeeklyDetailed['!cols'].push({ wch: 15 }); // Total semaine
 
     // Thèmes de styles
     const THEMES = {
@@ -1116,6 +1206,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     // Encapsuler l'ajout de feuilles dans des try/catch pour éviter les erreurs bloquantes
     try { XLSX.utils.book_append_sheet(wb, wsDetail, 'Planning Détaillé'); } catch (e) { console.warn('Ajout feuille Planning Détaillé ignoré:', e); }
     try { XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé global'); } catch (e) { console.warn('Ajout feuille Résumé global ignoré:', e); }
+    try { XLSX.utils.book_append_sheet(wb, wsWeeklyDetailed, 'Rapport Hebdomadaire'); } catch (e) { console.warn('Ajout feuille Rapport Hebdomadaire ignoré:', e); }
     if (wsNight) {
       XLSX.utils.book_append_sheet(wb, wsNight, 'Heures de nuit');
     }
