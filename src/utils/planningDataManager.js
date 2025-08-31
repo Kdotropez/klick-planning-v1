@@ -808,6 +808,11 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     const wsDetail = XLSX.utils.aoa_to_sheet(excelData);
     const wsGlobal = XLSX.utils.aoa_to_sheet(globalSummaryData);
     const wsWeeklyDetailed = XLSX.utils.aoa_to_sheet(weeklyDetailedData);
+    console.log('🔍 Feuilles Excel créées:', {
+      detail: !!wsDetail,
+      global: !!wsGlobal,
+      weekly: !!wsWeeklyDetailed
+    });
 
     // Construire la feuille "Heures de nuit" (par boutique → par semaine → colonnes T1/T2 par employé)
     const buildNightHoursSheet = () => {
@@ -873,8 +878,12 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
     // Construire la feuille "Rapport Hebdomadaire Détaillé" (tous employés par tranche horaire)
     const buildWeeklyDetailedSheet = () => {
+      console.log('🔍 Construction de la feuille Rapport Hebdomadaire...');
       const rows = [];
-      if (!planningData.shops || !Array.isArray(planningData.shops)) return rows;
+      if (!planningData.shops || !Array.isArray(planningData.shops)) {
+        console.warn('❌ Aucune boutique trouvée pour le rapport hebdomadaire');
+        return rows;
+      }
 
       // Récupérer tous les employés uniques
       const allEmployeesMap = new Map();
@@ -886,6 +895,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         });
       });
       const allEmployees = Array.from(allEmployeesMap.values());
+      console.log(`🔍 ${allEmployees.length} employés trouvés pour le rapport hebdomadaire`);
 
       // Pour chaque semaine du mois
       monthWeeks.forEach(weekStart => {
@@ -950,10 +960,12 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         rows.push([]);
       });
 
+      console.log(`✅ Feuille Rapport Hebdomadaire construite avec ${rows.length} lignes`);
       return rows;
     };
 
     const weeklyDetailedData = buildWeeklyDetailedSheet();
+    console.log('🔍 Données hebdomadaires construites:', weeklyDetailedData.length > 0 ? 'OK' : 'VIDE');
 
     // Mise en forme basique: largeurs de colonnes
     // Feuille Planning Détaillé: Semaine + N employés + Total
@@ -1340,8 +1352,10 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         const wb2 = XLSXCore.utils.book_new();
         const wsDetail2 = XLSXCore.utils.aoa_to_sheet(excelData);
         const wsGlobal2 = XLSXCore.utils.aoa_to_sheet(globalSummaryData);
+        const wsWeeklyDetailed2 = XLSXCore.utils.aoa_to_sheet(weeklyDetailedData);
         XLSXCore.utils.book_append_sheet(wb2, wsDetail2, 'Planning Détaillé');
         XLSXCore.utils.book_append_sheet(wb2, wsGlobal2, 'Résumé global');
+        XLSXCore.utils.book_append_sheet(wb2, wsWeeklyDetailed2, 'Rapport Hebdomadaire');
         // Inclure Heures de nuit si dispo
         if (nightHoursData && nightHoursData.length > 0) {
           const wsNight2 = XLSXCore.utils.aoa_to_sheet(nightHoursData);
