@@ -831,16 +831,16 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         rows.push([`=== SEMAINE: ${getWeekRange(weekStart)} ===`]);
         rows.push([]);
 
-        // En-têtes: Employé | Lundi | Mardi | Mercredi | Jeudi | Vendredi | Samedi | Dimanche | Total semaine | T1 | T2
+        // En-têtes: Employé | Lundi | Mardi | Mercredi | Jeudi | Vendredi | Samedi | Dimanche | Total semaine
         const headers = ['Employé'];
         for (let i = 0; i < 7; i++) {
           const day = new Date(weekStart);
           day.setDate(weekStart.getDate() + i);
           const dayName = format(day, 'EEEE', { locale: fr });
           const dayDate = format(day, 'dd/MM', { locale: fr });
-          headers.push(`${dayName} ${dayDate}`);
+          headers.push(`${dayName} ${dayDate}`, `T1 ${dayDate}`, `T2 ${dayDate}`);
         }
-        headers.push('Total semaine', 'T1', 'T2');
+        headers.push('Total semaine', 'Total T1', 'Total T2');
         rows.push(headers);
 
         // Pour chaque employé
@@ -858,6 +858,9 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             
             // Chercher les données de l'employé pour ce jour
             let dayData = null;
+            let dayT1 = 0;
+            let dayT2 = 0;
+            
             for (const shop of planningData.shops) {
               const week = shop.weeks?.[format(weekStart, 'yyyy-MM-dd')];
               const empPlanning = week?.planning?.[emp.id];
@@ -876,8 +879,10 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
                   
                   // Calculer les heures de nuit pour ce jour
                   const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
-                  weekT1 += dayNightHours.t1;
-                  weekT2 += dayNightHours.t2;
+                  dayT1 = dayNightHours.t1;
+                  dayT2 = dayNightHours.t2;
+                  weekT1 += dayT1;
+                  weekT2 += dayT2;
                   
                   dayData = `${workTimes.entry || '-'} - ${workTimes.exit || '-'} (${workTimes.hours.toFixed(1)}h)`;
                   weekTotal += workTimes.hours;
@@ -887,6 +892,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             }
             
             row.push(dayData || 'Congé ☀️');
+            row.push(dayT1 > 0 ? `${dayT1.toFixed(1)} H` : '0.0 H');
+            row.push(dayT2 > 0 ? `${dayT2.toFixed(1)} H` : '0.0 H');
           }
           
           row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '0.0 H');
@@ -993,12 +1000,16 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     for (let i = 0; i < shopsCount; i++) wsGlobal['!cols'].push({ wch: 14 });
     wsGlobal['!cols'].push({ wch: 16 });
 
-    // Feuille Rapport Hebdomadaire: Employé + 7 jours + Total + T1 + T2
+    // Feuille Rapport Hebdomadaire: Employé + (7 jours × 3 colonnes) + 3 totaux
     wsWeeklyDetailed['!cols'] = [{ wch: 20 }]; // Employé
-    for (let i = 0; i < 7; i++) wsWeeklyDetailed['!cols'].push({ wch: 25 }); // 7 jours
+    for (let i = 0; i < 7; i++) {
+      wsWeeklyDetailed['!cols'].push({ wch: 25 }); // Jour
+      wsWeeklyDetailed['!cols'].push({ wch: 10 }); // T1 du jour
+      wsWeeklyDetailed['!cols'].push({ wch: 10 }); // T2 du jour
+    }
     wsWeeklyDetailed['!cols'].push({ wch: 15 }); // Total semaine
-    wsWeeklyDetailed['!cols'].push({ wch: 12 }); // T1
-    wsWeeklyDetailed['!cols'].push({ wch: 12 }); // T2
+    wsWeeklyDetailed['!cols'].push({ wch: 12 }); // Total T1
+    wsWeeklyDetailed['!cols'].push({ wch: 12 }); // Total T2
 
     // Thèmes de styles
     const THEMES = {
@@ -1257,30 +1268,45 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           }
         }
         
-        // Style des lignes de données avec alternance de couleurs
-        const numRows = range.e.r - range.s.r + 1;
-        if (numRows > 1) {
-          for (let r = 1; r < numRows; r++) {
-            const isEven = (r - 1) % 2 === 0;
-            const fillColor = isEven ? THEME.band1 : THEME.band2;
-            
-            for (let c = range.s.c; c <= range.e.c; c++) {
-              const addr = XLSX.utils.encode_cell({ r, c });
-              const cell = wsWeeklyDetailed[addr] || (wsWeeklyDetailed[addr] = { t: 's', v: '' });
-              cell.s = {
-                ...(cell.s || {}),
-                fill: { fgColor: { rgb: fillColor } },
-                border: {
-                  top: { style: 'thin', color: { rgb: THEME.border } },
-                  bottom: { style: 'thin', color: { rgb: THEME.border } },
-                  left: { style: 'thin', color: { rgb: THEME.border } },
-                  right: { style: 'thin', color: { rgb: THEME.border } }
-                },
-                alignment: { vertical: 'center', wrapText: true }
-              };
-            }
-          }
-        }
+                 // Style des lignes de données avec alternance de couleurs et couleur spéciale pour T1/T2
+         const numRows = range.e.r - range.s.r + 1;
+         if (numRows > 1) {
+           for (let r = 1; r < numRows; r++) {
+             const isEven = (r - 1) % 2 === 0;
+             const fillColor = isEven ? THEME.band1 : THEME.band2;
+             
+             for (let c = range.s.c; c <= range.e.c; c++) {
+               const addr = XLSX.utils.encode_cell({ r, c });
+               const cell = wsWeeklyDetailed[addr] || (wsWeeklyDetailed[addr] = { t: 's', v: '' });
+               
+               // Déterminer si c'est une colonne T1 ou T2 (colonnes 2, 5, 8, 11, 14, 17, 20 pour chaque jour)
+               const isT1T2Column = (c - 1) % 3 === 1 || (c - 1) % 3 === 2; // Colonnes T1 et T2 de chaque jour
+               const isTotalT1T2Column = c >= range.e.c - 1; // Dernières colonnes (Total T1, Total T2)
+               
+               let cellFillColor = fillColor;
+               let cellFontColor = '000000'; // Noir par défaut
+               
+               if (isT1T2Column || isTotalT1T2Column) {
+                 // Couleur spéciale pour T1/T2 : fond plus clair avec texte bleu
+                 cellFillColor = 'E8F4FD'; // Bleu très clair
+                 cellFontColor = '0066CC'; // Bleu
+               }
+               
+               cell.s = {
+                 ...(cell.s || {}),
+                 fill: { fgColor: { rgb: cellFillColor } },
+                 font: { color: { rgb: cellFontColor } },
+                 border: {
+                   top: { style: 'thin', color: { rgb: THEME.border } },
+                   bottom: { style: 'thin', color: { rgb: THEME.border } },
+                   left: { style: 'thin', color: { rgb: THEME.border } },
+                   right: { style: 'thin', color: { rgb: THEME.border } }
+                 },
+                 alignment: { vertical: 'center', wrapText: true }
+               };
+             }
+           }
+         }
         
         // Style spécial pour les titres de semaine
         for (let r = 1; r < numRows; r++) {
@@ -1353,9 +1379,23 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             for (let c = range.s.c; c <= range.e.c; c++) {
               const addr = XLSX.utils.encode_cell({ r, c });
               const cell = s.ws[addr] || (s.ws[addr] = { t: 's', v: '' });
+              
+              // Déterminer si c'est une colonne T1 ou T2 (colonnes 7 et 8 dans les feuilles employé)
+              const isT1T2Column = c === 7 || c === 8; // Colonnes T1 et T2
+              
+              let cellFillColor = fillColor;
+              let cellFontColor = '000000'; // Noir par défaut
+              
+              if (isT1T2Column) {
+                // Couleur spéciale pour T1/T2 : fond plus clair avec texte bleu
+                cellFillColor = 'E8F4FD'; // Bleu très clair
+                cellFontColor = '0066CC'; // Bleu
+              }
+              
               cell.s = {
                 ...(cell.s || {}),
-                fill: { fgColor: { rgb: fillColor } },
+                fill: { fgColor: { rgb: cellFillColor } },
+                font: { color: { rgb: cellFontColor } },
                 border: {
                   top: { style: 'thin', color: { rgb: THEME.border } },
                   bottom: { style: 'thin', color: { rgb: THEME.border } },
