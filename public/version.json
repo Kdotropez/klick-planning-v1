@@ -35,13 +35,13 @@
           ]
         },
         {
-          "version": "3.10.39",
+          "version": "3.10.40",
           "date": "2025-01-27",
           "features": [
-            "🔧 CORRECTION: Export Excel avec rapport hebdomadaire",
-            "✅ Correction du fallback pour inclure la nouvelle feuille",
-            "🔍 Ajout de logs de debug pour diagnostiquer les erreurs",
-            "📊 Amélioration de la robustesse de l'export Excel"
+            "🔧 CORRECTION: Erreur de référence dans l'export Excel",
+            "✅ Déplacement de la fonction buildWeeklyDetailedSheet avant son utilisation",
+            "🔍 Correction de l'erreur 'Cannot access before initialization'",
+            "📊 Export Excel maintenant fonctionnel avec rapport hebdomadaire"
           ]
         },
     {

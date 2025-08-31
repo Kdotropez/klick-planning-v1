@@ -804,78 +804,6 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
     const employeeSheets = buildEmployeeSheets();
 
-    // Créer le fichier Excel (plusieurs feuilles)
-    const wsDetail = XLSX.utils.aoa_to_sheet(excelData);
-    const wsGlobal = XLSX.utils.aoa_to_sheet(globalSummaryData);
-    const wsWeeklyDetailed = XLSX.utils.aoa_to_sheet(weeklyDetailedData);
-    console.log('🔍 Feuilles Excel créées:', {
-      detail: !!wsDetail,
-      global: !!wsGlobal,
-      weekly: !!wsWeeklyDetailed
-    });
-
-    // Construire la feuille "Heures de nuit" (par boutique → par semaine → colonnes T1/T2 par employé)
-    const buildNightHoursSheet = () => {
-      const rows = [];
-      if (!planningData.shops || !Array.isArray(planningData.shops)) return rows;
-
-      planningData.shops.forEach(shop => {
-        rows.push([]);
-        rows.push([`=== BOUTIQUE: ${shop.name?.toUpperCase() || shop.id} ===`]);
-        rows.push([]);
-
-        // N'inclure que les employés affectés et ayant des heures de nuit > 0 sur le mois courant
-        const assigned = Array.isArray(shop.employees)
-          ? shop.employees.filter(emp => Array.isArray(emp?.canWorkIn) && emp.canWorkIn.includes(shop.id))
-          : [];
-        const employeesInShop = assigned.filter(emp => {
-          let hasNight = false;
-          for (const weekStart of monthWeeks) {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
-            if ((nh.t1 || 0) + (nh.t2 || 0) > 0) { hasNight = true; break; }
-          }
-          return hasNight;
-        });
-        const header = ['Semaine'];
-        employeesInShop.forEach(emp => {
-          header.push(`${emp.name || emp.id} T1`, `${emp.name || emp.id} T2`);
-        });
-        header.push('Total semaine T1', 'Total semaine T2');
-        rows.push(header);
-
-        monthWeeks.forEach(weekStart => {
-          const row = [getWeekRange(weekStart)];
-          let weekT1 = 0, weekT2 = 0;
-          employeesInShop.forEach(emp => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
-            row.push(nh.t1 > 0 ? `${nh.t1.toFixed(1)} H` : '', nh.t2 > 0 ? `${nh.t2.toFixed(1)} H` : '');
-            weekT1 += nh.t1; weekT2 += nh.t2;
-          });
-          row.push(weekT1 > 0 ? `${weekT1.toFixed(1)} H` : '', weekT2 > 0 ? `${weekT2.toFixed(1)} H` : '');
-          rows.push(row);
-        });
-
-        // Totaux mois
-        const totalRow = ['Total mois'];
-        let totalT1 = 0, totalT2 = 0;
-        employeesInShop.forEach(emp => {
-          let empT1 = 0, empT2 = 0;
-          monthWeeks.forEach(weekStart => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
-            empT1 += nh.t1; empT2 += nh.t2;
-          });
-          totalRow.push(empT1 > 0 ? `${empT1.toFixed(1)} H` : '', empT2 > 0 ? `${empT2.toFixed(1)} H` : '');
-          totalT1 += empT1; totalT2 += empT2;
-        });
-        totalRow.push(totalT1 > 0 ? `${totalT1.toFixed(1)} H` : '', totalT2 > 0 ? `${totalT2.toFixed(1)} H` : '');
-        rows.push(totalRow);
-      });
-
-      return rows;
-    };
-
-    const nightHoursData = buildNightHoursSheet();
-
     // Construire la feuille "Rapport Hebdomadaire Détaillé" (tous employés par tranche horaire)
     const buildWeeklyDetailedSheet = () => {
       console.log('🔍 Construction de la feuille Rapport Hebdomadaire...');
@@ -966,6 +894,78 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
     const weeklyDetailedData = buildWeeklyDetailedSheet();
     console.log('🔍 Données hebdomadaires construites:', weeklyDetailedData.length > 0 ? 'OK' : 'VIDE');
+
+    // Créer le fichier Excel (plusieurs feuilles)
+    const wsDetail = XLSX.utils.aoa_to_sheet(excelData);
+    const wsGlobal = XLSX.utils.aoa_to_sheet(globalSummaryData);
+    const wsWeeklyDetailed = XLSX.utils.aoa_to_sheet(weeklyDetailedData);
+    console.log('🔍 Feuilles Excel créées:', {
+      detail: !!wsDetail,
+      global: !!wsGlobal,
+      weekly: !!wsWeeklyDetailed
+    });
+
+    // Construire la feuille "Heures de nuit" (par boutique → par semaine → colonnes T1/T2 par employé)
+    const buildNightHoursSheet = () => {
+      const rows = [];
+      if (!planningData.shops || !Array.isArray(planningData.shops)) return rows;
+
+      planningData.shops.forEach(shop => {
+        rows.push([]);
+        rows.push([`=== BOUTIQUE: ${shop.name?.toUpperCase() || shop.id} ===`]);
+        rows.push([]);
+
+        // N'inclure que les employés affectés et ayant des heures de nuit > 0 sur le mois courant
+        const assigned = Array.isArray(shop.employees)
+          ? shop.employees.filter(emp => Array.isArray(emp?.canWorkIn) && emp.canWorkIn.includes(shop.id))
+          : [];
+        const employeesInShop = assigned.filter(emp => {
+          let hasNight = false;
+          for (const weekStart of monthWeeks) {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            if ((nh.t1 || 0) + (nh.t2 || 0) > 0) { hasNight = true; break; }
+          }
+          return hasNight;
+        });
+        const header = ['Semaine'];
+        employeesInShop.forEach(emp => {
+          header.push(`${emp.name || emp.id} T1`, `${emp.name || emp.id} T2`);
+        });
+        header.push('Total semaine T1', 'Total semaine T2');
+        rows.push(header);
+
+        monthWeeks.forEach(weekStart => {
+          const row = [getWeekRange(weekStart)];
+          let weekT1 = 0, weekT2 = 0;
+          employeesInShop.forEach(emp => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            row.push(nh.t1 > 0 ? `${nh.t1.toFixed(1)} H` : '', nh.t2 > 0 ? `${nh.t2.toFixed(1)} H` : '');
+            weekT1 += nh.t1; weekT2 += nh.t2;
+          });
+          row.push(weekT1 > 0 ? `${weekT1.toFixed(1)} H` : '', weekT2 > 0 ? `${weekT2.toFixed(1)} H` : '');
+          rows.push(row);
+        });
+
+        // Totaux mois
+        const totalRow = ['Total mois'];
+        let totalT1 = 0, totalT2 = 0;
+        employeesInShop.forEach(emp => {
+          let empT1 = 0, empT2 = 0;
+          monthWeeks.forEach(weekStart => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id, monthStart, monthEnd);
+            empT1 += nh.t1; empT2 += nh.t2;
+          });
+          totalRow.push(empT1 > 0 ? `${empT1.toFixed(1)} H` : '', empT2 > 0 ? `${empT2.toFixed(1)} H` : '');
+          totalT1 += empT1; totalT2 += empT2;
+        });
+        totalRow.push(totalT1 > 0 ? `${totalT1.toFixed(1)} H` : '', totalT2 > 0 ? `${totalT2.toFixed(1)} H` : '');
+        rows.push(totalRow);
+      });
+
+      return rows;
+    };
+
+    const nightHoursData = buildNightHoursSheet();
 
     // Mise en forme basique: largeurs de colonnes
     // Feuille Planning Détaillé: Semaine + N employés + Total
