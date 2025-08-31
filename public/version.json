@@ -35,13 +35,13 @@
           ]
         },
         {
-          "version": "3.10.40",
+          "version": "3.10.41",
           "date": "2025-01-27",
           "features": [
-            "🔧 CORRECTION: Erreur de référence dans l'export Excel",
-            "✅ Déplacement de la fonction buildWeeklyDetailedSheet avant son utilisation",
-            "🔍 Correction de l'erreur 'Cannot access before initialization'",
-            "📊 Export Excel maintenant fonctionnel avec rapport hebdomadaire"
+            "🎨 AMÉLIORATION: Rapport hebdomadaire avec heures de nuit et mise en forme",
+            "✅ Ajout des colonnes T1 et T2 pour les heures de nuit",
+            "🎨 Mise en forme professionnelle avec alternance de couleurs",
+            "📊 Style cohérent avec les autres feuilles Excel"
           ]
         },
     {

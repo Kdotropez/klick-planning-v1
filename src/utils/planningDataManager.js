@@ -831,7 +831,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         rows.push([`=== SEMAINE: ${getWeekRange(weekStart)} ===`]);
         rows.push([]);
 
-        // En-têtes: Employé | Lundi | Mardi | Mercredi | Jeudi | Vendredi | Samedi | Dimanche | Total semaine
+        // En-têtes: Employé | Lundi | Mardi | Mercredi | Jeudi | Vendredi | Samedi | Dimanche | Total semaine | T1 | T2
         const headers = ['Employé'];
         for (let i = 0; i < 7; i++) {
           const day = new Date(weekStart);
@@ -840,13 +840,15 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           const dayDate = format(day, 'dd/MM', { locale: fr });
           headers.push(`${dayName} ${dayDate}`);
         }
-        headers.push('Total semaine');
+        headers.push('Total semaine', 'T1', 'T2');
         rows.push(headers);
 
         // Pour chaque employé
         allEmployees.forEach(emp => {
           const row = [emp.name || emp.id];
           let weekTotal = 0;
+          let weekT1 = 0;
+          let weekT2 = 0;
 
           // Pour chaque jour de la semaine
           for (let i = 0; i < 7; i++) {
@@ -871,6 +873,12 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
                   const timeSlots = shop.config?.timeSlots || [];
                   const interval = shop.config?.interval || 30;
                   const workTimes = getWorkTimesFromSlots(timeSlots, interval, slots);
+                  
+                  // Calculer les heures de nuit pour ce jour
+                  const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
+                  weekT1 += dayNightHours.t1;
+                  weekT2 += dayNightHours.t2;
+                  
                   dayData = `${workTimes.entry || '-'} - ${workTimes.exit || '-'} (${workTimes.hours.toFixed(1)}h)`;
                   weekTotal += workTimes.hours;
                   break;
@@ -882,6 +890,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           }
           
           row.push(weekTotal > 0 ? `${weekTotal.toFixed(1)} H` : '0.0 H');
+          row.push(weekT1 > 0 ? `${weekT1.toFixed(1)} H` : '0.0 H');
+          row.push(weekT2 > 0 ? `${weekT2.toFixed(1)} H` : '0.0 H');
           rows.push(row);
         });
 
@@ -983,10 +993,12 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     for (let i = 0; i < shopsCount; i++) wsGlobal['!cols'].push({ wch: 14 });
     wsGlobal['!cols'].push({ wch: 16 });
 
-    // Feuille Rapport Hebdomadaire: Employé + 7 jours + Total
+    // Feuille Rapport Hebdomadaire: Employé + 7 jours + Total + T1 + T2
     wsWeeklyDetailed['!cols'] = [{ wch: 20 }]; // Employé
     for (let i = 0; i < 7; i++) wsWeeklyDetailed['!cols'].push({ wch: 25 }); // 7 jours
     wsWeeklyDetailed['!cols'].push({ wch: 15 }); // Total semaine
+    wsWeeklyDetailed['!cols'].push({ wch: 12 }); // T1
+    wsWeeklyDetailed['!cols'].push({ wch: 12 }); // T2
 
     // Thèmes de styles
     const THEMES = {
@@ -1219,6 +1231,83 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     try { XLSX.utils.book_append_sheet(wb, wsDetail, 'Planning Détaillé'); } catch (e) { console.warn('Ajout feuille Planning Détaillé ignoré:', e); }
     try { XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé global'); } catch (e) { console.warn('Ajout feuille Résumé global ignoré:', e); }
     try { XLSX.utils.book_append_sheet(wb, wsWeeklyDetailed, 'Rapport Hebdomadaire'); } catch (e) { console.warn('Ajout feuille Rapport Hebdomadaire ignoré:', e); }
+    
+    // Appliquer les styles à la feuille Rapport Hebdomadaire
+    try {
+      const styleWeeklySheet = () => {
+        const rangeRef = wsWeeklyDetailed['!ref'] || 'A1';
+        const range = XLSX.utils.decode_range(rangeRef);
+        
+        // Style des en-têtes
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+          const cell = wsWeeklyDetailed[cellAddress];
+          if (cell) {
+            cell.s = {
+              fill: { fgColor: { rgb: THEME.headerBg } },
+              font: { color: { rgb: THEME.headerFont }, bold: true },
+              alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+              border: {
+                top: { style: 'thin', color: { rgb: THEME.border } },
+                bottom: { style: 'thin', color: { rgb: THEME.border } },
+                left: { style: 'thin', color: { rgb: THEME.border } },
+                right: { style: 'thin', color: { rgb: THEME.border } }
+              }
+            };
+          }
+        }
+        
+        // Style des lignes de données avec alternance de couleurs
+        const numRows = range.e.r - range.s.r + 1;
+        if (numRows > 1) {
+          for (let r = 1; r < numRows; r++) {
+            const isEven = (r - 1) % 2 === 0;
+            const fillColor = isEven ? THEME.band1 : THEME.band2;
+            
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = wsWeeklyDetailed[addr] || (wsWeeklyDetailed[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: fillColor } },
+                border: {
+                  top: { style: 'thin', color: { rgb: THEME.border } },
+                  bottom: { style: 'thin', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { vertical: 'center', wrapText: true }
+              };
+            }
+          }
+        }
+        
+        // Style spécial pour les titres de semaine
+        for (let r = 1; r < numRows; r++) {
+          const cellA = wsWeeklyDetailed[XLSX.utils.encode_cell({ r, c: 0 })];
+          const v = cellA?.v || '';
+          if (typeof v === 'string' && v.startsWith('=== SEMAINE:')) {
+            for (let c = range.s.c; c <= range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = wsWeeklyDetailed[addr] || (wsWeeklyDetailed[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: THEME.sectionBg } },
+                font: { color: { rgb: THEME.sectionFont }, bold: true },
+                border: {
+                  top: { style: 'medium', color: { rgb: THEME.border } },
+                  bottom: { style: 'medium', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { horizontal: 'center', vertical: 'center' }
+              };
+            }
+          }
+        }
+      };
+      styleWeeklySheet();
+    } catch (e) { console.warn('Styles Rapport Hebdomadaire ignorés:', e); }
     if (wsNight) {
       XLSX.utils.book_append_sheet(wb, wsNight, 'Heures de nuit');
     }
