@@ -496,29 +496,29 @@ const EmployeeManagement = ({ planningData, onEmployeeUpdate, onNext, onBack }) 
                     </Button>
                   </div>
                   
-                                     <div style={{ marginBottom: '10px' }}>
-                     <span style={{
-                       fontSize: '12px',
-                       color: '#666',
-                       backgroundColor: '#e9ecef',
-                       padding: '4px 8px',
-                       borderRadius: '4px'
-                     }}>
-                       Masqué à partir du {new Date(employee.hiddenFrom).toLocaleDateString('fr-FR')}
-                     </span>
-                   </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <span style={{
+                      fontSize: '12px',
+                      color: '#666',
+                      backgroundColor: '#e9ecef',
+                      padding: '4px 8px',
+                      borderRadius: '4px'
+                    }}>
+                      Masqué à partir du {new Date(employee.hiddenFrom).toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
 
-                   <div style={{ marginBottom: '10px' }}>
-                     <span style={{
-                       fontSize: '12px',
-                       color: '#666',
-                       backgroundColor: '#e9ecef',
-                       padding: '4px 8px',
-                       borderRadius: '4px'
-                     }}>
-                       Boutiques autorisées : {employee.canWorkIn?.join(', ') || 'Aucune'}
-                     </span>
-                   </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <span style={{
+                      fontSize: '12px',
+                      color: '#666',
+                      backgroundColor: '#e9ecef',
+                      padding: '4px 8px',
+                      borderRadius: '4px'
+                    }}>
+                      Boutiques autorisées : {employee.canWorkIn?.join(', ') || 'Aucune'}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
