@@ -1255,6 +1255,172 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     // Ajouter la feuille "Vue Mensuelle Horizontale" au workbook principal
     try { XLSX.utils.book_append_sheet(wb, wsMonthlyHorizontal, 'Vue Mensuelle Horizontale'); } catch (e) { console.warn('Ajout feuille Vue Mensuelle Horizontale ignoré:', e); }
     
+    // Configuration des colonnes et style pour la feuille "Vue Mensuelle Horizontale"
+    try {
+      // Configuration des largeurs de colonnes
+      const monthDaysCount = monthlyHorizontalData.length > 0 ? monthlyHorizontalData[0].length - 3 : 31; // -3 pour Type, Plage, Total
+      wsMonthlyHorizontal['!cols'] = [
+        { wch: 15 }, // Type (jour, t1, t2)
+        { wch: 12 }, // Plage horaire
+        ...new Array(monthDaysCount).fill({ wch: 8 }), // Colonnes des jours
+        { wch: 15 }  // Total
+      ];
+      
+      // Appliquer le style professionnel
+      const styleMonthlyHorizontalSheet = () => {
+        const rangeRef = wsMonthlyHorizontal['!ref'] || 'A1';
+        const range = XLSX.utils.decode_range(rangeRef);
+        
+        // Style des en-têtes des jours (ligne 3)
+        for (let C = 2; C <= range.e.c - 1; ++C) { // À partir de la colonne C (jours)
+          const cellAddress = XLSX.utils.encode_cell({ r: 2, c: C });
+          const cell = wsMonthlyHorizontal[cellAddress];
+          if (cell) {
+            cell.s = {
+              fill: { fgColor: { rgb: THEME.headerBg } },
+              font: { color: { rgb: THEME.headerFont }, bold: true, size: 10 },
+              alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+              border: {
+                top: { style: 'thin', color: { rgb: THEME.border } },
+                bottom: { style: 'thin', color: { rgb: THEME.border } },
+                left: { style: 'thin', color: { rgb: THEME.border } },
+                right: { style: 'thin', color: { rgb: THEME.border } }
+              }
+            };
+          }
+        }
+        
+        // Style des noms d'employés (lignes avec le nom de l'employé)
+        for (let r = 0; r < range.e.r; r++) {
+          const cellA = wsMonthlyHorizontal[XLSX.utils.encode_cell({ r, c: 0 })];
+          const cellValue = cellA?.v || '';
+          
+          if (typeof cellValue === 'string' && cellValue.length > 0 && !['jour', 't1', 't2', ''].includes(cellValue)) {
+            // C'est un nom d'employé
+            for (let c = 0; c < range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = wsMonthlyHorizontal[addr] || (wsMonthlyHorizontal[addr] = { t: 's', v: '' });
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: THEME.sectionBg } },
+                font: { color: { rgb: THEME.sectionFont }, bold: true, size: 12 },
+                border: {
+                  top: { style: 'medium', color: { rgb: THEME.border } },
+                  bottom: { style: 'thin', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { horizontal: 'center', vertical: 'center' }
+              };
+            }
+          }
+        }
+        
+        // Style des lignes de données (jour, t1, t2) avec alternance de couleurs
+        for (let r = 0; r < range.e.r; r++) {
+          const cellA = wsMonthlyHorizontal[XLSX.utils.encode_cell({ r, c: 0 })];
+          const cellValue = cellA?.v || '';
+          
+          if (['jour', 't1', 't2'].includes(cellValue)) {
+            const isEven = Math.floor(r / 4) % 2 === 0; // Alternance par groupe d'employé
+            const fillColor = isEven ? THEME.band1 : THEME.band2;
+            
+            for (let c = 0; c < range.e.c; c++) {
+              const addr = XLSX.utils.encode_cell({ r, c });
+              const cell = wsMonthlyHorizontal[addr] || (wsMonthlyHorizontal[addr] = { t: 's', v: '' });
+              
+              // Couleur spéciale pour les colonnes T1 et T2
+              let cellFillColor = fillColor;
+              let cellFontColor = '000000'; // Noir par défaut
+              
+              if (cellValue === 't1' || cellValue === 't2') {
+                // Couleur spéciale pour T1/T2 : fond plus clair avec texte bleu
+                cellFillColor = 'E8F4FD'; // Bleu très clair
+                cellFontColor = '0066CC'; // Bleu
+              }
+              
+              cell.s = {
+                ...(cell.s || {}),
+                fill: { fgColor: { rgb: cellFillColor } },
+                font: { color: { rgb: cellFontColor }, size: 10 },
+                border: {
+                  top: { style: 'thin', color: { rgb: THEME.border } },
+                  bottom: { style: 'thin', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { 
+                  horizontal: cellValue === 'jour' ? 'left' : 'center', 
+                  vertical: 'center',
+                  wrapText: true 
+                }
+              };
+            }
+          }
+        }
+        
+        // Style des lignes de totaux
+        for (let r = 0; r < range.e.r; r++) {
+          const cellA = wsMonthlyHorizontal[XLSX.utils.encode_cell({ r, c: 0 })];
+          const cellValue = cellA?.v || '';
+          
+          if (cellValue === '') {
+            // Ligne vide avant le total
+            const nextRow = r + 1;
+            if (nextRow < range.e.r) {
+              const nextCellA = wsMonthlyHorizontal[XLSX.utils.encode_cell({ r: nextRow, c: 0 })];
+              const nextCellValue = nextCellA?.v || '';
+              
+              if (nextCellValue === '') {
+                // C'est la ligne de total général
+                for (let c = 0; c < range.e.c; c++) {
+                  const addr = XLSX.utils.encode_cell({ r: nextRow, c });
+                  const cell = wsMonthlyHorizontal[addr] || (wsMonthlyHorizontal[addr] = { t: 's', v: '' });
+                  cell.s = {
+                    ...(cell.s || {}),
+                    fill: { fgColor: { rgb: THEME.totalBg } },
+                    font: { color: { rgb: THEME.totalFont }, bold: true, size: 11 },
+                    border: {
+                      top: { style: 'medium', color: { rgb: THEME.border } },
+                      bottom: { style: 'medium', color: { rgb: THEME.border } },
+                      left: { style: 'thin', color: { rgb: THEME.border } },
+                      right: { style: 'thin', color: { rgb: THEME.border } }
+                    },
+                    alignment: { horizontal: 'center', vertical: 'center' }
+                  };
+                }
+              }
+            }
+          }
+        }
+        
+        // Style des colonnes de type et plage horaire
+        for (let r = 0; r < range.e.r; r++) {
+          for (let c = 0; c < 2; c++) { // Colonnes A et B
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const cell = wsMonthlyHorizontal[addr];
+            if (cell) {
+              cell.s = {
+                ...(cell.s || {}),
+                font: { bold: true, size: 10 },
+                border: {
+                  top: { style: 'thin', color: { rgb: THEME.border } },
+                  bottom: { style: 'thin', color: { rgb: THEME.border } },
+                  left: { style: 'thin', color: { rgb: THEME.border } },
+                  right: { style: 'thin', color: { rgb: THEME.border } }
+                },
+                alignment: { 
+                  horizontal: c === 0 ? 'left' : 'center', 
+                  vertical: 'center' 
+                }
+              };
+            }
+          }
+        }
+      };
+      styleMonthlyHorizontalSheet();
+    } catch (e) { console.warn('Styles Vue Mensuelle Horizontale ignorés:', e); }
+    
     // Appliquer les styles à la feuille Rapport Hebdomadaire
     try {
       const styleWeeklySheet = () => {
