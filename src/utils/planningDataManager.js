@@ -44,6 +44,30 @@ const getWorkTimesFromSlots = (timeSlots, intervalMinutes, slots) => {
   return { entry, pause, returnTime, exit, hours: Number(hours.toFixed(1)) };
 };
 
+// Fonction pour calculer les heures de nuit (T1 et T2) à partir des slots
+const calculateDayNightFromSlots = (timeSlots, intervalMinutes, slots) => {
+  if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
+    return { t1: 0, t2: 0 };
+  }
+  const makeDate = (timeStr) => new Date(`2000-01-01T${timeStr}:00`);
+  const window21 = makeDate('21:00');
+  const window22 = makeDate('22:00');
+  const windowEnd = makeDate('23:59');
+  let minutesT1 = 0, minutesT2 = 0;
+  for (let s = 0; s < Math.min(slots.length, timeSlots.length); s++) {
+    if (!slots[s]) continue;
+    const startStr = timeSlots[s];
+    if (!startStr) continue;
+    const slotStart = makeDate(startStr);
+    const slotEnd = new Date(slotStart.getTime() + (Number(intervalMinutes) || 30) * 60000);
+    const overlapT1 = Math.max(0, Math.min(slotEnd.getTime(), window22.getTime()) - Math.max(slotStart.getTime(), window21.getTime()));
+    const overlapT2 = Math.max(0, Math.min(slotEnd.getTime(), windowEnd.getTime()) - Math.max(slotStart.getTime(), window22.getTime()));
+    minutesT1 += Math.floor(overlapT1 / 60000);
+    minutesT2 += Math.floor(overlapT2 / 60000);
+  }
+  return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
+};
+
 // Structure de données v2.0
 export const createNewPlanningData = () => ({
   version: "2.0",
@@ -451,29 +475,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
     };
 
-    // Heures de nuit par JOUR à partir des slots (utilisé par feuilles Employé)
-    const calculateDayNightFromSlots = (timeSlots, intervalMinutes, slots) => {
-      if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
-        return { t1: 0, t2: 0 };
-      }
-      const makeDate = (timeStr) => new Date(`2000-01-01T${timeStr}:00`);
-      const window21 = makeDate('21:00');
-      const window22 = makeDate('22:00');
-      const windowEnd = makeDate('23:59');
-      let minutesT1 = 0, minutesT2 = 0;
-      for (let s = 0; s < Math.min(slots.length, timeSlots.length); s++) {
-        if (!slots[s]) continue;
-        const startStr = timeSlots[s];
-        if (!startStr) continue;
-        const slotStart = makeDate(startStr);
-        const slotEnd = new Date(slotStart.getTime() + (Number(intervalMinutes) || 30) * 60000);
-        const overlapT1 = Math.max(0, Math.min(slotEnd.getTime(), window22.getTime()) - Math.max(slotStart.getTime(), window21.getTime()));
-        const overlapT2 = Math.max(0, Math.min(slotEnd.getTime(), windowEnd.getTime()) - Math.max(slotStart.getTime(), window22.getTime()));
-        minutesT1 += Math.floor(overlapT1 / 60000);
-        minutesT2 += Math.floor(overlapT2 / 60000);
-      }
-      return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
-    };
+// ... existing code ...
 
     // Traitement BOUTIQUE PAR BOUTIQUE sur le MOIS COURANT
     const { weeks: monthWeeks, monthStart, monthEnd } = getCurrentMonthWeeks();
