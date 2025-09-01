@@ -1299,84 +1299,128 @@ const GlobalDayViewModalV2 = ({
           width: 10%;
         }
 
-                 /* Styles pour la vue hebdomadaire condensée */
+                 /* Styles pour la vue hebdomadaire professionnelle et élégante */
          .weekly-tab {
-           padding: 10px;
+           padding: 20px;
            max-height: 80vh;
            overflow-y: auto;
+           background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
          }
 
          .weekly-header {
            text-align: center;
-           margin-bottom: 15px;
-           padding: 10px 15px;
-           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+           margin-bottom: 25px;
+           padding: 20px 25px;
+           background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
            color: white;
-           border-radius: 8px;
-           box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+           border-radius: 12px;
+           box-shadow: 0 4px 20px rgba(44, 62, 80, 0.3);
+           border: 1px solid rgba(255, 255, 255, 0.1);
          }
 
          .weekly-header h3 {
-           margin: 0 0 5px 0;
-           font-size: 18px;
-           font-weight: bold;
+           margin: 0 0 8px 0;
+           font-size: 24px;
+           font-weight: 700;
+           letter-spacing: 0.5px;
+           text-transform: uppercase;
          }
 
          .weekly-header p {
            margin: 0;
-           font-size: 12px;
-           opacity: 0.9;
+           font-size: 16px;
+           opacity: 0.95;
+           font-weight: 300;
+           letter-spacing: 0.3px;
          }
 
          .weekly-schedule {
            display: grid;
-           grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-           gap: 10px;
+           grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+           gap: 20px;
+           padding: 10px;
          }
 
          .day-schedule-card {
            background: white;
-           border-radius: 8px;
-           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+           border-radius: 16px;
+           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
            overflow: hidden;
-           border: 1px solid #e0e0e0;
+           border: 1px solid rgba(255, 255, 255, 0.8);
+           transition: all 0.3s ease;
+           position: relative;
+         }
+
+         .day-schedule-card:hover {
+           transform: translateY(-2px);
+           box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+         }
+
+         .day-schedule-card::before {
+           content: '';
+           position: absolute;
+           top: 0;
+           left: 0;
+           right: 0;
+           height: 4px;
+           background: linear-gradient(90deg, #3498db, #2ecc71, #f39c12, #e74c3c);
          }
 
          .day-header {
-           background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-           padding: 8px 12px;
-           border-bottom: 1px solid #dee2e6;
+           background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%);
+           padding: 16px 20px;
+           border-bottom: 2px solid #ecf0f1;
+           position: relative;
          }
 
          .day-header h4 {
-           margin: 0 0 4px 0;
-           font-size: 14px;
-           font-weight: bold;
-           color: #495057;
+           margin: 0 0 8px 0;
+           font-size: 18px;
+           font-weight: 700;
+           color: #2c3e50;
+           text-transform: capitalize;
+           letter-spacing: 0.5px;
          }
 
          .day-summary {
            display: flex;
-           gap: 12px;
-           font-size: 11px;
-           color: #6c757d;
+           gap: 20px;
+           font-size: 13px;
+           color: #34495e;
+           font-weight: 500;
          }
 
          .day-summary span {
            display: flex;
            align-items: center;
-           gap: 3px;
+           gap: 6px;
+           padding: 6px 12px;
+           background: rgba(255, 255, 255, 0.7);
+           border-radius: 20px;
+           border: 1px solid rgba(52, 73, 94, 0.1);
          }
 
          .employees-schedule {
-           padding: 8px 12px;
+           padding: 16px 20px;
+           background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
          }
 
          .employee-schedule-row {
            display: flex;
            align-items: center;
-           padding: 4px 0;
-           border-bottom: 1px solid #f1f3f4;
+           padding: 12px 16px;
+           margin: 8px 0;
+           border-radius: 12px;
+           background: white;
+           border: 1px solid #ecf0f1;
+           transition: all 0.2s ease;
+           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+         }
+
+         .employee-schedule-row:hover {
+           background: #f8f9fa;
+           border-color: #3498db;
+           transform: translateX(4px);
          }
 
          .employee-schedule-row:last-child {
@@ -1384,29 +1428,58 @@ const GlobalDayViewModalV2 = ({
          }
 
          .employee-name {
-           width: 100px;
-           min-width: 100px;
-           font-size: 12px;
-           font-weight: 600;
+           width: 120px;
+           min-width: 120px;
+           font-size: 14px;
+           font-weight: 700;
            color: #2c3e50;
+           text-transform: uppercase;
+           letter-spacing: 0.3px;
+           padding-right: 16px;
+           border-right: 2px solid #ecf0f1;
          }
 
          .employee-hours {
            display: flex;
            flex-wrap: wrap;
-           gap: 4px;
+           gap: 8px;
            flex: 1;
+           padding-left: 16px;
          }
 
          .time-slot {
-           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+           background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
            color: white;
-           padding: 3px 8px;
-           border-radius: 12px;
-           font-size: 11px;
-           font-weight: 500;
-           box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+           padding: 8px 16px;
+           border-radius: 20px;
+           font-size: 13px;
+           font-weight: 600;
+           box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
            white-space: nowrap;
+           border: 1px solid rgba(255, 255, 255, 0.2);
+           transition: all 0.2s ease;
+           position: relative;
+           overflow: hidden;
+         }
+
+         .time-slot::before {
+           content: '';
+           position: absolute;
+           top: 0;
+           left: -100%;
+           width: 100%;
+           height: 100%;
+           background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+           transition: left 0.5s ease;
+         }
+
+         .time-slot:hover::before {
+           left: 100%;
+         }
+
+         .time-slot:hover {
+           transform: translateY(-2px);
+           box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
          }
           min-width: 55px;
         }

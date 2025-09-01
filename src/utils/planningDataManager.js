@@ -68,6 +68,87 @@ const calculateDayNightFromSlots = (timeSlots, intervalMinutes, slots) => {
   return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
 };
 
+// Fonctions de gestion des employés masqués
+export const hideEmployee = (planningData, employeeId, hideFromDate) => {
+  console.log(`🔒 Masquage de l'employé ${employeeId} à partir du ${hideFromDate}`);
+  
+  const updatedShops = planningData.shops.map(shop => ({
+    ...shop,
+    employees: shop.employees.map(emp => 
+      emp.id === employeeId 
+        ? { ...emp, hiddenFrom: hideFromDate }
+        : emp
+    )
+  }));
+  
+  return {
+    ...planningData,
+    shops: updatedShops
+  };
+};
+
+export const showEmployee = (planningData, employeeId) => {
+  console.log(`🔓 Affichage de l'employé ${employeeId}`);
+  
+  const updatedShops = planningData.shops.map(shop => ({
+    ...shop,
+    employees: shop.employees.map(emp => 
+      emp.id === employeeId 
+        ? { ...emp, hiddenFrom: null }
+        : emp
+    )
+  }));
+  
+  return {
+    ...planningData,
+    shops: updatedShops
+  };
+};
+
+export const isEmployeeHidden = (employee, currentDate) => {
+  if (!employee.hiddenFrom) return false;
+  
+  const hideDate = new Date(employee.hiddenFrom);
+  const current = new Date(currentDate);
+  
+  // L'employé est masqué si la date actuelle est >= à la date de masquage
+  return current >= hideDate;
+};
+
+export const getVisibleEmployees = (planningData, currentDate = new Date()) => {
+  const visibleEmployees = [];
+  
+  planningData.shops.forEach(shop => {
+    shop.employees.forEach(emp => {
+      if (!isEmployeeHidden(emp, currentDate)) {
+        // Vérifier si l'employé n'est pas déjà dans la liste
+        if (!visibleEmployees.find(e => e.id === emp.id)) {
+          visibleEmployees.push(emp);
+        }
+      }
+    });
+  });
+  
+  return visibleEmployees;
+};
+
+export const getHiddenEmployees = (planningData, currentDate = new Date()) => {
+  const hiddenEmployees = [];
+  
+  planningData.shops.forEach(shop => {
+    shop.employees.forEach(emp => {
+      if (emp.hiddenFrom && isEmployeeHidden(emp, currentDate)) {
+        // Vérifier si l'employé n'est pas déjà dans la liste
+        if (!hiddenEmployees.find(e => e.id === emp.id)) {
+          hiddenEmployees.push(emp);
+        }
+      }
+    });
+  });
+  
+  return hiddenEmployees;
+};
+
 // Structure de données v2.0
 export const createNewPlanningData = () => ({
   version: "2.0",
@@ -1268,8 +1349,10 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       
       // Appliquer le style professionnel
       const styleMonthlyHorizontalSheet = () => {
+        console.log('🎨 Application du style pour Vue Mensuelle Horizontale...');
         const rangeRef = wsMonthlyHorizontal['!ref'] || 'A1';
         const range = XLSX.utils.decode_range(rangeRef);
+        console.log('🎨 Plage de la feuille:', rangeRef, 'Range:', range);
         
         // Style des en-têtes des jours (ligne 3)
         for (let C = 2; C <= range.e.c - 1; ++C) { // À partir de la colonne C (jours)
@@ -1418,6 +1501,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           }
         }
       };
+      console.log('🎨 Style appliqué avec succès pour Vue Mensuelle Horizontale');
       styleMonthlyHorizontalSheet();
     } catch (e) { console.warn('Styles Vue Mensuelle Horizontale ignorés:', e); }
     
@@ -1904,19 +1988,22 @@ export const getEmployeeById = (planningData, employeeId) => {
   return null;
 };
 
-export const getAllEmployees = (planningData) => {
+export const getAllEmployees = (planningData, currentDate = new Date()) => {
   const employeesMap = new Map();
   
   planningData.shops.forEach(shop => {
     shop.employees.forEach(emp => {
-      if (!employeesMap.has(emp.id)) {
-        employeesMap.set(emp.id, emp);
-      } else {
-        // Fusionner les boutiques autorisées et garder la boutique principale
-        const existing = employeesMap.get(emp.id);
-        const mergedCanWorkIn = [...new Set([...existing.canWorkIn, ...emp.canWorkIn])];
-        const mainShop = existing.mainShop || emp.mainShop; // Garder la première boutique principale trouvée
-        employeesMap.set(emp.id, { ...existing, canWorkIn: mergedCanWorkIn, mainShop });
+      // Vérifier si l'employé n'est pas masqué pour la date actuelle
+      if (!isEmployeeHidden(emp, currentDate)) {
+        if (!employeesMap.has(emp.id)) {
+          employeesMap.set(emp.id, emp);
+        } else {
+          // Fusionner les boutiques autorisées et garder la boutique principale
+          const existing = employeesMap.get(emp.id);
+          const mergedCanWorkIn = [...new Set([...existing.canWorkIn, ...emp.canWorkIn])];
+          const mainShop = existing.mainShop || emp.mainShop; // Garder la première boutique principale trouvée
+          employeesMap.set(emp.id, { ...existing, canWorkIn: mergedCanWorkIn, mainShop });
+        }
       }
     });
   });
