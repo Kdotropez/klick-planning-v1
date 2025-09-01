@@ -4,6 +4,46 @@ import { fr } from 'date-fns/locale';
 import * as XLSX from 'xlsx-js-style';
 import * as XLSXCore from 'xlsx';
 
+// Fonctions utilitaires pour le calcul des heures
+const getWorkTimesFromSlots = (timeSlots, intervalMinutes, slots) => {
+  if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
+    return { entry: null, pause: null, returnTime: null, exit: null, hours: 0 };
+  }
+  const selected = [];
+  for (let i = 0; i < slots.length && i < timeSlots.length; i++) {
+    if (slots[i]) selected.push(i);
+  }
+  if (selected.length === 0) {
+    return { entry: null, pause: null, returnTime: null, exit: null, hours: 0 };
+  }
+  const entry = timeSlots[selected[0]];
+  const lastIndex = selected[selected.length - 1];
+  const lastStart = timeSlots[lastIndex];
+  const exitDate = new Date(`2000-01-01T${lastStart}:00`);
+  exitDate.setMinutes(exitDate.getMinutes() + (Number(intervalMinutes) || 30));
+  const exit = format(exitDate, 'HH:mm');
+
+  // Pause / Retour: détecter un gap (>1 index)
+  let pause = null;
+  let returnTime = null;
+  for (let i = 0; i < selected.length - 1; i++) {
+    const cur = selected[i];
+    const nxt = selected[i + 1];
+    if (nxt - cur > 1) {
+      // Fin du créneau courant: end time of cur slot
+      const curStart = timeSlots[cur];
+      const curEndDate = new Date(`2000-01-01T${curStart}:00`);
+      curEndDate.setMinutes(curEndDate.getMinutes() + (Number(intervalMinutes) || 30));
+      pause = format(curEndDate, 'HH:mm');
+      returnTime = timeSlots[nxt];
+      break;
+    }
+  }
+
+  const hours = (selected.length * (Number(intervalMinutes) || 30)) / 60;
+  return { entry, pause, returnTime, exit, hours: Number(hours.toFixed(1)) };
+};
+
 // Structure de données v2.0
 export const createNewPlanningData = () => ({
   version: "2.0",
@@ -579,44 +619,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       return `Semaine du ${format(monday, 'd MMMM', { locale: fr })} au ${format(sunday, 'd MMMM yyyy', { locale: fr })}`;
     };
 
-    const getWorkTimesFromSlots = (timeSlots, intervalMinutes, slots) => {
-      if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
-        return { entry: null, pause: null, returnTime: null, exit: null, hours: 0 };
-      }
-      const selected = [];
-      for (let i = 0; i < slots.length && i < timeSlots.length; i++) {
-        if (slots[i]) selected.push(i);
-      }
-      if (selected.length === 0) {
-        return { entry: null, pause: null, returnTime: null, exit: null, hours: 0 };
-      }
-      const entry = timeSlots[selected[0]];
-      const lastIndex = selected[selected.length - 1];
-      const lastStart = timeSlots[lastIndex];
-      const exitDate = new Date(`2000-01-01T${lastStart}:00`);
-      exitDate.setMinutes(exitDate.getMinutes() + (Number(intervalMinutes) || 30));
-      const exit = format(exitDate, 'HH:mm');
-
-      // Pause / Retour: détecter un gap (>1 index)
-      let pause = null;
-      let returnTime = null;
-      for (let i = 0; i < selected.length - 1; i++) {
-        const cur = selected[i];
-        const nxt = selected[i + 1];
-        if (nxt - cur > 1) {
-          // Fin du créneau courant: end time of cur slot
-          const curStart = timeSlots[cur];
-          const curEndDate = new Date(`2000-01-01T${curStart}:00`);
-          curEndDate.setMinutes(curEndDate.getMinutes() + (Number(intervalMinutes) || 30));
-          pause = format(curEndDate, 'HH:mm');
-          returnTime = timeSlots[nxt];
-          break;
-        }
-      }
-
-      const hours = (selected.length * (Number(intervalMinutes) || 30)) / 60;
-      return { entry, pause, returnTime, exit, hours: Number(hours.toFixed(1)) };
-    };
+// ... existing code ...
 
     const findDayDataForEmployee = (employeeId, date) => {
       // Retourne { shopName, shopId, slots, interval, timeSlots, status }
@@ -2034,8 +2037,13 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
 const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
   try {
     console.log('🔍 buildMonthlyHorizontalSheet - Début construction');
+    console.log('🔍 buildMonthlyHorizontalSheet - planningData:', planningData);
+    console.log('🔍 buildMonthlyHorizontalSheet - monthStart:', monthStart);
+    console.log('🔍 buildMonthlyHorizontalSheet - monthEnd:', monthEnd);
     
     const allEmployees = getAllEmployees(planningData);
+    console.log('🔍 buildMonthlyHorizontalSheet - allEmployees:', allEmployees);
+    
     const monthDays = [];
     const currentDate = new Date(monthStart);
     
@@ -2046,6 +2054,8 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
     }
     
     console.log('🔍 buildMonthlyHorizontalSheet - Jours du mois:', monthDays.length);
+    console.log('🔍 buildMonthlyHorizontalSheet - Premier jour:', monthDays[0]);
+    console.log('🔍 buildMonthlyHorizontalSheet - Dernier jour:', monthDays[monthDays.length - 1]);
     
     const rows = [];
     
