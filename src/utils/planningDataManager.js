@@ -2084,7 +2084,9 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
         
         // Chercher les données de l'employé pour ce jour
         for (const shop of planningData.shops) {
-          const week = shop.weeks?.[getWeekKeyFromDate(dayKey)];
+          // Utiliser la fonction getWeekKeyFromDate correctement
+          const weekKey = getWeekKeyFromDate(dayKey);
+          const week = shop.weeks?.[weekKey];
           const empPlanning = week?.planning?.[emp.id];
           const slots = empPlanning?.[dayKey];
           
@@ -2128,7 +2130,8 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
         
         // Chercher les données de l'employé pour ce jour
         for (const shop of planningData.shops) {
-          const week = shop.weeks?.[getWeekKeyFromDate(dayKey)];
+          const weekKey = getWeekKeyFromDate(dayKey);
+          const week = shop.weeks?.[weekKey];
           const empPlanning = week?.planning?.[emp.id];
           const slots = empPlanning?.[dayKey];
           
@@ -2163,7 +2166,8 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
         
         // Chercher les données de l'employé pour ce jour
         for (const shop of planningData.shops) {
-          const week = shop.weeks?.[getWeekKeyFromDate(dayKey)];
+          const weekKey = getWeekKeyFromDate(dayKey);
+          const week = shop.weeks?.[weekKey];
           const empPlanning = week?.planning?.[emp.id];
           const slots = empPlanning?.[dayKey];
           
@@ -2200,7 +2204,8 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
       rows.push([]);
     });
     
-    console.log('🔍 buildMonthlyHorizontalSheet - Construction terminée');
+    console.log('🔍 buildMonthlyHorizontalSheet - Construction terminée, lignes:', rows.length);
+    console.log('🔍 buildMonthlyHorizontalSheet - Première ligne:', rows[0]);
     return rows;
     
   } catch (error) {
