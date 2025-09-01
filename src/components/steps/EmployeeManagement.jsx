@@ -265,164 +265,164 @@ const EmployeeManagement = ({ planningData, onEmployeeUpdate, onNext, onBack }) 
                 marginBottom: '20px'
               }}>
                 <h3 style={{ color: '#555', margin: 0 }}>Employés actifs</h3>
-             <div style={{ display: 'flex', gap: '10px' }}>
-               <Button
-                 onClick={() => setForceUpdate(prev => prev + 1)}
-                 style={{
-                   padding: '8px 15px',
-                   fontSize: '14px',
-                   backgroundColor: '#17a2b8',
-                   color: 'white',
-                   border: 'none',
-                   borderRadius: '5px',
-                   cursor: 'pointer',
-                   fontWeight: 'bold'
-                 }}
-                 title="Rafraîchir l'affichage"
-               >
-                 🔄 Rafraîchir
-               </Button>
-               <Button
-                 onClick={handleDeleteAllEmployees}
-                 style={{
-                   padding: '8px 15px',
-                   fontSize: '14px',
-                   backgroundColor: '#dc3545',
-                   color: 'white',
-                   border: 'none',
-                   borderRadius: '5px',
-                   cursor: 'pointer',
-                   fontWeight: 'bold'
-                 }}
-               >
-                 🗑️ Supprimer tout
-               </Button>
-             </div>
-           </div>
-          <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px', fontStyle: 'italic' }}>
-            💡 Cliquez sur un employé pour le sélectionner
-          </p>
-          
-          <div style={{
-            display: 'grid',
-            gap: '15px'
-          }}>
-            {employees.map(employee => (
-                             <div key={employee.id} style={{
-                 border: selectedEmployees.includes(employee.id) ? '2px solid #ff8c00' : '1px solid #ddd',
-                 borderRadius: '8px',
-                 padding: '15px',
-                 backgroundColor: selectedEmployees.includes(employee.id) ? '#fff3e0' : '#fff',
-                 cursor: 'pointer',
-                 transition: 'all 0.2s ease'
-               }}
-              onClick={() => handleEmployeeToggle(employee.id)}
-                             onMouseEnter={(e) => {
-                 if (!selectedEmployees.includes(employee.id)) {
-                   e.currentTarget.style.backgroundColor = '#f8f9fa';
-                   e.currentTarget.style.borderColor = '#ff8c00';
-                 }
-               }}
-               onMouseLeave={(e) => {
-                 if (!selectedEmployees.includes(employee.id)) {
-                   e.currentTarget.style.backgroundColor = '#fff';
-                   e.currentTarget.style.borderColor = '#ddd';
-                 }
-               }}
-              title={selectedEmployees.includes(employee.id) ? "Cliqué pour désélectionner" : "Cliqué pour sélectionner"}
-              >
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '10px'
-                }}>
-                  <h4 style={{
-                    margin: 0,
-                    color: '#333'
-                  }}>
-                    {employee.name}
-                  </h4>
+                <div style={{ display: 'flex', gap: '10px' }}>
                   <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteEmployee(employee.id);
-                    }}
+                    onClick={() => setForceUpdate(prev => prev + 1)}
                     style={{
-                      padding: '6px 12px',
-                      fontSize: '12px',
+                      padding: '8px 15px',
+                      fontSize: '14px',
+                      backgroundColor: '#17a2b8',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                    title="Rafraîchir l'affichage"
+                  >
+                    🔄 Rafraîchir
+                  </Button>
+                  <Button
+                    onClick={handleDeleteAllEmployees}
+                    style={{
+                      padding: '8px 15px',
+                      fontSize: '14px',
                       backgroundColor: '#dc3545',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '5px',
                       cursor: 'pointer',
                       fontWeight: 'bold'
                     }}
                   >
-                    🗑️
-                  </Button>
-                </div>
-                
-                <div style={{ marginBottom: '10px' }}>
-                  <span style={{
-                    fontSize: '12px',
-                    color: '#666',
-                    backgroundColor: '#f8f9fa',
-                    padding: '4px 8px',
-                    borderRadius: '4px'
-                  }}>
-                    L'affectation aux boutiques se fera à l'étape suivante
-                  </span>
-                </div>
-
-                {/* Section de masquage d'employé */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '10px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '6px',
-                  border: '1px solid #e9ecef'
-                }}>
-                  <span style={{ fontSize: '12px', color: '#666' }}>Masquer à partir du :</span>
-                  <input
-                    type="date"
-                    value={hideDate}
-                    onChange={(e) => setHideDate(e.target.value)}
-                    style={{
-                      padding: '4px 8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '12px'
-                    }}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleHideEmployee(employee.id);
-                    }}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: 'bold'
-                    }}
-                    disabled={!hideDate}
-                  >
-                    🚫 Masquer
+                    🗑️ Supprimer tout
                   </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px', fontStyle: 'italic' }}>
+                💡 Cliquez sur un employé pour le sélectionner
+              </p>
+              
+              <div style={{
+                display: 'grid',
+                gap: '15px'
+              }}>
+                {employees.map(employee => (
+                  <div key={employee.id} style={{
+                    border: selectedEmployees.includes(employee.id) ? '2px solid #ff8c00' : '1px solid #ddd',
+                    borderRadius: '8px',
+                    padding: '15px',
+                    backgroundColor: selectedEmployees.includes(employee.id) ? '#fff3e0' : '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => handleEmployeeToggle(employee.id)}
+                  onMouseEnter={(e) => {
+                    if (!selectedEmployees.includes(employee.id)) {
+                      e.currentTarget.style.backgroundColor = '#f8f9fa';
+                      e.currentTarget.style.borderColor = '#ff8c00';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!selectedEmployees.includes(employee.id)) {
+                      e.currentTarget.style.backgroundColor = '#fff';
+                      e.currentTarget.style.borderColor = '#ddd';
+                    }
+                  }}
+                  title={selectedEmployees.includes(employee.id) ? "Cliqué pour désélectionner" : "Cliqué pour sélectionner"}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '10px'
+                    }}>
+                      <h4 style={{
+                        margin: 0,
+                        color: '#333'
+                      }}>
+                        {employee.name}
+                      </h4>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEmployee(employee.id);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        🗑️
+                      </Button>
+                    </div>
+                    
+                    <div style={{ marginBottom: '10px' }}>
+                      <span style={{
+                        fontSize: '12px',
+                        color: '#666',
+                        backgroundColor: '#f8f9fa',
+                        padding: '4px 8px',
+                        borderRadius: '4px'
+                      }}>
+                        L'affectation aux boutiques se fera à l'étape suivante
+                      </span>
+                    </div>
+
+                    {/* Section de masquage d'employé */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px',
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '6px',
+                      border: '1px solid #e9ecef'
+                    }}>
+                      <span style={{ fontSize: '12px', color: '#666' }}>Masquer à partir du :</span>
+                      <input
+                        type="date"
+                        value={hideDate}
+                        onChange={(e) => setHideDate(e.target.value)}
+                        style={{
+                          padding: '4px 8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '12px'
+                        }}
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleHideEmployee(employee.id);
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          backgroundColor: '#6c757d',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                        disabled={!hideDate}
+                      >
+                        🚫 Masquer
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
       {/* Onglet des employés masqués */}
       {activeTab === 'hidden' && (
