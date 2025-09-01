@@ -35,13 +35,13 @@
           ]
         },
         {
-          "version": "3.10.43",
+          "version": "3.10.44",
           "date": "2025-01-27",
           "features": [
-            "🎨 AMÉLIORATION: Heures T1/T2 séparées par jour avec couleur distinctive",
-            "✅ Colonnes T1 et T2 par jour dans le rapport hebdomadaire",
-            "🎨 Couleur bleue distinctive pour indiquer que T1/T2 sont incluses dans les heures",
-            "📊 Application du style à tous les tableaux Excel"
+            "🆕 NOUVELLE FEUILLE: Vue Mensuelle Horizontale pour export Excel",
+            "✅ Présentation horizontale par employé avec 3 lignes (jour, t1, t2)",
+            "📅 Vue complète du mois avec colonnes par jour",
+            "🎯 Format optimisé pour planification et comparaison entre employés"
           ]
         },
     {

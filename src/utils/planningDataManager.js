@@ -1243,6 +1243,13 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     try { XLSX.utils.book_append_sheet(wb, wsGlobal, 'Résumé global'); } catch (e) { console.warn('Ajout feuille Résumé global ignoré:', e); }
     try { XLSX.utils.book_append_sheet(wb, wsWeeklyDetailed, 'Rapport Hebdomadaire'); } catch (e) { console.warn('Ajout feuille Rapport Hebdomadaire ignoré:', e); }
     
+    // Construire la feuille "Vue Mensuelle Horizontale"
+    const monthlyHorizontalData = buildMonthlyHorizontalSheet(planningData, monthStart, monthEnd);
+    const wsMonthlyHorizontal = XLSX.utils.aoa_to_sheet(monthlyHorizontalData);
+    
+    // Ajouter la feuille "Vue Mensuelle Horizontale" au workbook principal
+    try { XLSX.utils.book_append_sheet(wb, wsMonthlyHorizontal, 'Vue Mensuelle Horizontale'); } catch (e) { console.warn('Ajout feuille Vue Mensuelle Horizontale ignoré:', e); }
+    
     // Appliquer les styles à la feuille Rapport Hebdomadaire
     try {
       const styleWeeklySheet = () => {
@@ -1482,9 +1489,11 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         const wsDetail2 = XLSXCore.utils.aoa_to_sheet(excelData);
         const wsGlobal2 = XLSXCore.utils.aoa_to_sheet(globalSummaryData);
         const wsWeeklyDetailed2 = XLSXCore.utils.aoa_to_sheet(weeklyDetailedData);
+        const wsMonthlyHorizontal2 = XLSXCore.utils.aoa_to_sheet(monthlyHorizontalData);
         XLSXCore.utils.book_append_sheet(wb2, wsDetail2, 'Planning Détaillé');
         XLSXCore.utils.book_append_sheet(wb2, wsGlobal2, 'Résumé global');
         XLSXCore.utils.book_append_sheet(wb2, wsWeeklyDetailed2, 'Rapport Hebdomadaire');
+        XLSXCore.utils.book_append_sheet(wb2, wsMonthlyHorizontal2, 'Vue Mensuelle Horizontale');
         // Inclure Heures de nuit si dispo
         if (nightHoursData && nightHoursData.length > 0) {
           const wsNight2 = XLSXCore.utils.aoa_to_sheet(nightHoursData);
@@ -2019,4 +2028,200 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
     console.error('Erreur dans getWeekPlanning:', error);
     return { planning: {}, selectedEmployees: [] };
   }
+};
+
+// Fonction pour construire la feuille "Vue Mensuelle Horizontale"
+const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
+  try {
+    console.log('🔍 buildMonthlyHorizontalSheet - Début construction');
+    
+    const allEmployees = getAllEmployees(planningData);
+    const monthDays = [];
+    const currentDate = new Date(monthStart);
+    
+    // Générer tous les jours du mois
+    while (currentDate <= monthEnd) {
+      monthDays.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    console.log('🔍 buildMonthlyHorizontalSheet - Jours du mois:', monthDays.length);
+    
+    const rows = [];
+    
+    // Pour chaque employé
+    allEmployees.forEach(emp => {
+      const empName = emp.name || emp.id;
+      console.log(`🔍 buildMonthlyHorizontalSheet - Traitement employé: ${empName}`);
+      
+      // Titre de l'employé (ligne vide + nom)
+      rows.push([]);
+      rows.push([empName]);
+      
+      // En-têtes des jours (ligne vide + jours)
+      const dayHeaders = ['', ''];
+      monthDays.forEach(day => {
+        const dayName = format(day, 'EEEE', { locale: fr }).toUpperCase();
+        const dayDate = format(day, 'd/M', { locale: fr });
+        dayHeaders.push(`${dayName}\t${dayDate}`);
+      });
+      rows.push(dayHeaders);
+      
+      // Ligne vide
+      rows.push([]);
+      
+      // Ligne vide
+      rows.push([]);
+      
+      // Ligne "jour 7H/21H"
+      const jourRow = ['jour', '7H/21H'];
+      let totalJour = 0;
+      
+      monthDays.forEach(day => {
+        const dayKey = format(day, 'yyyy-MM-dd');
+        let dayHours = 0;
+        let dayData = null;
+        
+        // Chercher les données de l'employé pour ce jour
+        for (const shop of planningData.shops) {
+          const week = shop.weeks?.[getWeekKeyFromDate(dayKey)];
+          const empPlanning = week?.planning?.[emp.id];
+          const slots = empPlanning?.[dayKey];
+          
+          if (slots) {
+            if (typeof slots === 'string') {
+              // C'est un statut (maladie, congé, etc.)
+              dayData = slots;
+              break;
+            } else if (Array.isArray(slots) && slots.some(Boolean)) {
+              // C'est du travail avec des créneaux
+              const timeSlots = shop.config?.timeSlots || [];
+              const interval = shop.config?.interval || 30;
+              const workTimes = getWorkTimesFromSlots(timeSlots, interval, slots);
+              dayHours = workTimes.hours;
+              totalJour += dayHours;
+              break;
+            }
+          }
+        }
+        
+        if (dayData) {
+          jourRow.push(dayData);
+        } else if (dayHours > 0) {
+          jourRow.push(formatHours(dayHours));
+        } else {
+          jourRow.push('');
+        }
+      });
+      
+      // Total jour
+      jourRow.push(formatTotalHours(totalJour));
+      rows.push(jourRow);
+      
+      // Ligne "t1 21H/22H"
+      const t1Row = ['t1', '21H/22H'];
+      let totalT1 = 0;
+      
+      monthDays.forEach(day => {
+        const dayKey = format(day, 'yyyy-MM-dd');
+        let dayT1 = 0;
+        
+        // Chercher les données de l'employé pour ce jour
+        for (const shop of planningData.shops) {
+          const week = shop.weeks?.[getWeekKeyFromDate(dayKey)];
+          const empPlanning = week?.planning?.[emp.id];
+          const slots = empPlanning?.[dayKey];
+          
+          if (slots && Array.isArray(slots) && slots.some(Boolean)) {
+            const timeSlots = shop.config?.timeSlots || [];
+            const interval = shop.config?.interval || 30;
+            const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
+            dayT1 = dayNightHours.t1;
+            totalT1 += dayT1;
+            break;
+          }
+        }
+        
+        if (dayT1 > 0) {
+          t1Row.push(formatHours(dayT1));
+        } else {
+          t1Row.push('');
+        }
+      });
+      
+      // Total t1
+      t1Row.push(formatTotalHours(totalT1));
+      rows.push(t1Row);
+      
+      // Ligne "t2 NUIT"
+      const t2Row = ['t2', 'NUIT'];
+      let totalT2 = 0;
+      
+      monthDays.forEach(day => {
+        const dayKey = format(day, 'yyyy-MM-dd');
+        let dayT2 = 0;
+        
+        // Chercher les données de l'employé pour ce jour
+        for (const shop of planningData.shops) {
+          const week = shop.weeks?.[getWeekKeyFromDate(dayKey)];
+          const empPlanning = week?.planning?.[emp.id];
+          const slots = empPlanning?.[dayKey];
+          
+          if (slots && Array.isArray(slots) && slots.some(Boolean)) {
+            const timeSlots = shop.config?.timeSlots || [];
+            const interval = shop.config?.interval || 30;
+            const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
+            dayT2 = dayNightHours.t2;
+            totalT2 += dayT2;
+            break;
+          }
+        }
+        
+        if (dayT2 > 0) {
+          t2Row.push(formatHours(dayT2));
+        } else {
+          t2Row.push('');
+        }
+      });
+      
+      // Total t2
+      t2Row.push(formatTotalHours(totalT2));
+      rows.push(t2Row);
+      
+      // Ligne vide
+      rows.push([]);
+      
+      // Total général
+      const totalGeneral = totalJour + totalT1 + totalT2;
+      const totalRow = ['', '', ...new Array(monthDays.length).fill(''), formatTotalHours(totalGeneral)];
+      rows.push(totalRow);
+      
+      // Ligne vide
+      rows.push([]);
+    });
+    
+    console.log('🔍 buildMonthlyHorizontalSheet - Construction terminée');
+    return rows;
+    
+  } catch (error) {
+    console.error('Erreur dans buildMonthlyHorizontalSheet:', error);
+    return [];
+  }
+};
+
+// Fonction utilitaire pour formater les heures
+const formatHours = (hours) => {
+  if (hours === 0) return '';
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (m === 0) return `${h.toString().padStart(2, '0')}:00`;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
+
+// Fonction utilitaire pour formater les totaux d'heures
+const formatTotalHours = (hours) => {
+  if (hours === 0) return '';
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return `${h}:${m.toString().padStart(2, '0')}:00`;
 }; 
