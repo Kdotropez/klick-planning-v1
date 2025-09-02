@@ -1912,22 +1912,23 @@ const PlanningDisplay = ({
       
       {showEmployeeRecap && localSelectedEmployees && localSelectedEmployees.length > 0 && (
         <>
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            alignItems: 'stretch',
-            justifyItems: 'center',
-            gap: '16px',
-            padding: '20px',
-            background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
-            borderRadius: '16px',
-            border: '2px solid #fed7d7',
-            marginBottom: '20px',
-            width: '100%',
-            boxSizing: 'border-box',
-            overflowX: 'visible',
-            boxShadow: '0 4px 20px rgba(254, 215, 215, 0.3)'
-          }}>
+                      <div style={{ 
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, 240px)',
+              alignItems: 'stretch',
+              justifyItems: 'center',
+              justifyContent: 'center',
+              gap: '16px',
+              padding: '20px',
+              background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
+              borderRadius: '16px',
+              border: '2px solid #fed7d7',
+              marginBottom: '20px',
+              width: '100%',
+              boxSizing: 'border-box',
+              overflowX: 'visible',
+              boxShadow: '0 4px 20px rgba(254, 215, 215, 0.3)'
+            }}>
             {localSelectedEmployees.map((employeeId) => {
               const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
               const employeeName = employee?.name || employeeId;
@@ -1941,8 +1942,9 @@ const PlanningDisplay = ({
                   background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
                   borderRadius: '16px',
                   border: '2px solid #e3f2fd',
-                  width: '100%',
-                  maxWidth: '100%',
+                  width: '240px',
+                  minWidth: '240px',
+                  maxWidth: '240px',
                   textAlign: 'center',
                   boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
                   transition: 'all 0.3s ease',
