@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
-import { getAllEmployees } from '../../utils/planningDataManager';
+import { getAllEmployees, hideEmployee, showEmployee, isEmployeeHidden } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
 
 const RecapButtons = ({
@@ -29,6 +29,52 @@ const RecapButtons = ({
   planning,
   planningData
 }) => {
+
+  // État local pour gérer les employés masqués
+  const [hiddenEmployees, setHiddenEmployees] = useState(new Set());
+
+  // Vérifier les employés masqués au chargement
+  useEffect(() => {
+    if (planningData) {
+      const hidden = new Set();
+      planningData.shops.forEach(shop => {
+        shop.employees.forEach(emp => {
+          if (isEmployeeHidden(emp, new Date())) {
+            hidden.add(emp.id);
+          }
+        });
+      });
+      setHiddenEmployees(hidden);
+    }
+  }, [planningData]);
+
+  // Fonction pour masquer un employé
+  const handleHideEmployee = (employeeId) => {
+    const updatedPlanningData = hideEmployee(planningData, employeeId, new Date().toISOString());
+    // Mettre à jour l'état local
+    setHiddenEmployees(prev => new Set([...prev, employeeId]));
+    // Forcer la mise à jour du composant parent
+    if (planningData !== updatedPlanningData) {
+      // Solution simple : recharger la page pour appliquer les changements
+      window.location.reload();
+    }
+  };
+
+  // Fonction pour réactiver un employé
+  const handleShowEmployee = (employeeId) => {
+    const updatedPlanningData = showEmployee(planningData, employeeId);
+    // Mettre à jour l'état local
+    setHiddenEmployees(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(employeeId);
+      return newSet;
+    });
+    // Forcer la mise à jour du composant parent
+    if (planningData !== updatedPlanningData) {
+      // Solution simple : recharger la page pour appliquer les changements
+      window.location.reload();
+    }
+  };
 
   const pastelColors = ['#e6f0fa', '#e6ffed', '#ffe6e6', '#d0f0fa', '#f0e6fa', '#fffde6', '#d6e6ff'];
   const monthDisplay = 'MM';
@@ -545,6 +591,44 @@ const RecapButtons = ({
           >
                           MOIS DÉTAIL
           </Button>
+          
+          {/* Bouton de masquage/réactivation */}
+          {(() => {
+            console.log(`🚨 DEBUG - RENDU DU BOUTON MASQUER POUR ${employeeId}`);
+            console.log(`DEBUG - Vérification masquage pour ${employeeId}:`, {
+              employee: employee,
+              isHidden: isEmployeeHidden(employee, new Date()),
+              currentDate: new Date()
+            });
+            
+            // Forcer l'affichage du bouton pour le test
+            return (
+              <div style={{ border: '2px solid red', padding: '2px', margin: '2px' }}>
+                <Button
+                  className="button-recap"
+                  onClick={() => {
+                    console.log(`🚨 CLIC SUR MASQUER POUR ${employeeId}`);
+                    handleHideEmployee(employeeId);
+                  }}
+                  style={{
+                    backgroundColor: '#dc3545',
+                    color: '#fff',
+                    padding: '8px 16px',
+                    fontSize: '11px',
+                    width: '100%',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    border: '2px solid yellow'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+                >
+                  🚫 Masquer
+                </Button>
+              </div>
+            );
+          })()}
         </div>
       );
       })}

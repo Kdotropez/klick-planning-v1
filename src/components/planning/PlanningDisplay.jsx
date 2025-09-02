@@ -602,6 +602,87 @@ const PlanningDisplay = ({
       setLocalFeedback('❌ Erreur lors du renommage');
     }
   }, [setPlanningData]);
+
+  // Fonction pour masquer un employé
+  const handleHideEmployee = useCallback((employeeId) => {
+    if (!employeeId) return;
+    
+    // Demander la date à partir de laquelle masquer l'employé
+    const today = new Date().toISOString().split('T')[0];
+    const hideFromDate = window.prompt(
+      "À partir de quelle date voulez-vous masquer cet employé ? (format: AAAA-MM-JJ)",
+      today
+    );
+    
+    if (!hideFromDate) return;
+    
+    try {
+      setPlanningData(prev => {
+        const updated = {
+          ...prev,
+          shops: (prev.shops || []).map(shop => ({
+            ...shop,
+            employees: (shop.employees || []).map(emp =>
+              emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
+            )
+          }))
+        };
+        return updated;
+      });
+      
+      // Sauvegarder dans localStorage
+      const updatedData = JSON.parse(localStorage.getItem('planningData') || '{}');
+      const updatedShops = updatedData.shops.map(shop => ({
+        ...shop,
+        employees: (shop.employees || []).map(emp =>
+          emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
+        )
+      }));
+      updatedData.shops = updatedShops;
+      localStorage.setItem('planningData', JSON.stringify(updatedData));
+      
+      setLocalFeedback('🚫 Employé masqué avec succès');
+    } catch (e) {
+      console.error('Erreur masquage employé:', e);
+      setLocalFeedback('❌ Erreur lors du masquage');
+    }
+  }, [setPlanningData]);
+
+  // Fonction pour réactiver un employé
+  const handleShowEmployee = useCallback((employeeId) => {
+    if (!employeeId) return;
+    
+    try {
+      setPlanningData(prev => {
+        const updated = {
+          ...prev,
+          shops: (prev.shops || []).map(shop => ({
+            ...shop,
+            employees: (shop.employees || []).map(emp =>
+              emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
+            )
+          }))
+        };
+        return updated;
+      });
+      
+      // Sauvegarder dans localStorage
+      const updatedData = JSON.parse(localStorage.getItem('planningData') || '{}');
+      const updatedShops = updatedData.shops.map(shop => ({
+        ...shop,
+        employees: (shop.employees || []).map(emp =>
+          emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
+        )
+      }));
+      updatedData.shops = updatedShops;
+      localStorage.setItem('planningData', JSON.stringify(updatedData));
+      
+      setLocalFeedback('🔓 Employé réactivé avec succès');
+    } catch (e) {
+      console.error('Erreur réactivation employé:', e);
+      setLocalFeedback('❌ Erreur lors de la réactivation');
+    }
+  }, [setPlanningData]);
   
   // Mettre à jour le planning global
   useEffect(() => {
@@ -2213,7 +2294,7 @@ const PlanningDisplay = ({
                   </button>
                   
                   {/* Boutons de verrouillage/déverrouillage */}
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', justifyContent: 'space-between', flexWrap: 'wrap', width: '100%' }}>
                     {validationState.lockedEmployees.includes(employeeId) ? (
                       <button
                         onClick={() => {
@@ -2315,6 +2396,82 @@ const PlanningDisplay = ({
                     >
                       ✏️ Renommer
                     </button>
+                    
+                    {/* Bouton Masquer/Réactiver l'employé */}
+                    {(() => {
+                      const isHidden = planningData?.shops?.some(shop => 
+                        shop.employees?.some(emp => 
+                          emp.id === employeeId && emp.hiddenFrom
+                        )
+                      );
+                      
+                      if (isHidden) {
+                        return (
+                          <button
+                            onClick={() => {
+                              console.log(`🚨 RÉACTIVATION de l'employé ${employeeId}`);
+                              handleShowEmployee(employeeId);
+                            }}
+                            style={{
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              padding: '6px 10px',
+                              fontSize: '11px',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              transition: 'all 0.2s ease',
+                              flex: '1'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = '#218838';
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = '#28a745';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                            title="Réactiver l'employé"
+                          >
+                            🔓 Réactiver
+                          </button>
+                        );
+                      } else {
+                        return (
+                          <button
+                            onClick={() => {
+                              console.log(`🚨 MASQUAGE de l'employé ${employeeId}`);
+                              handleHideEmployee(employeeId);
+                            }}
+                            style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              padding: '6px 10px',
+                              fontSize: '11px',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              transition: 'all 0.2s ease',
+                              flex: '1'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.backgroundColor = '#c82333';
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.backgroundColor = '#dc3545';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                            title="Masquer l'employé"
+                          >
+                            🚫 Masquer
+                          </button>
+                        );
+                      }
+                    })()}
+                    
                     {/* Bouton Supprimer retiré */}
                   </div>
                 </div>
