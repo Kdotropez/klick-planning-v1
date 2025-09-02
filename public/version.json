@@ -1,7 +1,29 @@
 {
-  "version": "3.10.47",
+  "version": "3.10.49",
   "lastUpdate": "2025-09-02",
   "changelog": [
+    {
+      "version": "3.10.49",
+      "date": "2025-09-02",
+      "changes": [
+        "🎨 UNIFORMISATION: Taille fixe des cartes des employés à 240px",
+        "📱 Grille optimisée avec auto-fill et centrage parfait",
+        "✨ Affichage harmonieux peu importe le nombre d'employés",
+        "🎯 Organisation optimale des cartes (2x2 pour 4 employés)",
+        "🔧 Amélioration de l'interface utilisateur pour un rendu professionnel"
+      ]
+    },
+    {
+      "version": "3.10.48",
+      "date": "2025-09-02",
+      "changes": [
+        "🔒 AMÉLIORATION: Système de masquage des employés intelligent",
+        "📅 Masquage relatif à la semaine affichée (pas global)",
+        "🏪 Support multi-boutique automatique pour le masquage",
+        "🎯 Logique de date précise : visible avant, masqué à partir de",
+        "💡 Gestion des semaines contenant la date de masquage"
+      ]
+    },
     {
       "version": "3.10.47",
       "date": "2025-09-02",
@@ -46,48 +68,48 @@
         "🎯 Bouton maintenant visible directement sur la carte de l'employé dans le planning"
       ]
     },
-            {
-          "version": "3.10.33",
-          "date": "2025-01-27",
-          "features": [
-            "🔧 CORRECTION: Suppression de la logique automatique de maladie sur clic simple",
-            "✅ Restauration du comportement normal de clic sur tous les créneaux",
-            "🎯 La gestuelle maladie ne se déclenche plus par accident",
-            "📱 Amélioration de la fiabilité des interactions utilisateur"
-          ]
-        },
-        {
-          "version": "3.10.34",
-          "date": "2025-01-27",
-          "features": [
-            "🚨 CORRECTION URGENTE: Restauration des heures d'ouverture d'origine",
-            "✅ Suppression des heures 06:00-07:30 qui affectaient toutes les boutiques",
-            "✅ Suppression des heures 14:30-17:30 qui affectaient toutes les boutiques",
-            "🔧 Restauration des heures par défaut: 09:00-19:00",
-            "📋 Correction de l'erreur qui modifiait la configuration globale"
-          ]
-        },
-        {
-          "version": "3.10.35",
-          "date": "2025-01-27",
-          "features": [
-            "🆕 NOUVELLES HEURES: Extension des heures d'ouverture pour nouvelles boutiques",
-            "✅ Heures de début étendues: 06:00, 06:30, 07:00, 07:30",
-            "✅ Heures de fin étendues: 14:00, 14:30, 15:00, 15:30, 16:00, 16:30, 17:00, 17:30",
-            "🔒 Protection: Les boutiques existantes conservent leurs configurations",
-            "📋 Nouvelles options disponibles uniquement lors de la création"
-          ]
-        },
-        {
-          "version": "3.10.44",
-          "date": "2025-01-27",
-          "features": [
-            "🆕 NOUVELLE FEUILLE: Vue Mensuelle Horizontale pour export Excel",
-            "✅ Présentation horizontale par employé avec 3 lignes (jour, t1, t2)",
-            "📅 Vue complète du mois avec colonnes par jour",
-            "🎯 Format optimisé pour planification et comparaison entre employés"
-          ]
-        },
+    {
+      "version": "3.10.33",
+      "date": "2025-01-27",
+      "features": [
+        "🔧 CORRECTION: Suppression de la logique automatique de maladie sur clic simple",
+        "✅ Restauration du comportement normal de clic sur tous les créneaux",
+        "🎯 La gestuelle maladie ne se déclenche plus par accident",
+        "📱 Amélioration de la fiabilité des interactions utilisateur"
+      ]
+    },
+    {
+      "version": "3.10.34",
+      "date": "2025-01-27",
+      "features": [
+        "🚨 CORRECTION URGENTE: Restauration des heures d'ouverture d'origine",
+        "✅ Suppression des heures 06:00-07:30 qui affectaient toutes les boutiques",
+        "✅ Suppression des heures 14:30-17:30 qui affectaient toutes les boutiques",
+        "🔧 Restauration des heures par défaut: 09:00-19:00",
+        "📋 Correction de l'erreur qui modifiait la configuration globale"
+      ]
+    },
+    {
+      "version": "3.10.35",
+      "date": "2025-01-27",
+      "features": [
+        "🆕 NOUVELLES HEURES: Extension des heures d'ouverture pour nouvelles boutiques",
+        "✅ Heures de début étendues: 06:00, 06:30, 07:00, 07:30",
+        "✅ Heures de fin étendues: 14:00, 14:30, 15:00, 15:30, 16:00, 16:30, 17:00, 17:30",
+        "🔒 Protection: Les boutiques existantes conservent leurs configurations",
+        "📋 Nouvelles options disponibles uniquement lors de la création"
+      ]
+    },
+    {
+      "version": "3.10.44",
+      "date": "2025-01-27",
+      "features": [
+        "🆕 NOUVELLE FEUILLE: Vue Mensuelle Horizontale pour export Excel",
+        "✅ Présentation horizontale par employé avec 3 lignes (jour, t1, t2)",
+        "📅 Vue complète du mois avec colonnes par jour",
+        "🎯 Format optimisé pour planification et comparaison entre employés"
+      ]
+    },
     {
       "version": "3.10.32",
       "date": "2025-01-27",
@@ -255,7 +277,6 @@
   ],
   "features": [
     "Verrouillage global unique par application",
-
     "Système de déverrouillage d'urgence avec code de sécurité",
     "Système de notification de force libération",
     "Sauvegarde automatique lors de la réception d'une force libération",

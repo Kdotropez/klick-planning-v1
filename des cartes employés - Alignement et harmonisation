@@ -1,0 +1,10 @@
+[33m2b3327e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv3.10.49[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m chore(version): bump to v3.10.49 - Uniformisation de la taille des cartes des employés
+[33m0ecab30[m feat: uniformisation de la taille des cartes des employés - Fixation de la largeur des cartes à 240px pour un affichage uniforme - Amélioration de la grille avec auto-fill et centrage parfait - Organisation optimale des cartes peu importe le nombre d'employés
+[33mfe183b2[m[33m ([m[1;33mtag: [m[1;33mv3.10.48[m[33m)[m chore(version): bump to v3.10.48 - Amélioration du système de masquage des employés
+[33m8e9d650[m feat: amélioration du système de masquage des employés - Correction de la logique de masquage pour les semaines contenant la date de masquage - Support du masquage multi-boutique automatique - Amélioration de la fonction isEmployeeHidden avec gestion des dates de début et fin de semaine
+[33mf4bb4ed[m[33m ([m[1;33mtag: [m[1;33mv3.10.45[m[33m)[m 3.10.45
+[33m9b478dc[m feat: Implémentation des boutons Masquer/Réactiver employés directement dans le planning
+[33m49bfb13[m fix: Correction de l'erreur de syntaxe JSX dans EmployeeManagement - Fermeture correcte du Fragment React <>
+[33mcd42654[m fix: Correction de l'erreur de syntaxe JSX dans EmployeeManagement - Fermeture correcte des balises div dans la section des employés masqués
+[33m727f935[m feat: Système de gestion des employés masqués - Ajout des fonctions hideEmployee, showEmployee, isEmployeeHidden - Interface avec onglets pour employés actifs et masqués - Conservation des données historiques lors du masquage - Gestion des dates de masquage personnalisées
+[33m0c315f5[m feat: Ajout du style professionnel pour la feuille Vue Mensuelle Horizontale - Couleurs, cadres, alternance de bandes et formatage spécial pour T1/T2 - Mise en page cohérente avec les autres feuilles Excel

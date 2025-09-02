@@ -21,7 +21,6 @@ import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
-import RecapButtonsModule from './RecapButtonsModule';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -2334,7 +2333,7 @@ const PlanningDisplay = ({
                               color: '#6c757d',
                               padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
                               fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: '1px solid #dee2e6',
+                              border: '1px solid '#dee2e6',
                               borderRadius: '6px',
                               cursor: 'not-allowed',
                               marginBottom: '4px',

@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "release:patch": "npm version patch -m \"chore(version): bump to v%s\" && git push origin main --follow-tags",
-    "release:minor": "npm version minor -m \"chore(version): bump to v%s\" && git push origin main --follow-tags",
-    "release:major": "npm version major -m \"chore(version): bump to v%s\" && git push origin main --follow-tags",
+    "release:patch": "npm version patch -m \"chore(version): bump to v%s\" && npm run update-version-file && git push origin main --follow-tags",
+    "release:minor": "npm version minor -m \"chore(version): bump to v%s\" && npm run update-version-file && git push origin main --follow-tags",
+    "release:major": "npm version major -m \"chore(version): bump to v%s\" && npm run update-version-file && git push origin main --follow-tags",
+    "update-version-file": "node scripts/update-version.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
