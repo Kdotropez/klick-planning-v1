@@ -1,26 +1,6 @@
 import React from 'react';
 import { format, addDays } from 'date-fns';
-
-// Fonction pour calculer les heures quotidiennes d'un employé
-const calculateEmployeeDailyHours = (employeeId, dayKey, planning, config) => {
-  if (!planning || !planning[employeeId] || !planning[employeeId][dayKey]) {
-    return 0;
-  }
-  
-  const slots = planning[employeeId][dayKey];
-  if (!Array.isArray(slots)) {
-    return 0;
-  }
-  
-  // Compter les slots sélectionnés
-  const selectedSlots = slots.filter(slot => slot === true).length;
-  
-  // Calculer les heures basées sur l'intervalle configuré (par défaut 30 minutes)
-  const intervalMinutes = config?.intervalMinutes || 30;
-  const hours = (selectedSlots * intervalMinutes) / 60;
-  
-  return Number(hours.toFixed(1));
-};
+import { calculateEmployeeDailyHours } from '../../utils/planningDataManager';
 
 const RecapButtonsModule = ({
   employeeId,
