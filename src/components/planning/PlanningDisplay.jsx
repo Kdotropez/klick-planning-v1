@@ -2021,7 +2021,7 @@ const PlanningDisplay = ({
 
                   {/* Bouton Mois supprimé selon la demande utilisateur */}
 
-                  {/* Section Semaines par boutique - Toujours 2 boutons */}
+                  {/* Section Semaines par boutique - Boutons dynamiques pour les boutiques où l'employé travaille */}
                   <div style={{ width: '100%', marginBottom: '6px' }}>
                     <div style={{ 
                       fontSize: '11px', 
@@ -2033,176 +2033,99 @@ const PlanningDisplay = ({
                       Semaines par boutique
                     </div>
                     
-                    {/* Premier bouton - Boutique 1 ou placeholder */}
+                    {/* Boutons dynamiques pour les boutiques où l'employé travaille */}
                     {(() => {
-                      const firstShop = planningData?.shops?.[0];
-                      if (firstShop && planningData?.shops?.some(shop => 
+                      // Filtrer seulement les boutiques où l'employé a des données
+                      const employeeShops = (planningData?.shops || []).filter(shop => 
                         shop.weeks && Object.keys(shop.weeks).some(weekKey => 
                           shop.weeks[weekKey]?.planning?.[employeeId]
                         )
-                      )) {
-                        // L'employé a des données dans au moins une boutique
-                        return (
-                          <button
-                            onClick={() => {
-                              setSelectedEmployeeForWeeklyRecap(employeeId);
-                              setShowEmployeeWeeklyRecap(true);
-                            }}
-                            style={{
-                              backgroundColor: '#2e7d32', // Couleur verte pour semaine
-                              color: 'white',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              transition: 'all 0.3s ease',
-                              boxShadow: '0 2px 6px rgba(46, 125, 50, 0.3)',
-                              whiteSpace: 'nowrap',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = '#1b5e20';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(46, 125, 50, 0.4)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = '#2e7d32';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(46, 125, 50, 0.3)';
-                            }}
-                            title={`Semaine - ${firstShop.name}`}
-                          >
-                            📊 {firstShop.name}: {(() => {
-                              if (!selectedWeek || !planningData) return '0.0';
-                              let totalHours = 0;
-                              for (let i = 0; i < 7; i++) {
-                                const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                                if (firstShop.weeks && firstShop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                  const slots = firstShop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                    totalHours += hours;
+                      );
+                      
+                      // Créer exactement 3 boutons : les boutiques réelles + placeholders si nécessaire
+                      return Array.from({ length: 3 }, (_, index) => {
+                        const shop = employeeShops[index];
+                        
+                        if (shop) {
+                          // Boutique avec données de l'employé
+                          return (
+                            <button
+                              key={`week-${shop.id}`}
+                              onClick={() => {
+                                setSelectedEmployeeForWeeklyRecap(employeeId);
+                                setShowEmployeeWeeklyRecap(true);
+                              }}
+                              style={{
+                                backgroundColor: '#2e7d32', // Couleur verte pour semaine
+                                color: 'white',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                marginBottom: '4px',
+                                fontWeight: '600',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 2px 6px rgba(46, 125, 50, 0.3)',
+                                whiteSpace: 'nowrap',
+                                width: '100%',
+                                letterSpacing: '0.5px'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.backgroundColor = '#1b5e20';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(46, 125, 50, 0.4)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.backgroundColor = '#2e7d32';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(46, 125, 50, 0.3)';
+                              }}
+                              title={`Semaine - ${shop.name}`}
+                            >
+                              📊 {shop.name}: {(() => {
+                                if (!selectedWeek || !planningData) return '0.0';
+                                let totalHours = 0;
+                                for (let i = 0; i < 7; i++) {
+                                  const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                  if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
+                                    const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
+                                    if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                      totalHours += hours;
+                                    }
                                   }
                                 }
-                              }
-                              return totalHours.toFixed(1);
-                            })()}h
-                          </button>
-                        );
-                      } else {
-                        // Placeholder pour mono-boutique
-                        return (
-                          <button
-                            disabled
-                            style={{
-                              backgroundColor: '#f8f9fa',
-                              color: '#6c757d',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: '1px solid #dee2e6',
-                              borderRadius: '6px',
-                              cursor: 'not-allowed',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            title="Aucune boutique"
-                          >
-                            📊 -
-                          </button>
-                        );
-                      }
-                    })()}
-                    
-                    {/* Deuxième bouton - Boutique 2 ou placeholder */}
-                    {(() => {
-                      const secondShop = planningData?.shops?.[1];
-                      if (secondShop && planningData?.shops?.some(shop => 
-                        shop.weeks && Object.keys(shop.weeks).some(weekKey => 
-                          shop.weeks[weekKey]?.planning?.[employeeId]
-                        )
-                      )) {
-                        // L'employé a des données dans au moins une boutique
-                        return (
-                          <button
-                            onClick={() => {
-                              setSelectedEmployeeForWeeklyRecap(employeeId);
-                              setShowEmployeeWeeklyRecap(true);
-                            }}
-                            style={{
-                              backgroundColor: '#2e7d32', // Couleur verte pour semaine
-                              color: 'white',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              transition: 'all 0.3s ease',
-                              boxShadow: '0 2px 6px rgba(46, 125, 50, 0.3)',
-                              whiteSpace: 'nowrap',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = '#1b5e20';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(46, 125, 50, 0.4)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = '#2e7d32';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(46, 125, 50, 0.3)';
-                            }}
-                            title={`Semaine - ${secondShop.name}`}
-                          >
-                            📊 {secondShop.name}: {(() => {
-                              if (!selectedWeek || !planningData) return '0.0';
-                              let totalHours = 0;
-                              for (let i = 0; i < 7; i++) {
-                                const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                                if (secondShop.weeks && secondShop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                  const slots = secondShop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                    totalHours += hours;
-                                  }
-                                }
-                              }
-                              return totalHours.toFixed(1);
-                            })()}h
-                          </button>
-                        );
-                      } else {
-                        // Placeholder pour mono-boutique
-                        return (
-                          <button
-                            disabled
-                            style={{
-                              backgroundColor: '#f8f9fa',
-                              color: '#6c757d',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: '1px solid #dee2e6',
-                              borderRadius: '6px',
-                              cursor: 'not-allowed',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            title="Aucune boutique"
-                          >
-                            📊 -
-                          </button>
-                        );
-                      }
+                                return totalHours.toFixed(1);
+                              })()}h
+                            </button>
+                          );
+                        } else {
+                          // Placeholder pour maintenir la cohérence du layout
+                          return (
+                            <button
+                              key={`week-placeholder-${index}`}
+                              disabled
+                              style={{
+                                backgroundColor: '#f8f9fa',
+                                color: '#6c757d',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: '1px solid #dee2e6',
+                                borderRadius: '6px',
+                                cursor: 'not-allowed',
+                                marginBottom: '4px',
+                                fontWeight: '600',
+                                width: '100%',
+                                letterSpacing: '0.5px'
+                              }}
+                              title="Aucune boutique assignée"
+                            >
+                              📊 Boutique {index + 1}: -
+                            </button>
+                          );
+                        }
+                      });
                     })()}
                   </div>
 
@@ -2283,7 +2206,7 @@ const PlanningDisplay = ({
                     })()}h
                   </button>
 
-                  {/* Section Mois par boutique - Toujours 2 boutons */}
+                  {/* Section Mois par boutique - Boutons dynamiques pour les boutiques où l'employé travaille */}
                   <div style={{ width: '100%', marginBottom: '6px' }}>
                     <div style={{ 
                       fontSize: '11px', 
@@ -2295,196 +2218,109 @@ const PlanningDisplay = ({
                       Mois par boutique
                     </div>
                     
-                    {/* Premier bouton - Boutique 1 ou placeholder */}
+                    {/* Boutons dynamiques pour les boutiques où l'employé travaille */}
                     {(() => {
-                      const firstShop = planningData?.shops?.[0];
-                      if (firstShop && planningData?.shops?.some(shop => 
+                      // Filtrer seulement les boutiques où l'employé a des données
+                      const employeeShops = (planningData?.shops || []).filter(shop => 
                         shop.weeks && Object.keys(shop.weeks).some(weekKey => 
                           shop.weeks[weekKey]?.planning?.[employeeId]
                         )
-                      )) {
-                        // L'employé a des données dans au moins une boutique
-                        return (
-                          <button
-                            onClick={() => {
-                              setSelectedEmployeeForMonthlyRecap(employeeId);
-                              setShowEmployeeMonthlyRecap(true);
-                            }}
-                            style={{
-                              backgroundColor: '#1e88e5', // Couleur bleue pour mois
-                              color: 'white',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              transition: 'all 0.3s ease',
-                              boxShadow: '0 2px 6px rgba(30, 136, 229, 0.3)',
-                              whiteSpace: 'nowrap',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = '#1565c0';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = '#1e88e5';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
-                            }}
-                            title={`Mois - ${firstShop.name}`}
-                          >
-                            📈 {firstShop.name}: {(() => {
-                              if (!selectedWeek || !planningData) return '0.0';
-                              const currentDate = new Date(selectedWeek);
-                              const year = currentDate.getFullYear();
-                              const month = currentDate.getMonth();
-                              const lastDayOfMonth = new Date(year, month + 1, 0);
-                              let totalHours = 0;
-                              
-                              for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                if (firstShop.weeks) {
-                                  Object.keys(firstShop.weeks).forEach(weekKey => {
-                                    const weekData = firstShop.weeks[weekKey];
-                                    if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                      const slots = weekData.planning[employeeId][dayKey];
-                                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                        totalHours += hours;
+                      );
+                      
+                      // Créer exactement 3 boutons : les boutiques réelles + placeholders si nécessaire
+                      return Array.from({ length: 3 }, (_, index) => {
+                        const shop = employeeShops[index];
+                        
+                        if (shop) {
+                          // Boutique avec données de l'employé
+                          return (
+                            <button
+                              key={`month-${shop.id}`}
+                              onClick={() => {
+                                setSelectedEmployeeForMonthlyRecap(employeeId);
+                                setShowEmployeeMonthlyRecap(true);
+                              }}
+                              style={{
+                                backgroundColor: '#1e88e5', // Couleur bleue pour mois
+                                color: 'white',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                marginBottom: '4px',
+                                fontWeight: '600',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 2px 6px rgba(30, 136, 229, 0.3)',
+                                whiteSpace: 'nowrap',
+                                width: '100%',
+                                letterSpacing: '0.5px'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.backgroundColor = '#1565c0';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.backgroundColor = '#1e88e5';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
+                              }}
+                              title={`Mois - ${shop.name}`}
+                            >
+                              📈 {shop.name}: {(() => {
+                                if (!selectedWeek || !planningData) return '0.0';
+                                const currentDate = new Date(selectedWeek);
+                                const year = currentDate.getFullYear();
+                                const month = currentDate.getMonth();
+                                const lastDayOfMonth = new Date(year, month + 1, 0);
+                                let totalHours = 0;
+                                
+                                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                                  if (shop.weeks) {
+                                    Object.keys(shop.weeks).forEach(weekKey => {
+                                      const weekData = shop.weeks[weekKey];
+                                      if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                        const slots = weekData.planning[employeeId][dayKey];
+                                        if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                          totalHours += hours;
+                                        }
                                       }
-                                    }
-                                  });
+                                    });
+                                  }
                                 }
-                              }
-                              return totalHours.toFixed(1);
-                            })()}h
-                          </button>
-                        );
-                      } else {
-                        // Placeholder pour mono-boutique
-                        return (
-                          <button
-                            disabled
-                            style={{
-                              backgroundColor: '#f8f9fa',
-                              color: '#6c757d',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: '1px solid #dee2e6',
-                              borderRadius: '6px',
-                              cursor: 'not-allowed',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            title="Aucune boutique"
-                          >
-                            📈 -
-                          </button>
-                        );
-                      }
-                    })()}
-                    
-                    {/* Deuxième bouton - Boutique 2 ou placeholder */}
-                    {(() => {
-                      const secondShop = planningData?.shops?.[1];
-                      if (secondShop && planningData?.shops?.some(shop => 
-                        shop.weeks && Object.keys(shop.weeks).some(weekKey => 
-                          shop.weeks[weekKey]?.planning?.[employeeId]
-                        )
-                      )) {
-                        // L'employé a des données dans au moins une boutique
-                        return (
-                          <button
-                            onClick={() => {
-                              setSelectedEmployeeForMonthlyRecap(employeeId);
-                              setShowEmployeeMonthlyRecap(true);
-                            }}
-                            style={{
-                              backgroundColor: '#1e88e5', // Couleur bleue pour mois
-                              color: 'white',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              transition: 'all 0.3s ease',
-                              boxShadow: '0 2px 6px rgba(30, 136, 229, 0.3)',
-                              whiteSpace: 'nowrap',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = '#1565c0';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = '#1e88e5';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
-                            }}
-                            title={`Mois - ${secondShop.name}`}
-                          >
-                            📈 {secondShop.name}: {(() => {
-                              if (!selectedWeek || !planningData) return '0.0';
-                              const currentDate = new Date(selectedWeek);
-                              const year = currentDate.getFullYear();
-                              const month = currentDate.getMonth();
-                              const lastDayOfMonth = new Date(year, month + 1, 0);
-                              let totalHours = 0;
-                              
-                              for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                if (secondShop.weeks) {
-                                  Object.keys(secondShop.weeks).forEach(weekKey => {
-                                    const weekData = secondShop.weeks[weekKey];
-                                    if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                      const slots = weekData.planning[employeeId][dayKey];
-                                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                        totalHours += hours;
-                                      }
-                                    }
-                                  });
-                                }
-                              }
-                              return totalHours.toFixed(1);
-                            })()}h
-                          </button>
-                        );
-                      } else {
-                        // Placeholder pour mono-boutique
-                        return (
-                          <button
-                            disabled
-                            style={{
-                              backgroundColor: '#f8f9fa',
-                              color: '#6c757d',
-                              padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                              fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                              border: '1px solid #dee2e6',
-                              borderRadius: '6px',
-                              cursor: 'not-allowed',
-                              marginBottom: '4px',
-                              fontWeight: '600',
-                              width: '100%',
-                              letterSpacing: '0.5px'
-                            }}
-                            title="Aucune boutique"
-                          >
-                            📈 -
-                          </button>
-                        );
-                      }
+                                return totalHours.toFixed(1);
+                              })()}h
+                            </button>
+                          );
+                        } else {
+                          // Placeholder pour maintenir la cohérence du layout
+                          return (
+                            <button
+                              key={`month-placeholder-${index}`}
+                              disabled
+                              style={{
+                                backgroundColor: '#f8f9fa',
+                                color: '#6c757d',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: '1px solid #dee2e6',
+                                borderRadius: '6px',
+                                cursor: 'not-allowed',
+                                marginBottom: '4px',
+                                fontWeight: '600',
+                                width: '100%',
+                                letterSpacing: '0.5px'
+                              }}
+                              title="Aucune boutique assignée"
+                            >
+                              📈 Boutique {index + 1}: -
+                            </button>
+                          );
+                        }
+                      });
                     })()}
                   </div>
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-
 import { format, addDays, startOfWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
