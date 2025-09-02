@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
-import { getWeekPlanning, determineEmployeeMainShop } from '../../utils/planningDataManager';
+import { getWeekPlanning, determineEmployeeMainShop } from '../../utils/PlanningDataManager';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 

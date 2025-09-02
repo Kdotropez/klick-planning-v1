@@ -21,7 +21,7 @@ import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
 import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/PlanningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';

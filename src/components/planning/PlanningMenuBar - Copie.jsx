@@ -6,7 +6,7 @@ import Button from '../common/Button';
 import { checkUserPermission } from '../../config/userCodes';
 import UserManagementModal from '../admin/UserManagementModal';
 import HiddenEmployeesModal from './HiddenEmployeesModal';
-import { getHiddenEmployees } from '../../utils/planningDataManager';
+import { getHiddenEmployees } from '../../utils/PlanningDataManager';
 import '../../assets/styles.css';
 
 const PlanningMenuBar = ({

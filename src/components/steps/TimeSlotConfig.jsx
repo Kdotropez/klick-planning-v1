@@ -1,4 +1,4 @@
-ï»¿import React from 'react';
+import React from 'react';
 import { format, isAfter, parse } from 'date-fns';
 import Button from '../common/Button';
 import { saveToLocalStorage, loadFromLocalStorage } from '../../utils/localStorage';
@@ -58,11 +58,11 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
 
     const handleNext = () => {
         if (!config.startTime || !config.endTime) {
-            setFeedback('Erreur: Veuillez sÃ©lectionner une heure de dÃ©but et de fin.');
+            setFeedback('Erreur: Veuillez sélectionner une heure de début et de fin.');
             return;
         }
         if (!validateTimeFormat(config.startTime)) {
-            setFeedback('Erreur: Heure de dÃ©but invalide (HH:mm).');
+            setFeedback('Erreur: Heure de début invalide (HH:mm).');
             return;
         }
         if (!validateTimeFormat(config.endTime)) {
@@ -72,12 +72,12 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
         const startTime = config.startTime === 'other' ? config.startTimeCustom : config.startTime;
         const endTime = config.endTime === 'other' ? config.endTimeCustom : config.endTime;
         if (!startTime || !endTime) {
-            setFeedback('Erreur: Veuillez spÃ©cifier une heure personnalisÃ©e pour l\'option "Autre".');
+            setFeedback('Erreur: Veuillez spécifier une heure personnalisée pour l\'option "Autre".');
             return;
         }
         const timeSlots = generateTimeSlots(startTime, endTime, config.interval);
         if (timeSlots.length === 0) {
-            setFeedback('Erreur: Aucun crÃ©neau horaire dÃ©fini.');
+            setFeedback('Erreur: Aucun créneau horaire défini.');
             return;
         }
         const updatedConfig = { ...config, timeSlots, startTime, endTime };
@@ -85,7 +85,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
         saveToLocalStorage(`timeSlotConfig_${selectedShop}`, updatedConfig);
         setConfig(updatedConfig);
         setStep(2);
-        setFeedback('SuccÃ¨s: Configuration des tranches enregistrÃ©e.');
+        setFeedback('Succès: Configuration des tranches enregistrée.');
     };
 
     const handleReset = () => {
@@ -100,7 +100,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
         updateExistingPlannings(defaultConfig.timeSlots);
         setConfig(defaultConfig);
         saveToLocalStorage(`timeSlotConfig_${selectedShop}`, defaultConfig);
-        setFeedback('SuccÃ¨s: Configuration rÃ©initialisÃ©e.');
+        setFeedback('Succès: Configuration réinitialisée.');
     };
 
     console.log('Rendering TimeSlotConfig with config:', config, 'selectedShop:', selectedShop);
@@ -149,7 +149,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
             </div>
             <div className="form-group" style={{ marginBottom: '15px', width: '100%', maxWidth: '400px' }}>
                 <label style={{ fontFamily: 'Roboto, sans-serif', fontSize: '16px', marginBottom: '5px', display: 'block', textAlign: 'center' }}>
-                    Heure de dÃ©but
+                    Heure de début
                 </label>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                     {startTimeOptions.map((time) => (
@@ -232,11 +232,11 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                     Valider
                 </Button>
                 <Button className="button-reinitialiser" onClick={handleReset}>
-                    RÃ©initialiser
+                    Réinitialiser
                 </Button>
             </div>
             <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginTop: '20px', fontSize: '14px', color: '#333' }}>
-                Klick-Planning - copyright Â© Nicolas Lefevre
+                Klick-Planning - copyright © Nicolas Lefevre
             </p>
         </div>
     );

@@ -1,4 +1,4 @@
-ï»¿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
 import { importAllData } from '../../utils/backupUtils';
 import Button from '../common/Button';
@@ -21,13 +21,13 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
   const handleAddShop = () => {
     const trimmedShop = newShop.trim();
     if (!trimmedShop) {
-      setFeedback('Erreur: Le nom de la boutique ne peut pas Ãªtre vide.');
+      setFeedback('Erreur: Le nom de la boutique ne peut pas être vide.');
       console.error('Failed to add shop: Empty name');
       return;
     }
     const shopId = trimmedShop.toUpperCase().replace(/\s+/g, '_');
     if (localShops.some(shop => shop && shop.id === shopId)) {
-      setFeedback('Erreur: Cette boutique existe dÃ©jÃ .');
+      setFeedback('Erreur: Cette boutique existe déjà.');
       console.error('Failed to add shop: Already exists', shopId);
       return;
     }
@@ -36,7 +36,7 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
     setShops(newShops);
     saveToLocalStorage('shops', newShops);
     setNewShop('');
-    setFeedback('SuccÃ¨s: Boutique ajoutÃ©e.');
+    setFeedback('Succès: Boutique ajoutée.');
     console.log('Shop added:', shopId);
   };
 
@@ -50,7 +50,7 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
     Object.keys(localStorage)
       .filter(key => key.startsWith(`planning_${shopId}_`) || key.startsWith(`selected_employees_${shopId}_`))
       .forEach(key => localStorage.removeItem(key));
-    setFeedback('SuccÃ¨s: Boutique supprimÃ©e.');
+    setFeedback('Succès: Boutique supprimée.');
     console.log('Shop deleted:', shopId);
     if (selected === shopId) {
       setSelected(null);
@@ -61,14 +61,14 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
     setSelected(shopId);
     setSelectedShop(shopId);
     setStep(3);
-    setFeedback('SuccÃ¨s: Boutique sÃ©lectionnÃ©e.');
+    setFeedback('Succès: Boutique sélectionnée.');
     console.log('Shop selected:', shopId);
   };
 
   const handleImport = (event) => {
     const file = event.target.files[0];
     if (!file) {
-      setFeedback('Erreur: Aucun fichier sÃ©lectionnÃ©.');
+      setFeedback('Erreur: Aucun fichier sélectionné.');
       console.error('No file selected for import');
       return;
     }
@@ -86,12 +86,12 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
         setLocalShops(transformedShops);
         setShops(transformedShops);
         saveToLocalStorage('shops', transformedShops);
-        // Mettre Ã  jour la configuration
+        // Mettre à jour la configuration
         setConfig(data.timeSlotConfig || { timeSlots: [], interval: 30, startTime: '09:00', endTime: '23:00' });
-        setFeedback('SuccÃ¨s: DonnÃ©es importÃ©es.');
+        setFeedback('Succès: Données importées.');
         console.log('ShopSelection: Import successful, transformed shops:', transformedShops);
       } catch (error) {
-        setFeedback('Erreur: Ã‰chec de l\'importation du fichier JSON.');
+        setFeedback('Erreur: Échec de l\'importation du fichier JSON.');
         console.error('ShopSelection: Import failed', error);
       }
     };
@@ -104,19 +104,19 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
     saveToLocalStorage('shops', []);
     localStorage.clear();
     setSelected(null);
-    setFeedback('SuccÃ¨s: Liste des boutiques rÃ©initialisÃ©e.');
+    setFeedback('Succès: Liste des boutiques réinitialisée.');
     console.log('Shops reset');
   };
 
   const handleValidate = () => {
     if (!selected) {
-      setFeedback('Erreur: Aucune boutique sÃ©lectionnÃ©e.');
+      setFeedback('Erreur: Aucune boutique sélectionnée.');
       console.error('No shop selected for validation');
       return;
     }
     setSelectedShop(selected);
     setStep(3);
-    setFeedback('SuccÃ¨s: Validation effectuÃ©e.');
+    setFeedback('Succès: Validation effectuée.');
     console.log('Validation successful:', selected);
   };
 
@@ -125,7 +125,7 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
   return (
     <div className="step-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '465px' }}>
       <h2 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '15px' }}>
-        SÃ©lection des boutiques
+        Sélection des boutiques
       </h2>
       <div className="shop-input" style={{ marginBottom: '15px', width: '100%', maxWidth: '400px' }}>
         <label style={{ fontFamily: 'Roboto, sans-serif', fontSize: '16px', marginBottom: '5px', display: 'block', textAlign: 'center' }}>
@@ -224,11 +224,11 @@ const ShopSelection = ({ shops, setShops, setSelectedShop, setStep, setConfig, s
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c62828'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#e53935'}
         >
-          RÃ©initialiser
+          Réinitialiser
         </Button>
       </div>
       <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginTop: '20px', fontSize: '14px', color: '#ccc' }}>
-        Klick-Planning - copyright Â© Nicolas Lefevre
+        Klick-Planning - copyright © Nicolas Lefevre
       </p>
     </div>
   );
