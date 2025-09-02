@@ -1972,44 +1972,6 @@ const PlanningDisplay = ({
                     👤 {employeeName}
                   </div>
                   
-                  <button
-                    onClick={() => setShowRecapModal(employeeId)}
-                    style={{
-                      backgroundColor: '#1976d2',
-                      color: 'white',
-                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
-                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      marginBottom: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
-                      boxShadow: '0 3px 8px rgba(25, 118, 210, 0.3)',
-                      whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
-                      letterSpacing: '0.5px'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1565c0';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(25, 118, 210, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1976d2';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(25, 118, 210, 0.3)';
-                    }}
-                    title="Récapitulatif journalier"
-                  >
-                    📅 Jour: {(() => {
-          if (!selectedWeek || !selectedShop || !planning) return '0.0';
-          const dayKey = format(addDays(new Date(selectedWeek), currentDay || 0), 'yyyy-MM-dd');
-          const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
-          return hours.toFixed(1);
-                    })()}h
-                  </button>
-                  
                   {/* Bouton Semaine - Toujours présent avec couleur verte */}
                   <button
                     onClick={() => {
@@ -2053,6 +2015,83 @@ const PlanningDisplay = ({
                         const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
                         totalHours += hours;
                       }
+                      return totalHours.toFixed(1);
+                    })()}h
+                  </button>
+
+                  {/* Bouton Mois - Toujours présent avec couleur bleue */}
+                  <button
+                    onClick={() => {
+                      setSelectedEmployeeForMonthlyRecap(employeeId);
+                      setShowEmployeeMonthlyRecap(true);
+                    }}
+                    style={{
+                      backgroundColor: '#1e88e5', // Couleur bleue pour mois
+                      color: 'white',
+                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
+                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      marginBottom: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 3px 8px rgba(30, 136, 229, 0.3)',
+                      whiteSpace: 'nowrap',
+                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
+                      letterSpacing: '0.5px',
+                      width: '100%'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = '#1565c0';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(30, 136, 229, 0.4)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = '#1e88e5';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
+                    }}
+                    title="Récapitulatif mensuel"
+                  >
+                    📈 Mois: {(() => {
+                      if (!selectedWeek || !planningData) return '0.0';
+                      
+                      // Calculer les heures du mois complet sur toutes les boutiques
+                      const currentDate = new Date(selectedWeek);
+                      const year = currentDate.getFullYear();
+                      const month = currentDate.getMonth();
+                      
+                      // Premier jour du mois
+                      const firstDayOfMonth = new Date(year, month, 1);
+                      // Dernier jour du mois
+                      const lastDayOfMonth = new Date(year, month + 1, 0);
+                      
+                      let totalHours = 0;
+                      
+                      // Parcourir tous les jours du mois
+                      for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                        const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                        
+                        // Calculer les heures pour toutes les boutiques où l'employé travaille
+                        if (planningData.shops) {
+                          planningData.shops.forEach(shop => {
+                            if (shop.weeks) {
+                              Object.keys(shop.weeks).forEach(weekKey => {
+                                const weekData = shop.weeks[weekKey];
+                                if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                  const slots = weekData.planning[employeeId][dayKey];
+                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                    totalHours += hours;
+                                  }
+                                }
+                              });
+                            }
+                          });
+                        }
+                      }
+                      
                       return totalHours.toFixed(1);
                     })()}h
                   </button>
@@ -2447,82 +2486,7 @@ const PlanningDisplay = ({
                     })()}
                   </div>
 
-                  {/* Bouton Mois global - Couleur bleue pour mois */}
-                  <button
-                    onClick={() => {
-                      setSelectedEmployeeForMonthlyRecap(employeeId);
-                      setShowEmployeeMonthlyRecap(true);
-                    }}
-                    style={{
-                      backgroundColor: '#1e88e5', // Couleur bleue pour mois
-                      color: 'white',
-                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
-                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      marginBottom: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
-                      boxShadow: '0 3px 8px rgba(30, 136, 229, 0.3)',
-                      whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
-                      letterSpacing: '0.5px',
-                      width: '100%'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1565c0';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(30, 136, 229, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1e88e5';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
-                    }}
-                    title="Récapitulatif mensuel"
-                  >
-                    📈 Mois: {(() => {
-                      if (!selectedWeek || !planningData) return '0.0';
-                      
-                      // Calculer les heures du mois complet sur toutes les boutiques
-                      const currentDate = new Date(selectedWeek);
-                      const year = currentDate.getFullYear();
-                      const month = currentDate.getMonth();
-                      
-                      // Premier jour du mois
-                      const firstDayOfMonth = new Date(year, month, 1);
-                      // Dernier jour du mois
-                      const lastDayOfMonth = new Date(year, month + 1, 0);
-                      
-                      let totalHours = 0;
-                      
-                      // Parcourir tous les jours du mois
-                      for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                        const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                        
-                        // Calculer les heures pour toutes les boutiques où l'employé travaille
-                        if (planningData.shops) {
-                          planningData.shops.forEach(shop => {
-                            if (shop.weeks) {
-                              Object.keys(shop.weeks).forEach(weekKey => {
-                                const weekData = shop.weeks[weekKey];
-                                if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                  const slots = weekData.planning[employeeId][dayKey];
-                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                    totalHours += hours;
-                                  }
-                                }
-                              });
-                            }
-                          });
-                        }
-                      }
-                      
-                      return totalHours.toFixed(1);
-                    })()}h
-                  </button>
+                  {/* Bouton Mois déplacé en haut, juste après le bouton Semaine */}
                   
                   {/* Bouton Mois: XX.00h - Couleur bleue pour mois */}
                   <button
