@@ -1,7 +1,51 @@
 {
-  "version": "3.10.43",
-  "lastUpdate": "2025-01-27",
+  "version": "3.10.47",
+  "lastUpdate": "2025-09-02",
   "changelog": [
+    {
+      "version": "3.10.47",
+      "date": "2025-09-02",
+      "changes": [
+        "🎯 NOUVELLE FONCTIONNALITÉ: Bouton intelligent 'Gestion Employés Masqués' dans la barre de menu",
+        "👥 Interface centralisée pour gérer tous les employés masqués au même endroit",
+        "🔓 Réactivation simplifiée : plus de problème de logique circulaire",
+        "📊 Compteur en temps réel du nombre d'employés masqués",
+        "🚫 Actions globales : réactiver/masquer tous les employés en une fois",
+        "💡 Suppression des boutons individuels de masquage des cartes d'employés",
+        "🎨 Design cohérent avec les autres boutons intelligents de la barre de menu"
+      ]
+    },
+    {
+      "version": "3.10.46",
+      "date": "2025-09-02",
+      "changes": [
+        "🔧 CORRECTION: Persistance du statut masqué lors des changements de semaine",
+        "✅ Le filtrage des employés masqués est maintenant appliqué à chaque changement de semaine",
+        "🔄 Mise à jour automatique de la liste des employés visibles lors de la navigation",
+        "💡 Amélioration de l'interface : confirmation claire et tooltips informatifs",
+        "🎯 Réactivation simplifiée : plus besoin de naviguer vers une semaine spécifique",
+        "📊 Filtrage cohérent dans tous les composants (PlanningDisplay, RecapButtons)"
+      ]
+    },
+    {
+      "version": "3.10.45",
+      "date": "2025-09-02",
+      "changes": [
+        "✨ Nouvelle fonctionnalité : Boutons Masquer/Réactiver employés directement dans le planning",
+        "🔒 Possibilité de masquer un employé à partir d'une date spécifique",
+        "🔓 Possibilité de réactiver un employé masqué",
+        "📊 Les employés masqués sont automatiquement exclus de tous les rapports (Excel, PDF)",
+        "💡 Interface simplifiée : plus besoin de passer par la gestion des employés"
+      ]
+    },
+    {
+      "version": "3.10.44",
+      "date": "2025-09-02",
+      "changes": [
+        "🔧 Correction du bouton Masquer/Réactiver employé",
+        "🎯 Bouton maintenant visible directement sur la carte de l'employé dans le planning"
+      ]
+    },
             {
           "version": "3.10.33",
           "date": "2025-01-27",

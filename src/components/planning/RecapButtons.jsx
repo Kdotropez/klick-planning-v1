@@ -333,7 +333,10 @@ const RecapButtons = ({
   };
 
   // Utiliser getAllEmployees pour avoir tous les employés, pas seulement ceux de la boutique actuelle
-  const allEmployees = getAllEmployees(planningData);
+  // CORRECTION : Utiliser la date de la semaine sélectionnée pour le filtrage des employés masqués
+  // L'employé est masqué uniquement à partir de sa date hiddenFrom, par rapport à la semaine affichée
+  const weekDate = new Date(currentWeek); // Date de la semaine sélectionnée pour le filtrage des employés masqués
+  const allEmployees = getAllEmployees(planningData, weekDate);
   
   return (
     <div className="recap-buttons" style={{ display: 'flex', flexDirection: 'row', overflowX: 'auto', justifyContent: 'center', gap: '12px', marginBottom: '15px' }}>
@@ -447,7 +450,8 @@ const RecapButtons = ({
           )}
                      {(() => {
              // Logique générale pour tous les employés multi-boutiques
-             const allEmployees = getAllEmployees(planningData);
+             // CORRECTION : Utiliser la date de la semaine sélectionnée pour le filtrage des employés masqués
+             const allEmployees = getAllEmployees(planningData, weekDate);
              const employeeData = allEmployees.find(emp => emp.id === employeeId);
              const isMultiShopEmployee = employeeData && employeeData.canWorkIn && employeeData.canWorkIn.length > 1;
              
@@ -592,43 +596,43 @@ const RecapButtons = ({
                           MOIS DÉTAIL
           </Button>
           
-          {/* Bouton de masquage/réactivation */}
-          {(() => {
-            console.log(`🚨 DEBUG - RENDU DU BOUTON MASQUER POUR ${employeeId}`);
-            console.log(`DEBUG - Vérification masquage pour ${employeeId}:`, {
-              employee: employee,
-              isHidden: isEmployeeHidden(employee, new Date()),
-              currentDate: new Date()
-            });
-            
-            // Forcer l'affichage du bouton pour le test
-            return (
-              <div style={{ border: '2px solid red', padding: '2px', margin: '2px' }}>
-                <Button
-                  className="button-recap"
-                  onClick={() => {
-                    console.log(`🚨 CLIC SUR MASQUER POUR ${employeeId}`);
-                    handleHideEmployee(employeeId);
-                  }}
-                  style={{
-                    backgroundColor: '#dc3545',
-                    color: '#fff',
-                    padding: '8px 16px',
-                    fontSize: '11px',
-                    width: '100%',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    border: '2px solid yellow'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
-                >
-                  🚫 Masquer
-                </Button>
-              </div>
-            );
-          })()}
+                               {/* Bouton de masquage/réactivation */}
+                     {(() => {
+                       console.log(`🚨 DEBUG - RENDU DU BOUTON MASQUER POUR ${employeeId}`);
+                       console.log(`DEBUG - Vérification masquage pour ${employeeId}:`, {
+                         employee: employee,
+                         isHidden: isEmployeeHidden(employee, new Date()),
+                         currentDate: new Date()
+                       });
+                       
+                       // Forcer l'affichage du bouton pour le test
+                       return (
+                         <div style={{ border: '2px solid red', padding: '2px', margin: '2px' }}>
+                           <Button
+                             className="button-recap"
+                             onClick={() => {
+                               console.log(`🚨 CLIC SUR MASQUER POUR ${employeeId}`);
+                               handleHideEmployee(employeeId);
+                             }}
+                             style={{
+                               backgroundColor: '#dc3545',
+                               color: '#fff',
+                               padding: '8px 16px',
+                               fontSize: '11px',
+                               width: '100%',
+                               whiteSpace: 'nowrap',
+                               overflow: 'hidden',
+                               textOverflow: 'ellipsis',
+                               border: '2px solid yellow'
+                             }}
+                             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
+                             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
+                           >
+                             🚫 Masquer
+                           </Button>
+                         </div>
+                       );
+                     })()}
         </div>
       );
       })}

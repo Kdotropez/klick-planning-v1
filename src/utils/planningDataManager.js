@@ -105,14 +105,35 @@ export const showEmployee = (planningData, employeeId) => {
   };
 };
 
-export const isEmployeeHidden = (employee, currentDate) => {
-  if (!employee.hiddenFrom) return false;
+export const isEmployeeHidden = (employee, weekDate) => {
+  if (!employee.hiddenFrom) {
+    console.log(`🔍 ${employee.name || employee.id}: Pas de hiddenFrom, visible`);
+    return false;
+  }
   
   const hideDate = new Date(employee.hiddenFrom);
-  const current = new Date(currentDate);
+  const weekStartDate = new Date(weekDate);
+  // Calculer la fin de la semaine (dimanche)
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekStartDate.getDate() + 6);
   
-  // L'employé est masqué si la date actuelle est >= à la date de masquage
-  return current >= hideDate;
+  console.log(`🔍 ${employee.name || employee.id}:`, {
+    hiddenFrom: employee.hiddenFrom,
+    hideDate: hideDate.toISOString().split('T')[0],
+    weekDate: weekDate,
+    weekStartDate: weekStartDate.toISOString().split('T')[0],
+    weekEndDate: weekEndDate.toISOString().split('T')[0],
+    isHidden: weekStartDate >= hideDate || (weekStartDate <= hideDate && hideDate <= weekEndDate)
+  });
+  
+  // L'employé est masqué si :
+  // 1. La semaine commence après ou à la date de masquage (semaines futures)
+  // 2. OU si la semaine contient la date de masquage
+  // Exemple : si hiddenFrom = "2025-09-02" :
+  // - Semaine du 25 au 31 août : visible (semaine entièrement avant)
+  // - Semaine du 1er au 7 septembre : masqué (contient le 2 septembre)
+  // - Semaine du 8 au 14 septembre : masqué (après le 2 septembre)
+  return weekStartDate >= hideDate || (weekStartDate <= hideDate && hideDate <= weekEndDate);
 };
 
 export const getVisibleEmployees = (planningData, currentDate = new Date()) => {

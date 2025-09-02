@@ -5,6 +5,8 @@ import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { checkUserPermission } from '../../config/userCodes';
 import UserManagementModal from '../admin/UserManagementModal';
+import HiddenEmployeesModal from './HiddenEmployeesModal';
+import { getHiddenEmployees } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
 
 const PlanningMenuBar = ({
@@ -79,9 +81,15 @@ const PlanningMenuBar = ({
   autoLockEnabled,
   setAutoLockEnabled,
   copyWeekToNextWeek,
-  validationState
+  validationState,
+  
+  // Gestion des employés masqués
+  planningData,
+  onEmployeeUpdate
 }) => {
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showHiddenEmployeesModal, setShowHiddenEmployeesModal] = useState(false);
+  const [hiddenEmployeesCount, setHiddenEmployeesCount] = useState(0);
   
   const fileInputRef = useRef(null);
 
@@ -97,6 +105,14 @@ const PlanningMenuBar = ({
     // Reset the input
     event.target.value = '';
   };
+
+  // Calculer le nombre d'employés masqués
+  useEffect(() => {
+    if (planningData) {
+      const hidden = getHiddenEmployees(planningData, new Date());
+      setHiddenEmployeesCount(hidden.length);
+    }
+  }, [planningData]);
 
   return (
     <div 
@@ -309,6 +325,58 @@ const PlanningMenuBar = ({
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#8bc34a'}
         >
           📝 Notes
+        </Button>
+
+        {/* Bouton intelligent Gestion Employés Masqués */}
+        <Button
+          className="button-primary"
+          onClick={() => setShowHiddenEmployeesModal(true)}
+          style={{
+            backgroundColor: hiddenEmployeesCount > 0 ? '#dc3545' : '#6c757d',
+            color: '#fff',
+            padding: '10px 14px',
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap',
+            position: 'relative'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = hiddenEmployeesCount > 0 ? '#c82333' : '#5a6268';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = hiddenEmployeesCount > 0 ? '#dc3545' : '#6c757d';
+          }}
+          title={hiddenEmployeesCount > 0 ? 
+            `${hiddenEmployeesCount} employé(s) masqué(s) - Cliquez pour réactiver` : 
+            'Aucun employé masqué - Cliquez pour vérifier'
+          }
+        >
+          🔓 Réactiver Masqués
+          {hiddenEmployeesCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-8px',
+              right: '-8px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              borderRadius: '50%',
+              width: '20px',
+              height: '20px',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+              border: '2px solid white'
+            }}>
+              {hiddenEmployeesCount}
+            </span>
+          )}
         </Button>
 
         <Button
@@ -711,6 +779,15 @@ const PlanningMenuBar = ({
         isOpen={showUserManagement}
         onClose={() => setShowUserManagement(false)}
         currentUser={currentUser}
+      />
+
+      {/* Modal de gestion des employés masqués */}
+      <HiddenEmployeesModal
+        isOpen={showHiddenEmployeesModal}
+        onClose={() => setShowHiddenEmployeesModal(false)}
+        planningData={planningData}
+        onEmployeeUpdate={onEmployeeUpdate}
+        currentDate={new Date()}
       />
     </div>
   );

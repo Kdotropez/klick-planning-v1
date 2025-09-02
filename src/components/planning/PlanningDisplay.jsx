@@ -434,18 +434,22 @@ const PlanningDisplay = ({
     }
     
     // Récupérer tous les employés qui peuvent travailler dans cette boutique
-    const allEmployees = getAllEmployees(planningData);
+    // CORRECTION : Utiliser la date de la semaine sélectionnée pour le filtrage des employés masqués
+    // L'employé est masqué uniquement à partir de sa date hiddenFrom, par rapport à la semaine affichée
+    const weekDate = new Date(selectedWeek); // Date de la semaine sélectionnée pour le filtrage des employés masqués
+    const allEmployees = getAllEmployees(planningData, weekDate);
     const employeesForThisShop = allEmployees.filter(emp => 
       emp.canWorkIn && emp.canWorkIn.includes(selectedShop)
     );
     
     // Logique générale pour tous les employés multi-boutiques
     // Inclure tous les employés qui peuvent travailler dans cette boutique, même si ce n'est pas leur boutique principale
-    console.log(`Employés pour ${selectedShop}:`, employeesForThisShop.map(emp => emp.name));
+    console.log(`Employés pour ${selectedShop} (semaine ${selectedWeek}):`, employeesForThisShop.map(emp => emp.name));
     console.log(`Employés multi-boutiques détectés:`, employeesForThisShop.filter(emp => emp.canWorkIn && emp.canWorkIn.length > 1).map(emp => emp.name));
+    console.log(`🔍 Filtrage des employés masqués avec la date de la semaine sélectionnée: ${weekDate.toISOString().split('T')[0]}`);
     
     setCurrentShopEmployees(employeesForThisShop);
-  }, [planningData, selectedShop]);
+  }, [planningData, selectedShop, selectedWeek]);
 
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
@@ -604,29 +608,39 @@ const PlanningDisplay = ({
   }, [setPlanningData]);
 
   // Fonction pour masquer un employé
-  const handleHideEmployee = useCallback((employeeId) => {
+  const handleHideEmployee = useCallback(async (employeeId) => {
     if (!employeeId) return;
     
-    // Demander la date à partir de laquelle masquer l'employé
-    const today = new Date().toISOString().split('T')[0];
-    const hideFromDate = window.prompt(
-      "À partir de quelle date voulez-vous masquer cet employé ? (format: AAAA-MM-JJ)",
-      today
+    // Trouver le nom de l'employé pour l'affichage
+    const employee = planningData?.shops?.flatMap(shop => shop.employees || []).find(emp => emp.id === employeeId);
+    const employeeName = employee?.name || employeeId;
+    
+    // Demander confirmation avec une meilleure interface
+    const confirmHide = window.confirm(
+      `Êtes-vous sûr de vouloir masquer l'employé "${employeeName}" ?\n\n` +
+      `⚠️ ATTENTION : L'employé sera masqué à partir d'aujourd'hui et n'apparaîtra plus dans les rapports.\n\n` +
+      `✅ Pour le réactiver plus tard, utilisez le bouton "🔓 Réactiver" sur sa carte.`
     );
     
-    if (!hideFromDate) return;
+    if (!confirmHide) return;
+    
+    // Utiliser la date d'aujourd'hui comme date de masquage
+    const today = new Date().toISOString().split('T')[0];
     
     try {
+      // Mettre à jour l'état local
       setPlanningData(prev => {
         const updated = {
           ...prev,
           shops: (prev.shops || []).map(shop => ({
             ...shop,
             employees: (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
+              emp && emp.id === employeeId ? { ...emp, hiddenFrom: today } : emp
             )
           }))
         };
+        console.log('🔄 État local mis à jour avec hiddenFrom:', today);
+        console.log('🔄 Nouvel état:', updated);
         return updated;
       });
       
@@ -635,24 +649,43 @@ const PlanningDisplay = ({
       const updatedShops = updatedData.shops.map(shop => ({
         ...shop,
         employees: (shop.employees || []).map(emp =>
-          emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
+          emp && emp.id === employeeId ? { ...emp, hiddenFrom: today } : emp
         )
       }));
       updatedData.shops = updatedShops;
       localStorage.setItem('planningData', JSON.stringify(updatedData));
       
-      setLocalFeedback('🚫 Employé masqué avec succès');
+      // Sauvegarder dans Supabase
+      try {
+        console.log('💾 Sauvegarde du masquage dans Supabase...');
+        const remoteResult = await saveCompletePlanningData(updatedData);
+        if (remoteResult) {
+          console.log('✅ Masquage sauvegardé dans Supabase');
+          setLocalFeedback(`🚫 Employé "${employeeName}" masqué avec succès et sauvegardé dans Supabase`);
+        } else {
+          console.log('❌ Échec sauvegarde Supabase du masquage');
+          setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement mais échec sauvegarde Supabase`);
+        }
+      } catch (error) {
+        console.error('❌ Erreur sauvegarde Supabase du masquage:', error);
+        setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement mais échec sauvegarde Supabase`);
+      }
     } catch (e) {
       console.error('Erreur masquage employé:', e);
       setLocalFeedback('❌ Erreur lors du masquage');
     }
-  }, [setPlanningData]);
+  }, [setPlanningData, planningData]);
 
   // Fonction pour réactiver un employé
-  const handleShowEmployee = useCallback((employeeId) => {
+  const handleShowEmployee = useCallback(async (employeeId) => {
     if (!employeeId) return;
     
+    // Trouver le nom de l'employé pour l'affichage
+    const employee = planningData?.shops?.flatMap(shop => shop.employees || []).find(emp => emp.id === employeeId);
+    const employeeName = employee?.name || employeeId;
+    
     try {
+      // Mettre à jour l'état local
       setPlanningData(prev => {
         const updated = {
           ...prev,
@@ -677,12 +710,26 @@ const PlanningDisplay = ({
       updatedData.shops = updatedShops;
       localStorage.setItem('planningData', JSON.stringify(updatedData));
       
-      setLocalFeedback('🔓 Employé réactivé avec succès');
+      // Sauvegarder dans Supabase
+      try {
+        console.log('💾 Sauvegarde de la réactivation dans Supabase...');
+        const remoteResult = await saveCompletePlanningData(updatedData);
+        if (remoteResult) {
+          console.log('✅ Réactivation sauvegardée dans Supabase');
+          setLocalFeedback(`🔓 Employé "${employeeName}" réactivé avec succès et sauvegardé dans Supabase`);
+        } else {
+          console.log('❌ Échec sauvegarde Supabase de la réactivation');
+          setLocalFeedback(`🔓 Employé "${employeeName}" réactivé localement mais échec sauvegarde Supabase`);
+        }
+      } catch (error) {
+        console.error('❌ Erreur sauvegarde Supabase de la réactivation:', error);
+        setLocalFeedback(`🔓 Employé "${employeeName}" réactivé localement mais échec sauvegarde Supabase`);
+      }
     } catch (e) {
       console.error('Erreur réactivation employé:', e);
       setLocalFeedback('❌ Erreur lors de la réactivation');
     }
-  }, [setPlanningData]);
+  }, [setPlanningData, planningData]);
   
   // Mettre à jour le planning global
   useEffect(() => {
@@ -763,31 +810,30 @@ const PlanningDisplay = ({
     });
     
     if (selectedShop && selectedWeek) {
-      // 1. Récupérer les données de la boutique actuelle (recalculer à chaque changement)
-      const currentShopData = getShopById(planningData, selectedShop);
-      const allShopEmployees = currentShopData?.employees || [];
+      // 1. Récupérer TOUS les employés (y compris multi-boutiques) avec filtrage des masqués
+      // CORRECTION : Utiliser la date de la semaine sélectionnée pour le filtrage des employés masqués
+      // L'employé est masqué uniquement à partir de sa date hiddenFrom, par rapport à la semaine affichée
+      const weekDate = new Date(selectedWeek); // Date de la semaine sélectionnée pour le filtrage des employés masqués
+      console.log('🔍 Date de la semaine sélectionnée pour filtrage des employés masqués:', weekDate.toISOString().split('T')[0]);
+      const allEmployeesData = getAllEmployees(planningData, weekDate);
+      console.log('👥 Tous les employés (après filtrage masqués):', allEmployeesData);
       
-      // Valider et nettoyer les employés
-      const validShopEmployees = allShopEmployees
-        .filter(emp => emp && typeof emp === 'object' && emp.id && emp.name)
-        .map(emp => ({
-          id: String(emp.id),
-          name: String(emp.name),
-          canWorkIn: Array.isArray(emp.canWorkIn) ? emp.canWorkIn.map(String) : [],
-          ...(emp.color && { color: String(emp.color) }),
-          ...(emp.role && { role: String(emp.role) })
-        }));
+      // Debug: vérifier les employés masqués
+      const hiddenEmployees = planningData.shops?.flatMap(shop => shop.employees || [])
+        .filter(emp => emp.hiddenFrom)
+        .map(emp => ({ id: emp.id, name: emp.name, hiddenFrom: emp.hiddenFrom }));
+      console.log('🚫 Employés avec hiddenFrom:', hiddenEmployees);
       
       // Mettre à jour tous les employés de toutes les boutiques
-      setAllEmployees(validShopEmployees);
+      setAllEmployees(allEmployeesData);
       
-
-      
-      // Filtrer les employés pour cette boutique (logique originale)
-      const shopEmployees = validShopEmployees.filter(emp => {
+      // 2. Filtrer les employés pour cette boutique spécifique
+      const shopEmployees = allEmployeesData.filter(emp => {
         const can = emp.canWorkIn;
         return Array.isArray(can) && can.includes(selectedShop);
       });
+      
+      console.log('🏪 Employés de la boutique actuelle:', shopEmployees);
       
       const currentShopEmployeeIds = shopEmployees.map(emp => emp.id);
       
@@ -1804,6 +1850,10 @@ const PlanningDisplay = ({
           setAutoLockEnabled={setAutoLockEnabled}
           copyWeekToNextWeek={copyWeekToNextWeek}
           validationState={validationState}
+          
+          // Gestion des employés masqués
+          planningData={planningData}
+          onEmployeeUpdate={setPlanningData}
           />
         </div>
 
@@ -2432,7 +2482,7 @@ const PlanningDisplay = ({
                               e.currentTarget.style.backgroundColor = '#28a745';
                               e.currentTarget.style.transform = 'translateY(0)';
                             }}
-                            title="Réactiver l'employé"
+                            title="Réactiver l'employé - L'employé réapparaîtra dans tous les rapports"
                           >
                             🔓 Réactiver
                           </button>
@@ -2464,7 +2514,7 @@ const PlanningDisplay = ({
                               e.currentTarget.style.backgroundColor = '#dc3545';
                               e.currentTarget.style.transform = 'translateY(0)';
                             }}
-                            title="Masquer l'employé"
+                            title="Masquer l'employé - L'employé sera caché à partir d'aujourd'hui et n'apparaîtra plus dans les rapports"
                           >
                             🚫 Masquer
                           </button>

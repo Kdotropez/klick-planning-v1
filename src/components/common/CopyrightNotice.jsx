@@ -10,7 +10,7 @@ const CopyrightNotice = () => {
       .then(data => setVersion(data.version))
       .catch(error => {
         console.error('Erreur chargement version:', error);
-        setVersion('3.10.44'); // Version par défaut
+        setVersion('3.10.47'); // Version par défaut
       });
   }, []);
 
