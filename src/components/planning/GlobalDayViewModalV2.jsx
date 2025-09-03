@@ -647,43 +647,68 @@ const GlobalDayViewModalV2 = ({
     </div>
   );
 
-  // Vue hebdomadaire professionnelle
+  // Vue hebdomadaire professionnelle - TOUS les employés de TOUTES les boutiques
   const WeeklyTab = () => {
-      // Fonction pour obtenir les horaires d'un employé pour un jour
-  const getEmployeeSchedule = (employeeId, dayKey) => {
-    const dayPlanning = planning[employeeId]?.[dayKey];
-    if (!dayPlanning || !Array.isArray(dayPlanning)) return null;
+    // Fonction pour obtenir les horaires d'un employé pour un jour et une boutique
+    const getEmployeeScheduleForShop = (employeeId, dayKey, shopId) => {
+      if (!planningData || !planningData.shops || !planningData.shops[shopId]) return null;
+      
+      const shop = planningData.shops[shopId];
+      const dayPlanning = shop.weeks?.[selectedWeek]?.planning?.[employeeId]?.[dayKey];
+      
+      if (!dayPlanning) return null;
+      
+      // Si c'est un statut (Congé/Maladie)
+      if (typeof dayPlanning === 'string') {
+        return {
+          type: 'status',
+          status: dayPlanning,
+          schedules: []
+        };
+      }
+      
+      // Si ce sont des créneaux horaires
+      if (Array.isArray(dayPlanning)) {
+        const hasWork = dayPlanning.some(slot => slot === true);
+        if (!hasWork) return null;
+        
+        const schedules = [];
+        let currentStart = null;
+        let currentEnd = null;
 
-    const schedules = [];
-    let currentStart = null;
-    let currentEnd = null;
-
-    dayPlanning.forEach((isSelected, slotIndex) => {
-        if (isSelected) {
-          const slotTime = timeSlots[slotIndex];
-          if (!currentStart) {
-            currentStart = slotTime;
+        dayPlanning.forEach((isSelected, slotIndex) => {
+          if (isSelected) {
+            const slotTime = timeSlots[slotIndex];
+            if (!currentStart) {
+              currentStart = slotTime;
+            }
+            currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+          } else if (currentStart) {
+            schedules.push({
+              start: currentStart,
+              end: currentEnd
+            });
+            currentStart = null;
+            currentEnd = null;
           }
-          currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
-        } else if (currentStart) {
+        });
+
+        // Ajouter le dernier créneau si nécessaire
+        if (currentStart) {
           schedules.push({
             start: currentStart,
             end: currentEnd
           });
-          currentStart = null;
-          currentEnd = null;
         }
-      });
 
-      // Ajouter le dernier créneau si nécessaire
-      if (currentStart) {
-        schedules.push({
-          start: currentStart,
-          end: currentEnd
-        });
+        return {
+          type: 'work',
+          status: 'Travail',
+          schedules: schedules
+        };
       }
-
-      return schedules;
+      
+      return null;
     };
 
     // Fonction pour fusionner les créneaux consécutifs
@@ -706,10 +731,36 @@ const GlobalDayViewModalV2 = ({
       return merged;
     };
 
+    // Récupérer tous les employés de toutes les boutiques
+    const getAllEmployeesFromAllShops = () => {
+      const allEmployees = [];
+      
+      if (planningData && planningData.shops) {
+        Object.keys(planningData.shops).forEach(shopId => {
+          const shop = planningData.shops[shopId];
+          if (shop.employees && Array.isArray(shop.employees)) {
+            shop.employees.forEach(employee => {
+              // Éviter les doublons
+              if (!allEmployees.find(emp => emp.id === employee.id)) {
+                allEmployees.push({
+                  ...employee,
+                  primaryShop: shop.name // Boutique principale de l'employé
+                });
+              }
+            });
+          }
+        });
+      }
+      
+      return allEmployees;
+    };
+
+    const allEmployees = getAllEmployeesFromAllShops();
+
     return (
       <div className="weekly-tab">
         <div className="weekly-header">
-          <h3>Planning hebdomadaire - {selectedShop}</h3>
+          <h3>Planning hebdomadaire - Toutes les boutiques</h3>
           <p>Semaine du {globalStats.weekRange}</p>
         </div>
 
@@ -729,25 +780,68 @@ const GlobalDayViewModalV2 = ({
                 </div>
 
                 <div className="employees-schedule">
-                  {selectedEmployees.map(employeeId => {
-                    const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
-                    if (!employee) return null;
-
-                    const schedules = getEmployeeSchedule(employeeId, day.dateKey);
-                    if (!schedules || schedules.length === 0) return null;
-
-                    const mergedSchedules = mergeConsecutiveSlots(schedules);
+                  {allEmployees.map(employee => {
+                    // Récupérer les horaires de cet employé dans toutes les boutiques pour ce jour
+                    const employeeSchedules = [];
+                    
+                    if (planningData && planningData.shops) {
+                      Object.keys(planningData.shops).forEach(shopId => {
+                        const shop = planningData.shops[shopId];
+                        const scheduleData = getEmployeeScheduleForShop(employee.id, day.dateKey, shopId);
+                        
+                        if (scheduleData) {
+                          employeeSchedules.push({
+                            shop: shop.name,
+                            ...scheduleData
+                          });
+                        }
+                      });
+                    }
+                    
+                    // Si l'employé n'a aucun planning ce jour, ne pas l'afficher
+                    if (employeeSchedules.length === 0) return null;
 
                     return (
-                      <div key={employeeId} className="employee-schedule-row">
-                        <div className="employee-name">
-                          <strong>{employee.name}</strong>
+                      <div key={employee.id} className="employee-schedule-row">
+                        <div className="employee-info">
+                          <div className="employee-name">
+                            <strong>{employee.name}</strong>
+                          </div>
                         </div>
-                        <div className="employee-hours">
-                          {mergedSchedules.map((schedule, index) => (
-                            <span key={index} className="time-slot">
-                              {schedule.start} - {schedule.end}
-                            </span>
+                        
+                        <div className="employee-schedules">
+                          {employeeSchedules.map((scheduleData, scheduleIndex) => (
+                            <div key={scheduleIndex} className="schedule-item">
+                              <div className="shop-badge">
+                                {scheduleData.shop}
+                              </div>
+                              
+                              {scheduleData.type === 'status' ? (
+                                // Affichage du statut (Congé/Maladie)
+                                <div className="status-display">
+                                  {scheduleData.status === 'Congé ☀️' ? (
+                                    <span className="status-conge">🏖️ Congé</span>
+                                  ) : scheduleData.status === 'Maladie 🤒' ? (
+                                    <span className="status-maladie">🤒 Maladie</span>
+                                  ) : (
+                                    <span className="status-other">{scheduleData.status}</span>
+                                  )}
+                                </div>
+                              ) : (
+                                // Affichage des créneaux horaires
+                                <div className="time-slots">
+                                  {scheduleData.schedules && scheduleData.schedules.length > 0 ? (
+                                    mergeConsecutiveSlots(scheduleData.schedules).map((schedule, index) => (
+                                      <span key={index} className="time-slot">
+                                        {schedule.start} - {schedule.end}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="no-schedule">Libre</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -759,8 +853,8 @@ const GlobalDayViewModalV2 = ({
           })}
         </div>
       </div>
-         );
-   };
+    );
+  };
 
      // Vue combinée : Vue d'ensemble + Vue hebdomadaire
   const CombinedTab = ({
@@ -2279,6 +2373,106 @@ const GlobalDayViewModalV2 = ({
 
         .header * {
           transform: none !important;
+        }
+
+        /* Nouveaux styles pour la vue hebdomadaire multi-boutiques */
+        .employee-info {
+          width: 140px;
+          min-width: 140px;
+          padding-right: 16px;
+          border-right: 2px solid #ecf0f1;
+        }
+
+        .employee-schedules {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          flex: 1;
+          padding-left: 16px;
+        }
+
+        .schedule-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 12px;
+          background: rgba(248, 249, 250, 0.8);
+          border-radius: 8px;
+          border: 1px solid #ecf0f1;
+        }
+
+        .shop-badge {
+          background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+          color: white;
+          padding: 4px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 600;
+          white-space: nowrap;
+          box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-display {
+          display: flex;
+          align-items: center;
+        }
+
+        .status-conge {
+          background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+          color: #d63031;
+          padding: 6px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(255, 234, 167, 0.3);
+          border: 1px solid rgba(214, 48, 49, 0.2);
+        }
+
+        .status-maladie {
+          background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+          color: #c44569;
+          padding: 6px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(253, 121, 168, 0.3);
+          border: 1px solid rgba(196, 69, 105, 0.2);
+        }
+
+        .status-other {
+          background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 8px rgba(149, 165, 166, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .time-slots {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .no-schedule {
+          color: #95a5a6;
+          font-style: italic;
+          font-size: 12px;
+        }
+
+        /* Ajustement de la grille pour 2 colonnes */
+        .weekly-schedule {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 20px;
+          padding: 10px;
+        }
+
+        .day-schedule-card {
+          min-width: 0; /* Permet aux cartes de se rétrécir */
         }
       `}</style>
     </div>
