@@ -18,7 +18,9 @@ const PlanningTable = ({
   pasteMode = false,
   selectedSlots = [],
   copiedSlots = null,
-  lockedEmployees = []
+  lockedEmployees = [],
+  planningData = null,
+  selectedShop = null
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
@@ -528,6 +530,39 @@ const PlanningTable = ({
                   className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}`}
                 >
                   {employeeName} ({hours.toFixed(1)} h)
+                  {(() => {
+                    // Vérifier si l'employé travaille déjà ce jour dans d'autres boutiques
+                    if (!planningData || !planningData.shops) return null;
+                    
+                    const boutiquesOuTravaille = [];
+                    
+                    planningData.shops.forEach(shop => {
+                      if (shop.id !== selectedShop && shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
+                        const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
+                        if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                          boutiquesOuTravaille.push(shop.name);
+                        }
+                      }
+                    });
+                    
+                    if (boutiquesOuTravaille.length > 0) {
+                      return (
+                        <span style={{ 
+                          marginLeft: '8px', 
+                          fontSize: '11px', 
+                          fontWeight: 'bold', 
+                          color: '#1e88e5',
+                          backgroundColor: 'rgba(30, 136, 229, 0.1)',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(30, 136, 229, 0.3)'
+                        }}>
+                          {boutiquesOuTravaille.join(', ')}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                   {displayStatus && (
                     <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 'bold', color: isSickDay ? '#dc3545' : '#ff9800' }}>
                       {displayStatus}

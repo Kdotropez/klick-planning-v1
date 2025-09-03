@@ -2009,7 +2009,7 @@ const PlanningDisplay = ({
                   >
                     📊 Semaine: {(() => {
                       if (!selectedWeek || !planningData) return '0.0';
-                      let totalHours = 0;
+          let totalHours = 0;
                       
                       // Calculer le total pour toutes les boutiques où l'employé travaille
                       const employeeShops = (planningData?.shops || []).filter(shop => 
@@ -2017,22 +2017,22 @@ const PlanningDisplay = ({
                       );
                       
                       employeeShops.forEach(shop => {
-                        for (let i = 0; i < 7; i++) {
-                          const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+          for (let i = 0; i < 7; i++) {
+            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
                           if (shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                             const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                             if (Array.isArray(slots) && slots.some(slot => slot === true)) {
                               const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                              totalHours += hours;
-                            }
+            totalHours += hours;
+          }
                           }
                         }
                       });
                       
-                      return totalHours.toFixed(1);
+          return totalHours.toFixed(1);
                     })()}h
                   </button>
-
+                  
                   {/* Bouton Mois supprimé selon la demande utilisateur */}
 
                   {/* Section Semaines par boutique - Boutons dynamiques pour les boutiques où l'employé travaille */}
@@ -2085,8 +2085,8 @@ const PlanningDisplay = ({
                                       const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
                                       if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                         const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                        if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
                                           totalHours += hours;
                                         }
                                       }
@@ -2113,14 +2113,14 @@ const PlanningDisplay = ({
                                   })();
                                   return hours === 0 ? 'white' : 'white';
                                 })(),
-                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
+                                  padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                  fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
                                 marginBottom: '4px',
-                                fontWeight: '600',
-                                transition: 'all 0.3s ease',
+                                  fontWeight: '600',
+                                  transition: 'all 0.3s ease',
                                 boxShadow: (() => {
                                   const hours = (() => {
                                     if (!selectedWeek || !planningData) return 0;
@@ -2139,11 +2139,11 @@ const PlanningDisplay = ({
                                   })();
                                   return hours === 0 ? 'none' : '0 2px 6px rgba(46, 125, 50, 0.3)';
                                 })(),
-                                whiteSpace: 'nowrap',
-                                width: '100%',
-                                letterSpacing: '0.5px'
-                              }}
-                              onMouseOver={(e) => {
+                                  whiteSpace: 'nowrap',
+                                  width: '100%',
+                                  letterSpacing: '0.5px'
+                                }}
+                                onMouseOver={(e) => {
                                 const hours = (() => {
                                   if (!selectedWeek || !planningData) return 0;
                                   let totalHours = 0;
@@ -2164,8 +2164,8 @@ const PlanningDisplay = ({
                                   e.currentTarget.style.transform = 'translateY(-1px)';
                                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(46, 125, 50, 0.4)';
                                 }
-                              }}
-                              onMouseOut={(e) => {
+                                }}
+                                onMouseOut={(e) => {
                                 const hours = (() => {
                                   if (!selectedWeek || !planningData) return 0;
                                   let totalHours = 0;
@@ -2204,7 +2204,7 @@ const PlanningDisplay = ({
                                 }
                                 return totalHours === 0 ? `${shop.name}: 0.0h` : `📊 ${shop.name}: ${totalHours.toFixed(1)}h`;
                               })()}
-                            </button>
+                              </button>
                           );
                         } else {
                           // Bouton fantôme avec fond blanc et police blanche
@@ -2247,69 +2247,69 @@ const PlanningDisplay = ({
                       fontSize: deviceInfo.isTablet ? '15px' : '13px',
                       border: 'none',
                       borderRadius: '8px',
-                      cursor: 'pointer',
+                                cursor: 'pointer',
                       marginBottom: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
+                                fontWeight: '600',
+                                transition: 'all 0.3s ease',
                       boxShadow: '0 3px 8px rgba(30, 136, 229, 0.3)',
-                      whiteSpace: 'nowrap',
+                                whiteSpace: 'nowrap',
                       minHeight: deviceInfo.isTablet ? '48px' : '40px',
                       letterSpacing: '0.5px',
                       width: '100%'
-                    }}
-                    onMouseOver={(e) => {
+                              }}
+                              onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#1565c0';
                       e.currentTarget.style.transform = 'translateY(-2px)';
                       e.currentTarget.style.boxShadow = '0 6px 16px rgba(30, 136, 229, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
+                              }}
+                              onMouseOut={(e) => {
                       e.currentTarget.style.backgroundColor = '#1e88e5';
-                      e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
-                    }}
-                    title="Récapitulatif mensuel global"
-                  >
+                              }}
+                              title="Récapitulatif mensuel global"
+                            >
                     📈 Mois: {(() => {
                       if (!selectedWeek || !planningData) return '0.00';
-                      
-                      // Calculer les heures du mois complet sur toutes les boutiques
-                      const currentDate = new Date(selectedWeek);
-                      const year = currentDate.getFullYear();
-                      const month = currentDate.getMonth();
-                      
-                      // Premier jour du mois
-                      const firstDayOfMonth = new Date(year, month, 1);
-                      // Dernier jour du mois
-                      const lastDayOfMonth = new Date(year, month + 1, 0);
-                      
-                      let totalHours = 0;
-                      
-                      // Parcourir tous les jours du mois
-                      for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                        const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                        
-                        // Calculer les heures pour toutes les boutiques où l'employé travaille
-                        if (planningData.shops) {
-                          planningData.shops.forEach(shop => {
-                            if (shop.weeks) {
-                              Object.keys(shop.weeks).forEach(weekKey => {
-                                const weekData = shop.weeks[weekKey];
-                                if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                  const slots = weekData.planning[employeeId][dayKey];
-                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                    totalHours += hours;
+                                
+                                // Calculer les heures du mois complet sur toutes les boutiques
+                                const currentDate = new Date(selectedWeek);
+                                const year = currentDate.getFullYear();
+                                const month = currentDate.getMonth();
+                                
+                                // Premier jour du mois
+                                const firstDayOfMonth = new Date(year, month, 1);
+                                // Dernier jour du mois
+                                const lastDayOfMonth = new Date(year, month + 1, 0);
+                                
+                                let totalHours = 0;
+                                
+                                // Parcourir tous les jours du mois
+                                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                                  
+                                  // Calculer les heures pour toutes les boutiques où l'employé travaille
+                                  if (planningData.shops) {
+                                    planningData.shops.forEach(shop => {
+                                      if (shop.weeks) {
+                                        Object.keys(shop.weeks).forEach(weekKey => {
+                                          const weekData = shop.weeks[weekKey];
+                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                                            const slots = weekData.planning[employeeId][dayKey];
+                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                                              totalHours += hours;
+                                            }
+                                          }
+                                        });
+                                      }
+                                    });
                                   }
                                 }
-                              });
-                            }
-                          });
-                        }
-                      }
-                      
+                                
                       return totalHours.toFixed(2);
-                    })()}h
-                  </button>
+                              })()}h
+                            </button>
 
                   {/* Section Mois par boutique - Boutons dynamiques pour les boutiques où l'employé travaille */}
                   <div style={{ 
@@ -2328,7 +2328,7 @@ const PlanningDisplay = ({
                       textAlign: 'center'
                     }}>
                       Mois par boutique
-                    </div>
+                          </div>
                     
                     {/* Boutons dynamiques pour les boutiques où l'employé travaille */}
                     {(() => {
@@ -2345,14 +2345,14 @@ const PlanningDisplay = ({
                         
                         if (shop) {
                           // Boutique avec données de l'employé
-                          return (
-                            <button
+                    return (
+                      <button
                               key={`month-${shop.id}`}
-                              onClick={() => {
+                        onClick={() => {
                                 setSelectedEmployeeForMonthlyDetail(employeeId);
                                 setShowEmployeeMonthlyDetail(true);
-                              }}
-                              style={{
+                    }}
+                    style={{
                                 backgroundColor: (() => {
                                   const hours = (() => {
                                     if (!selectedWeek || !planningData) return 0;
@@ -2411,12 +2411,12 @@ const PlanningDisplay = ({
                                 })(),
                                 padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
                                 fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                border: 'none',
+                      border: 'none',
                                 borderRadius: '6px',
-                                cursor: 'pointer',
+                      cursor: 'pointer',
                                 marginBottom: '4px',
-                                fontWeight: '600',
-                                transition: 'all 0.3s ease',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease',
                                 boxShadow: (() => {
                                   const hours = (() => {
                                     if (!selectedWeek || !planningData) return 0;
@@ -2445,11 +2445,11 @@ const PlanningDisplay = ({
                                   })();
                                   return hours === 0 ? 'none' : '0 2px 6px rgba(30, 136, 229, 0.3)';
                                 })(),
-                                whiteSpace: 'nowrap',
+                      whiteSpace: 'nowrap',
                                 width: '100%',
-                                letterSpacing: '0.5px'
-                              }}
-                              onMouseOver={(e) => {
+                      letterSpacing: '0.5px'
+                    }}
+                    onMouseOver={(e) => {
                                 const hours = (() => {
                                   if (!selectedWeek || !planningData) return 0;
                                   const currentDate = new Date(selectedWeek);
@@ -2480,8 +2480,8 @@ const PlanningDisplay = ({
                                   e.currentTarget.style.transform = 'translateY(-1px)';
                                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
                                 }
-                              }}
-                              onMouseOut={(e) => {
+                    }}
+                    onMouseOut={(e) => {
                                 const hours = (() => {
                                   if (!selectedWeek || !planningData) return 0;
                                   const currentDate = new Date(selectedWeek);
@@ -2509,7 +2509,7 @@ const PlanningDisplay = ({
                                 })();
                                 if (hours > 0) {
                                   e.currentTarget.style.backgroundColor = '#1e88e5';
-                                  e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.transform = 'translateY(0)';
                                   e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
                                 }
                               }}
@@ -2517,31 +2517,31 @@ const PlanningDisplay = ({
                             >
                               {(() => {
                                 if (!selectedWeek || !planningData) return '📈 0.0h';
-                                const currentDate = new Date(selectedWeek);
-                                const year = currentDate.getFullYear();
-                                const month = currentDate.getMonth();
-                                const lastDayOfMonth = new Date(year, month + 1, 0);
-                                let totalHours = 0;
-                                
-                                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                  if (shop.weeks) {
-                                    Object.keys(shop.weeks).forEach(weekKey => {
-                                      const weekData = shop.weeks[weekKey];
-                                      if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                        const slots = weekData.planning[employeeId][dayKey];
-                                        if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                          totalHours += hours;
-                                        }
-                                      }
-                                    });
-                                  }
+          const currentDate = new Date(selectedWeek);
+          const year = currentDate.getFullYear();
+          const month = currentDate.getMonth();
+          const lastDayOfMonth = new Date(year, month + 1, 0);
+          let totalHours = 0;
+          
+          for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+            const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                if (shop.weeks) {
+                  Object.keys(shop.weeks).forEach(weekKey => {
+                    const weekData = shop.weeks[weekKey];
+                    if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                      const slots = weekData.planning[employeeId][dayKey];
+                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                        totalHours += hours;
+                      }
+                    }
+                  });
+                }
                                 }
                                 return totalHours === 0 ? `${shop.name}: 0.0h` : `📈 ${shop.name}: ${totalHours.toFixed(1)}h`;
                               })()}
-                            </button>
-                          );
+                  </button>
+                    );
                         } else {
                           // Bouton fantôme avec fond blanc et police blanche
                           return (
@@ -2567,9 +2567,9 @@ const PlanningDisplay = ({
                           );
                         }
                       });
-                    })()}
+                  })()}
                   </div>
-
+                  
                   {/* Bouton Mois déplacé en haut, juste après le bouton Semaine */}
                   
                   {/* Bouton Mois: XX.00h supprimé - Duplication avec le bouton global mensuel */}
@@ -2988,21 +2988,21 @@ const PlanningDisplay = ({
                                                            alignItems: 'center',
                                                            marginBottom: '2px'
                                                          }}>
-                                                           <span style={{ 
-                                                             fontWeight: 'bold', 
-                                                             color: boutiqueColor.text,
-                                                             fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                             marginRight: '8px'
-                                                           }}>
-                                                             {item.jour}
-                                                           </span>
-                                                           <span style={{ 
-                                                             fontStyle: 'italic', 
-                                                             color: boutiqueColor.text,
-                                                             fontSize: deviceInfo.isTablet ? '10px' : '9px'
-                                                           }}>
-                                                             ({boutique.boutique})
-                                                           </span>
+                                                                                                                    <span style={{ 
+                                                           fontWeight: 'bold', 
+                                                           color: '#000000',
+                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px',
+                                                           marginRight: '8px'
+                                                         }}>
+                                                           {item.jour}
+                                                         </span>
+                                                         <span style={{ 
+                                                           fontStyle: 'italic', 
+                                                           color: '#000000',
+                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px'
+                                                         }}>
+                                                           ({boutique.boutique})
+                                                         </span>
                                                          </div>
                                                          
                                                          {/* Ligne 2 : Tranches horaires */}
@@ -3023,8 +3023,8 @@ const PlanningDisplay = ({
                                            </div>
                                          )}
                                        </div>
-                    
-                    {/* Boutons de verrouillage/déverrouillage */}
+                  
+                  {/* Boutons de verrouillage/déverrouillage */}
                   <div style={{ display: 'flex', gap: '4px', marginTop: '4px', justifyContent: 'space-between', flexWrap: 'wrap', width: '100%' }}>
                     {validationState.lockedEmployees.includes(employeeId) ? (
                       <button
@@ -3535,6 +3535,8 @@ const PlanningDisplay = ({
             onEmployeeToggle={handleEmployeeToggle}
             planning={planning}
             onToggleSlot={toggleSlot}
+            planningData={planningData}
+            selectedShop={selectedShop}
             onSetDayStatus={(employeeId, dayIndex, status) => {
                   if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
               const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
