@@ -29,7 +29,7 @@ import {
   exportPlanningData,
   exportPlanningToExcel,
   importPlanningData
-} from './utils/PlanningDataManager.js';
+} from './utils/planningDataManager.js';
 import './App.css';
 import { loadRemotePlanning } from './utils/remoteStore';
 import { versionChecker } from './utils/versionChecker';
