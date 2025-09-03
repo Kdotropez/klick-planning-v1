@@ -16,7 +16,8 @@ const GlobalDayViewModalV2 = ({
   selectedWeek,
   selectedEmployees,
   planning,
-  currentShopEmployees
+  currentShopEmployees,
+  planningData
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedDay, setSelectedDay] = useState(null);
@@ -127,6 +128,43 @@ const GlobalDayViewModalV2 = ({
     if (count === 1) return '👤';
     if (count === 2) return '👥';
     return '👨‍👩‍👧‍👦';
+  };
+
+  // Fonction pour obtenir les horaires d'un employé pour un jour
+  const getEmployeeSchedule = (employeeId, dayKey) => {
+    const dayPlanning = planning[employeeId]?.[dayKey];
+    if (!dayPlanning || !Array.isArray(dayPlanning)) return null;
+
+    const schedules = [];
+    let currentStart = null;
+    let currentEnd = null;
+
+    dayPlanning.forEach((isSelected, slotIndex) => {
+      if (isSelected) {
+        const slotTime = timeSlots[slotIndex];
+        if (!currentStart) {
+          currentStart = slotTime;
+        }
+        currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+      } else if (currentStart) {
+        schedules.push({
+          start: currentStart,
+          end: currentEnd
+        });
+        currentStart = null;
+        currentEnd = null;
+      }
+    });
+
+    // Ajouter le dernier créneau si nécessaire
+    if (currentStart) {
+      schedules.push({
+        start: currentStart,
+        end: currentEnd
+      });
+    }
+
+    return schedules;
   };
 
   // Vue d'ensemble avec cartes
@@ -721,10 +759,527 @@ const GlobalDayViewModalV2 = ({
           })}
         </div>
       </div>
-    );
-  };
+         );
+   };
 
-  const exportToPDF = async () => {
+     // Vue combinée : Vue d'ensemble + Vue hebdomadaire
+  const CombinedTab = ({
+    selectedWeek, selectedShop, selectedEmployees, planning, currentShopEmployees, planningData
+  }) => {
+     return (
+       <div className="combined-tab">
+         {/* Section 1: Vue d'ensemble par jour */}
+         <div className="combined-overview-section" style={{ marginBottom: '40px' }}>
+           <h3 style={{ 
+             textAlign: 'center', 
+             color: '#2c3e50', 
+             marginBottom: '25px',
+             fontSize: '20px',
+             fontWeight: '600',
+             borderBottom: '3px solid #3498db',
+             paddingBottom: '15px'
+           }}>
+             📅 Vue d'ensemble par jour
+           </h3>
+           
+           <div className="daily-employee-overview">
+             {dayData.map((day, dayIndex) => {
+               if (day.totalHours === 0) return null;
+               
+                               // Récupérer tous les employés qui travaillent ce jour dans TOUTES les boutiques
+                const workingEmployees = [];
+                
+                // Vérifier d'abord si des employés travaillent dans la boutique actuelle ce jour
+                const currentShopWorkingEmployees = selectedEmployees.filter(employeeId => {
+                  const dayPlanning = planning[employeeId]?.[day.dateKey];
+                  if (dayPlanning) {
+                    if (typeof dayPlanning === 'string') return true; // Congé ou Maladie
+                    if (Array.isArray(dayPlanning)) {
+                      return dayPlanning.some(slot => slot === true); // Au moins un créneau sélectionné
+                    }
+                  }
+                  return false;
+                });
+                
+                // Si aucun employé ne travaille dans la boutique actuelle, vérifier dans toutes les boutiques
+                if (currentShopWorkingEmployees.length === 0 && planningData && planningData.shops) {
+                  Object.keys(planningData.shops).forEach(shopId => {
+                    const shop = planningData.shops[shopId];
+                    selectedEmployees.forEach(employeeId => {
+                      const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+                      if (!employee) return;
+                      
+                      const shopPlanningForEmployee = shop.weeks?.[selectedWeek]?.planning?.[employeeId]?.[day.dateKey];
+                      
+                      if (shopPlanningForEmployee) {
+                        if (typeof shopPlanningForEmployee === 'string') { // Congé or Maladie
+                          workingEmployees.push({
+                            employee,
+                            boutiques: [{
+                              boutique: shop.name,
+                              status: shopPlanningForEmployee,
+                              schedules: []
+                            }]
+                          });
+                        } else if (Array.isArray(shopPlanningForEmployee)) { // Actual time slots
+                          const hasWork = shopPlanningForEmployee.some(slot => slot === true);
+                          if (hasWork) {
+                            const shopSchedules = [];
+                            let currentStart = null;
+                            let currentEnd = null;
+                            
+                            shopPlanningForEmployee.forEach((isSelected, slotIndex) => {
+                              if (isSelected) {
+                                const slotTime = timeSlots[slotIndex];
+                                if (!currentStart) {
+                                  currentStart = slotTime;
+                                }
+                                currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+                              } else if (currentStart) {
+                                shopSchedules.push({
+                                  start: currentStart,
+                                  end: currentEnd
+                                });
+                                currentStart = null;
+                                currentEnd = null;
+                              }
+                            });
+                            
+                            if (currentStart) {
+                              shopSchedules.push({
+                                start: currentStart,
+                                end: currentEnd
+                              });
+                            }
+                            
+                            workingEmployees.push({
+                              employee,
+                              boutiques: [{
+                                boutique: shop.name,
+                                status: 'Travail',
+                                schedules: shopSchedules
+                              }]
+                            });
+                          }
+                        }
+                      }
+                    });
+                  });
+                } else {
+                  // Utiliser les employés qui travaillent dans la boutique actuelle
+                  currentShopWorkingEmployees.forEach(employeeId => {
+                    const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+                    if (!employee) return;
+                    
+                    const dayPlanning = planning[employeeId]?.[day.dateKey];
+                    const employeeBoutiqueSchedules = [];
+                    
+                    if (dayPlanning) {
+                      if (typeof dayPlanning === 'string') { // Congé or Maladie
+                        employeeBoutiqueSchedules.push({
+                          boutique: selectedShop,
+                          status: dayPlanning,
+                          schedules: []
+                        });
+                      } else if (Array.isArray(dayPlanning)) { // Actual time slots
+                        const hasWork = dayPlanning.some(slot => slot === true);
+                        if (hasWork) {
+                          const schedules = getEmployeeSchedule(employeeId, day.dateKey) || [];
+                          employeeBoutiqueSchedules.push({
+                            boutique: selectedShop,
+                            status: 'Travail',
+                            schedules: schedules
+                          });
+                        }
+                      }
+                    }
+                    
+                    // Ajouter les autres boutiques où l'employé travaille
+                    if (planningData && planningData.shops) {
+                      Object.keys(planningData.shops).forEach(shopId => {
+                        const shop = planningData.shops[shopId];
+                        if (shop.id === selectedShop) return; // On a déjà traité la boutique actuelle
+                        
+                        const shopPlanningForEmployee = shop.weeks?.[selectedWeek]?.planning?.[employeeId]?.[day.dateKey];
+                        
+                        if (shopPlanningForEmployee) {
+                          if (typeof shopPlanningForEmployee === 'string') { // Congé or Maladie
+                            employeeBoutiqueSchedules.push({
+                              boutique: shop.name,
+                              status: shopPlanningForEmployee,
+                              schedules: []
+                            });
+                          } else if (Array.isArray(shopPlanningForEmployee)) { // Actual time slots
+                            const hasWork = shopPlanningForEmployee.some(slot => slot === true);
+                            if (hasWork) {
+                              const shopSchedules = [];
+                              let currentStart = null;
+                              let currentEnd = null;
+                              
+                              shopPlanningForEmployee.forEach((isSelected, slotIndex) => {
+                                if (isSelected) {
+                                  const slotTime = timeSlots[slotIndex];
+                                  if (!currentStart) {
+                                    currentStart = slotTime;
+                                  }
+                                  currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+                                } else if (currentStart) {
+                                  shopSchedules.push({
+                                    start: currentStart,
+                                    end: currentEnd
+                                  });
+                                  currentStart = null;
+                                  currentEnd = null;
+                                }
+                              });
+                              
+                              if (currentStart) {
+                                shopSchedules.push({
+                                  start: currentStart,
+                                  end: currentEnd
+                                });
+                              }
+                              
+                              employeeBoutiqueSchedules.push({
+                                boutique: shop.name,
+                                status: 'Travail',
+                                schedules: shopSchedules
+                              });
+                            }
+                          }
+                        }
+                      });
+                    }
+                    
+                    if (employeeBoutiqueSchedules.length > 0) {
+                      workingEmployees.push({
+                        employee,
+                        boutiques: employeeBoutiqueSchedules
+                      });
+                    }
+                  });
+                }
+               
+               return (
+                 <div key={dayIndex} className="day-employee-card" style={{
+                   background: 'white',
+                   borderRadius: '12px',
+                   padding: '20px',
+                   marginBottom: '20px',
+                   boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                   border: '2px solid #ecf0f1'
+                 }}>
+                   <div className="day-header" style={{
+                     display: 'flex',
+                     justifyContent: 'space-between',
+                     alignItems: 'center',
+                     marginBottom: '20px',
+                     paddingBottom: '15px',
+                     borderBottom: '2px solid #3498db'
+                   }}>
+                     <h4 style={{
+                       margin: 0,
+                       fontSize: '18px',
+                       fontWeight: '700',
+                       color: '#2c3e50',
+                       textTransform: 'uppercase'
+                     }}>
+                       {day.day} {format(day.date, 'dd/MM/yyyy', { locale: fr })}
+                     </h4>
+                     <div className="day-summary" style={{
+                       display: 'flex',
+                       gap: '15px',
+                       fontSize: '14px',
+                       color: '#34495e'
+                     }}>
+                       <span>O: {day.openTime}</span>
+                       <span>F: {day.closeTime}</span>
+                       <span style={{ fontWeight: 'bold', color: '#3498db' }}>{day.totalHours}h</span>
+                     </div>
+                   </div>
+                   
+                   <div className="employees-list">
+                     {workingEmployees.length > 0 ? (
+                       workingEmployees.map((empData, empIndex) => (
+                         <div key={empIndex} className="employee-row" style={{
+                           display: 'flex',
+                           justifyContent: 'space-between',
+                           alignItems: 'center',
+                           padding: '12px 16px',
+                           margin: '8px 0',
+                           borderRadius: '8px',
+                           backgroundColor: empIndex % 2 === 0 ? '#f8f9fa' : 'white',
+                           border: '1px solid #ecf0f1'
+                         }}>
+                           <div className="employee-info" style={{ flex: 1 }}>
+                             <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#2c3e50' }}>
+                               {empData.employee.name}
+                             </div>
+                             <div style={{ fontSize: '14px', color: '#7f8c8d', marginTop: '4px' }}>
+                               {selectedShop}
+                             </div>
+                           </div>
+                           
+                                                       <div className="employee-schedule" style={{ flex: 2, textAlign: 'center' }}>
+                              {empData.boutiques.length === 0 ? (
+                                <span style={{ color: '#95a5a6', fontStyle: 'italic' }}>Libre</span>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                                  {empData.boutiques.map((boutique, bIndex) => (
+                                    <div key={bIndex} style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '4px',
+                                      alignItems: 'center',
+                                      padding: '8px',
+                                      border: '1px solid #ecf0f1',
+                                      borderRadius: '8px',
+                                      backgroundColor: '#f8f9fa'
+                                    }}>
+                                      {/* Nom de la boutique */}
+                                      <div style={{ 
+                                        backgroundColor: '#e74c3c', 
+                                        color: 'white',
+                                        padding: '4px 8px',
+                                        borderRadius: '12px',
+                                        fontSize: '11px',
+                                        fontWeight: '600'
+                                      }}>
+                                        {boutique.boutique}
+                                      </div>
+                                      
+                                      {/* Statut ou horaires */}
+                                      {boutique.status === 'Congé ☀️' ? (
+                                        <span style={{ 
+                                          backgroundColor: '#ffeaa7', 
+                                          color: '#d63031',
+                                          padding: '4px 8px',
+                                          borderRadius: '12px',
+                                          fontSize: '11px',
+                                          fontWeight: '600'
+                                        }}>
+                                          🏖️ Congé
+                                        </span>
+                                      ) : boutique.status === 'Maladie 🤒' ? (
+                                        <span style={{ 
+                                          backgroundColor: '#fd79a8', 
+                                          color: '#c44569',
+                                          padding: '4px 8px',
+                                          borderRadius: '12px',
+                                          fontSize: '11px',
+                                          fontWeight: '600'
+                                        }}>
+                                          🤒 Maladie
+                                        </span>
+                                      ) : boutique.schedules.length > 0 ? (
+                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                          {boutique.schedules.map((schedule, sIndex) => (
+                                            <span key={sIndex} style={{
+                                              backgroundColor: '#3498db',
+                                              color: 'white',
+                                              padding: '4px 8px',
+                                              borderRadius: '12px',
+                                              fontSize: '10px',
+                                              fontWeight: '600'
+                                            }}>
+                                              {schedule.start}-{schedule.end}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span style={{ color: '#95a5a6', fontSize: '10px' }}>Libre</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                         </div>
+                       ))
+                     ) : (
+                       <div style={{ 
+                         textAlign: 'center', 
+                         color: '#95a5a6', 
+                         fontStyle: 'italic',
+                         padding: '20px'
+                       }}>
+                         Aucun employé programmé ce jour
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
+         </div>
+         
+         {/* Section 2: Vue hebdomadaire en listing */}
+         <div className="combined-weekly-section">
+           <h3 style={{ 
+             textAlign: 'center', 
+             color: '#2c3e50', 
+             marginBottom: '25px',
+             fontSize: '20px',
+             fontWeight: '600',
+             borderBottom: '3px solid #e74c3c',
+             paddingBottom: '15px'
+           }}>
+             📊 Vue hebdomadaire en listing
+           </h3>
+           
+           <div className="weekly-listing" style={{
+             background: 'white',
+             borderRadius: '12px',
+             padding: '20px',
+             boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+           }}>
+             {dayData.map((day, dayIndex) => {
+               if (day.totalHours === 0) return null;
+               
+               return (
+                 <div key={dayIndex} className="weekly-day-card" style={{
+                   marginBottom: '20px',
+                   border: '1px solid #ecf0f1',
+                   borderRadius: '8px',
+                   overflow: 'hidden'
+                 }}>
+                   <div className="weekly-day-header" style={{
+                     backgroundColor: '#34495e',
+                     color: 'white',
+                     padding: '12px 16px',
+                     fontWeight: '600'
+                   }}>
+                     {day.day} {format(day.date, 'dd/MM/yyyy', { locale: fr })} - {day.totalHours}h
+                   </div>
+                   
+                   <div className="weekly-employees-list">
+                     {(() => {
+                       // Instead of mapping selectedEmployees directly, we need to gather all employee-boutique-schedule combinations for the day
+                       const employeesWithBoutiqueSchedules = [];
+                       
+                       if (planningData && planningData.shops) {
+                         Object.keys(planningData.shops).forEach(shopId => {
+                           const shop = planningData.shops[shopId];
+                           selectedEmployees.forEach(employeeId => {
+                             const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+                             if (!employee) return;
+                             
+                             const shopPlanningForEmployee = shop.weeks?.[selectedWeek]?.planning?.[employeeId]?.[day.dateKey];
+                             
+                             if (shopPlanningForEmployee) {
+                               if (typeof shopPlanningForEmployee === 'string') { // Congé or Maladie
+                                 employeesWithBoutiqueSchedules.push({
+                                   employee,
+                                   boutique: shop.name,
+                                   status: shopPlanningForEmployee,
+                                   schedules: []
+                                 });
+                               } else if (Array.isArray(shopPlanningForEmployee)) { // Actual time slots
+                                 const hasWork = shopPlanningForEmployee.some(slot => slot === true);
+                                 if (hasWork) {
+                                   const shopSchedules = [];
+                                   let currentStart = null;
+                                   let currentEnd = null;
+                                   
+                                   shopPlanningForEmployee.forEach((isSelected, slotIndex) => {
+                                     if (isSelected) {
+                                       const slotTime = timeSlots[slotIndex];
+                                       if (!currentStart) {
+                                         currentStart = slotTime;
+                                       }
+                                       currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+                                     } else if (currentStart) {
+                                       shopSchedules.push({
+                                         start: currentStart,
+                                         end: currentEnd
+                                       });
+                                       currentStart = null;
+                                       currentEnd = null;
+                                     }
+                                   });
+                                   
+                                   if (currentStart) {
+                                     shopSchedules.push({
+                                       start: currentStart,
+                                       end: currentEnd
+                                     });
+                                   }
+                                   
+                                   employeesWithBoutiqueSchedules.push({
+                                     employee,
+                                     boutique: shop.name,
+                                     status: 'Travail',
+                                     schedules: shopSchedules
+                                   });
+                                 }
+                               }
+                             }
+                           });
+                         });
+                       }
+                       
+                       // Now map through employeesWithBoutiqueSchedules for rendering
+                       return employeesWithBoutiqueSchedules.map((empBoutiqueData, index) => {
+                         if (!empBoutiqueData.schedules || empBoutiqueData.schedules.length === 0) return null;
+                         
+                         return (
+                           <div key={`${empBoutiqueData.employee.id}-${empBoutiqueData.boutique}-${index}`} className="weekly-employee-row" style={{
+                             display: 'flex',
+                             justifyContent: 'space-between',
+                             alignItems: 'center',
+                             padding: '12px 16px',
+                             borderBottom: '1px solid #ecf0f1',
+                             backgroundColor: '#f8f9fa'
+                           }}>
+                             <div className="weekly-employee-name" style={{ fontWeight: '600', color: '#2c3e50', minWidth: '120px' }}>
+                               {empBoutiqueData.employee.name}
+                             </div>
+                             <div className="weekly-employee-boutique" style={{ 
+                               backgroundColor: '#e74c3c', 
+                               color: 'white',
+                               padding: '4px 8px',
+                               borderRadius: '12px',
+                               fontSize: '11px',
+                               fontWeight: '600',
+                               marginRight: '16px'
+                             }}>
+                               {empBoutiqueData.boutique}
+                             </div>
+                             <div className="weekly-employee-schedule" style={{ display: 'flex', gap: '8px', flex: 1 }}>
+                               {empBoutiqueData.schedules.map((schedule, sIndex) => (
+                                 <button key={sIndex} style={{
+                                   backgroundColor: '#3498db',
+                                   color: 'white',
+                                   padding: '6px 12px',
+                                   border: 'none',
+                                   borderRadius: '20px',
+                                   fontSize: '12px',
+                                   fontWeight: '600',
+                                   cursor: 'pointer',
+                                   transition: 'all 0.2s ease'
+                                 }}
+                                 onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+                                 onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                                 >
+                                   {schedule.start}-{schedule.end}
+                                 </button>
+                               ))}
+                             </div>
+                           </div>
+                         );
+                       });
+                     })()}
+                   </div>
+                 </div>
+               );
+             })}
+           </div>
+         </div>
+       </div>
+     );
+   };
+ 
+   const exportToPDF = async () => {
     try {
       // Attendre que le DOM soit mis à jour
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -867,21 +1422,35 @@ const GlobalDayViewModalV2 = ({
             >
               <FaChartBar /> Tableau complet
             </button>
-            <button 
-              className={`tab ${activeTab === 'weekly' ? 'active' : ''}`}
-              onClick={() => setActiveTab('weekly')}
-            >
-              <FaUsers /> Vue hebdomadaire
-            </button>
+                         <button 
+               className={`tab ${activeTab === 'weekly' ? 'active' : ''}`}
+               onClick={() => setActiveTab('weekly')}
+             >
+               <FaUsers /> Vue hebdomadaire
+             </button>
+             <button 
+               className={`tab ${activeTab === 'combined' ? 'active' : ''}`}
+               onClick={() => setActiveTab('combined')}
+             >
+               <FaChartBar /> Planning combiné
+             </button>
           </div>
 
-          {/* Contenu des onglets */}
-          <div className="tab-content">
-            {activeTab === 'overview' && <OverviewTab />}
-            {activeTab === 'detail' && <DetailTab />}
-            {activeTab === 'table' && <TableTab />}
-            {activeTab === 'weekly' && <WeeklyTab />}
-          </div>
+                     {/* Contenu des onglets */}
+           <div className="tab-content">
+             {activeTab === 'overview' && <OverviewTab />}
+             {activeTab === 'detail' && <DetailTab />}
+             {activeTab === 'table' && <TableTab />}
+             {activeTab === 'weekly' && <WeeklyTab />}
+             {activeTab === 'combined' && <CombinedTab 
+               selectedWeek={selectedWeek}
+               selectedShop={selectedShop}
+               selectedEmployees={selectedEmployees}
+               planning={planning}
+               currentShopEmployees={currentShopEmployees}
+               planningData={planningData}
+             />}
+           </div>
         </div>
 
         <div className="modal-footer">
@@ -1282,6 +1851,7 @@ const GlobalDayViewModalV2 = ({
           border: 2px solid #ddd;
           border-radius: 8px;
           background: white;
+          color: #333;
           cursor: pointer;
           transition: all 0.3s ease;
           min-width: 80px;
