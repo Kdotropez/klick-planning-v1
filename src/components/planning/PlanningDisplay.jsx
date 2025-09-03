@@ -2846,79 +2846,89 @@ const PlanningDisplay = ({
                                                  
                                                  console.log(`🔍 Debug horaires - Jour ${dayName} (${dayKey}):`);
                                                  
-                                                                                                // Utiliser la même variable 'planning' que la modale GlobalDayViewModalV2
-                                               if (planning && planning[employeeId] && planning[employeeId][dayKey]) {
-                                                 const dayPlanning = planning[employeeId][dayKey];
-                                                 console.log(`  🔍 Day planning found:`, dayPlanning);
-                                                 console.log(`  🔍 Is array:`, Array.isArray(dayPlanning));
-                                                 
-                                                 // Utiliser exactement la même logique que GlobalDayViewModalV2
-                                                 if (Array.isArray(dayPlanning)) {
-                                                   // Récupérer timeSlots et interval depuis la configuration globale
-                                                   const timeSlots = config?.timeSlots || [];
-                                                   const interval = config?.interval || 60;
+                                                 // Parcourir TOUTES les boutiques où l'employé peut travailler
+                                                 if (planningData && planningData.shops) {
+                                                   const boutiquesDuJour = [];
                                                    
-                                                   console.log(`  🔍 Time slots:`, timeSlots);
-                                                   console.log(`  🔍 Interval:`, interval);
-                                                   
-                                                   let plagesConsolidees = [];
-                                                   let currentStart = null;
-                                                   let currentEnd = null;
-                                                   
-                                                   // Logique identique à getEmployeeSchedule de la modale
-                                                   dayPlanning.forEach((isSelected, slotIndex) => {
-                                                     if (isSelected) {
-                                                       const slotTime = timeSlots[slotIndex];
-                                                       if (!currentStart) {
-                                                         currentStart = slotTime;
-                                                         console.log(`  🔍 Début plage: ${slotTime}`);
-                                                       }
-                                                       // Calculer l'heure de fin en ajoutant l'intervalle (comme dans la modale)
-                                                       if (slotTime && typeof slotTime === 'string' && slotTime.includes(':')) {
-                                                         try {
-                                                           const [hours, minutes] = slotTime.split(':').map(Number);
-                                                           const endTime = new Date();
-                                                           endTime.setHours(hours, minutes + interval, 0);
-                                                           currentEnd = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}`;
-                                                         } catch (error) {
-                                                           console.error('Erreur calcul heure fin:', error);
+                                                   planningData.shops.forEach(shop => {
+                                                     if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
+                                                       const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
+                                                       console.log(`  🔍 Day planning found pour ${shop.name}:`, dayPlanning);
+                                                       
+                                                       // Utiliser exactement la même logique que GlobalDayViewModalV2
+                                                       if (Array.isArray(dayPlanning)) {
+                                                         // Récupérer timeSlots et interval depuis la configuration globale
+                                                         const timeSlots = config?.timeSlots || [];
+                                                         const interval = config?.interval || 60;
+                                                         
+                                                         console.log(`  🔍 Time slots:`, timeSlots);
+                                                         console.log(`  🔍 Interval:`, interval);
+                                                         
+                                                         let plagesConsolidees = [];
+                                                         let currentStart = null;
+                                                         let currentEnd = null;
+                                                         
+                                                         // Logique identique à getEmployeeSchedule de la modale
+                                                         dayPlanning.forEach((isSelected, slotIndex) => {
+                                                           if (isSelected) {
+                                                             const slotTime = timeSlots[slotIndex];
+                                                             if (!currentStart) {
+                                                               currentStart = slotTime;
+                                                               console.log(`  🔍 Début plage: ${slotTime}`);
+                                                             }
+                                                             // Calculer l'heure de fin en ajoutant l'intervalle (comme dans la modale)
+                                                             if (slotTime && typeof slotTime === 'string' && slotTime.includes(':')) {
+                                                               try {
+                                                                 const [hours, minutes] = slotTime.split(':').map(Number);
+                                                                 const endTime = new Date();
+                                                                 endTime.setHours(hours, minutes + interval, 0);
+                                                                 currentEnd = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}`;
+                                                               } catch (error) {
+                                                                 console.error('Erreur calcul heure fin:', error);
+                                                               }
+                                                             }
+                                                           } else if (currentStart) {
+                                                             // Créneau terminé, ajouter la plage
+                                                             if (currentStart && currentEnd) {
+                                                               const plage = `${currentStart}-${currentEnd}`;
+                                                               plagesConsolidees.push(plage);
+                                                               console.log(`  🔍 Plage ajoutée: ${plage}`);
+                                                             }
+                                                             currentStart = null;
+                                                             currentEnd = null;
+                                                           }
+                                                         });
+                                                         
+                                                         // Ajouter le dernier créneau si nécessaire (comme dans la modale)
+                                                         if (currentStart && currentEnd) {
+                                                           const plage = `${currentStart}-${currentEnd}`;
+                                                           plagesConsolidees.push(plage);
+                                                           console.log(`  🔍 Dernière plage ajoutée: ${plage}`);
+                                                         }
+                                                         
+                                                         console.log(`  🔍 Plages consolidées pour ${shop.name}:`, plagesConsolidees);
+                                                         
+                                                         if (plagesConsolidees.length > 0) {
+                                                           boutiquesDuJour.push({
+                                                             boutique: shop.name,
+                                                             plages: plagesConsolidees
+                                                           });
                                                          }
                                                        }
-                                                     } else if (currentStart) {
-                                                       // Créneau terminé, ajouter la plage
-                                                       if (currentStart && currentEnd) {
-                                                         const plage = `${currentStart}-${currentEnd}`;
-                                                         plagesConsolidees.push(plage);
-                                                         console.log(`  🔍 Plage ajoutée: ${plage}`);
-                                                       }
-                                                       currentStart = null;
-                                                       currentEnd = null;
                                                      }
                                                    });
                                                    
-                                                   // Ajouter le dernier créneau si nécessaire (comme dans la modale)
-                                                   if (currentStart && currentEnd) {
-                                                     const plage = `${currentStart}-${currentEnd}`;
-                                                     plagesConsolidees.push(plage);
-                                                     console.log(`  🔍 Dernière plage ajoutée: ${plage}`);
-                                                   }
-                                                   
-                                                   console.log(`  🔍 Plages consolidées:`, plagesConsolidees);
-                                                   
-                                                   if (plagesConsolidees.length > 0) {
+                                                   // Ajouter ce jour seulement s'il y a des créneaux dans au moins une boutique
+                                                   if (boutiquesDuJour.length > 0) {
                                                      horaires.push({
                                                        jour: dayName,
-                                                       boutiques: [{
-                                                         boutique: selectedShop,
-                                                         plages: plagesConsolidees
-                                                       }]
+                                                       boutiques: boutiquesDuJour
                                                      });
                                                    }
+                                                 } else {
+                                                   console.log(`  🔍 Pas de planningData.shops pour ${employeeId} le ${dayKey}`);
                                                  }
-                                               } else {
-                                                 console.log(`  🔍 Pas de planning pour ${employeeId} le ${dayKey}`);
-                                               }
-                                             } // Fin de la boucle for
+                                               } // Fin de la boucle for
                                              
                                              console.log(`🔍 Horaires finaux:`, horaires);
                                                
@@ -2946,44 +2956,67 @@ const PlanningDisplay = ({
                                                    color: '#7b1fa2',
                                                    fontWeight: '500'
                                                  }}>
-                                                   {item.boutiques.map((boutique, bIndex) => (
-                                                     <div key={bIndex} style={{ 
-                                                       marginBottom: bIndex < item.boutiques.length - 1 ? '6px' : '0'
-                                                     }}>
-                                                       {/* Ligne 1 : Jour et Boutique */}
-                                                       <div style={{ 
-                                                         display: 'flex', 
-                                                         alignItems: 'center',
-                                                         marginBottom: '2px'
+                                                   {item.boutiques.map((boutique, bIndex) => {
+                                                     // Définir une couleur unique pour chaque boutique
+                                                     const boutiqueColors = {
+                                                       'PORT GRIMAUD': { bg: 'rgba(30, 136, 229, 0.15)', border: 'rgba(30, 136, 229, 0.4)', text: '#1565c0' },
+                                                       'CAVALAIRE': { bg: 'rgba(76, 175, 80, 0.15)', border: 'rgba(76, 175, 80, 0.4)', text: '#2e7d32' },
+                                                       'SAINT TROPEZ': { bg: 'rgba(255, 152, 0, 0.15)', border: 'rgba(255, 152, 0, 0.4)', text: '#f57c00' },
+                                                       'CANNES': { bg: 'rgba(156, 39, 176, 0.15)', border: 'rgba(156, 39, 176, 0.4)', text: '#7b1fa2' },
+                                                       'SAINTE MAXIME': { bg: 'rgba(233, 30, 99, 0.15)', border: 'rgba(233, 30, 99, 0.4)', text: '#c2185b' },
+                                                       'MARCHE AMBULANT': { bg: 'rgba(121, 85, 72, 0.15)', border: 'rgba(121, 85, 72, 0.4)', text: '#5d4037' }
+                                                     };
+                                                     
+                                                     // Utiliser la couleur de la boutique ou une couleur par défaut
+                                                     const boutiqueColor = boutiqueColors[boutique.boutique] || { 
+                                                       bg: 'rgba(158, 158, 158, 0.15)', 
+                                                       border: 'rgba(158, 158, 158, 0.4)', 
+                                                       text: '#616161' 
+                                                     };
+                                                     
+                                                     return (
+                                                       <div key={bIndex} style={{ 
+                                                         marginBottom: bIndex < item.boutiques.length - 1 ? '6px' : '0',
+                                                         backgroundColor: boutiqueColor.bg,
+                                                         border: `1px solid ${boutiqueColor.border}`,
+                                                         borderRadius: '4px',
+                                                         padding: '4px 6px'
                                                        }}>
-                                                         <span style={{ 
-                                                           fontWeight: 'bold', 
-                                                           color: '#9c27b0',
+                                                         {/* Ligne 1 : Jour et Boutique */}
+                                                         <div style={{ 
+                                                           display: 'flex', 
+                                                           alignItems: 'center',
+                                                           marginBottom: '2px'
+                                                         }}>
+                                                           <span style={{ 
+                                                             fontWeight: 'bold', 
+                                                             color: boutiqueColor.text,
+                                                             fontSize: deviceInfo.isTablet ? '10px' : '9px',
+                                                             marginRight: '8px'
+                                                           }}>
+                                                             {item.jour}
+                                                           </span>
+                                                           <span style={{ 
+                                                             fontStyle: 'italic', 
+                                                             color: boutiqueColor.text,
+                                                             fontSize: deviceInfo.isTablet ? '10px' : '9px'
+                                                           }}>
+                                                             ({boutique.boutique})
+                                                           </span>
+                                                         </div>
+                                                         
+                                                         {/* Ligne 2 : Tranches horaires */}
+                                                         <div style={{ 
+                                                           marginLeft: '16px',
                                                            fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                           marginRight: '8px'
+                                                           color: '#000000',
+                                                           fontWeight: 'bold'
                                                          }}>
-                                                           {item.jour}
-                                                         </span>
-                                                         <span style={{ 
-                                                           fontStyle: 'italic', 
-                                                           color: '#9c27b0',
-                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px'
-                                                         }}>
-                                                           ({boutique.boutique})
-                                                         </span>
+                                                           {boutique.plages.join(' / ')}
+                                                         </div>
                                                        </div>
-                                                       
-                                                       {/* Ligne 2 : Tranches horaires */}
-                                                       <div style={{ 
-                                                         marginLeft: '16px',
-                                                         fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                         color: '#000000',
-                                                         fontWeight: 'bold'
-                                                       }}>
-                                                         {boutique.plages.join(' / ')}
-                                                       </div>
-                                                     </div>
-                                                   ))}
+                                                     );
+                                                   })}
                                                  </div>
                                                ));
                                              })()}
