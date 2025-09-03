@@ -512,8 +512,18 @@ const PlanningTable = ({
             const isLocked = lockedEmployees.includes(employeeId);
             
             const isSickDay = typeof displayStatus === 'string' && displayStatus.toLowerCase().includes('maladie');
+            const isCongéDay = typeof displayStatus === 'string' && displayStatus.toLowerCase().includes('congé');
+            
+            // Construire la classe CSS pour la ligne
+            let rowClassName = isLocked ? 'locked-employee' : '';
+            if (isSickDay) {
+              rowClassName += ' maladie-row';
+            } else if (isCongéDay) {
+              rowClassName += ' conge-row';
+            }
+            
             return (
-              <tr key={employeeId} className={isLocked ? 'locked-employee' : ''} style={isSickDay ? { backgroundColor: '#ffe6f0' } : {}}>
+              <tr key={employeeId} className={rowClassName}>
                 <td 
                   className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}`}
                 >

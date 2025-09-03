@@ -483,14 +483,14 @@ const EmployeeMonthlyDetailModal = ({
            });
          }
          
-         // Si pas de statut mais pas d'heures non plus, ce n'est plus automatiquement un congé
+         // Si pas de statut mais pas d'heures non plus, c'est un congé
          if (!status && !hasWorkHours) {
-           status = null;
+           status = 'Congé ☀️';
          }
          
-         // Si pas de données du tout pour ce jour, ce n'est plus automatiquement un congé
+         // Si pas de données du tout pour ce jour, c'est un congé
          if (!dayPlanning) {
-           status = null;
+           status = 'Congé ☀️';
            hasWorkHours = false;
          }
          
@@ -604,14 +604,14 @@ const EmployeeMonthlyDetailModal = ({
            });
          }
          
-         // Si pas de statut mais pas d'heures non plus, ce n'est plus automatiquement un congé
+         // Si pas de statut mais pas d'heures non plus, c'est un congé
          if (!status && !hasWorkHours) {
-           status = null;
+           status = 'Congé ☀️';
          }
          
-         // Si pas de données du tout pour ce jour, ce n'est plus automatiquement un congé
+         // Si pas de données du tout pour ce jour, c'est un congé
          if (!dayPlanning) {
-           status = null;
+           status = 'Congé ☀️';
            hasWorkHours = false;
          }
          
@@ -1372,7 +1372,8 @@ const EmployeeMonthlyDetailModal = ({
                           );
                         });
                       } else {
-                        // Aucune boutique pour ce jour (plus automatiquement un congé)
+                        // Aucune boutique pour ce jour (congé)
+                        const isOff = true;
                         rows.push(
                           <tr key={index} style={{
                             backgroundColor: weekColor
@@ -1381,7 +1382,9 @@ const EmployeeMonthlyDetailModal = ({
                               {dayName} {dayDate}
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                              -
+                              <span style={{ color: '#FF9800', fontWeight: '600', fontSize: '9px' }}>
+                                Congé ☀️
+                              </span>
                             </td>
                             <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
                               -
@@ -1399,7 +1402,8 @@ const EmployeeMonthlyDetailModal = ({
                               border: '1px solid #ddd', 
                               padding: '2px 3px', 
                               fontWeight: '600',
-                              fontSize: '10px'
+                              fontSize: '10px',
+                              color: '#FF9800'
                             }}>
                               0.0 h
                             </td>

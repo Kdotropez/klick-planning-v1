@@ -99,7 +99,7 @@ const EmployeeWeeklyRecapModal = ({
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
     const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
     if (typeof dayPlanning === 'string') return dayPlanning;
-            if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) return null;
+    if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) return 'Congé ☀️';
     return null;
   };
 

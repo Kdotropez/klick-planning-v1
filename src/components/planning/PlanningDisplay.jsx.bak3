@@ -2115,8 +2115,31 @@ const PlanningDisplay = ({
                             </button>
                           );
                         } else {
-                          // Ne pas afficher de placeholder - laisser l'espace vide naturellement
-                          return null;
+                          // Placeholder invisible pour maintenir la cohérence visuelle
+                          return (
+                            <button
+                              key={`week-placeholder-${index}`}
+                              disabled
+                              style={{
+                                opacity: 0,
+                                backgroundColor: 'transparent',
+                                color: 'transparent',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'not-allowed',
+                                marginBottom: '4px',
+                                fontWeight: '600',
+                                width: '100%',
+                                letterSpacing: '0.5px',
+                                pointerEvents: 'none'
+                              }}
+                              title="Boutique non assignée (invisible pour cohérence visuelle)"
+                            >
+                              &nbsp;
+                            </button>
+                          );
                         }
                       });
                     })()}
@@ -2289,8 +2312,31 @@ const PlanningDisplay = ({
                             </button>
                           );
                         } else {
-                          // Ne pas afficher de placeholder - laisser l'espace vide naturellement
-                          return null;
+                          // Placeholder invisible pour maintenir la cohérence visuelle
+                          return (
+                            <button
+                              key={`month-placeholder-${index}`}
+                              disabled
+                              style={{
+                                opacity: 0,
+                                backgroundColor: 'transparent',
+                                color: 'transparent',
+                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
+                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'not-allowed',
+                                marginBottom: '4px',
+                                fontWeight: '600',
+                                width: '100%',
+                                letterSpacing: '0.5px',
+                                pointerEvents: 'none'
+                              }}
+                              title="Boutique non assignée (invisible pour cohérence visuelle)"
+                            >
+                              &nbsp;
+                            </button>
+                          );
                         }
                       });
                     })()}
@@ -2336,72 +2382,6 @@ const PlanningDisplay = ({
                     title="Detail/mois/boutique"
                   >
                     📈 Detail/mois/boutique
-                  </button>
-
-                  {/* Bouton Congé de la semaine */}
-                  <button
-                    style={{
-                      backgroundColor: '#9c27b0', // Couleur violette pour congés
-                      color: 'white',
-                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
-                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      marginBottom: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
-                      boxShadow: '0 3px 8px rgba(156, 39, 176, 0.3)',
-                      whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
-                      letterSpacing: '0.5px',
-                      width: '100%'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#7b1fa2';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(156, 39, 176, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#9c27b0';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(156, 39, 176, 0.3)';
-                    }}
-                    title="Congés de la semaine"
-                  >
-                    🏖️ Congé de la semaine: {(() => {
-                      if (!selectedWeek || !planningData) return 'Aucun';
-                      
-                      let totalConges = 0;
-                      let boutiquesConges = [];
-                      
-                      // Parcourir toutes les boutiques où l'employé travaille
-                      Object.values(planningData.shops || {}).forEach(shop => {
-                        if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]) {
-                          let congesBoutique = 0;
-                          
-                          // Parcourir les 7 jours de la semaine
-                          for (let i = 0; i < 7; i++) {
-                            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
-                            if (shop.weeks[selectedWeek].planning[employeeId][dayKey]) {
-                              const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                              if (Array.isArray(slots) && slots.some(slot => slot === 'congé')) {
-                                congesBoutique += 1;
-                              }
-                            }
-                          }
-                          
-                          if (congesBoutique > 0) {
-                            totalConges += congesBoutique;
-                            boutiquesConges.push(`${shop.name}: ${congesBoutique}j`);
-                          }
-                        }
-                      });
-                      
-                      if (totalConges === 0) return 'Aucun';
-                      if (boutiquesConges.length === 1) return boutiquesConges[0];
-                      return `${totalConges}j (${boutiquesConges.join(', ')})`;
-                    })()}
                   </button>
                   
                   {/* Boutons de verrouillage/déverrouillage */}
