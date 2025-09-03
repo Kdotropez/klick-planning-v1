@@ -2828,7 +2828,13 @@ const PlanningDisplay = ({
                                          {localStorage.getItem(`horaire_visible_${employeeId}`) === 'true' && (
                                            <div>
                                              {(() => {
-                                               if (!selectedWeek || !planningData) return null;
+                                               if (!selectedWeek || !planningData) {
+                                                 console.log('🔍 Debug horaires:', { selectedWeek, planningData: !!planningData });
+                                                 return null;
+                                               }
+                                               
+                                               console.log('🔍 Debug horaires - Employee:', employeeId, 'Week:', selectedWeek);
+                                               console.log('🔍 Debug horaires - PlanningData shops:', Object.keys(planningData.shops || {}));
                                                
                                                const days = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE'];
                                                const horaires = [];
@@ -2838,82 +2844,82 @@ const PlanningDisplay = ({
                                                  const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
                                                  const dayName = days[i];
                                                  
-                                                                                                // Récupérer les tranches horaires pour ce jour par boutique
-                                               let horairesParBoutique = [];
-                                               Object.values(planningData.shops || {}).forEach(shop => {
-                                                 if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                                   const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
+                                                 console.log(`🔍 Debug horaires - Jour ${dayName} (${dayKey}):`);
+                                                 
+                                                                                                // Utiliser la même variable 'planning' que la modale GlobalDayViewModalV2
+                                               if (planning && planning[employeeId] && planning[employeeId][dayKey]) {
+                                                 const dayPlanning = planning[employeeId][dayKey];
+                                                 console.log(`  🔍 Day planning found:`, dayPlanning);
+                                                 console.log(`  🔍 Is array:`, Array.isArray(dayPlanning));
+                                                 
+                                                 // Utiliser exactement la même logique que GlobalDayViewModalV2
+                                                 if (Array.isArray(dayPlanning)) {
+                                                   // Récupérer timeSlots et interval depuis la configuration globale
+                                                   const timeSlots = config?.timeSlots || [];
+                                                   const interval = config?.interval || 60;
                                                    
-                                                   // Logique simplifiée et robuste pour les tranches horaires
-                                                   if (Array.isArray(dayPlanning)) {
-                                                     const timeSlots = shop.weeks[selectedWeek]?.timeSlots || [];
-                                                     const interval = shop.weeks[selectedWeek]?.config?.interval || 60; // 60 minutes par défaut
-                                                     
-                                                     let plagesConsolidees = [];
-                                                     let startIndex = -1;
-                                                     
-                                                     // Parcourir les créneaux pour trouver les plages consécutives
-                                                     for (let j = 0; j < dayPlanning.length; j++) {
-                                                       if (dayPlanning[j] === true && startIndex === -1) {
-                                                         // Début d'une plage
-                                                         startIndex = j;
-                                                       } else if (dayPlanning[j] === false && startIndex !== -1) {
-                                                         // Fin d'une plage
-                                                         const endIndex = j - 1;
-                                                         const startTime = timeSlots[startIndex];
-                                                         const endTime = timeSlots[endIndex + 1] || timeSlots[endIndex];
-                                                         
-                                                         if (startTime && endTime) {
-                                                           // Formater les heures correctement
-                                                           const formatHour = (hour) => {
-                                                             if (typeof hour === 'string' && hour.includes(':')) {
-                                                               return hour;
-                                                             }
-                                                             const numHour = parseInt(hour);
-                                                             return `${numHour.toString().padStart(2, '0')}:00`;
-                                                           };
-                                                           
-                                                           plagesConsolidees.push(`${formatHour(startTime)}-${formatHour(endTime)}`);
+                                                   console.log(`  🔍 Time slots:`, timeSlots);
+                                                   console.log(`  🔍 Interval:`, interval);
+                                                   
+                                                   let plagesConsolidees = [];
+                                                   let currentStart = null;
+                                                   let currentEnd = null;
+                                                   
+                                                   // Logique identique à getEmployeeSchedule de la modale
+                                                   dayPlanning.forEach((isSelected, slotIndex) => {
+                                                     if (isSelected) {
+                                                       const slotTime = timeSlots[slotIndex];
+                                                       if (!currentStart) {
+                                                         currentStart = slotTime;
+                                                         console.log(`  🔍 Début plage: ${slotTime}`);
+                                                       }
+                                                       // Calculer l'heure de fin en ajoutant l'intervalle (comme dans la modale)
+                                                       if (slotTime && typeof slotTime === 'string' && slotTime.includes(':')) {
+                                                         try {
+                                                           const [hours, minutes] = slotTime.split(':').map(Number);
+                                                           const endTime = new Date();
+                                                           endTime.setHours(hours, minutes + interval, 0);
+                                                           currentEnd = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}`;
+                                                         } catch (error) {
+                                                           console.error('Erreur calcul heure fin:', error);
                                                          }
-                                                         startIndex = -1;
                                                        }
-                                                     }
-                                                     
-                                                     // Gérer le cas où la dernière plage va jusqu'à la fin
-                                                     if (startIndex !== -1) {
-                                                       const startTime = timeSlots[startIndex];
-                                                       const endTime = timeSlots[dayPlanning.length - 1];
-                                                       
-                                                       if (startTime && endTime) {
-                                                         const formatHour = (hour) => {
-                                                           if (typeof hour === 'string' && hour.includes(':')) {
-                                                             return hour;
-                                                           }
-                                                           const numHour = parseInt(hour);
-                                                           return `${numHour.toString().padStart(2, '0')}:00`;
-                                                         };
-                                                         
-                                                         plagesConsolidees.push(`${formatHour(startTime)}-${formatHour(endTime)}`);
+                                                     } else if (currentStart) {
+                                                       // Créneau terminé, ajouter la plage
+                                                       if (currentStart && currentEnd) {
+                                                         const plage = `${currentStart}-${currentEnd}`;
+                                                         plagesConsolidees.push(plage);
+                                                         console.log(`  🔍 Plage ajoutée: ${plage}`);
                                                        }
+                                                       currentStart = null;
+                                                       currentEnd = null;
                                                      }
-                                                     
-                                                     if (plagesConsolidees.length > 0) {
-                                                       horairesParBoutique.push({
-                                                         boutique: shop.name,
+                                                   });
+                                                   
+                                                   // Ajouter le dernier créneau si nécessaire (comme dans la modale)
+                                                   if (currentStart && currentEnd) {
+                                                     const plage = `${currentStart}-${currentEnd}`;
+                                                     plagesConsolidees.push(plage);
+                                                     console.log(`  🔍 Dernière plage ajoutée: ${plage}`);
+                                                   }
+                                                   
+                                                   console.log(`  🔍 Plages consolidées:`, plagesConsolidees);
+                                                   
+                                                   if (plagesConsolidees.length > 0) {
+                                                     horaires.push({
+                                                       jour: dayName,
+                                                       boutiques: [{
+                                                         boutique: selectedShop,
                                                          plages: plagesConsolidees
-                                                       });
-                                                     }
+                                                       }]
+                                                     });
                                                    }
                                                  }
-                                               });
-                                                 
-                                                 if (horairesParBoutique.length > 0) {
-                                                   horaires.push({
-                                                     jour: dayName,
-                                                     boutiques: horairesParBoutique
-                                                   });
-                                                 }
+                                               } else {
+                                                 console.log(`  🔍 Pas de planning pour ${employeeId} le ${dayKey}`);
                                                }
+                                               
+                                               console.log(`🔍 Horaires finaux:`, horaires);
                                                
                                                if (horaires.length === 0) {
                                                  return (
