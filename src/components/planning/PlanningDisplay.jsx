@@ -2577,8 +2577,8 @@ const PlanningDisplay = ({
                   {/* Bouton Detail/mois/boutique - Couleur orange */}
                   <button
                     onClick={() => {
-                      setSelectedEmployeeForMonthlyDetail(employeeId);
-                      setShowEmployeeMonthlyDetail(true);
+                      setSelectedEmployeeForMonthlyRecap(employeeId);
+                      setShowEmployeeMonthlyRecap(true);
                     }}
                     style={{
                       backgroundColor: '#ff9800', // Couleur orange pour Detail/mois/boutique
