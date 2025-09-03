@@ -6,7 +6,7 @@ import Button from '../common/Button';
 import { checkUserPermission } from '../../config/userCodes';
 import UserManagementModal from '../admin/UserManagementModal';
 import HiddenEmployeesModal from './HiddenEmployeesModal';
-import { getHiddenEmployees } from '../../utils/PlanningDataManager';
+import { getHiddenEmployees } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
 
 const PlanningMenuBar = ({
@@ -160,128 +160,128 @@ const PlanningMenuBar = ({
       </div>
 
       {/* Mode unifié : grille équilibrée avec toutes les fonctions uniques */}
-      <div style={{ 
-        display: 'grid',
+        <div style={{ 
+          display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gridTemplateRows: 'repeat(3, minmax(50px, auto))', // Étendu à 3 lignes
-        gridAutoFlow: 'row',
-        justifyItems: 'stretch',
-        alignItems: 'stretch',
+          gridAutoFlow: 'row',
+          justifyItems: 'stretch',
+          alignItems: 'stretch',
         gap: '8px',
-        overflowX: 'hidden',
-        paddingBottom: '4px'
-      }}>
+          overflowX: 'hidden',
+          paddingBottom: '4px'
+        }}>
         {/* LIGNE 1: Fonctions principales */}
-        <Button
-          className="button-primary"
-          onClick={() => setShowGlobalDayViewModalV2(true)}
-          style={{
-            backgroundColor: '#1e88e5',
-            color: '#fff',
+          <Button
+            className="button-primary"
+            onClick={() => setShowGlobalDayViewModalV2(true)}
+            style={{
+              backgroundColor: '#1e88e5',
+              color: '#fff',
             padding: '10px 14px',
             fontSize: '13px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
             gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
-        >
-          📊 Vue globale par jour
-        </Button>
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+          >
+            📊 Vue globale par jour
+          </Button>
 
-        <Button
-          className="button-primary"
-          onClick={onExport}
-          style={{
-            backgroundColor: '#28a745',
-            color: '#fff',
+          <Button
+            className="button-primary"
+            onClick={onExport}
+            style={{
+              backgroundColor: '#28a745',
+              color: '#fff',
             padding: '10px 14px',
             fontSize: '13px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
             gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
-        >
-          <FaDownload /> Exporter les données
-        </Button>
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+          >
+            <FaDownload /> Exporter les données
+          </Button>
 
-        <Button
-          className="button-primary"
-          onClick={handleManualSave}
-          style={{
-            backgroundColor: '#17a2b8',
-            color: '#fff',
+          <Button
+            className="button-primary"
+            onClick={handleManualSave}
+            style={{
+              backgroundColor: '#17a2b8',
+              color: '#fff',
             padding: '10px 14px',
             fontSize: '13px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
             gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#138496'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
-        >
-          💾 SAUVE SUPABASE
-        </Button>
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#138496'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
+          >
+            💾 SAUVE SUPABASE
+          </Button>
 
-        <Button
-          className="button-primary"
-          onClick={handleRestoreFromSupabase}
-          style={{
-            backgroundColor: '#6f42c1',
-            color: '#fff',
+          <Button
+            className="button-primary"
+            onClick={handleRestoreFromSupabase}
+            style={{
+              backgroundColor: '#6f42c1',
+              color: '#fff',
             padding: '10px 14px',
             fontSize: '13px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
             gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#5a32a3'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6f42c1'}
-        >
-          🔄 RESTAURE SUPABASE
-        </Button>
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#5a32a3'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6f42c1'}
+          >
+            🔄 RESTAURE SUPABASE
+          </Button>
 
         {/* LIGNE 2: Fonctions utilitaires et Navigation */}
-        <Button
-          className="button-primary"
-          onClick={handleImportClick}
-          style={{
-            backgroundColor: '#ffc107',
-            color: '#212529',
+          <Button
+            className="button-primary"
+            onClick={handleImportClick}
+            style={{
+              backgroundColor: '#ffc107',
+              color: '#212529',
             padding: '10px 14px',
             fontSize: '13px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
-        >
-          📥 Importer les données
-        </Button>
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e0a800'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffc107'}
+          >
+            📥 Importer les données
+          </Button>
 
         <Button
           className="button-primary"
@@ -308,7 +308,7 @@ const PlanningMenuBar = ({
         <Button
           className="button-primary"
           onClick={() => onOpenNotes && onOpenNotes()}
-          style={{
+                  style={{
             backgroundColor: '#8bc34a',
             color: '#fff',
             padding: '10px 14px',
@@ -331,7 +331,7 @@ const PlanningMenuBar = ({
         <Button
           className="button-primary"
           onClick={() => setShowHiddenEmployeesModal(true)}
-          style={{
+                  style={{
             backgroundColor: hiddenEmployeesCount > 0 ? '#dc3545' : '#6c757d',
             color: '#fff',
             padding: '10px 14px',
@@ -448,7 +448,7 @@ const PlanningMenuBar = ({
 
         <Button
           className="button-primary"
-          onClick={() => toggleMenu('retour')}
+            onClick={() => toggleMenu('retour')}
           style={{
             backgroundColor: '#6c757d',
             color: '#fff',
@@ -621,14 +621,14 @@ const PlanningMenuBar = ({
         >
           📅 Semaine
         </Button>
-      </div>
+        </div>
 
       {/* Section navigation semaine et contrôles avancés */}
-      <div style={{
+        <div style={{ 
         display: 'flex',
         flexWrap: 'wrap',
         gap: '10px',
-        justifyContent: 'center',
+          justifyContent: 'center', 
         alignItems: 'center',
         padding: '10px',
         backgroundColor: 'rgba(248, 249, 250, 0.8)',
@@ -761,8 +761,8 @@ const PlanningMenuBar = ({
             border: '1px solid rgba(108, 117, 125, 0.2)'
           }}>
             {validationState.lockedEmployees?.length || 0} employé(s) verrouillé(s)
-          </div>
-        )}
+        </div>
+      )}
       </div>
       
       {/* Input file caché pour l'import */}

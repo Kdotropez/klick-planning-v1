@@ -22,7 +22,7 @@ import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/PlanningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';

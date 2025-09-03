@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
-import { getWeekPlanning } from '../../utils/PlanningDataManager';
+import { getWeekPlanning } from '../../utils/planningDataManager';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getCAData, calculateMonthlyCA, getAllData, calculateCompleteStats } from '../../utils/excelImportUtils';
 import Button from '../common/Button';

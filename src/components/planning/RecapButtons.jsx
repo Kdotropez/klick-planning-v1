@@ -4,7 +4,7 @@ import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
-import { getAllEmployees, hideEmployee, showEmployee, isEmployeeHidden } from '../../utils/PlanningDataManager';
+import { getAllEmployees, hideEmployee, showEmployee, isEmployeeHidden } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
 
 const RecapButtons = ({

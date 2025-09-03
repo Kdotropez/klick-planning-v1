@@ -4,7 +4,7 @@ import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
-import { getWeekPlanning } from '../../utils/PlanningDataManager';
+import { getWeekPlanning } from '../../utils/planningDataManager';
 import '@/assets/styles.css';
 
 const MonthlyRecapModals = ({

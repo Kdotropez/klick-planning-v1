@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { loadFromLocalStorage } from '../../utils/localStorage';
-import { getAllEmployees, isEmployeeOnLeave, getEmployeesByMainShop, determineEmployeeMainShop, updateAllMainShops } from '../../utils/PlanningDataManager';
+import { getAllEmployees, isEmployeeOnLeave, getEmployeesByMainShop, determineEmployeeMainShop, updateAllMainShops } from '../../utils/planningDataManager';
 import WeeklyPlanningPrint from './WeeklyPlanningPrint';
 
 const Dashboard = ({ 

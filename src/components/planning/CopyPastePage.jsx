@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { format, addDays, parseISO, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { getWeekPlanning, saveWeekPlanning } from '../../utils/PlanningDataManager';
+import { getWeekPlanning, saveWeekPlanning } from '../../utils/planningDataManager';
 
 const CopyPastePage = ({ 
   planningData, 
