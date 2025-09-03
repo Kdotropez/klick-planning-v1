@@ -481,8 +481,8 @@ const RecapButtonsModule = ({
       {/* Bouton Mois global - Couleur bleue */}
       <button
         onClick={() => {
-          setSelectedEmployeeForMonthlyRecap(employeeId);
-          setShowEmployeeMonthlyRecap(true);
+          setSelectedEmployeeForMonthlyDetail(employeeId);
+          setShowEmployeeMonthlyDetail(true);
         }}
         style={{
           backgroundColor: '#1e88e5',

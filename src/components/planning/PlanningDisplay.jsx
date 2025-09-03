@@ -2237,8 +2237,8 @@ const PlanningDisplay = ({
                   {/* Bouton Mois avec 2 décimales - Total mensuel global */}
                   <button
                     onClick={() => {
-                      setSelectedEmployeeForMonthlyRecap(employeeId);
-                      setShowEmployeeMonthlyRecap(true);
+                      setSelectedEmployeeForMonthlyDetail(employeeId);
+                      setShowEmployeeMonthlyDetail(true);
                     }}
                     style={{
                       backgroundColor: '#1e88e5', // Couleur bleue pour mois
@@ -2349,8 +2349,8 @@ const PlanningDisplay = ({
                             <button
                               key={`month-${shop.id}`}
                               onClick={() => {
-                                setSelectedEmployeeForMonthlyRecap(employeeId);
-                                setShowEmployeeMonthlyRecap(true);
+                                setSelectedEmployeeForMonthlyDetail(employeeId);
+                                setShowEmployeeMonthlyDetail(true);
                               }}
                               style={{
                                 backgroundColor: (() => {
@@ -2577,8 +2577,8 @@ const PlanningDisplay = ({
                   {/* Bouton Detail/mois/boutique - Couleur orange */}
                   <button
                     onClick={() => {
-                      setSelectedEmployeeForMonthlyRecap(employeeId);
-                      setShowEmployeeMonthlyRecap(true);
+                      setSelectedEmployeeForMonthlyDetail(employeeId);
+                      setShowEmployeeMonthlyDetail(true);
                     }}
                     style={{
                       backgroundColor: '#ff9800', // Couleur orange pour Detail/mois/boutique
