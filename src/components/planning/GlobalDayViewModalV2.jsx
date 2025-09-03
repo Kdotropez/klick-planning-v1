@@ -260,6 +260,163 @@ const GlobalDayViewModalV2 = ({
         </div>
       )}
 
+      {/* Planning hebdomadaire visuel */}
+      <div className="weekly-planning-section" style={{ marginTop: '30px', marginBottom: '30px' }}>
+        <h3 style={{ 
+          textAlign: 'center', 
+          color: '#2c3e50', 
+          marginBottom: '20px',
+          fontSize: '18px',
+          fontWeight: '600',
+          borderBottom: '2px solid #3498db',
+          paddingBottom: '10px'
+        }}>
+          📅 Planning Hebdomadaire - Vue d'ensemble
+        </h3>
+        
+        <div className="weekly-planning-table" style={{ 
+          overflowX: 'auto',
+          border: '2px solid #ecf0f1',
+          borderRadius: '8px',
+          backgroundColor: 'white'
+        }}>
+          <table style={{ 
+            width: '100%', 
+            borderCollapse: 'collapse',
+            fontSize: '12px'
+          }}>
+            <thead>
+              <tr style={{ backgroundColor: '#3498db', color: 'white' }}>
+                <th style={{ padding: '12px 8px', border: '1px solid #2980b9', textAlign: 'center', minWidth: '80px' }}>
+                  Employée
+                </th>
+                {dayData.map((day, index) => (
+                  <th key={index} style={{ 
+                    padding: '12px 8px', 
+                    border: '1px solid #2980b9', 
+                    textAlign: 'center',
+                    minWidth: '100px',
+                    position: 'relative'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{day.short}</div>
+                    <div style={{ fontSize: '10px', opacity: '0.9' }}>
+                      {format(day.date, 'dd/MM', { locale: fr })}
+                    </div>
+                    {day.totalHours > 0 && (
+                      <div style={{ 
+                        fontSize: '9px', 
+                        backgroundColor: 'rgba(255,255,255,0.2)', 
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        marginTop: '4px'
+                      }}>
+                        {day.totalHours}h
+                      </div>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {currentShopEmployees?.map((employee, empIndex) => (
+                <tr key={employee.id} style={{ 
+                  backgroundColor: empIndex % 2 === 0 ? '#f8f9fa' : 'white',
+                  borderBottom: '1px solid #ecf0f1'
+                }}>
+                  <td style={{ 
+                    padding: '10px 8px', 
+                    border: '1px solid #ecf0f1',
+                    fontWeight: '600',
+                    color: '#2c3e50',
+                    backgroundColor: '#ecf0f1',
+                    textAlign: 'center',
+                    minWidth: '80px'
+                  }}>
+                    <div style={{ fontWeight: 'bold' }}>{employee.name}</div>
+                    <div style={{ 
+                      fontSize: '10px', 
+                      color: '#7f8c8d',
+                      marginTop: '2px'
+                    }}>
+                      {selectedShop}
+                    </div>
+                  </td>
+                  {dayData.map((day, dayIndex) => {
+                    const dayKey = day.dateKey;
+                    const dayPlanning = planning[employee.id]?.[dayKey];
+                    
+                    // Déterminer le contenu de la cellule
+                    let cellContent = '';
+                    let cellStyle = { 
+                      padding: '8px 6px', 
+                      border: '1px solid #ecf0f1',
+                      textAlign: 'center',
+                      fontSize: '11px',
+                      backgroundColor: '#f8f9fa'
+                    };
+                    
+                    if (dayPlanning) {
+                      if (typeof dayPlanning === 'string') {
+                        // Statut spécial (congé, maladie)
+                        if (dayPlanning.includes('Congé')) {
+                          cellContent = '🏖️ Congé';
+                          cellStyle.backgroundColor = '#ffeaa7';
+                          cellStyle.color = '#d63031';
+                        } else if (dayPlanning.includes('Maladie')) {
+                          cellContent = '🤒 Maladie';
+                          cellStyle.backgroundColor = '#fd79a8';
+                          cellStyle.color = '#c44569';
+                        } else {
+                          cellContent = dayPlanning;
+                          cellStyle.backgroundColor = '#fdcb6e';
+                          cellStyle.color = '#e17055';
+                        }
+                      } else if (Array.isArray(dayPlanning)) {
+                        // Créneaux horaires
+                        const hasWork = dayPlanning.some(slot => slot === true);
+                        if (hasWork) {
+                          const schedules = getEmployeeSchedule(employee.id, dayKey);
+                          if (schedules && schedules.length > 0) {
+                            cellContent = schedules.map(schedule => 
+                              `${schedule.start}-${schedule.end}`
+                            ).join(' / ');
+                            cellStyle.backgroundColor = '#55a3ff';
+                            cellStyle.color = 'white';
+                          } else {
+                            cellContent = '⏰ Horaires';
+                            cellStyle.backgroundColor = '#74b9ff';
+                            cellStyle.color = 'white';
+                          }
+                        } else {
+                          cellContent = '❌ Libre';
+                          cellStyle.backgroundColor = '#ddd';
+                          cellStyle.color = '#666';
+                        }
+                      }
+                    } else {
+                      cellContent = '❌ Libre';
+                      cellStyle.backgroundColor = '#ddd';
+                      cellStyle.color = '#666';
+                    }
+                    
+                    return (
+                      <td key={dayIndex} style={cellStyle}>
+                        <div style={{ 
+                          wordBreak: 'break-word',
+                          lineHeight: '1.2'
+                        }}>
+                          {cellContent}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Cartes des jours */}
       <div className="days-grid">
         {dayData.map((day, index) => (
