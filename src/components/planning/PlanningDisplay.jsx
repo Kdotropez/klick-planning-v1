@@ -2807,12 +2807,8 @@ const PlanningDisplay = ({
                                                const currentState = localStorage.getItem(`horaire_visible_${employeeId}`) === 'true';
                                                const newState = !currentState;
                                                localStorage.setItem(`horaire_visible_${employeeId}`, newState);
-                                               // Force re-render en utilisant un état global
-                                               window.dispatchEvent(new CustomEvent('horaireToggle', { 
-                                                 detail: { employeeId, newState } 
-                                               }));
-                                               // Force le re-render du composant
-                                               window.location.reload();
+                                               // Force le re-render sans page reload
+                                               setPlanningData({...planningData});
                                              }}
                                              style={{
                                                background: 'none',
@@ -2842,29 +2838,32 @@ const PlanningDisplay = ({
                                                  const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
                                                  const dayName = days[i];
                                                  
-                                                 // Récupérer les tranches horaires pour ce jour par boutique
-                                                 let horairesParBoutique = [];
-                                                 Object.values(planningData.shops || {}).forEach(shop => {
-                                                   if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                                     const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                                     if (Array.isArray(slots)) {
-                                                       let plagesConsolidees = [];
-                                                       
-                                                       // Regrouper les tranches consécutives
-                                                       for (let j = 0; j < slots.length; j++) {
-                                                         if (slots[j] === true) {
-                                                           let startIndex = j;
-                                                           let endIndex = j;
-                                                           
-                                                           // Trouver la fin de la plage consécutive
-                                                           while (endIndex + 1 < slots.length && slots[endIndex + 1] === true) {
-                                                             endIndex++;
-                                                           }
-                                                           
-                                                           // Calculer les heures de début et fin
-                                                           const startTime = shop.weeks[selectedWeek]?.timeSlots?.[startIndex] || `${startIndex}:00`;
-                                                           const endTime = shop.weeks[selectedWeek]?.timeSlots?.[endIndex + 1] || `${endIndex + 1}:00`;
-                                                           
+                                                                                                // Récupérer les tranches horaires pour ce jour par boutique
+                                               let horairesParBoutique = [];
+                                               Object.values(planningData.shops || {}).forEach(shop => {
+                                                 if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
+                                                   const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
+                                                   
+                                                   // Logique simplifiée et robuste pour les tranches horaires
+                                                   if (Array.isArray(dayPlanning)) {
+                                                     const timeSlots = shop.weeks[selectedWeek]?.timeSlots || [];
+                                                     const interval = shop.weeks[selectedWeek]?.config?.interval || 60; // 60 minutes par défaut
+                                                     
+                                                     let plagesConsolidees = [];
+                                                     let startIndex = -1;
+                                                     
+                                                     // Parcourir les créneaux pour trouver les plages consécutives
+                                                     for (let j = 0; j < dayPlanning.length; j++) {
+                                                       if (dayPlanning[j] === true && startIndex === -1) {
+                                                         // Début d'une plage
+                                                         startIndex = j;
+                                                       } else if (dayPlanning[j] === false && startIndex !== -1) {
+                                                         // Fin d'une plage
+                                                         const endIndex = j - 1;
+                                                         const startTime = timeSlots[startIndex];
+                                                         const endTime = timeSlots[endIndex + 1] || timeSlots[endIndex];
+                                                         
+                                                         if (startTime && endTime) {
                                                            // Formater les heures correctement
                                                            const formatHour = (hour) => {
                                                              if (typeof hour === 'string' && hour.includes(':')) {
@@ -2875,21 +2874,38 @@ const PlanningDisplay = ({
                                                            };
                                                            
                                                            plagesConsolidees.push(`${formatHour(startTime)}-${formatHour(endTime)}`);
-                                                           
-                                                           // Passer à la prochaine plage
-                                                           j = endIndex;
                                                          }
-                                                       }
-                                                       
-                                                       if (plagesConsolidees.length > 0) {
-                                                         horairesParBoutique.push({
-                                                           boutique: shop.name,
-                                                           plages: plagesConsolidees
-                                                         });
+                                                         startIndex = -1;
                                                        }
                                                      }
+                                                     
+                                                     // Gérer le cas où la dernière plage va jusqu'à la fin
+                                                     if (startIndex !== -1) {
+                                                       const startTime = timeSlots[startIndex];
+                                                       const endTime = timeSlots[dayPlanning.length - 1];
+                                                       
+                                                       if (startTime && endTime) {
+                                                         const formatHour = (hour) => {
+                                                           if (typeof hour === 'string' && hour.includes(':')) {
+                                                             return hour;
+                                                           }
+                                                           const numHour = parseInt(hour);
+                                                           return `${numHour.toString().padStart(2, '0')}:00`;
+                                                         };
+                                                         
+                                                         plagesConsolidees.push(`${formatHour(startTime)}-${formatHour(endTime)}`);
+                                                       }
+                                                     }
+                                                     
+                                                     if (plagesConsolidees.length > 0) {
+                                                       horairesParBoutique.push({
+                                                         boutique: shop.name,
+                                                         plages: plagesConsolidees
+                                                       });
+                                                     }
                                                    }
-                                                 });
+                                                 }
+                                               });
                                                  
                                                  if (horairesParBoutique.length > 0) {
                                                    horaires.push({
@@ -2925,36 +2941,39 @@ const PlanningDisplay = ({
                                                  }}>
                                                    {item.boutiques.map((boutique, bIndex) => (
                                                      <div key={bIndex} style={{ 
-                                                       display: 'flex', 
-                                                       alignItems: 'center', 
-                                                       justifyContent: 'space-between',
-                                                       marginBottom: bIndex < item.boutiques.length - 1 ? '3px' : '0'
+                                                       marginBottom: bIndex < item.boutiques.length - 1 ? '6px' : '0'
                                                      }}>
-                                                       <span style={{ 
-                                                         fontWeight: 'bold', 
-                                                         color: '#9c27b0',
-                                                         fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                         minWidth: '60px'
+                                                       {/* Ligne 1 : Jour et Boutique */}
+                                                       <div style={{ 
+                                                         display: 'flex', 
+                                                         alignItems: 'center',
+                                                         marginBottom: '2px'
                                                        }}>
-                                                         {item.jour}
-                                                       </span>
-                                                       <span style={{ 
-                                                         fontStyle: 'italic', 
-                                                         color: '#9c27b0',
+                                                         <span style={{ 
+                                                           fontWeight: 'bold', 
+                                                           color: '#9c27b0',
+                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px',
+                                                           marginRight: '8px'
+                                                         }}>
+                                                           {item.jour}
+                                                         </span>
+                                                         <span style={{ 
+                                                           fontStyle: 'italic', 
+                                                           color: '#9c27b0',
+                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px'
+                                                         }}>
+                                                           ({boutique.boutique})
+                                                         </span>
+                                                       </div>
+                                                       
+                                                       {/* Ligne 2 : Tranches horaires */}
+                                                       <div style={{ 
+                                                         marginLeft: '16px',
                                                          fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                         marginLeft: '8px',
-                                                         marginRight: '8px',
-                                                         minWidth: '80px'
-                                                       }}>
-                                                         ({boutique.boutique})
-                                                       </span>
-                                                       <span style={{ 
-                                                         fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                         flex: 1,
-                                                         textAlign: 'right'
+                                                         color: '#7b1fa2'
                                                        }}>
                                                          {boutique.plages.join(' / ')}
-                                                       </span>
+                                                       </div>
                                                      </div>
                                                    ))}
                                                  </div>

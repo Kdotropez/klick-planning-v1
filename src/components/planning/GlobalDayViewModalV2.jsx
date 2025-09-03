@@ -454,16 +454,16 @@ const GlobalDayViewModalV2 = ({
 
   // Vue hebdomadaire professionnelle
   const WeeklyTab = () => {
-    // Fonction pour obtenir les horaires d'un employé pour un jour
-    const getEmployeeSchedule = (employeeId, dayKey) => {
-      const dayPlanning = planning[employeeId]?.[dayKey];
-      if (!dayPlanning) return null;
+      // Fonction pour obtenir les horaires d'un employé pour un jour
+  const getEmployeeSchedule = (employeeId, dayKey) => {
+    const dayPlanning = planning[employeeId]?.[dayKey];
+    if (!dayPlanning || !Array.isArray(dayPlanning)) return null;
 
-      const schedules = [];
-      let currentStart = null;
-      let currentEnd = null;
+    const schedules = [];
+    let currentStart = null;
+    let currentEnd = null;
 
-      dayPlanning.forEach((isSelected, slotIndex) => {
+    dayPlanning.forEach((isSelected, slotIndex) => {
         if (isSelected) {
           const slotTime = timeSlots[slotIndex];
           if (!currentStart) {
