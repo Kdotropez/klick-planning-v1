@@ -9,7 +9,6 @@ import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
 import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
-import WeeklyMultiShopModal from './WeeklyMultiShopModal';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
@@ -60,7 +59,7 @@ const PlanningDisplay = ({
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
-  const [showWeeklyMultiShopModal, setShowWeeklyMultiShopModal] = useState(false);
+
   const [showResetModal, setShowResetModal] = useState(false);
   const [showRecapModal, setShowRecapModal] = useState(null);
   const [showMonthlyRecapModal, setShowMonthlyRecapModal] = useState(false);
@@ -1831,8 +1830,7 @@ const PlanningDisplay = ({
             onExport={handleExport}
             onImport={onImport}
             onReset={() => setShowResetModal(true)}
-            setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
-            setShowWeeklyMultiShopModal={setShowWeeklyMultiShopModal}
+                          setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
             handleManualSave={handleManualSave}
             onCreateJSONBackup={createAutoBackupJSON}
             onOpenDashboard={() => setShowDashboard(true)}
@@ -3641,6 +3639,7 @@ const PlanningDisplay = ({
         showGlobalDayViewModal={showGlobalDayViewModalV2}
         setShowGlobalDayViewModal={setShowGlobalDayViewModalV2}
         planning={planning}
+        planningData={planningData}
         config={config}
         selectedShop={selectedShop}
         selectedWeek={validWeek}
@@ -3648,15 +3647,7 @@ const PlanningDisplay = ({
         currentShopEmployees={currentShopEmployees}
       />
 
-      {/* Modale Vue hebdomadaire multi-boutiques */}
-      <WeeklyMultiShopModal
-        showWeeklyMultiShopModal={showWeeklyMultiShopModal}
-        setShowWeeklyMultiShopModal={setShowWeeklyMultiShopModal}
-        config={config}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        planningData={planningData}
-      />
+      
 
       {/* Modale du tableau de bord */}
       {showDashboard && (

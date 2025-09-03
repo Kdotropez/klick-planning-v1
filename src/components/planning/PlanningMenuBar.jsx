@@ -29,7 +29,6 @@ const PlanningMenuBar = ({
   onImport,
   onReset,
   setShowGlobalDayViewModalV2,
-  setShowWeeklyMultiShopModal,
   handleManualSave,
   handleRestoreFromSupabase,
   // Modules
@@ -195,27 +194,7 @@ const PlanningMenuBar = ({
             📊 Vue globale par jour
           </Button>
 
-          <Button
-            className="button-primary"
-            onClick={() => setShowWeeklyMultiShopModal(true)}
-            style={{
-              backgroundColor: '#e74c3c',
-              color: '#fff',
-            padding: '10px 14px',
-            fontSize: '13px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-            gap: '6px',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c0392b'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#e74c3c'}
-          >
-            📊 Vue hebdomadaire multi-boutiques
-          </Button>
+          
 
           <Button
             className="button-primary"

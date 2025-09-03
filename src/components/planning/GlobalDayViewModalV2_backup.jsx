@@ -16,8 +16,8 @@ const GlobalDayViewModalV2 = ({
   selectedWeek,
   selectedEmployees,
   planning,
-  planningData,
-  currentShopEmployees
+  currentShopEmployees,
+  planningData
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedDay, setSelectedDay] = useState(null);
@@ -502,7 +502,25 @@ const GlobalDayViewModalV2 = ({
       return schedules;
     };
 
-    // Fonction pour fusionner les créneaux consécutifs (supprimée - doublon)
+    // Fonction pour fusionner les créneaux consécutifs
+    const mergeConsecutiveSlots = (schedules) => {
+      if (schedules.length <= 1) return schedules;
+
+      const merged = [];
+      let current = schedules[0];
+
+      for (let i = 1; i < schedules.length; i++) {
+        const next = schedules[i];
+        if (current.end === next.start) {
+          current.end = next.end;
+        } else {
+          merged.push(current);
+          current = next;
+        }
+      }
+      merged.push(current);
+      return merged;
+    };
 
     return (
       <div className="weekly-tab">
@@ -560,289 +578,208 @@ const GlobalDayViewModalV2 = ({
     );
   };
 
-  // Vue hebdomadaire multi-boutiques (clone exact de WeeklyTab)
-  const WeeklyMultiTab = () => {
-    // Mapping des noms de boutiques (IDs numériques et textuels)
-    const shopNameMapping = {
-      // IDs numériques
-      '0': 'PORT GRIMAUD',
-      '1': 'CAVALAIRE', 
-      '2': 'SAINT TROPEZ',
-      '3': 'CANNES',
-      '4': 'SAINTE MAXIME',
-      '5': 'MARCHE AMBULANT',
-      // IDs textuels (fallback)
-      'port-grimaud': 'PORT GRIMAUD',
-      'cavalaire': 'CAVALAIRE',
-      'saint-tropez': 'SAINT TROPEZ'
-    };
-
-    // Fonction pour obtenir le nom affiché d'une boutique
-    const getShopDisplayName = (shopId) => {
-      return shopNameMapping[shopId] || shopId?.replace(/[-_]/g, ' ').toUpperCase() || shopId;
-    };
-
-    // Fonction pour obtenir la couleur d'une boutique
-    const getShopColor = (shopName) => {
-      const colorMap = {
-        'PORT GRIMAUD': '#e74c3c',      // Rouge
-        'CAVALAIRE': '#27ae60',         // Vert
-        'SAINT TROPEZ': '#9b59b6',      // Violet
-        'CANNES': '#f39c12',            // Orange
-        'SAINTE MAXIME': '#1abc9c',     // Turquoise
-        'MARCHE AMBULANT': '#e67e22'    // Orange foncé
-      };
-      return colorMap[shopName] || '#95a5a6'; // Gris par défaut
-    };
-
-    // Fonction pour assigner une couleur à chaque employé
-    const getEmployeeColor = (employeeName) => {
-      const colorMap = {
-        'CHRISTINE': '#e74c3c',      // Rouge
-        'MANON': '#27ae60',          // Vert  
-        'YHONNA': '#9b59b6',        // Violet
-        'ANGELIQUE': '#f39c12',      // Orange
-        'MARINE': '#1abc9c',         // Turquoise
-        'JULIE': '#e67e22',          // Orange foncé
-        'SOPHIE': '#8e44ad',         // Violet foncé
-        'LUCIA': '#16a085'           // Vert-bleu
-      };
-      return colorMap[employeeName] || '#95a5a6'; // Gris par défaut
-    };
-
-    // Fonction pour assigner une couleur à chaque jour
-    const getDayColor = (dayName) => {
-      const colorMap = {
-        'LUNDI': '#3498db',      // Bleu
-        'MARDI': '#e67e22',      // Orange
-        'MERCREDI': '#9b59b6',   // Violet
-        'JEUDI': '#f39c12',      // Jaune-Orange
-        'VENDREDI': '#e74c3c',   // Rouge
-        'SAMEDI': '#27ae60',     // Vert
-        'DIMANCHE': '#1abc9c'    // Turquoise
-      };
-      return colorMap[dayName] || '#95a5a6'; // Gris par défaut
-    };
-
-    // Fonction pour obtenir les horaires d'un employé pour un jour
-    const getEmployeeSchedule = (employeeId, dayKey) => {
-      const dayPlanning = planning[employeeId]?.[dayKey];
+  // Vue multi-boutiques optimisée
+  const CombinedTab = () => {
+    // Fonction pour obtenir les horaires d'un employé pour un jour et une boutique
+    const getEmployeeScheduleForShop = (employeeId, dayKey, shopId) => {
+      if (!planningData || !planningData.shops || !planningData.shops[shopId]) return null;
+      
+      const shop = planningData.shops[shopId];
+      const dayPlanning = shop.weeks?.[selectedWeek]?.planning?.[employeeId]?.[dayKey];
+      
       if (!dayPlanning) return null;
-
-      // Si c'est un statut (Congé/Maladie), retourner null
+      
+      // Si c'est un statut (Congé/Maladie)
       if (typeof dayPlanning === 'string') {
-        return null;
+        return {
+          type: 'status',
+          status: dayPlanning,
+          schedules: []
+        };
       }
+      
+      // Si ce sont des créneaux horaires
+      if (Array.isArray(dayPlanning)) {
+        const hasWork = dayPlanning.some(slot => slot === true);
+        if (!hasWork) return null;
+        
+        const schedules = [];
+        let currentStart = null;
+        let currentEnd = null;
 
-      // Si ce n'est pas un tableau, retourner null
-      if (!Array.isArray(dayPlanning)) {
-        return null;
-      }
-
-      const schedules = [];
-      let currentStart = null;
-      let currentEnd = null;
-
-      dayPlanning.forEach((isSelected, slotIndex) => {
-        if (isSelected) {
-          const slotTime = timeSlots[slotIndex];
-          if (!currentStart) {
-            currentStart = slotTime;
+        dayPlanning.forEach((isSelected, slotIndex) => {
+          if (isSelected) {
+            const slotTime = timeSlots[slotIndex];
+            if (!currentStart) {
+              currentStart = slotTime;
+            }
+            currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+          } else if (currentStart) {
+            schedules.push({
+              start: currentStart,
+              end: currentEnd
+            });
+            currentStart = null;
+            currentEnd = null;
           }
-          currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
-        } else if (currentStart) {
+        });
+
+        // Ajouter le dernier créneau si nécessaire
+        if (currentStart) {
           schedules.push({
             start: currentStart,
             end: currentEnd
           });
-          currentStart = null;
-          currentEnd = null;
         }
-      });
 
-      // Ajouter le dernier créneau si nécessaire
-      if (currentStart) {
-        schedules.push({
-          start: currentStart,
-          end: currentEnd
-        });
+        return {
+          type: 'work',
+          status: 'Travail',
+          schedules: schedules
+        };
       }
-
-      return schedules;
+      
+      return null;
     };
 
     // Fonction pour fusionner les créneaux consécutifs
     const mergeConsecutiveSlots = (schedules) => {
-      if (!Array.isArray(schedules) || schedules.length === 0) return [];
-      
-      // Convertir les créneaux en objets avec start/end
-      const timeSlots = [];
-      let currentStart = null;
-      
-      for (let i = 0; i < schedules.length; i++) {
-        if (schedules[i] === true || schedules[i] === 1) {
-          if (currentStart === null) {
-            currentStart = i;
-          }
+      if (schedules.length <= 1) return schedules;
+
+      const merged = [];
+      let current = schedules[0];
+
+      for (let i = 1; i < schedules.length; i++) {
+        const next = schedules[i];
+        if (current.end === next.start) {
+          current.end = next.end;
         } else {
-          if (currentStart !== null) {
-            const startTime = config.timeSlots[currentStart];
-            // Calculer l'heure de fin en ajoutant l'intervalle au créneau de début
-            const endTime = config.timeSlots[i];
-            timeSlots.push({ start: startTime, end: endTime });
-            currentStart = null;
-          }
+          merged.push(current);
+          current = next;
         }
       }
+      merged.push(current);
+      return merged;
+    };
+
+    // Récupérer tous les employés de toutes les boutiques
+    const getAllEmployeesFromAllShops = () => {
+      const allEmployees = [];
       
-      // Gérer le dernier créneau
-      if (currentStart !== null) {
-        const startTime = config.timeSlots[currentStart];
-        // Pour le dernier créneau, ajouter l'intervalle à l'heure de début
-        const endTime = config.timeSlots[schedules.length - 1];
-        timeSlots.push({ start: startTime, end: endTime });
+      if (planningData && planningData.shops) {
+        Object.keys(planningData.shops).forEach(shopId => {
+          const shop = planningData.shops[shopId];
+          if (shop.employees && Array.isArray(shop.employees)) {
+            shop.employees.forEach(employee => {
+              // Éviter les doublons
+              if (!allEmployees.find(emp => emp.id === employee.id)) {
+                allEmployees.push({
+                  ...employee,
+                  primaryShop: shop.name // Boutique principale de l'employé
+                });
+              }
+            });
+          }
+        });
       }
       
-      return timeSlots;
+      return allEmployees;
     };
+
+    const allEmployees = getAllEmployeesFromAllShops();
 
     return (
       <div className="weekly-tab">
         <div className="weekly-header">
-          <h3>Planning hebdomadaire - GLOBAL</h3>
+          <h3>Planning hebdomadaire - Toutes les boutiques</h3>
           <p>Semaine du {globalStats.weekRange}</p>
         </div>
 
         <div className="weekly-schedule" id="weekly-schedule-export">
           {dayData.map((day, dayIndex) => {
+            if (day.totalHours === 0) return null;
+
             return (
-              <div 
-                key={dayIndex} 
-                className="day-schedule-card"
-                style={{
-                  borderBottom: `2px solid ${getDayColor(day.day)}`,
-                  paddingBottom: '20px',
-                  marginBottom: '20px'
-                }}
-              >
+              <div key={dayIndex} className="day-schedule-card">
                 <div className="day-header">
                   <h4>{day.day} {format(day.date, 'dd/MM/yyyy', { locale: fr })}</h4>
                 </div>
 
                 <div className="employees-schedule">
-                  {currentShopEmployees.map(employee => {
-                    // Logique multi-boutique : chercher où l'employé travaille ce jour-là
-                    let employeeShop = getShopDisplayName(selectedShop); // Nom affiché de la boutique actuelle
-                    let schedules = null;
-                    let isOnLeave = false;
+                  {allEmployees.map(employee => {
+                    // Récupérer les horaires de cet employé dans toutes les boutiques pour ce jour
+                    const employeeSchedules = [];
+                    let hasStatus = false;
+                    let statusType = null;
                     
-                    // 1. Vérifier d'abord la boutique actuelle
-                    schedules = getEmployeeSchedule(employee.id, day.dateKey);
-                    
-                    // DEBUG: Afficher les données brutes
-                    console.log(`🔍 DEBUG ${employee.name} - ${day.day} (${day.dateKey}):`, {
-                      employeeId: employee.id,
-                      dayKey: day.dateKey,
-                      schedulesFromCurrentShop: schedules,
-                      schedulesType: typeof schedules,
-                      isArray: Array.isArray(schedules),
-                      hasValidSlots: schedules && Array.isArray(schedules) ? schedules.some(slot => slot === true || slot === 1) : false,
-                      hasValidTimeSlots: schedules && Array.isArray(schedules) ? schedules.some(slot => slot && typeof slot === 'object' && slot.start && slot.end) : false
-                    });
-                    
-                     // 2. Si pas d'horaires dans la boutique actuelle, vérifier les autres boutiques
-                     if (!schedules || schedules.length === 0 || (typeof schedules === 'string' && schedules.includes('Congé'))) {
-                       console.log(`🔍 DEBUG ${employee.name} - ${day.day}: Pas d'horaires dans la boutique actuelle, recherche dans les autres boutiques...`);
-                       
-                       // Chercher dans toutes les boutiques disponibles via planningData
-                       if (planningData && planningData.shops) {
-                         console.log(`🔍 DEBUG ${employee.name} - ${day.day}: planningData.shops disponibles:`, Object.keys(planningData.shops));
-                         
-                         for (const shopId in planningData.shops) {
-                           const shop = planningData.shops[shopId];
-                           console.log(`🔍 DEBUG ${employee.name} - ${day.day}: Vérification boutique ${shop.name} (ID: ${shopId})`);
-                           
-                           if (shop.name !== selectedShop) { // Éviter de revérifier la boutique actuelle
-                             const otherShopSchedule = shop.weeks?.[selectedWeek]?.planning?.[employee.id]?.[day.dateKey];
-                             console.log(`🔍 DEBUG ${employee.name} - ${day.day}: Horaires trouvés dans ${shop.name}:`, otherShopSchedule);
-                             
-                             if (otherShopSchedule && Array.isArray(otherShopSchedule) && otherShopSchedule.some(slot => slot)) {
-                               console.log(`🔍 DEBUG ${employee.name} - ${day.day}: Horaires valides trouvés dans ${shop.name}!`);
-                               // Utiliser le mapping des noms de boutiques
-                               employeeShop = getShopDisplayName(shop.name);
-                               schedules = otherShopSchedule;
-                               break;
-                             }
-                           }
-                         }
-                       } else {
-                         console.log(`🔍 DEBUG ${employee.name} - ${day.day}: planningData.shops non disponible`);
-                       }
-                       
-                       // 3. Si toujours pas d'horaires, c'est un congé
-                       if (!schedules || schedules.length === 0) {
-                         console.log(`🔍 DEBUG ${employee.name} - ${day.day}: Aucun horaire trouvé, marqué comme congé`);
-                         isOnLeave = true;
-                       }
-                     }
-                    
-                    // Filtrer les valeurs invalides et traiter les horaires
-                    let mergedSchedules = [];
-                    if (schedules && !isOnLeave && Array.isArray(schedules)) {
-                      // Vérifier s'il y a des créneaux valides (format booléen)
-                      const hasValidSlots = schedules.some(slot => slot === true || slot === 1);
-                      // Vérifier s'il y a des créneaux valides (format objet avec start/end)
-                      const hasValidTimeSlots = schedules.some(slot => slot && typeof slot === 'object' && slot.start && slot.end);
-                      
-                      if (hasValidSlots) {
-                        // Format booléen : utiliser mergeConsecutiveSlots
-                        mergedSchedules = mergeConsecutiveSlots(schedules);
-                      } else if (hasValidTimeSlots) {
-                        // Format objet : utiliser directement les schedules
-                        mergedSchedules = schedules.filter(slot => slot && typeof slot === 'object' && slot.start && slot.end);
-                      }
+                    if (planningData && planningData.shops) {
+                      Object.keys(planningData.shops).forEach(shopId => {
+                        const shop = planningData.shops[shopId];
+                        const scheduleData = getEmployeeScheduleForShop(employee.id, day.dateKey, shopId);
+                        
+                        if (scheduleData) {
+                          if (scheduleData.type === 'status') {
+                            if (!hasStatus) {
+                              hasStatus = true;
+                              statusType = scheduleData.status;
+                            }
+                          } else {
+                            employeeSchedules.push({
+                              shop: shop.name,
+                              ...scheduleData
+                            });
+                          }
+                        }
+                      });
                     }
+                    
+                    // Si l'employé n'a aucun planning ce jour, ne pas l'afficher
+                    if (employeeSchedules.length === 0 && !hasStatus) return null;
 
                     return (
-                      <div 
-                        key={employee.id} 
-                        className="employee-schedule-row"
-                        style={{
-                          border: `3px solid ${getEmployeeColor(employee.name)}`,
-                          backgroundColor: `${getEmployeeColor(employee.name)}15`,
-                          color: '#333',
-                          borderRadius: '8px',
-                          padding: '8px',
-                          marginBottom: '8px'
-                        }}
-                      >
-                        <div className="employee-name">
-                          <strong style={{ color: getEmployeeColor(employee.name) }}>{employee.name}</strong>
-                        </div>
-                        {!isOnLeave && (
-                          <div className="employee-shop">
-                            <span 
-                              className="shop-badge"
-                              style={{
-                                backgroundColor: getShopColor(employeeShop)
-                              }}
-                            >
-                              {employeeShop}
-                            </span>
+                      <div key={employee.id} className="employee-schedule-row">
+                        <div className="employee-info">
+                          <div className="employee-name">
+                            <strong>{employee.name}</strong>
                           </div>
-                        )}
-                        <div className="employee-hours">
-                          {isOnLeave ? (
-                            <span className="leave-status">🏖️ Congé</span>
-                          ) : mergedSchedules.length > 0 ? (
-                            mergedSchedules.map((schedule, index) => (
-                              <span key={index} className="time-slot">
-                                {schedule.start} - {schedule.end}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="no-schedule">Aucun horaire</span>
+                        </div>
+                        
+                        <div className="employee-schedules">
+                          {/* Afficher le statut une seule fois si présent */}
+                          {hasStatus && (
+                            <div className="schedule-item">
+                              <div className="status-display">
+                                {statusType === 'Congé ☀️' ? (
+                                  <span className="status-conge">🏖️ Congé</span>
+                                ) : statusType === 'Maladie 🤒' ? (
+                                  <span className="status-maladie">🤒 Maladie</span>
+                                ) : (
+                                  <span className="status-other">{statusType}</span>
+                                )}
+                              </div>
+                            </div>
                           )}
+                          
+                          {/* Afficher les horaires de travail par boutique */}
+                          {employeeSchedules.map((scheduleData, scheduleIndex) => (
+                            <div key={scheduleIndex} className="schedule-item">
+                              <div className="shop-badge">
+                                {scheduleData.shop}
+                              </div>
+                              
+                              <div className="time-slots">
+                                {scheduleData.schedules && scheduleData.schedules.length > 0 ? (
+                                  mergeConsecutiveSlots(scheduleData.schedules).map((schedule, index) => (
+                                    <span key={index} className="time-slot">
+                                      {schedule.start}-{schedule.end}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="no-schedule">Libre</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
@@ -856,12 +793,10 @@ const GlobalDayViewModalV2 = ({
     );
   };
 
-
-
   const exportToPDF = async () => {
     try {
       // Attendre que le DOM soit mis à jour
-      await new Promise(resolve => setTimeout(resolve, activeTab === 'weekly-multi' ? 500 : 200));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       let container, title, filename;
       
@@ -870,11 +805,6 @@ const GlobalDayViewModalV2 = ({
         container = document.querySelector('.weekly-schedule');
         title = `Planning hebdomadaire - ${selectedShop}`;
         filename = `planning_hebdomadaire_${selectedShop}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
-      } else if (activeTab === 'weekly-multi') {
-        // Export de la vue hebdomadaire multi-boutiques (onglet 5)
-        container = document.querySelector('#weekly-schedule-export');
-        title = `Planning hebdomadaire multi-boutiques - GLOBAL`;
-        filename = `planning_hebdomadaire_global_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
       } else {
         // Export de la vue globale (comportement existant)
         container = document.querySelector('.table-scroll-container');
@@ -883,22 +813,13 @@ const GlobalDayViewModalV2 = ({
       }
       
       if (!container) {
-        console.error('Conteneur non trouvé pour l\'onglet:', activeTab);
-        console.error('Conteneur recherché:', activeTab === 'weekly-multi' ? '#weekly-schedule-export' : '.weekly-schedule');
+        console.error('Conteneur non trouvé');
         return;
       }
 
-      console.log('Conteneur trouvé:', container);
-      console.log('Dimensions du conteneur:', {
-        width: container.scrollWidth,
-        height: container.scrollHeight,
-        offsetWidth: container.offsetWidth,
-        offsetHeight: container.offsetHeight
-      });
-
       // Capturer le contenu avec html2canvas pour une image fidèle
       const canvas = await html2canvas(container, {
-        scale: 2, // Résolution fixe pour la fidélité
+        scale: 2, // Haute résolution pour une image fidèle
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
@@ -913,7 +834,7 @@ const GlobalDayViewModalV2 = ({
       // Créer le PDF
       const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF({ 
-        orientation: activeTab === 'weekly' || activeTab === 'weekly-multi' ? 'portrait' : 'landscape',
+        orientation: activeTab === 'weekly' ? 'portrait' : 'landscape',
         unit: 'mm',
         format: 'a4'
       });
@@ -921,7 +842,7 @@ const GlobalDayViewModalV2 = ({
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // Calculer les dimensions pour centrer l'image (image fidèle)
+      // Calculer les dimensions pour centrer l'image
       const imgWidth = pdfWidth - 20; // Marge de 10mm de chaque côté
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
@@ -1022,12 +943,11 @@ const GlobalDayViewModalV2 = ({
               <FaUsers /> Vue hebdomadaire
             </button>
             <button 
-              className={`tab ${activeTab === 'weekly-multi' ? 'active' : ''}`}
-              onClick={() => setActiveTab('weekly-multi')}
+              className={`tab ${activeTab === 'combined' ? 'active' : ''}`}
+              onClick={() => setActiveTab('combined')}
             >
-              <FaStore /> Vue Hebdomadaire Multi boutique
+              <FaStore /> Planning combiné
             </button>
-
           </div>
 
           {/* Contenu des onglets */}
@@ -1036,8 +956,7 @@ const GlobalDayViewModalV2 = ({
             {activeTab === 'detail' && <DetailTab />}
             {activeTab === 'table' && <TableTab />}
             {activeTab === 'weekly' && <WeeklyTab />}
-            {activeTab === 'weekly-multi' && <WeeklyMultiTab />}
-
+            {activeTab === 'combined' && <CombinedTab />}
           </div>
         </div>
 
@@ -1895,14 +1814,14 @@ const GlobalDayViewModalV2 = ({
         }
 
         .shop-badge {
-          /* Background sera défini dynamiquement via JavaScript */
+          background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
           color: white;
           padding: 4px 10px;
           border-radius: 12px;
           font-size: 11px;
           font-weight: 600;
           white-space: nowrap;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
           border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
@@ -1950,19 +1869,6 @@ const GlobalDayViewModalV2 = ({
           gap: 6px;
         }
 
-        .time-slot {
-          background: #f8f9fa;
-          color: #333;
-          padding: 4px 10px;
-          border-radius: 8px;
-          font-size: 11px;
-          font-weight: 700;
-          border: 2px solid #e9ecef;
-          white-space: nowrap;
-          display: inline-block;
-          margin-right: 6px;
-        }
-
         .no-schedule {
           color: #95a5a6;
           font-style: italic;
@@ -1980,32 +1886,9 @@ const GlobalDayViewModalV2 = ({
         .day-schedule-card {
           min-width: 0; /* Permet aux cartes de se rétrécir */
         }
-
-        
-
-        .status-conge {
-          background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-          color: #856404;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          box-shadow: 0 1px 3px rgba(255, 193, 7, 0.3);
-        }
-
-        .status-maladie {
-          background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
-          color: #c44569;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          box-shadow: 0 1px 3px rgba(253, 121, 168, 0.3);
-        }
       `}</style>
     </div>
   );
 };
 
 export default GlobalDayViewModalV2; 
-
