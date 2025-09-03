@@ -511,7 +511,7 @@ const RecapButtonsModule = ({
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
         }}
-        title="Récapitulatif mensuel"
+        title="Récapitulatif mensuel détaillé"
       >
         📈 Mois: {calculateMonthlyHours()}h
       </button>
@@ -549,7 +549,7 @@ const RecapButtonsModule = ({
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
         }}
-        title="Mois: XX.00h"
+        title="Récapitulatif mensuel détaillé"
       >
         📋 Mois: {calculateMonthlyHoursDetailed()}h
       </button>
@@ -557,8 +557,8 @@ const RecapButtonsModule = ({
       {/* Bouton Detail/mois/boutique - Couleur bleue */}
       <button
         onClick={() => {
-          setSelectedEmployeeForMonthlyRecap(employeeId);
-          setShowEmployeeMonthlyRecap(true);
+          setSelectedEmployeeForMonthlyDetail(employeeId);
+          setShowEmployeeMonthlyDetail(true);
         }}
         style={{
           backgroundColor: '#1e88e5',

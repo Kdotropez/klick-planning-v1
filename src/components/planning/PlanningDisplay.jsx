@@ -2918,8 +2918,9 @@ const PlanningDisplay = ({
                                                } else {
                                                  console.log(`  🔍 Pas de planning pour ${employeeId} le ${dayKey}`);
                                                }
-                                               
-                                               console.log(`🔍 Horaires finaux:`, horaires);
+                                             } // Fin de la boucle for
+                                             
+                                             console.log(`🔍 Horaires finaux:`, horaires);
                                                
                                                if (horaires.length === 0) {
                                                  return (
@@ -2976,7 +2977,8 @@ const PlanningDisplay = ({
                                                        <div style={{ 
                                                          marginLeft: '16px',
                                                          fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                         color: '#7b1fa2'
+                                                         color: '#000000',
+                                                         fontWeight: 'bold'
                                                        }}>
                                                          {boutique.plages.join(' / ')}
                                                        </div>
