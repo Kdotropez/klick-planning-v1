@@ -220,8 +220,15 @@ const EmployeeMonthlyDetailModal = ({
     const dayPlanning = allEmployeePlanning[dayStr];
     if (!dayPlanning) return [];
     
+    // Ne retourner que les boutiques avec des données réelles (statut ou horaires)
     return Object.keys(dayPlanning).map(shopId => {
-      return employeeShops.find(s => s.id === shopId);
+      const shopData = dayPlanning[shopId];
+      const hasData = typeof shopData === 'string' || (Array.isArray(shopData) && shopData.some(slot => slot === true));
+      
+      if (hasData) {
+        return employeeShops.find(s => s.id === shopId);
+      }
+      return null;
     }).filter(Boolean);
   };
 
@@ -257,18 +264,18 @@ const EmployeeMonthlyDetailModal = ({
 
   // Vérifier si un jour est en congé (aucun créneau sélectionné dans la boutique sélectionnée)
   const isDayOff = (date) => {
-    if (!selectedShop) return true;
+    if (!selectedShop) return false;
     
     const dayStr = format(date, 'yyyy-MM-dd');
     const dayPlanning = allEmployeePlanning[dayStr];
     
     if (!dayPlanning || !dayPlanning[selectedShop]) {
-      return true;
+      return false; // Pas de données = pas automatiquement un congé
     }
     
     const slots = dayPlanning[selectedShop];
-    if (typeof slots === 'string') return true;
-    return !slots || slots.every(slot => !slot);
+    if (typeof slots === 'string') return true; // Statut (Congé, Maladie)
+    return Array.isArray(slots) && slots.every(slot => !slot); // Aucun créneau sélectionné
   };
 
   // Calculer les heures de travail pour un jour (boutique sélectionnée uniquement)
@@ -412,12 +419,12 @@ const EmployeeMonthlyDetailModal = ({
     const dayPlanning = allEmployeePlanning[dayStr];
     
     if (!dayPlanning || !dayPlanning[shopId]) {
-      return true;
+      return false; // Pas de données = pas automatiquement un congé
     }
     
     const slots = dayPlanning[shopId];
-    if (typeof slots === 'string') return true;
-    return !slots || slots.every(slot => !slot);
+    if (typeof slots === 'string') return true; // Statut (Congé, Maladie)
+    return Array.isArray(slots) && slots.every(slot => !slot); // Aucun créneau sélectionné
   };
 
   const exportToPDF = () => {
@@ -492,6 +499,11 @@ const EmployeeMonthlyDetailModal = ({
          if (!dayPlanning) {
            status = null;
            hasWorkHours = false;
+         }
+         
+         // Ne pas afficher les jours sans données dans l'export PDF
+         if (!status && !hasWorkHours) {
+           return;
          }
          
          // Calculer les heures de travail pour l'export (toutes boutiques confondues)
@@ -613,6 +625,11 @@ const EmployeeMonthlyDetailModal = ({
          if (!dayPlanning) {
            status = null;
            hasWorkHours = false;
+         }
+         
+         // Ne pas afficher les jours sans données dans l'export Excel
+         if (!status && !hasWorkHours) {
+           return;
          }
          
          // Calculer les heures de travail pour l'export (toutes boutiques confondues)
@@ -1321,58 +1338,121 @@ const EmployeeMonthlyDetailModal = ({
                       
                       // Si l'employé travaille dans plusieurs boutiques ce jour-là, créer une ligne pour chaque boutique
                       if (allShopsForDay.length > 0) {
-                        allShopsForDay.forEach((shop, shopIndex) => {
-                          const isOff = isDayOffForShop(date, shop.id);
-                          const workHours = calculateWorkHoursForShop(date, shop.id);
-                          
-                          rows.push(
-                            <tr key={`${index}-${shop.id}`} style={{
-                              backgroundColor: weekColor
-                            }}>
-                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontWeight: '600', fontSize: '10px' }}>
-                                {shopIndex === 0 ? `${dayName} ${dayDate}` : ''}
-                              </td>
-                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                                {isOff ? (() => {
-                                  const dayStr = format(date, 'yyyy-MM-dd');
-                                  const dayPlanning = allEmployeePlanning[dayStr];
-                                  const status = dayPlanning && typeof dayPlanning[shop.id] === 'string' ? dayPlanning[shop.id] : 'Congé ☀️';
-                                  const isSick = typeof status === 'string' && status.toLowerCase().includes('maladie');
-                                  return (
-                                    <span style={{ color: isSick ? '#dc3545' : '#FF9800', fontWeight: '600', fontSize: '9px' }}>
-                                      {status}
-                                    </span>
-                                  );
-                                })() : (
-                                  shop.name
-                                )}
-                              </td>
-                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                                {isOff ? '-' : (workHours.entry ? `${workHours.entry} H` : '-')}
-                              </td>
-                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                                {isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-')}
-                              </td>
-                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                                {isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-')}
-                              </td>
-                              <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
-                                {isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-')}
-                              </td>
-                              <td style={{ 
-                                border: '1px solid #ddd', 
-                                padding: '2px 3px', 
-                                fontWeight: '600',
-                                fontSize: '10px',
-                                color: isOff ? '#FF9800' : '#333'
-                              }}>
-                                {isOff ? '0.0 h' : `${workHours.hours} h`}
-                              </td>
-                            </tr>
-                          );
+                        // Vérifier d'abord s'il y a des horaires de travail
+                        const hasWorkHours = allShopsForDay.some(shop => {
+                          const dayStr = format(date, 'yyyy-MM-dd');
+                          const dayPlanning = allEmployeePlanning[dayStr];
+                          const shopSlots = dayPlanning?.[shop.id];
+                          return Array.isArray(shopSlots) && shopSlots.some(slot => slot === true);
                         });
-                      } else {
-                        // Aucune boutique pour ce jour (plus automatiquement un congé)
+                        
+                        // Si il y a des horaires de travail, afficher chaque boutique avec horaires
+                        if (hasWorkHours) {
+                          allShopsForDay.forEach((shop, shopIndex) => {
+                            const workHours = calculateWorkHoursForShop(date, shop.id);
+                            const dayStr = format(date, 'yyyy-MM-dd');
+                            const dayPlanning = allEmployeePlanning[dayStr];
+                            const shopSlots = dayPlanning?.[shop.id];
+                            
+                            // N'afficher que les boutiques avec des horaires réels
+                            if (Array.isArray(shopSlots) && shopSlots.some(slot => slot === true)) {
+                              rows.push(
+                                <tr key={`${index}-${shop.id}`} style={{
+                                  backgroundColor: weekColor
+                                }}>
+                                  <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontWeight: '600', fontSize: '10px' }}>
+                                    {shopIndex === 0 ? `${dayName} ${dayDate}` : ''}
+                                  </td>
+                                  <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                    {shop.name}
+                                  </td>
+                                  <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                    {workHours.entry ? `${workHours.entry} H` : '-'}
+                                  </td>
+                                  <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                    {workHours.pause ? `${workHours.pause} H` : '-'}
+                                  </td>
+                                  <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                    {workHours.return ? `${workHours.return} H` : '-'}
+                                  </td>
+                                  <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                    {workHours.exit ? `${workHours.exit} H` : '-'}
+                                  </td>
+                                  <td style={{ 
+                                    border: '1px solid #ddd', 
+                                    padding: '2px 3px', 
+                                    fontWeight: '600',
+                                    fontSize: '10px',
+                                    color: '#333'
+                                  }}>
+                                    {workHours.hours} h
+                                  </td>
+                                </tr>
+                              );
+                            }
+                          });
+                        } else {
+                          // Si pas d'horaires, vérifier s'il y a un statut (Congé, Maladie)
+                          const dayStr = format(date, 'yyyy-MM-dd');
+                          const dayPlanning = allEmployeePlanning[dayStr];
+                          let status = null;
+                          let isSick = false;
+                          
+                          // Chercher le premier statut trouvé
+                          if (dayPlanning) {
+                            for (const shopId in dayPlanning) {
+                              const shopSlots = dayPlanning[shopId];
+                              if (typeof shopSlots === 'string') {
+                                status = shopSlots;
+                                isSick = shopSlots.toLowerCase().includes('maladie');
+                                break; // Prendre le premier statut trouvé
+                              }
+                            }
+                          }
+                          
+                          // Afficher une seule ligne avec le statut
+                          if (status) {
+                            rows.push(
+                              <tr key={index} style={{
+                                backgroundColor: weekColor
+                              }}>
+                                <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontWeight: '600', fontSize: '10px' }}>
+                                  {dayName} {dayDate}
+                                </td>
+                                <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                  <span style={{ color: isSick ? '#dc3545' : '#FF9800', fontWeight: '600', fontSize: '9px' }}>
+                                    {status}
+                                  </span>
+                                </td>
+                                <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                  -
+                                </td>
+                                <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                  -
+                                </td>
+                                <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                  -
+                                </td>
+                                <td style={{ border: '1px solid #ddd', padding: '2px 3px', fontSize: '10px', fontWeight: '600' }}>
+                                  -
+                                </td>
+                                <td style={{ 
+                                  border: '1px solid #ddd', 
+                                  padding: '2px 3px', 
+                                  fontWeight: '600',
+                                  fontSize: '10px',
+                                  color: '#FF9800'
+                                }}>
+                                  0.0 h
+                                </td>
+                              </tr>
+                            );
+                          }
+                        }
+                      }
+                      
+                      // Si aucun horaire ni statut pour ce jour, afficher une ligne vide
+                      if (allShopsForDay.length === 0) {
                         rows.push(
                           <tr key={index} style={{
                             backgroundColor: weekColor
@@ -1401,7 +1481,7 @@ const EmployeeMonthlyDetailModal = ({
                               fontWeight: '600',
                               fontSize: '10px'
                             }}>
-                              0.0 h
+                              -
                             </td>
                           </tr>
                         );

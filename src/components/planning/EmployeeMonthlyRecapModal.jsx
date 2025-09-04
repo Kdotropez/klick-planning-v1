@@ -65,6 +65,38 @@ const EmployeeMonthlyRecapModal = ({
     return weeks;
   };
 
+  // Obtenir la boutique où l'employé a travaillé une semaine donnée
+  const getWeekShop = (weekStart) => {
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    
+    // Vérifier d'abord la boutique actuellement sélectionnée
+    if (planningData?.shops) {
+      for (const shop of planningData.shops) {
+        if (shop.weeks?.[weekKey]?.planning?.[selectedEmployeeForMonthlyRecap]) {
+          const weekPlanning = shop.weeks[weekKey].planning[selectedEmployeeForMonthlyRecap];
+          // Vérifier si l'employé a des heures cette semaine
+          let hasHours = false;
+          for (let i = 0; i < 7; i++) {
+            const dayKey = format(addDays(weekStart, i), 'yyyy-MM-dd');
+            if (weekPlanning[dayKey]) {
+              const dayPlanning = weekPlanning[dayKey];
+              if (Array.isArray(dayPlanning) && dayPlanning.some(slot => slot === true)) {
+                hasHours = true;
+                break;
+              }
+            }
+          }
+          if (hasHours) {
+            // Formater le nom de la boutique
+            return shop.name?.replace(/[-_]/g, ' ').toUpperCase() || shop.name;
+          }
+        }
+      }
+    }
+    
+    return '-';
+  };
+
   const getWeekRange = (weekStart) => {
     const weekEnd = addDays(weekStart, 6);
     return `Du ${format(weekStart, 'd MMMM', { locale: fr })} au ${format(weekEnd, 'd MMMM yyyy', { locale: fr })}`;
@@ -77,9 +109,8 @@ const EmployeeMonthlyRecapModal = ({
     const start = startOfMonth(new Date(selectedWeek));
     const end = endOfMonth(new Date(selectedWeek));
     
-    // Ne calculer que pour la boutique actuelle
-    const currentShop = shops.find(shop => shop.id === selectedShop);
-    if (currentShop) {
+    // Calculer pour toutes les boutiques
+    if (planningData?.shops) {
       // Parcourir chaque jour du mois
       let currentDay = start;
       while (currentDay <= end) {
@@ -89,12 +120,15 @@ const EmployeeMonthlyRecapModal = ({
         const weekStart = startOfWeek(currentDay, { weekStartsOn: 1 });
         const weekKey = format(weekStart, 'yyyy-MM-dd');
         
-        // Utiliser getWeekPlanning pour normaliser les données
-        const weekData = getWeekPlanning(planningData, selectedShop, weekKey);
-        if (weekData.selectedEmployees?.includes(selectedEmployeeForMonthlyRecap)) {
-          const weekPlanning = weekData.planning || {};
-          const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, dayKey, weekPlanning, config);
-          totalHours += hours;
+        // Parcourir toutes les boutiques pour ce jour
+        for (const shop of planningData.shops) {
+          if (shop.weeks?.[weekKey]?.planning?.[selectedEmployeeForMonthlyRecap]?.[dayKey]) {
+            const dayPlanning = shop.weeks[weekKey].planning[selectedEmployeeForMonthlyRecap][dayKey];
+            if (Array.isArray(dayPlanning) && dayPlanning.some(slot => slot === true)) {
+              const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, dayKey, { [selectedEmployeeForMonthlyRecap]: { [dayKey]: dayPlanning } }, config);
+              totalHours += hours;
+            }
+          }
         }
         
         currentDay = addDays(currentDay, 1);
@@ -103,38 +137,47 @@ const EmployeeMonthlyRecapModal = ({
     return totalHours.toFixed(1);
   };
 
-  const calculateShopWeeklyHours = (shopId, week) => {
+  const calculateShopWeeklyHours = (week) => {
     const weekKey = format(week, 'yyyy-MM-dd');
-    
-    // Utiliser getWeekPlanning pour normaliser les données
-    const weekData = getWeekPlanning(planningData, shopId, weekKey);
-    if (!weekData.selectedEmployees?.includes(selectedEmployeeForMonthlyRecap)) return 0;
-    
-    const weekPlanning = weekData.planning || {};
     let weekHours = 0;
     
     // Calculer seulement pour les jours de cette semaine qui appartiennent au mois
     const start = startOfMonth(new Date(selectedWeek));
     const end = endOfMonth(new Date(selectedWeek));
     
-    for (let i = 0; i < 7; i++) {
-      const day = format(addDays(week, i), 'yyyy-MM-dd');
-      const dayDate = new Date(day);
-      
-      // Ne calculer que si le jour appartient au mois
-      if (dayDate >= start && dayDate <= end) {
-        const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, weekPlanning, config);
-        weekHours += hours;
+    // Parcourir toutes les boutiques pour cette semaine
+    if (planningData?.shops) {
+      for (const shop of planningData.shops) {
+        if (shop.weeks?.[weekKey]?.planning?.[selectedEmployeeForMonthlyRecap]) {
+          const weekPlanning = shop.weeks[weekKey].planning[selectedEmployeeForMonthlyRecap];
+          
+          for (let i = 0; i < 7; i++) {
+            const day = format(addDays(week, i), 'yyyy-MM-dd');
+            const dayDate = new Date(day);
+            
+            // Ne calculer que si le jour appartient au mois
+            if (dayDate >= start && dayDate <= end) {
+              if (weekPlanning[day]) {
+                const dayPlanning = weekPlanning[day];
+                if (Array.isArray(dayPlanning) && dayPlanning.some(slot => slot === true)) {
+                  const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, { [selectedEmployeeForMonthlyRecap]: { [day]: dayPlanning } }, config);
+                  weekHours += hours;
+                }
+              }
+            }
+          }
+        }
       }
     }
+    
     return weekHours.toFixed(1);
   };
 
-  const calculateShopMonthlyHours = (shopId) => {
+  const calculateShopMonthlyHours = () => {
     let totalHours = 0;
     const weeks = getMonthWeeks(selectedWeek);
     weeks.forEach(week => {
-      totalHours += parseFloat(calculateShopWeeklyHours(shopId, week));
+      totalHours += parseFloat(calculateShopWeeklyHours(week));
     });
     return totalHours.toFixed(1);
   };
@@ -194,64 +237,46 @@ const EmployeeMonthlyRecapModal = ({
     const title = `Récapitulatif mensuel pour ${employeeName} (${calculateTotalHours()} H)`;
     doc.text(title, 10, 10);
     doc.text(`Mois de ${format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}`, 10, 20);
+    doc.text(`Vue multi-boutiques - Boutique principale: ${selectedShop}`, 10, 30);
     
-    // Déterminer les boutiques avec des heures
-    const weeks = getMonthWeeks(selectedWeek);
-    const shopsWithHours = new Map();
-    weeks.forEach(week => {
-      shops.forEach(shop => {
-        const shopHours = calculateShopWeeklyHours(shop.id, week);
-        if (parseFloat(shopHours) > 0) {
-          shopsWithHours.set(shop.id, shop.name);
-        }
-      });
-    });
-    
-    const columns = ['Semaine', ...Array.from(shopsWithHours.values())];
+    const columns = ['Semaine', 'Boutique', 'Heures'];
     const body = [];
+    
+    const weeks = getMonthWeeks(selectedWeek);
     weeks.forEach(week => {
-      const row = [getWeekRange(week)];
-      shopsWithHours.forEach((shopName, shopId) => {
-        const shopHours = calculateShopWeeklyHours(shopId, week);
-        row.push(shopHours > 0 ? shopHours + ' H' : '');
-      });
-      body.push(row);
+      const weekHours = calculateShopWeeklyHours(week);
+      const weekShop = getWeekShop(week);
+      body.push([
+        getWeekRange(week),
+        weekShop,
+        parseFloat(weekHours) > 0 ? weekHours + ' H' : '-'
+      ]);
     });
     
     doc.autoTable({
       head: [columns],
       body: body,
-      startY: 30,
+      startY: 40,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [30, 136, 229] }
     });
     doc.save(`monthly_recap_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    console.log('EmployeeMonthlyRecapModal: PDF exported successfully');
+    console.log('EmployeeMonthlyRecapModal: Excel exported successfully');
   };
 
   const exportToExcel = () => {
     console.log('EmployeeMonthlyRecapModal: Exporting to Excel');
     const weeks = getMonthWeeks(selectedWeek);
     
-    // Déterminer les boutiques avec des heures
-    const shopsWithHours = new Map();
-    weeks.forEach(week => {
-      shops.forEach(shop => {
-        const shopHours = calculateShopWeeklyHours(shop.id, week);
-        if (parseFloat(shopHours) > 0) {
-          shopsWithHours.set(shop.id, shop.name);
-        }
-      });
-    });
-    
     const data = [];
     weeks.forEach(week => {
-      const row = { 'Semaine': getWeekRange(week) };
-      shopsWithHours.forEach((shopName, shopId) => {
-        const shopHours = calculateShopWeeklyHours(shopId, week);
-        row[shopName] = shopHours > 0 ? shopHours + ' H' : '';
+      const weekHours = calculateShopWeeklyHours(week);
+      const weekShop = getWeekShop(week);
+      data.push({
+        'Semaine': getWeekRange(week),
+        'Boutique': weekShop,
+        'Heures': parseFloat(weekHours) > 0 ? weekHours + ' H' : '-'
       });
-      data.push(row);
     });
     
     const ws = XLSX.utils.json_to_sheet(data);
@@ -354,33 +379,23 @@ const EmployeeMonthlyRecapModal = ({
         <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '10px' }}>
           Mois de {format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}
         </p>
+        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '20px', color: '#666' }}>
+          Vue multi-boutiques - Boutique principale: {selectedShop}
+        </p>
         {(() => {
           const weeks = getMonthWeeks(selectedWeek);
           const dayData = [];
 
-          // Déterminer quelles boutiques ont des heures pour cet employé
-          const shopsWithHours = new Map(); // Utiliser Map pour stocker shopId -> shopName
-          weeks.forEach(week => {
-            shops.forEach(shop => {
-              const shopHours = calculateShopWeeklyHours(shop.id, week);
-              if (parseFloat(shopHours) > 0) {
-                shopsWithHours.set(shop.id, shop.name);
-              }
-            });
-          });
-
           weeks.forEach((week, weekIndex) => {
-            const row = {
+            const weekHours = calculateShopWeeklyHours(week);
+            const weekShop = getWeekShop(week);
+            
+            dayData.push({
               week: getWeekRange(week),
-              weekIndex
-            };
-            
-            // Ajouter seulement les boutiques où l'employé a travaillé
-            shopsWithHours.forEach((shopName, shopId) => {
-              row[shopId] = calculateShopWeeklyHours(shopId, week);
+              weekIndex,
+              hours: weekHours,
+              shop: weekShop
             });
-            
-            dayData.push(row);
           });
 
           if (dayData.length === 0) {
@@ -396,9 +411,8 @@ const EmployeeMonthlyRecapModal = ({
               <thead>
                 <tr style={{ backgroundColor: '#f0f0f0' }}>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Semaine</th>
-                  {Array.from(shopsWithHours.values()).map((shopName, index) => (
-                    <th key={index} style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>{shopName}</th>
-                  ))}
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Boutique</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Heures</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,18 +430,15 @@ const EmployeeMonthlyRecapModal = ({
                     })()
                   }}>
                     <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.week}</td>
-                    {Array.from(shopsWithHours.entries()).map(([shopId, shopName], index) => (
-                      <td key={index} style={{ border: '1px solid #ddd', padding: '8px' }}>
-                        {data[shopId] > 0 ? data[shopId] + ' H' : ''}
-                      </td>
-                    ))}
+                    <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{data.shop}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>
+                      {parseFloat(data.hours) > 0 ? data.hours + ' H' : '-'}
+                    </td>
                   </tr>
                 ))}
                 <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>Total mois</td>
-                  {Array.from(shopsWithHours.entries()).map(([shopId, shopName], index) => (
-                    <td key={index} style={{ border: '1px solid #ddd', padding: '8px' }}>{calculateShopMonthlyHours(shopId)} H</td>
-                  ))}
+                  <td colSpan="2" style={{ border: '1px solid #ddd', padding: '8px' }}>Total mois</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{calculateTotalHours()} H</td>
                 </tr>
               </tbody>
             </table>

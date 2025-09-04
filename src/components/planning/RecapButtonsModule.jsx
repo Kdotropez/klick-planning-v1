@@ -478,11 +478,11 @@ const RecapButtonsModule = ({
         )}
       </div>
 
-      {/* Bouton Mois global - Couleur bleue */}
+      {/* Bouton Mois global - Couleur bleue - Vue multi-boutiques */}
       <button
         onClick={() => {
-          setSelectedEmployeeForMonthlyDetail(employeeId);
-          setShowEmployeeMonthlyDetail(true);
+          setSelectedEmployeeForMonthlyRecap(employeeId);
+          setShowEmployeeMonthlyRecap(true);
         }}
         style={{
           backgroundColor: '#1e88e5',
@@ -511,7 +511,7 @@ const RecapButtonsModule = ({
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
         }}
-        title="Récapitulatif mensuel détaillé"
+        title="Récapitulatif mensuel multi-boutiques"
       >
         📈 Mois: {calculateMonthlyHours()}h
       </button>
@@ -554,7 +554,7 @@ const RecapButtonsModule = ({
         📋 Mois: {calculateMonthlyHoursDetailed()}h
       </button>
       
-      {/* Bouton Detail/mois/boutique - Couleur bleue */}
+      {/* Bouton Detail/mois/boutique - Couleur bleue - Vue mono-boutique */}
       <button
         onClick={() => {
           setSelectedEmployeeForMonthlyDetail(employeeId);
@@ -587,7 +587,7 @@ const RecapButtonsModule = ({
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
         }}
-        title="Detail/mois/boutique"
+        title="Detail/mois/boutique - Vue mono-boutique"
       >
         📈 Detail/mois/boutique
       </button>

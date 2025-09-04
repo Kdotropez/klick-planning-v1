@@ -46,13 +46,33 @@ const EmployeeWeeklyRecapModal = ({
   // Obtenir le lundi de la semaine
   const mondayOfWeek = startOfWeek(new Date(selectedWeek), { weekStartsOn: 1 });
 
-  // Obtenir les données de planning pour cet employé
+  // Obtenir les données de planning pour cet employé (toutes les boutiques)
   const getEmployeePlanning = () => {
-    const shopData = planningData?.shops?.find(s => s.id === selectedShop);
-    if (!shopData?.weeks?.[selectedWeek]) return {};
+    // Récupérer les données de toutes les boutiques
+    const allPlanning = {};
     
-    const weekData = shopData.weeks[selectedWeek];
-    return weekData.planning || {};
+    if (planningData?.shops) {
+      for (const shop of planningData.shops) {
+        if (shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap]) {
+          const shopPlanning = shop.weeks[selectedWeek].planning[selectedEmployeeForWeeklyRecap];
+          
+          // Fusionner les données de chaque boutique
+          for (const day in shopPlanning) {
+            if (!allPlanning[day]) {
+              allPlanning[day] = shopPlanning[day];
+            } else if (Array.isArray(shopPlanning[day]) && Array.isArray(allPlanning[day])) {
+              // Si c'est un tableau (créneaux horaires), fusionner avec OU logique
+              allPlanning[day] = allPlanning[day].map((slot, index) => 
+                slot || shopPlanning[day][index]
+              );
+            }
+            // Si c'est une chaîne (statut), la première trouvée est conservée
+          }
+        }
+      }
+    }
+    
+    return allPlanning;
   };
 
   const employeePlanning = getEmployeePlanning();
@@ -83,7 +103,7 @@ const EmployeeWeeklyRecapModal = ({
   // Vérifier si un créneau est sélectionné (tolérant aux statuts chaîne)
   const isSlotSelected = (dayIndex, slotIndex) => {
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
+    const dayPlanning = employeePlanning[day];
     if (typeof dayPlanning === 'string') return false;
     return Array.isArray(dayPlanning) && !!dayPlanning[slotIndex];
   };
@@ -97,10 +117,34 @@ const EmployeeWeeklyRecapModal = ({
   // Obtenir le statut du jour ("Maladie 🤒" / "Congé ☀️" / null)
   const getDayStatus = (dayIndex) => {
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
+    const dayPlanning = employeePlanning[day];
     if (typeof dayPlanning === 'string') return dayPlanning;
             if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) return null;
     return null;
+  };
+
+  // Obtenir la boutique où l'employé a travaillé un jour donné
+  const getDayShop = (dayIndex) => {
+    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+    
+    // Utiliser les données fusionnées pour déterminer la boutique
+    const dayPlanning = employeePlanning[day];
+    if (Array.isArray(dayPlanning) && dayPlanning.some(slot => slot === true)) {
+      // Chercher dans quelle boutique l'employé a des créneaux ce jour-là
+      if (planningData?.shops) {
+        for (const shop of planningData.shops) {
+          if (shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap]?.[day]) {
+            const shopDayPlanning = shop.weeks[selectedWeek].planning[selectedEmployeeForWeeklyRecap][day];
+            if (Array.isArray(shopDayPlanning) && shopDayPlanning.some(slot => slot === true)) {
+              // Formater le nom de la boutique
+              return shop.name?.replace(/[-_]/g, ' ').toUpperCase() || shop.name;
+            }
+          }
+        }
+      }
+    }
+    
+    return '-';
   };
 
   // Jour sans heures (zéro) s'il a un statut ou aucun créneau
@@ -112,7 +156,7 @@ const EmployeeWeeklyRecapModal = ({
     if (status) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
     
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    const dayPlanning = employeePlanning[selectedEmployeeForWeeklyRecap]?.[day];
+    const dayPlanning = employeePlanning[day];
     
     if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) {
       return { entry: null, pause: null, return: null, exit: null, hours: 0 };
@@ -176,9 +220,9 @@ const EmployeeWeeklyRecapModal = ({
     const title = `Récapitulatif hebdomadaire pour ${employeeName} (${calculateWeekHours()} H)`;
     doc.text(title, 10, 10);
     doc.text(`Semaine du ${format(mondayOfWeek, 'd MMMM', { locale: fr })} au ${format(addDays(mondayOfWeek, 6), 'd MMMM yyyy', { locale: fr })}`, 10, 20);
-    doc.text(`Boutique: ${selectedShop}`, 10, 30);
+    doc.text(`Vue multi-boutiques - Boutique principale: ${selectedShop}`, 10, 30);
     
-         const columns = ['Jour', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives'];
+         const columns = ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives'];
      const body = [];
      
      for (let i = 0; i < 7; i++) {
@@ -190,6 +234,7 @@ const EmployeeWeeklyRecapModal = ({
        
        body.push([
          `${dayName} ${dayDate}`,
+         getDayShop(i),
          isOff ? (status || 'Congé ☀️') : (workHours.entry ? `${workHours.entry} H` : '-'),
          isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
@@ -225,6 +270,7 @@ const EmployeeWeeklyRecapModal = ({
        
        data.push({
          'Jour': `${dayName} ${dayDate}`,
+         'Boutique': getDayShop(i),
          'ENTRÉE': isOff ? (isSick ? 'MALADIE' : (status || 'Congé ☀️')) : (workHours.entry ? `${workHours.entry} H` : '-'),
          'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
@@ -335,13 +381,14 @@ const EmployeeWeeklyRecapModal = ({
           Semaine du {format(mondayOfWeek, 'd MMMM', { locale: fr })} au {format(addDays(mondayOfWeek, 6), 'd MMMM yyyy', { locale: fr })}
         </p>
         <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '20px', color: '#666' }}>
-          Boutique: {selectedShop}
+          Vue multi-boutiques - Boutique principale: {selectedShop}
         </p>
         
                  <table style={{ fontFamily: 'Roboto, sans-serif', width: '100%', borderCollapse: 'collapse' }}>
            <thead>
              <tr style={{ backgroundColor: '#f0f0f0' }}>
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Jour</th>
+               <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Boutique</th>
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>ENTRÉE</th>
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>PAUSE</th>
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>RETOUR</th>
@@ -375,6 +422,9 @@ const EmployeeWeeklyRecapModal = ({
                    <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '600' }}>
                      {dayName} {dayDate}
                    </td>
+                   <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '600', textAlign: 'center' }}>
+                     {getDayShop(i)}
+                   </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>
                      {status ? (
                        <span style={{ color: status.toLowerCase().includes('maladie') ? '#dc3545' : '#FF9800', fontWeight: '600' }}>
@@ -405,7 +455,7 @@ const EmployeeWeeklyRecapModal = ({
                );
              })}
              <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
-               <td colSpan="5" style={{ border: '1px solid #ddd', padding: '8px' }}>Total semaine</td>
+               <td colSpan="6" style={{ border: '1px solid #ddd', padding: '8px' }}>Total semaine</td>
                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{totalHours} h</td>
              </tr>
            </tbody>
@@ -419,85 +469,85 @@ const EmployeeWeeklyRecapModal = ({
           marginBottom: '20px',
           gap: '20px'
         }}>
-          {/* Signature de l'employé */}
-          <div style={{ 
-            flex: 1, 
-            border: '2px solid #ddd', 
-            borderRadius: '8px', 
-            padding: '15px',
-            backgroundColor: '#f9f9f9'
-          }}>
-            <div style={{ 
-              textAlign: 'center', 
-              marginBottom: '10px',
-              fontWeight: '600',
-              fontSize: '14px',
-              color: '#333'
-            }}>
-              Signature de l'employé
-            </div>
-            <div style={{ 
-              height: '60px', 
-              border: '1px dashed #ccc', 
-              borderRadius: '4px',
-              backgroundColor: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#999',
-              fontSize: '12px'
-            }}>
-              {employeeName}
-            </div>
-            <div style={{ 
-              textAlign: 'center', 
-              marginTop: '5px',
-              fontSize: '11px',
-              color: '#666'
-            }}>
-              Date: {format(new Date(), 'dd/MM/yyyy')}
-            </div>
-          </div>
+                     {/* Signature de l'employé */}
+           <div style={{ 
+             flex: 1, 
+             border: '2px solid #ddd', 
+             borderRadius: '8px', 
+             padding: '15px',
+             backgroundColor: '#f9f9f9'
+           }}>
+             <div style={{ 
+               textAlign: 'center', 
+               marginBottom: '10px',
+               fontWeight: '600',
+               fontSize: '14px',
+               color: '#333'
+             }}>
+               Signature de l'employé
+             </div>
+                          <div style={{ 
+                height: '60px', 
+                border: '1px dashed #ccc', 
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+                fontSize: '12px'
+              }}>
+                
+              </div>
+             <div style={{ 
+               textAlign: 'center', 
+               marginTop: '5px',
+               fontSize: '11px',
+               color: '#666'
+             }}>
+               Date: {format(addDays(mondayOfWeek, 6), 'dd/MM/yyyy')}
+             </div>
+           </div>
           
-          {/* Signature du responsable */}
-          <div style={{ 
-            flex: 1, 
-            border: '2px solid #ddd', 
-            borderRadius: '8px', 
-            padding: '15px',
-            backgroundColor: '#f9f9f9'
-          }}>
-            <div style={{ 
-              textAlign: 'center', 
-              marginBottom: '10px',
-              fontWeight: '600',
-              fontSize: '14px',
-              color: '#333'
-            }}>
-              Signature du responsable
-            </div>
-            <div style={{ 
-              height: '60px', 
-              border: '1px dashed #ccc', 
-              borderRadius: '4px',
-              backgroundColor: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#999',
-              fontSize: '12px'
-            }}>
-              Responsable {selectedShop}
-            </div>
-            <div style={{ 
-              textAlign: 'center', 
-              marginTop: '5px',
-              fontSize: '11px',
-              color: '#666'
-            }}>
-              Date: {format(new Date(), 'dd/MM/yyyy')}
-            </div>
-          </div>
+                     {/* Signature du responsable */}
+           <div style={{ 
+             flex: 1, 
+             border: '2px solid #ddd', 
+             borderRadius: '8px', 
+             padding: '15px',
+             backgroundColor: '#f9f9f9'
+           }}>
+             <div style={{ 
+               textAlign: 'center', 
+               marginBottom: '10px',
+               fontWeight: '600',
+               fontSize: '14px',
+               color: '#333'
+             }}>
+               Signature du responsable
+             </div>
+                          <div style={{ 
+                height: '60px', 
+                border: '1px dashed #ccc', 
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#999',
+                fontSize: '12px'
+              }}>
+                
+              </div>
+             <div style={{ 
+               textAlign: 'center', 
+               marginTop: '5px',
+               fontSize: '11px',
+               color: '#666'
+             }}>
+               Date: {format(addDays(mondayOfWeek, 6), 'dd/MM/yyyy')}
+             </div>
+           </div>
         </div>
         
         <div className="button-group" style={{ display: 'flex', justifyContent: 'center', marginTop: '15px' }}>
