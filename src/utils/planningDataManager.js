@@ -390,29 +390,15 @@ export const saveWeekPlanningForEmployee = (planningData, employeeId, weekKey, p
     const existingShop = updatedPlanningData.shops.find(s => s.id === shopId);
     const existingWeekData = existingShop?.weeks?.[weekKey] || { planning: {}, selectedEmployees: [] };
     
-    // Fusionner les données de planning
+    // ⚡ REMPLACER complètement les données au lieu de fusionner (fix clics fantômes)
     const mergedPlanning = { ...existingWeekData.planning };
     Object.keys(planning).forEach(empId => {
       if (!mergedPlanning[empId]) {
         mergedPlanning[empId] = {};
       }
       Object.keys(planning[empId]).forEach(day => {
-        if (!mergedPlanning[empId][day]) {
-          mergedPlanning[empId][day] = [];
-        }
-        // Fusionner les créneaux horaires
-        const existingSlots = mergedPlanning[empId][day];
-        const newSlots = planning[empId][day];
-        const maxLength = Math.max(existingSlots.length, newSlots.length);
-        
-        mergedPlanning[empId][day] = new Array(maxLength).fill(false).map((_, index) => {
-          // Si les nouvelles données ont des créneaux cochés, les utiliser
-          if (newSlots[index]) {
-            return true;
-          }
-          // Sinon, garder les créneaux existants
-          return existingSlots[index] || false;
-        });
+        // ⚡ REMPLACER directement au lieu de fusionner
+        mergedPlanning[empId][day] = planning[empId][day];
       });
     });
     

@@ -812,16 +812,29 @@ const PlanningDisplay = ({
     });
     
     if (selectedShop && selectedWeek) {
+      // ⚡ UTILISER les données FRAÎCHES depuis localStorage (sans modifier le state pour éviter la boucle)
+      let freshPlanningData = planningData;
+      try {
+        const storedData = JSON.parse(localStorage.getItem('planningData') || '{}');
+        if (storedData && storedData.shops && storedData.shops.length > 0) {
+          freshPlanningData = storedData;
+          console.log('🔄 Utilisation des données fraîches depuis localStorage');
+          console.log('📊 Données fraîches:', JSON.stringify(storedData.shops?.find(s => s.id === selectedShop)?.weeks?.[selectedWeek]?.planning || {}).substring(0, 200));
+        }
+      } catch (error) {
+        console.error('Erreur lecture localStorage:', error);
+      }
+      
       // 1. Récupérer TOUS les employés (y compris multi-boutiques) avec filtrage des masqués
       // CORRECTION : Utiliser la date de la semaine sélectionnée pour le filtrage des employés masqués
       // L'employé est masqué uniquement à partir de sa date hiddenFrom, par rapport à la semaine affichée
       const weekDate = new Date(selectedWeek); // Date de la semaine sélectionnée pour le filtrage des employés masqués
       console.log('🔍 Date de la semaine sélectionnée pour filtrage des employés masqués:', weekDate.toISOString().split('T')[0]);
-      const allEmployeesData = getAllEmployees(planningData, weekDate);
+      const allEmployeesData = getAllEmployees(freshPlanningData, weekDate);
       console.log('👥 Tous les employés (après filtrage masqués):', allEmployeesData);
       
       // Debug: vérifier les employés masqués
-      const hiddenEmployees = planningData.shops?.flatMap(shop => shop.employees || [])
+      const hiddenEmployees = freshPlanningData.shops?.flatMap(shop => shop.employees || [])
         .filter(emp => emp.hiddenFrom)
         .map(emp => ({ id: emp.id, name: emp.name, hiddenFrom: emp.hiddenFrom }));
       console.log('🚫 Employés avec hiddenFrom:', hiddenEmployees);
@@ -843,10 +856,9 @@ const PlanningDisplay = ({
       setCurrentShopEmployees(shopEmployees);
       
       // 2. Récupérer le planning existant pour cette boutique/semaine
-      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek, planningData });
-      console.log('🔍 planningData.shops:', planningData.shops);
-      console.log('🔍 planningData.planning:', planningData.planning);
-      const weekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
+      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek, freshPlanningData });
+      console.log('🔍 freshPlanningData.shops:', freshPlanningData.shops);
+      const weekData = getWeekPlanning(freshPlanningData, selectedShop, selectedWeek);
       console.log('🔍 Résultat getWeekPlanning:', weekData);
       console.log('🔍 weekData.planning:', weekData.planning);
       console.log('🔍 weekData.selectedEmployees:', weekData.selectedEmployees);
