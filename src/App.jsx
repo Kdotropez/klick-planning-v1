@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
+import { getAppVersion } from './utils/versionManager';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
+import VersionBadge from './components/common/VersionBadge';
 
 // import LicenseManager from './components/admin/LicenseManager';
 // import { enableProtection } from './utils/protection';
@@ -115,6 +117,16 @@ const App = () => {
   // Charger les données depuis localStorage au démarrage
   useEffect(() => {
     try {
+      // ⚡ VÉRIFICATION DE VERSION - FORCE LE VIDAGE DU CACHE SI NOUVELLE VERSION
+      const { checkVersion, logVersionInfo } = require('./utils/versionManager');
+      const versionChanged = checkVersion();
+      logVersionInfo();
+      
+      // Si la version a changé, on arrête ici car la page va se recharger
+      if (versionChanged) {
+        return;
+      }
+      
       // Initialiser le vérificateur de version
       versionChecker.init().catch(error => {
         console.error('❌ Erreur initialisation VersionChecker:', error);
@@ -699,6 +711,7 @@ const App = () => {
           onSelectPlanning={handleSelectPlanning}
         />
         <CopyrightNotice />
+        <VersionBadge />
       </ErrorBoundary>
     );
   }
@@ -716,6 +729,7 @@ const App = () => {
             hasLocalData={planningData && planningData.shops && planningData.shops.length > 0}
           />
         <CopyrightNotice />
+        <VersionBadge />
         {/* <LicenseModal
           isOpen={showLicenseModal}
           onClose={() => setShowLicenseModal(false)}

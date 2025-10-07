@@ -313,6 +313,33 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
 export const saveWeekPlanning = (planningData, shopId, weekKey, planning, selectedEmployees) => {
   console.log('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
   
+  // ⚡ NETTOYAGE : Ne sauvegarder que les jours qui ont VRAIMENT des données
+  const cleanedPlanning = {};
+  Object.keys(planning || {}).forEach(empId => {
+    const employeeData = planning[empId];
+    if (employeeData && typeof employeeData === 'object') {
+      Object.keys(employeeData).forEach(dayKey => {
+        const dayData = employeeData[dayKey];
+        
+        // Garder seulement si :
+        // 1. C'est un statut (string comme "Congé ☀️" ou "Maladie 🤒")
+        // 2. C'est un tableau avec au moins un `true` (horaire coché)
+        const shouldKeep = 
+          (typeof dayData === 'string' && dayData.length > 0) || 
+          (Array.isArray(dayData) && dayData.some(slot => slot === true));
+        
+        if (shouldKeep) {
+          if (!cleanedPlanning[empId]) {
+            cleanedPlanning[empId] = {};
+          }
+          cleanedPlanning[empId][dayKey] = dayData;
+        }
+      });
+    }
+  });
+  
+  console.log('🧹 Planning nettoyé (jours vides supprimés):', cleanedPlanning);
+  
   const result = {
     ...planningData,
     shops: planningData.shops.map(shop => 
@@ -331,7 +358,7 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
                 // Si rien de sélectionné, par défaut: tous les employés de la boutique
                 if (mergedSelected.length === 0) mergedSelected = shopEmployeeIds;
                 return {
-                  planning,
+                  planning: cleanedPlanning,
                   selectedEmployees: mergedSelected
                 };
               })()
@@ -2284,14 +2311,15 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
                 console.log(`🔍 getWeekPlanning - Ajusté longueur pour ${dayKey} (${employee.id})`);
               }
             } else {
-              // Format inattendu: fallback tableau vide
-              initializedPlanning[employee.id][dayKey] = new Array(timeSlots.length).fill(false);
-              console.warn(`⚠️ getWeekPlanning - Format inattendu pour ${dayKey} (${employee.id}), initialisation par défaut`);
+              // Format inattendu: NE PAS initialiser automatiquement
+              // Laisser undefined pour ne pas créer de données fantômes
+              console.warn(`⚠️ getWeekPlanning - Format inattendu pour ${dayKey} (${employee.id}), pas d'initialisation`);
             }
           } else {
-            // Initialiser avec un tableau vide si pas de données existantes
-            initializedPlanning[employee.id][dayKey] = new Array(timeSlots.length).fill(false);
-            console.log(`🔍 getWeekPlanning - Initialisé ${dayKey} pour ${employee.id}`);
+            // ⚡ NE PLUS INITIALISER AUTOMATIQUEMENT
+            // Si pas de données existantes, ne rien créer pour éviter les données parasites
+            // Le jour reste undefined et ne sera pas affiché ni sauvegardé
+            console.log(`🔍 getWeekPlanning - Aucune donnée pour ${dayKey} (${employee.id}), pas d'initialisation`);
           }
         });
       }
