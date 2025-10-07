@@ -300,9 +300,28 @@ const App = () => {
         return;
       }
       
-      // Mettre à jour les données
+      // ⚡ CLEAR TOTAL DE TOUT LE LOCALSTORAGE (sauf l'utilisateur connecté)
+      console.log('🧹 NETTOYAGE COMPLET du localStorage avant restauration...');
+      const currentUser = localStorage.getItem('current_user'); // Sauvegarder l'utilisateur
+      const userId = localStorage.getItem('user_id'); // Sauvegarder l'ID utilisateur
+      
+      // Supprimer TOUTES les clés du localStorage
+      localStorage.clear();
+      
+      // Restaurer uniquement l'utilisateur et son ID
+      if (currentUser) localStorage.setItem('current_user', currentUser);
+      if (userId) localStorage.setItem('user_id', userId);
+      
+      console.log('✅ localStorage nettoyé - Seul l\'utilisateur est préservé');
+      
+      // Mettre à jour les données avec les données Supabase FRAÎCHES
       setPlanningData(restoredData);
       localStorage.setItem('planningData', JSON.stringify(restoredData));
+      
+      console.log('💾 Données Supabase restaurées dans localStorage:', {
+        shops: restoredData.shops.length,
+        version: restoredData.version
+      });
       
       // Sélectionner la première boutique
       const firstShop = restoredData.shops[0];
@@ -311,7 +330,7 @@ const App = () => {
       
       // Aller à la sélection de semaine
       setMode('week-selection');
-      setFeedback('✅ Planning restauré depuis Supabase ! Sélectionnez une semaine.');
+      setFeedback('✅ Planning restauré depuis Supabase avec nettoyage complet ! Sélectionnez une semaine.');
       
     } catch (error) {
       console.error('❌ Erreur restauration:', error);
@@ -618,11 +637,26 @@ const App = () => {
   };
 
   const handleReset = () => {
+    // ⚡ CLEAR TOTAL DE TOUT LE LOCALSTORAGE (sauf l'utilisateur connecté)
+    console.log('🧹 CLEAR TOTAL - Nettoyage complet du localStorage...');
+    const currentUser = localStorage.getItem('current_user'); // Sauvegarder l'utilisateur
+    const userId = localStorage.getItem('user_id'); // Sauvegarder l'ID utilisateur
+    
+    // Supprimer TOUTES les clés du localStorage
+    localStorage.clear();
+    
+    // Restaurer uniquement l'utilisateur et son ID
+    if (currentUser) localStorage.setItem('current_user', currentUser);
+    if (userId) localStorage.setItem('user_id', userId);
+    
+    console.log('✅ localStorage nettoyé - Seul l\'utilisateur est préservé');
+    
+    // Réinitialiser l'application
     setPlanningData(createNewPlanningData());
     setMode('startup');
     setCurrentStep(1);
     setCurrentShopIndex(0);
-    setFeedback('Application réinitialisée');
+    setFeedback('Application réinitialisée avec nettoyage complet du localStorage');
   };
 
   // Fonctions de navigation pour PlanningDisplay
