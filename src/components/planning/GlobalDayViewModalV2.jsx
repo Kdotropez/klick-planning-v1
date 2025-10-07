@@ -43,24 +43,27 @@ const GlobalDayViewModalV2 = ({
       const dayKey = format(addDays(new Date(selectedWeek), index), 'yyyy-MM-dd');
       const dayDate = addDays(new Date(selectedWeek), index);
       
-      // Calcul des employés par créneau
-      const slotData = timeSlots.map((slot, slotIndex) => {
-        const employeeIds = selectedEmployees.filter(empId => 
-          planning[empId]?.[dayKey]?.[slotIndex]
-        );
-        
-        // Convertir les IDs en noms d'employés
-        const employees = employeeIds.map(empId => {
-          const employee = currentShopEmployees?.find(emp => emp.id === empId);
-          return employee?.name || empId;
-        });
-        
-        return {
-          time: slot,
-          count: employees.length,
-          employees: employees
-        };
-      });
+             // Calcul des employés par créneau (UNIQUEMENT pour la boutique sélectionnée)
+       const slotData = timeSlots.map((slot, slotIndex) => {
+         // Utiliser UNIQUEMENT les employés sélectionnés pour cette boutique
+         // selectedEmployees contient les employés qui ont des horaires dans cette boutique
+         const employeeIds = selectedEmployees.filter(empId => {
+           // Vérifier que l'employé a des horaires ce jour-là
+           return planning[empId]?.[dayKey]?.[slotIndex];
+         });
+         
+         // Convertir les IDs en noms d'employés
+         const employees = employeeIds.map(empId => {
+           const employee = currentShopEmployees?.find(emp => emp.id === empId);
+           return employee?.name || empId;
+         });
+         
+         return {
+           time: slot,
+           count: employees.length,
+           employees: employees
+         };
+       });
 
       // Calcul des heures d'ouverture/fermeture
       let openTime = null, closeTime = null;
@@ -502,7 +505,40 @@ const GlobalDayViewModalV2 = ({
       return schedules;
     };
 
-    // Fonction pour fusionner les créneaux consécutifs (supprimée - doublon)
+    // Fonction pour fusionner les créneaux consécutifs
+    const mergeConsecutiveSlots = (schedules) => {
+      if (!Array.isArray(schedules) || schedules.length === 0) return [];
+      
+      // Convertir les créneaux en objets avec start/end
+      const timeSlots = [];
+      let currentStart = null;
+      
+      for (let i = 0; i < schedules.length; i++) {
+        if (schedules[i] === true || schedules[i] === 1) {
+          if (currentStart === null) {
+            currentStart = i;
+          }
+        } else {
+          if (currentStart !== null) {
+            const startTime = config.timeSlots[currentStart];
+            // Calculer l'heure de fin en ajoutant l'intervalle au créneau de début
+            const endTime = config.timeSlots[i];
+            timeSlots.push({ start: startTime, end: endTime });
+            currentStart = null;
+          }
+        }
+      }
+      
+      // Gérer le dernier créneau
+      if (currentStart !== null) {
+        const startTime = config.timeSlots[currentStart];
+        // Pour le dernier créneau, ajouter l'intervalle à l'heure de début
+        const endTime = config.timeSlots[schedules.length - 1];
+        timeSlots.push({ start: startTime, end: endTime });
+      }
+      
+      return timeSlots;
+    };
 
     return (
       <div className="weekly-tab">
@@ -516,42 +552,110 @@ const GlobalDayViewModalV2 = ({
             if (day.totalHours === 0) return null;
 
             return (
-              <div key={dayIndex} className="day-schedule-card">
-                <div className="day-header">
-                  <h4>{day.day} {format(day.date, 'dd/MM/yyyy', { locale: fr })}</h4>
-                  <div className="day-summary">
-                    <span>Ouverture: {day.openTime}</span>
-                    <span>Fermeture: {day.closeTime}</span>
-                    <span>Total: {day.totalHours}h</span>
-                  </div>
-                </div>
+                               <div key={dayIndex} className="day-schedule-card" style={{
+                   borderLeft: `6px solid ${(() => {
+                     const dayColors = {
+                       'LUNDI': '#3498db',      // Bleu
+                       'MARDI': '#e67e22',      // Orange
+                       'MERCREDI': '#9b59b6',   // Violet
+                       'JEUDI': '#f39c12',      // Jaune-Orange
+                       'VENDREDI': '#e74c3c',   // Rouge
+                       'SAMEDI': '#27ae60',     // Vert
+                       'DIMANCHE': '#1abc9c'    // Turquoise
+                     };
+                     return dayColors[day.day.toUpperCase()] || '#95a5a6';
+                   })()}`
+                 }}>
+                   <div className="day-header" style={{
+                     background: `linear-gradient(135deg, ${(() => {
+                       const dayColors = {
+                         'LUNDI': '#3498db',      // Bleu
+                         'MARDI': '#e67e22',      // Orange
+                         'MERCREDI': '#9b59b6',   // Violet
+                         'JEUDI': '#f39c12',      // Jaune-Orange
+                         'VENDREDI': '#e74c3c',   // Rouge
+                         'SAMEDI': '#27ae60',     // Vert
+                         'DIMANCHE': '#1abc9c'    // Turquoise
+                       };
+                       const color = dayColors[day.day.toUpperCase()] || '#95a5a6';
+                       return `${color}15 0%, ${color}25 100%`;
+                     })()})`
+                   }}>
+                     <div className="day-header-line">
+                       <h4>{day.day} {format(day.date, 'dd/MM/yyyy', { locale: fr })}</h4>
+                       <div className="day-summary-compact">
+                         <span>O: {day.openTime}</span>
+                         <span>F: {day.closeTime}</span>
+                         <span>T: {(() => {
+                           // Calculer le total des heures des employés présents ce jour-là
+                           let totalEmployeeHours = 0;
+                           selectedEmployees.forEach(employeeId => {
+                             const schedules = getEmployeeSchedule(employeeId, day.dateKey);
+                             if (schedules && schedules.length > 0) {
+                               schedules.forEach(schedule => {
+                                 const startTime = parse(schedule.start, 'HH:mm', new Date());
+                                 const endTime = parse(schedule.end, 'HH:mm', new Date());
+                                 const duration = (endTime - startTime) / (1000 * 60 * 60); // Durée en heures
+                                 totalEmployeeHours += duration;
+                               });
+                             }
+                           });
+                           return `${Math.round(totalEmployeeHours * 10) / 10}h`;
+                         })()}</span>
+                       </div>
+                     </div>
+                   </div>
 
-                <div className="employees-schedule">
-                  {selectedEmployees.map(employeeId => {
-                    const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
-                    if (!employee) return null;
+                                 <div className="employees-schedule">
+                   {selectedEmployees.map(employeeId => {
+                     const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
+                     if (!employee) return null;
 
-                    const schedules = getEmployeeSchedule(employeeId, day.dateKey);
-                    if (!schedules || schedules.length === 0) return null;
+                     const schedules = getEmployeeSchedule(employeeId, day.dateKey);
+                     if (!schedules || schedules.length === 0) return null;
 
-                    const mergedSchedules = mergeConsecutiveSlots(schedules);
-
-                    return (
-                      <div key={employeeId} className="employee-schedule-row">
-                        <div className="employee-name">
-                          <strong>{employee.name}</strong>
-                        </div>
-                        <div className="employee-hours">
-                          {mergedSchedules.map((schedule, index) => (
-                            <span key={index} className="time-slot">
-                              {schedule.start} - {schedule.end}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                     return (
+                       <div key={employeeId} className="employee-schedule-row" style={{
+                         borderLeft: `4px solid ${(() => {
+                           const dayColors = {
+                             'LUNDI': '#3498db',      // Bleu
+                             'MARDI': '#e67e22',      // Orange
+                             'MERCREDI': '#9b59b6',   // Violet
+                             'JEUDI': '#f39c12',      // Jaune-Orange
+                             'VENDREDI': '#e74c3c',   // Rouge
+                             'SAMEDI': '#27ae60',     // Vert
+                             'DIMANCHE': '#1abc9c'    // Turquoise
+                           };
+                           return dayColors[day.day.toUpperCase()] || '#95a5a6';
+                         })()}`,
+                         backgroundColor: `${(() => {
+                           const dayColors = {
+                             'LUNDI': '#3498db',      // Bleu
+                             'MARDI': '#e67e22',      // Orange
+                             'MERCREDI': '#9b59b6',   // Violet
+                             'JEUDI': '#f39c12',      // Jaune-Orange
+                             'VENDREDI': '#e74c3c',   // Rouge
+                             'SAMEDI': '#27ae60',     // Vert
+                             'DIMANCHE': '#1abc9c'    // Turquoise
+                           };
+                           const color = dayColors[day.day.toUpperCase()] || '#95a5a6';
+                           return `${color}08`;
+                         })()}`
+                       }}>
+                         <div className="employee-name">
+                           <strong>{employee.name}</strong>
+                         </div>
+                         <div className="employee-hours">
+                           {schedules.map((schedule, index) => (
+                             <span key={index} className="time-slot">
+                               {schedule.start} - {schedule.end}
+                             </span>
+                           ))}
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </div>
               </div>
             );
           })}
@@ -1680,39 +1784,49 @@ const GlobalDayViewModalV2 = ({
            background: linear-gradient(90deg, #3498db, #2ecc71, #f39c12, #e74c3c);
          }
 
-         .day-header {
-           background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%);
-           padding: 16px 20px;
-           border-bottom: 2px solid #ecf0f1;
-           position: relative;
-         }
+                   .day-header {
+            background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%);
+            padding: 12px 16px;
+            border-bottom: 2px solid #ecf0f1;
+            position: relative;
+          }
 
-         .day-header h4 {
-           margin: 0 0 8px 0;
-           font-size: 18px;
-           font-weight: 700;
-           color: #2c3e50;
-           text-transform: capitalize;
-           letter-spacing: 0.5px;
-         }
+          .day-header-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+          }
 
-         .day-summary {
-           display: flex;
-           gap: 20px;
-           font-size: 13px;
-           color: #34495e;
-           font-weight: 500;
-         }
+          .day-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #2c3e50;
+            text-transform: capitalize;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+          }
 
-         .day-summary span {
-           display: flex;
-           align-items: center;
-           gap: 6px;
-           padding: 6px 12px;
-           background: rgba(255, 255, 255, 0.7);
-           border-radius: 20px;
-           border: 1px solid rgba(52, 73, 94, 0.1);
-         }
+          .day-summary-compact {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: #34495e;
+            font-weight: 500;
+            flex-shrink: 0;
+          }
+
+          .day-summary-compact span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            border: 1px solid rgba(52, 73, 94, 0.15);
+            white-space: nowrap;
+          }
 
          .employees-schedule {
            padding: 16px 20px;
@@ -1753,28 +1867,32 @@ const GlobalDayViewModalV2 = ({
            border-right: 2px solid #ecf0f1;
          }
 
-         .employee-hours {
-           display: flex;
-           flex-wrap: wrap;
-           gap: 8px;
-           flex: 1;
-           padding-left: 16px;
-         }
+                                                                               .employee-hours {
+              display: flex;
+              flex-wrap: nowrap;
+              gap: 12px;
+              flex: 1;
+              padding-left: 16px;
+              overflow-x: auto;
+              align-items: center;
+            }
 
-         .time-slot {
-           background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-           color: white;
-           padding: 8px 16px;
-           border-radius: 20px;
-           font-size: 13px;
-           font-weight: 600;
-           box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
-           white-space: nowrap;
-           border: 1px solid rgba(255, 255, 255, 0.2);
-           transition: all 0.2s ease;
-           position: relative;
-           overflow: hidden;
-         }
+                                                                                                                                                               .time-slot {
+               background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+               color: white;
+               padding: 12px 20px;
+               border-radius: 25px;
+               font-size: 16px;
+               font-weight: 600;
+               box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+               white-space: nowrap;
+               border: 1px solid rgba(255, 255, 255, 0.2);
+               transition: all 0.2s ease;
+               position: relative;
+               overflow: hidden;
+               margin: 4px;
+               flex-shrink: 0;
+             }
 
          .time-slot::before {
            content: '';

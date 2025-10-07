@@ -1300,9 +1300,27 @@ const PlanningDisplay = ({
     // Sauvegarder les modifications actuelles avant de changer de semaine
     if (!readOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
-        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
+        // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
+        const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
+        
+        let updatedPlanningData = latestPlanningData.shops ? latestPlanningData : planningData;
+        
+        // ⚡ STEP 2: SAVE for all employees (including multi-shop employees)
+        localSelectedEmployees.forEach(employeeId => {
+          updatedPlanningData = saveWeekPlanningForEmployee(
+            updatedPlanningData,
+            employeeId,
+            selectedWeek,
+            planning,
+            localSelectedEmployees,
+            selectedShop
+          );
+        });
+        
+        // ⚡ STEP 3: UPDATE both memory AND localStorage
         setPlanningData(updatedPlanningData);
-        console.log('💾 Sauvegarde automatique avant changement de semaine');
+        localStorage.setItem('planningData', JSON.stringify(updatedPlanningData));
+        console.log('💾 Sauvegarde complète automatique avant changement de semaine (avec rechargement depuis localStorage)');
       } catch (error) {
         console.error('Erreur lors de la sauvegarde avant changement de semaine:', error);
       }
@@ -1355,8 +1373,13 @@ const PlanningDisplay = ({
       // Sauvegarder le planning actuel avant de changer de boutique
       if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
         console.log('Sauvegarde avant changement de boutique:', { selectedShop, selectedWeek, planning, localSelectedEmployees });
-        let updatedPlanningData = planningData;
-        // Sauvegarder pour tous les employés multi-boutiques
+        
+        // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
+        const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
+        
+        let updatedPlanningData = latestPlanningData.shops ? latestPlanningData : planningData;
+        
+        // ⚡ STEP 2: SAVE for all employees (including multi-shop employees)
         localSelectedEmployees.forEach(employeeId => {
           updatedPlanningData = saveWeekPlanningForEmployee(
             updatedPlanningData,
@@ -1367,7 +1390,11 @@ const PlanningDisplay = ({
             selectedShop // on sauvegarde dans la boutique qu'on quitte
           );
         });
+        
+        // ⚡ STEP 3: UPDATE both memory AND localStorage
         setPlanningData(updatedPlanningData);
+        localStorage.setItem('planningData', JSON.stringify(updatedPlanningData));
+        console.log('💾 Sauvegarde complète automatique avant changement de boutique (avec rechargement depuis localStorage)');
       }
     } catch (e) {
       console.error("Erreur lors de la sauvegarde du planning avant changement de boutique :", e);
