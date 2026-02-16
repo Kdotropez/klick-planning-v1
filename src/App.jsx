@@ -44,8 +44,9 @@ import {
 } from './utils/collabLock';
 
 const App = () => {
-  const GLOBAL_LOCK_TTL_MS = 10 * 60 * 1000;
-  const GLOBAL_HEARTBEAT_MS = 30 * 1000;
+  // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
+  const GLOBAL_LOCK_TTL_MS = 90 * 1000;
+  const GLOBAL_HEARTBEAT_MS = 20 * 1000;
 
   // Fonctions de licence intégrées (Vercel-compatible)
   const loadLicense = () => {
@@ -156,6 +157,14 @@ const App = () => {
     if (!lock || !lock.user_id) return 'un autre poste';
     const [ownerCode] = String(lock.user_id).split('::');
     return `l'utilisateur ${ownerCode || lock.user_id}`;
+  };
+
+  const getLockRemainingSeconds = (lock) => {
+    if (!lock?.updated_at && !lock?.created_at) return null;
+    const lockDate = new Date(lock.updated_at || lock.created_at);
+    const ageMs = Date.now() - lockDate.getTime();
+    const remainingMs = Math.max(0, GLOBAL_LOCK_TTL_MS - ageMs);
+    return Math.ceil(remainingMs / 1000);
   };
 
   const getLockHolderId = (user) => {
@@ -307,9 +316,14 @@ const App = () => {
 
       if (!lockResult.ok) {
         const ownerText = formatLockOwner(lockResult.lock);
+        const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
+        const remainingText = remainingSeconds !== null
+          ? `\n\nRéessayez dans environ ${remainingSeconds} seconde(s).`
+          : '';
         alert(
           `Le planning est déjà ouvert sur un autre PC (${ownerText}).\n\n` +
-          `Fermez l'autre session avant de vous connecter ici.`
+          `Fermez l'autre session avant de vous connecter ici.` +
+          remainingText
         );
         localStorage.removeItem('current_user');
         localStorage.removeItem('user_id');
@@ -377,9 +391,14 @@ const App = () => {
     const lockResult = await acquireGlobalLockForUser(user);
     if (!lockResult.ok) {
       const ownerText = formatLockOwner(lockResult.lock);
+      const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
+      const remainingText = remainingSeconds !== null
+        ? `\n\nRéessayez dans environ ${remainingSeconds} seconde(s).`
+        : '';
       alert(
         `Connexion impossible : le planning est déjà utilisé sur ${ownerText}.\n\n` +
-        `Un seul poste peut être connecté à la fois.`
+        `Un seul poste peut être connecté à la fois.` +
+        remainingText
       );
       return;
     }
