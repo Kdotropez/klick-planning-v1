@@ -35,8 +35,18 @@ import {
 import './App.css';
 import { loadRemotePlanning } from './utils/remoteStore';
 import { versionChecker } from './utils/versionChecker';
+import {
+  initLockService,
+  acquireLock,
+  releaseLock,
+  heartbeat,
+  cleanupExpiredLocks
+} from './utils/collabLock';
 
 const App = () => {
+  const GLOBAL_LOCK_TTL_MS = 10 * 60 * 1000;
+  const GLOBAL_HEARTBEAT_MS = 30 * 1000;
+
   // Fonctions de licence intégrées (Vercel-compatible)
   const loadLicense = () => {
     try {
@@ -113,6 +123,60 @@ const App = () => {
   const [licenseError, setLicenseError] = useState('');
   const [showLicenseManager, setShowLicenseManager] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [hasGlobalLock, setHasGlobalLock] = useState(false);
+
+  // Vérification centralisée pour les fonctions sensibles (protégées par le code 2111)
+  const isSupervisor2111 = currentUser && currentUser.code === '2111';
+
+  const requireSupervisor2111 = (actionLabel = 'cette fonction') => {
+    if (!isSupervisor2111) {
+      alert(
+        `Accès réservé au superviseur (code 2111) pour ${actionLabel}.\n\n` +
+        `Veuillez vous identifier avec le code 2111 pour continuer.`
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const initGlobalLock = () => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_KEY;
+
+    if (!url || !key) {
+      console.error('❌ Configuration Supabase manquante pour le verrou global');
+      return false;
+    }
+
+    initLockService({ url, key });
+    return true;
+  };
+
+  const formatLockOwner = (lock) => {
+    if (!lock || !lock.user_id) return 'un autre poste';
+    return `l'utilisateur ${lock.user_id}`;
+  };
+
+  const acquireGlobalLockForUser = async (user) => {
+    if (!user?.code) {
+      return { ok: false, reason: 'invalid-user' };
+    }
+
+    if (!initGlobalLock()) {
+      return { ok: false, reason: 'supabase-config' };
+    }
+
+    try {
+      await cleanupExpiredLocks(GLOBAL_LOCK_TTL_MS);
+      const result = await acquireLock(user.code, GLOBAL_LOCK_TTL_MS);
+      return result?.ok
+        ? { ok: true }
+        : { ok: false, reason: 'locked-by-other', lock: result?.lock || null };
+    } catch (error) {
+      console.error('❌ Erreur acquisition verrou global:', error);
+      return { ok: false, reason: 'lock-error' };
+    }
+  };
 
   // Charger les données depuis localStorage au démarrage
   useEffect(() => {
@@ -224,6 +288,72 @@ const App = () => {
     }
   }, [feedback]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const ensureGlobalLock = async () => {
+      if (!currentUser || hasGlobalLock) return;
+
+      const lockResult = await acquireGlobalLockForUser(currentUser);
+      if (cancelled) return;
+
+      if (!lockResult.ok) {
+        const ownerText = formatLockOwner(lockResult.lock);
+        alert(
+          `Le planning est déjà ouvert sur un autre PC (${ownerText}).\n\n` +
+          `Fermez l'autre session avant de vous connecter ici.`
+        );
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('user_id');
+        setCurrentUser(null);
+        setHasGlobalLock(false);
+        setMode('identification');
+        setFeedback('❌ Accès refusé : planning déjà ouvert sur un autre poste.');
+        return;
+      }
+
+      setHasGlobalLock(true);
+    };
+
+    ensureGlobalLock();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, hasGlobalLock]);
+
+  useEffect(() => {
+    if (!currentUser || !hasGlobalLock) return undefined;
+
+    const intervalId = setInterval(async () => {
+      const hbResult = await heartbeat(currentUser.code);
+      if (hbResult?.ok) return;
+
+      alert(
+        'La session a perdu le verrou global (ou un autre poste a repris la main).\n\n' +
+        'Vous allez être redirigé vers l’identification.'
+      );
+      localStorage.removeItem('current_user');
+      localStorage.removeItem('user_id');
+      setCurrentUser(null);
+      setHasGlobalLock(false);
+      setMode('identification');
+      setFeedback('❌ Session verrouillée perdue. Veuillez vous reconnecter.');
+    }, GLOBAL_HEARTBEAT_MS);
+
+    return () => clearInterval(intervalId);
+  }, [currentUser, hasGlobalLock]);
+
+  useEffect(() => {
+    if (!currentUser || !hasGlobalLock) return undefined;
+
+    const onBeforeUnload = () => {
+      releaseLock(currentUser.code).catch(() => {});
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [currentUser, hasGlobalLock]);
+
   // Protection désactivée
   // useEffect(() => {
   //   enableProtection();
@@ -233,9 +363,21 @@ const App = () => {
   // useEffect(() => { ... }, [planningData]);
 
   // Gestion de l'identification
-  const handleUserIdentification = (user) => {
+  const handleUserIdentification = async (user) => {
     console.log('🆔 Utilisateur identifié:', user);
+
+    const lockResult = await acquireGlobalLockForUser(user);
+    if (!lockResult.ok) {
+      const ownerText = formatLockOwner(lockResult.lock);
+      alert(
+        `Connexion impossible : le planning est déjà utilisé sur ${ownerText}.\n\n` +
+        `Un seul poste peut être connecté à la fois.`
+      );
+      return;
+    }
+
     setCurrentUser(user);
+    setHasGlobalLock(true);
     setMode('main-startup');
     setFeedback(`👋 Bienvenue ${user.name} !`);
   };
@@ -248,6 +390,11 @@ const App = () => {
 
   // Gestion du démarrage
   const handleNewPlanning = () => {
+    // Création / reconfiguration complète du planning → fonction sensible
+    if (!requireSupervisor2111('créer ou reconfigurer le planning (boutiques, employés, configuration)')) {
+      return;
+    }
+
     // Réinitialiser complètement les données pour éviter l'accumulation
     setPlanningData(createNewPlanningData());
     setSelectedShop('');
@@ -297,8 +444,7 @@ const App = () => {
       const { loadCompletePlanningData } = await import('./utils/remoteStore');
       
       // Initialiser le service Supabase pour loadCompletePlanningData
-      const { initLockService } = await import('./utils/collabLock');
-      await initLockService({ url, key });
+      initLockService({ url, key });
       
       const restoredData = await loadCompletePlanningData();
       
@@ -381,8 +527,11 @@ const App = () => {
   // Alias pour handleImportData (utilisé dans certains composants)
   const handleImportData = handleImportPlanning;
 
-  const handleExit = () => {
+  const handleExit = async () => {
     if (window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) {
+      if (currentUser?.code && hasGlobalLock) {
+        await releaseLock(currentUser.code);
+      }
       window.close();
     }
   };
@@ -673,6 +822,10 @@ const App = () => {
 
   // Fonctions de navigation pour PlanningDisplay
   const handleBackToEmployees = () => {
+    // Accès direct à la gestion des employés depuis le planning → réservé au code 2111
+    if (!requireSupervisor2111('accéder à la gestion des employés')) {
+      return;
+    }
     setMode('new');
     setCurrentStep(4); // Étape de gestion des employés
   };
@@ -697,6 +850,10 @@ const App = () => {
   };
 
   const handleBackToConfig = () => {
+    // Accès direct à la configuration des boutiques → réservé au code 2111
+    if (!requireSupervisor2111('accéder à la configuration des boutiques')) {
+      return;
+    }
     setMode('new');
     setCurrentStep(2); // Étape de configuration des boutiques
   };
