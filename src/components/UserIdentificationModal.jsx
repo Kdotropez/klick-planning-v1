@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { VALID_USER_CODES } from '../config/userCodes';
 
-const UserIdentificationModal = ({ onIdentification, onCancel }) => {
+const UserIdentificationModal = ({
+  onIdentification,
+  onCancel,
+  lockCountdownSeconds = 0,
+  lockOwnerText = ''
+}) => {
   const [userCode, setUserCode] = useState('');
   const [userName, setUserName] = useState('');
   const [error, setError] = useState('');
@@ -13,6 +18,15 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
     setIsLoading(true);
 
     try {
+      if (lockCountdownSeconds > 0) {
+        setError(
+          `⛔ Planning déjà utilisé sur ${lockOwnerText || 'un autre poste'}. ` +
+          `Réessayez dans ${lockCountdownSeconds} seconde(s).`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       // Vérifier le code secret utilisateur
       const userInfo = VALID_USER_CODES[userCode];
       
@@ -157,6 +171,25 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
               />
             </div>
 
+            {/* Blocage temporaire multi-postes */}
+            {lockCountdownSeconds > 0 && (
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: 'rgba(255, 193, 7, 0.95)',
+                color: '#212529',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                fontSize: '1rem',
+                fontWeight: '700',
+                textAlign: 'center',
+                boxShadow: '0 4px 12px rgba(255, 193, 7, 0.35)'
+              }}>
+                ⏳ Planning occupé sur {lockOwnerText || 'un autre poste'}.
+                <br />
+                Reconnexion possible dans {lockCountdownSeconds} seconde(s).
+              </div>
+            )}
+
             {/* Message d'erreur */}
             {error && (
               <div style={{
@@ -182,15 +215,19 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
             }}>
               <button
                 type="submit"
-                disabled={isLoading || !userCode.trim()}
+                disabled={isLoading || !userCode.trim() || lockCountdownSeconds > 0}
                 style={{
                   padding: '15px 30px',
                   fontSize: '1.1rem',
-                  background: isLoading ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.9)',
-                  color: isLoading ? 'rgba(255, 255, 255, 0.7)' : '#333',
+                  background: (isLoading || lockCountdownSeconds > 0)
+                    ? 'rgba(255, 255, 255, 0.3)'
+                    : 'rgba(255, 255, 255, 0.9)',
+                  color: (isLoading || lockCountdownSeconds > 0)
+                    ? 'rgba(255, 255, 255, 0.7)'
+                    : '#333',
                   border: 'none',
                   borderRadius: '12px',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  cursor: (isLoading || lockCountdownSeconds > 0) ? 'not-allowed' : 'pointer',
                   fontWeight: '600',
                   transition: 'all 0.3s ease',
                   boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
@@ -209,7 +246,11 @@ const UserIdentificationModal = ({ onIdentification, onCancel }) => {
                   }
                 }}
               >
-                {isLoading ? '⏳ Connexion...' : '🚀 Se connecter'}
+                {isLoading
+                  ? '⏳ Connexion...'
+                  : lockCountdownSeconds > 0
+                    ? `🔒 Attendre ${lockCountdownSeconds}s`
+                    : '🚀 Se connecter'}
               </button>
 
               <button

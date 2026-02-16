@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
 import { getAppVersion } from './utils/versionManager';
@@ -33,7 +33,7 @@ import {
   importPlanningData
 } from './utils/planningDataManager.js';
 import './App.css';
-import { loadRemotePlanning } from './utils/remoteStore';
+import { loadRemotePlanning, saveCompletePlanningData } from './utils/remoteStore';
 import { versionChecker } from './utils/versionChecker';
 import {
   initLockService,
@@ -47,6 +47,7 @@ const App = () => {
   // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
   const GLOBAL_LOCK_TTL_MS = 90 * 1000;
   const GLOBAL_HEARTBEAT_MS = 20 * 1000;
+  const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
 
   // Fonctions de licence intégrées (Vercel-compatible)
   const loadLicense = () => {
@@ -125,6 +126,13 @@ const App = () => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [hasGlobalLock, setHasGlobalLock] = useState(false);
+  const [lockCountdownSeconds, setLockCountdownSeconds] = useState(0);
+  const [lockOwnerText, setLockOwnerText] = useState('');
+  const [inactivityRemainingSeconds, setInactivityRemainingSeconds] = useState(
+    Math.ceil(INACTIVITY_TIMEOUT_MS / 1000)
+  );
+  const [showInactivityCounter, setShowInactivityCounter] = useState(false);
+  const lastActivityRef = useRef(Date.now());
 
   // Vérification centralisée pour les fonctions sensibles (protégées par le code 2111)
   const isSupervisor2111 = currentUser && currentUser.code === '2111';
@@ -165,6 +173,16 @@ const App = () => {
     const ageMs = Date.now() - lockDate.getTime();
     const remainingMs = Math.max(0, GLOBAL_LOCK_TTL_MS - ageMs);
     return Math.ceil(remainingMs / 1000);
+  };
+
+  const startLockCountdown = (seconds, ownerText) => {
+    setLockCountdownSeconds(Math.max(0, seconds || 0));
+    setLockOwnerText(ownerText || 'un autre poste');
+  };
+
+  const resetInactivityTimer = () => {
+    lastActivityRef.current = Date.now();
+    setInactivityRemainingSeconds(Math.ceil(INACTIVITY_TIMEOUT_MS / 1000));
   };
 
   const getLockHolderId = (user) => {
@@ -306,6 +324,74 @@ const App = () => {
   }, [feedback]);
 
   useEffect(() => {
+    if (!currentUser || !hasGlobalLock) {
+      setShowInactivityCounter(false);
+      return undefined;
+    }
+
+    setShowInactivityCounter(true);
+    resetInactivityTimer();
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    const onActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    activityEvents.forEach((evt) => window.addEventListener(evt, onActivity, { passive: true }));
+
+    const intervalId = setInterval(async () => {
+      const elapsedMs = Date.now() - lastActivityRef.current;
+      const remainingMs = Math.max(0, INACTIVITY_TIMEOUT_MS - elapsedMs);
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+      setInactivityRemainingSeconds(remainingSeconds);
+
+      if (remainingMs > 0) return;
+
+      clearInterval(intervalId);
+      setShowInactivityCounter(false);
+
+      let saveSucceeded = false;
+      try {
+        saveSucceeded = await saveCompletePlanningData(planningData);
+      } catch (error) {
+        console.error('❌ Erreur sauvegarde auto avant déconnexion:', error);
+      }
+
+      try {
+        await releaseLock(getLockHolderId(currentUser));
+      } catch (error) {
+        console.error('❌ Erreur release lock après inactivité:', error);
+      }
+
+      localStorage.removeItem('current_user');
+      localStorage.removeItem('user_id');
+      setCurrentUser(null);
+      setHasGlobalLock(false);
+      setMode('identification');
+      setFeedback(
+        saveSucceeded
+          ? '⏳ Déconnexion automatique (3 min d’inactivité). Sauvegarde Supabase effectuée.'
+          : '⏳ Déconnexion automatique (3 min d’inactivité). Sauvegarde Supabase non confirmée.'
+      );
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, onActivity));
+    };
+  }, [currentUser, hasGlobalLock, planningData]);
+
+  useEffect(() => {
+    if (lockCountdownSeconds <= 0) return undefined;
+
+    const timerId = setInterval(() => {
+      setLockCountdownSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [lockCountdownSeconds]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const ensureGlobalLock = async () => {
@@ -317,14 +403,7 @@ const App = () => {
       if (!lockResult.ok) {
         const ownerText = formatLockOwner(lockResult.lock);
         const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
-        const remainingText = remainingSeconds !== null
-          ? `\n\nRéessayez dans environ ${remainingSeconds} seconde(s).`
-          : '';
-        alert(
-          `Le planning est déjà ouvert sur un autre PC (${ownerText}).\n\n` +
-          `Fermez l'autre session avant de vous connecter ici.` +
-          remainingText
-        );
+        startLockCountdown(remainingSeconds ?? Math.ceil(GLOBAL_LOCK_TTL_MS / 1000), ownerText);
         localStorage.removeItem('current_user');
         localStorage.removeItem('user_id');
         setCurrentUser(null);
@@ -335,6 +414,8 @@ const App = () => {
       }
 
       setHasGlobalLock(true);
+      setLockCountdownSeconds(0);
+      setLockOwnerText('');
     };
 
     ensureGlobalLock();
@@ -392,19 +473,15 @@ const App = () => {
     if (!lockResult.ok) {
       const ownerText = formatLockOwner(lockResult.lock);
       const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
-      const remainingText = remainingSeconds !== null
-        ? `\n\nRéessayez dans environ ${remainingSeconds} seconde(s).`
-        : '';
-      alert(
-        `Connexion impossible : le planning est déjà utilisé sur ${ownerText}.\n\n` +
-        `Un seul poste peut être connecté à la fois.` +
-        remainingText
-      );
+      startLockCountdown(remainingSeconds ?? Math.ceil(GLOBAL_LOCK_TTL_MS / 1000), ownerText);
       return;
     }
 
     setCurrentUser(user);
     setHasGlobalLock(true);
+    resetInactivityTimer();
+    setLockCountdownSeconds(0);
+    setLockOwnerText('');
     setMode('main-startup');
     setFeedback(`👋 Bienvenue ${user.name} !`);
   };
@@ -557,10 +634,53 @@ const App = () => {
   const handleExit = async () => {
     if (window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) {
       if (currentUser?.code && hasGlobalLock) {
+        await saveCompletePlanningData(planningData);
         await releaseLock(getLockHolderId(currentUser));
       }
       window.close();
     }
+  };
+
+  const formatMmSs = (seconds) => {
+    const safe = Math.max(0, seconds || 0);
+    const mm = String(Math.floor(safe / 60)).padStart(2, '0');
+    const ss = String(safe % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  };
+
+  const renderInactivityCounter = () => {
+    if (!showInactivityCounter || !currentUser || !hasGlobalLock || mode === 'identification') return null;
+
+    const isWarning = inactivityRemainingSeconds <= 60;
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: '12px',
+          right: '12px',
+          zIndex: 20000,
+          backgroundColor: isWarning ? 'rgba(220, 53, 69, 0.95)' : 'rgba(23, 162, 184, 0.95)',
+          color: '#fff',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          fontFamily: 'Roboto, sans-serif',
+          fontSize: '13px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+          minWidth: '220px',
+          textAlign: 'center'
+        }}
+      >
+        <div style={{ fontWeight: '700', marginBottom: '4px' }}>
+          {isWarning ? '⚠️ Déconnexion imminente' : '🕒 Inactivité'}
+        </div>
+        <div style={{ fontSize: '12px', opacity: 0.95 }}>
+          Déconnexion auto + sauvegarde dans
+        </div>
+        <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '1px' }}>
+          {formatMmSs(inactivityRemainingSeconds)}
+        </div>
+      </div>
+    );
   };
 
   const handleClearLocalStorage = () => {
@@ -891,6 +1011,7 @@ const App = () => {
   if (mode === 'main-startup') {
     return (
       <ErrorBoundary>
+        {renderInactivityCounter()}
         <MainStartupScreen 
           onSelectPlanning={handleSelectPlanning}
         />
@@ -903,6 +1024,7 @@ const App = () => {
   if (mode === 'startup') {
     return (
       <ErrorBoundary>
+        {renderInactivityCounter()}
                   <StartupScreen
             onNewPlanning={handleNewPlanning}
             onImportPlanning={handleImportPlanning}
@@ -927,6 +1049,7 @@ const App = () => {
   if (mode === 'new') {
     return (
       <ErrorBoundary>
+        {renderInactivityCounter()}
         <div className="app-container">
           {feedback && (
             <p style={{ 
@@ -988,6 +1111,7 @@ const App = () => {
   if (mode === 'week-selection') {
     return (
       <ErrorBoundary>
+        {renderInactivityCounter()}
         <div className="app-container">
           {feedback && (
             <p style={{ 
@@ -1095,6 +1219,7 @@ const App = () => {
   if (mode === 'planning') {
     return (
       <ErrorBoundary>
+        {renderInactivityCounter()}
         <div className="app-container">
           {feedback && (
             <p style={{ 
@@ -1192,6 +1317,8 @@ const App = () => {
         <UserIdentificationModal 
           onIdentification={handleUserIdentification}
           onCancel={handleIdentificationCancel}
+          lockCountdownSeconds={lockCountdownSeconds}
+          lockOwnerText={lockOwnerText}
         />
       </ErrorBoundary>
     );
