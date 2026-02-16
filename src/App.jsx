@@ -42,6 +42,7 @@ import {
   heartbeat,
   cleanupExpiredLocks
 } from './utils/collabLock';
+import { PRIMARY_ADMIN_CODE } from './config/userCodes';
 
 const App = () => {
   // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
@@ -134,14 +135,14 @@ const App = () => {
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
   const lastActivityRef = useRef(Date.now());
 
-  // Vérification centralisée pour les fonctions sensibles (protégées par le code 2111)
-  const isSupervisor2111 = currentUser && currentUser.code === '2111';
+  // Vérification centralisée pour les fonctions sensibles (protégées par le code administrateur)
+  const isPrimaryAdmin = currentUser && currentUser.code === PRIMARY_ADMIN_CODE;
 
-  const requireSupervisor2111 = (actionLabel = 'cette fonction') => {
-    if (!isSupervisor2111) {
+  const requirePrimaryAdmin = (actionLabel = 'cette fonction') => {
+    if (!isPrimaryAdmin) {
       alert(
-        `Accès réservé au superviseur (code 2111) pour ${actionLabel}.\n\n` +
-        `Veuillez vous identifier avec le code 2111 pour continuer.`
+        `Accès réservé au superviseur (code ${PRIMARY_ADMIN_CODE}) pour ${actionLabel}.\n\n` +
+        `Veuillez vous identifier avec le code ${PRIMARY_ADMIN_CODE} pour continuer.`
       );
       return false;
     }
@@ -495,7 +496,7 @@ const App = () => {
   // Gestion du démarrage
   const handleNewPlanning = () => {
     // Création / reconfiguration complète du planning → fonction sensible
-    if (!requireSupervisor2111('créer ou reconfigurer le planning (boutiques, employés, configuration)')) {
+    if (!requirePrimaryAdmin('créer ou reconfigurer le planning (boutiques, employés, configuration)')) {
       return;
     }
 
@@ -969,8 +970,8 @@ const App = () => {
 
   // Fonctions de navigation pour PlanningDisplay
   const handleBackToEmployees = () => {
-    // Accès direct à la gestion des employés depuis le planning → réservé au code 2111
-    if (!requireSupervisor2111('accéder à la gestion des employés')) {
+    // Accès direct à la gestion des employés depuis le planning → réservé au code administrateur
+    if (!requirePrimaryAdmin('accéder à la gestion des employés')) {
       return;
     }
     setMode('new');
@@ -997,8 +998,8 @@ const App = () => {
   };
 
   const handleBackToConfig = () => {
-    // Accès direct à la configuration des boutiques → réservé au code 2111
-    if (!requireSupervisor2111('accéder à la configuration des boutiques')) {
+    // Accès direct à la configuration des boutiques → réservé au code administrateur
+    if (!requirePrimaryAdmin('accéder à la configuration des boutiques')) {
       return;
     }
     setMode('new');

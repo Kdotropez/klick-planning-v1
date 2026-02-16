@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { VALID_USER_CODES } from '../config/userCodes';
+import { getValidUserCodes } from '../config/userCodes';
 
 const UserIdentificationModal = ({
   onIdentification,
@@ -28,7 +28,8 @@ const UserIdentificationModal = ({
       }
 
       // Vérifier le code secret utilisateur
-      const userInfo = VALID_USER_CODES[userCode];
+      const userCodes = getValidUserCodes();
+      const userInfo = userCodes[userCode];
       
       if (!userInfo) {
         setError('❌ Code secret invalide. Veuillez vérifier votre code.');

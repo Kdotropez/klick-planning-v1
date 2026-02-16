@@ -329,6 +329,31 @@ const PlanningMenuBar = ({
           📝 Notes
         </Button>
 
+        {currentUser && checkUserPermission(currentUser.code, 'canManageUsers') && (
+          <Button
+            className="button-primary"
+            onClick={() => setShowUserManagement(true)}
+            style={{
+              backgroundColor: '#673ab7',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#512da8'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#673ab7'}
+            title="Créer, modifier ou supprimer des codes de connexion"
+          >
+            🔐 Codes utilisateurs
+          </Button>
+        )}
+
         {/* Bouton intelligent Gestion Employés Masqués */}
         <Button
           className="button-primary"
