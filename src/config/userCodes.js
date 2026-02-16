@@ -1,9 +1,12 @@
 // Configuration des codes utilisateurs - CODES SECRETS
 // ATTENTION: Ces codes ne doivent pas être visibles dans l'interface utilisateur normale
 // Seuls les superviseurs peuvent les visualiser et modifier
+import { supabase } from '../utils/supabaseClient';
 
 const USER_CODES_STORAGE_KEY = 'custom_user_codes_v1';
 export const PRIMARY_ADMIN_CODE = 'Nicolas';
+const USER_CODES_REMOTE_SHOP_ID = 'system_config';
+const USER_CODES_REMOTE_WEEK_KEY = 'user_codes';
 
 const DEFAULT_USER_CODES = {
   // Administrateur principal unique
@@ -113,6 +116,65 @@ const setCodes = (codesObj) => {
 };
 
 export const getValidUserCodes = () => getCodes();
+
+export const pullUserCodesFromSupabase = async () => {
+  if (!supabase) return getCodes();
+
+  try {
+    const { data, error } = await supabase
+      .from('plannings')
+      .select('data')
+      .eq('shop_id', USER_CODES_REMOTE_SHOP_ID)
+      .eq('week_key', USER_CODES_REMOTE_WEEK_KEY)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('⚠️ Impossible de charger les codes depuis Supabase:', error.message);
+      return getCodes();
+    }
+
+    const remoteCodes = migrateLegacyDefaultCodes(normalizeCodes(data?.data?.codes));
+    if (Object.keys(remoteCodes).length === 0) {
+      return getCodes();
+    }
+
+    return setCodes(remoteCodes);
+  } catch (error) {
+    console.warn('⚠️ Erreur pullUserCodesFromSupabase:', error);
+    return getCodes();
+  }
+};
+
+export const pushUserCodesToSupabase = async () => {
+  if (!supabase) return false;
+
+  try {
+    const payload = {
+      shop_id: USER_CODES_REMOTE_SHOP_ID,
+      week_key: USER_CODES_REMOTE_WEEK_KEY,
+      data: {
+        codes: getCodes(),
+        updatedAt: new Date().toISOString()
+      },
+      version: 1,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('plannings')
+      .upsert(payload, { onConflict: 'shop_id,week_key' });
+
+    if (error) {
+      console.warn('⚠️ Impossible de sauvegarder les codes sur Supabase:', error.message);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('⚠️ Erreur pushUserCodesToSupabase:', error);
+    return false;
+  }
+};
 
 // Initialisation au chargement du module
 getCodes();

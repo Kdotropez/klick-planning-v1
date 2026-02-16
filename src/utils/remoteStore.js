@@ -206,6 +206,7 @@ export const loadCompletePlanningData = async () => {
     const { data: latestRows, error: latestErr } = await supabase
       .from('plannings')
       .select('*')
+      .neq('shop_id', 'system_config')
       .order('updated_at', { ascending: false })
       .limit(1);
     if (latestErr) {

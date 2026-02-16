@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getValidUserCodes } from '../config/userCodes';
+import { getValidUserCodes, pullUserCodesFromSupabase } from '../config/userCodes';
 
 const UserIdentificationModal = ({
   onIdentification,
@@ -18,6 +18,9 @@ const UserIdentificationModal = ({
     setIsLoading(true);
 
     try {
+      // Charger les codes partagés Supabase avant vérification
+      await pullUserCodesFromSupabase();
+
       if (lockCountdownSeconds > 0) {
         setError(
           `⛔ Planning déjà utilisé sur ${lockOwnerText || 'un autre poste'}. ` +

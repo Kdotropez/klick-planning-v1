@@ -4,7 +4,9 @@ import {
   updateSecretCode, 
   addNewUser, 
   removeUser,
-  checkUserPermission 
+  checkUserPermission,
+  pullUserCodesFromSupabase,
+  pushUserCodesToSupabase
 } from '../../config/userCodes';
 
 const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
@@ -21,12 +23,15 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
 
   useEffect(() => {
     if (isOpen && canViewSecretCodes) {
-      try {
-        const allUsers = getAllUsersWithSecrets(currentUser.role);
-        setUsers(allUsers);
-      } catch (error) {
-        setError('Erreur lors du chargement des utilisateurs: ' + error.message);
-      }
+      (async () => {
+        try {
+          await pullUserCodesFromSupabase();
+          const allUsers = getAllUsersWithSecrets(currentUser.role);
+          setUsers(allUsers);
+        } catch (error) {
+          setError('Erreur lors du chargement des utilisateurs: ' + error.message);
+        }
+      })();
     }
   }, [isOpen, currentUser, canViewSecretCodes]);
 
@@ -36,7 +41,7 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
     setSuccess('');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     try {
       if (!editingUser.secretCode.trim()) {
         setError('Le code secret ne peut pas être vide');
@@ -44,6 +49,7 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
       }
 
       updateSecretCode(editingUser.code, editingUser.secretCode, currentUser.role);
+      await pushUserCodesToSupabase();
       
       // Mettre à jour la liste
       const updatedUsers = getAllUsersWithSecrets(currentUser.role);
@@ -64,7 +70,7 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
     setSuccess('');
   };
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     try {
       if (!newUser.name.trim() || !newUser.secretCode.trim()) {
         setError('Le nom et le code secret sont requis');
@@ -72,6 +78,7 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
       }
 
       addNewUser(newUser.secretCode, newUser.name, newUser.role, currentUser.role);
+      await pushUserCodesToSupabase();
       
       // Mettre à jour la liste
       const updatedUsers = getAllUsersWithSecrets(currentUser.role);
@@ -87,10 +94,11 @@ const UserManagementModal = ({ isOpen, onClose, currentUser }) => {
     }
   };
 
-  const handleDeleteUser = (userCode) => {
+  const handleDeleteUser = async (userCode) => {
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer cet utilisateur ?`)) {
       try {
         removeUser(userCode, currentUser.role);
+        await pushUserCodesToSupabase();
         
         // Mettre à jour la liste
         const updatedUsers = getAllUsersWithSecrets(currentUser.role);
