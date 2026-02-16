@@ -154,7 +154,15 @@ const App = () => {
 
   const formatLockOwner = (lock) => {
     if (!lock || !lock.user_id) return 'un autre poste';
-    return `l'utilisateur ${lock.user_id}`;
+    const [ownerCode] = String(lock.user_id).split('::');
+    return `l'utilisateur ${ownerCode || lock.user_id}`;
+  };
+
+  const getLockHolderId = (user) => {
+    if (!user) return '';
+    const code = user.code || 'unknown';
+    const sessionId = user.sessionId || user.loginTime || `fallback-${Date.now()}`;
+    return `${code}::${sessionId}`;
   };
 
   const acquireGlobalLockForUser = async (user) => {
@@ -168,7 +176,7 @@ const App = () => {
 
     try {
       await cleanupExpiredLocks(GLOBAL_LOCK_TTL_MS);
-      const result = await acquireLock(user.code, GLOBAL_LOCK_TTL_MS);
+      const result = await acquireLock(getLockHolderId(user), GLOBAL_LOCK_TTL_MS);
       return result?.ok
         ? { ok: true }
         : { ok: false, reason: 'locked-by-other', lock: result?.lock || null };
@@ -325,7 +333,7 @@ const App = () => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const intervalId = setInterval(async () => {
-      const hbResult = await heartbeat(currentUser.code);
+      const hbResult = await heartbeat(getLockHolderId(currentUser));
       if (hbResult?.ok) return;
 
       alert(
@@ -347,7 +355,7 @@ const App = () => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const onBeforeUnload = () => {
-      releaseLock(currentUser.code).catch(() => {});
+      releaseLock(getLockHolderId(currentUser)).catch(() => {});
     };
 
     window.addEventListener('beforeunload', onBeforeUnload);
@@ -530,7 +538,7 @@ const App = () => {
   const handleExit = async () => {
     if (window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) {
       if (currentUser?.code && hasGlobalLock) {
-        await releaseLock(currentUser.code);
+        await releaseLock(getLockHolderId(currentUser));
       }
       window.close();
     }
