@@ -14,6 +14,21 @@ const DEFAULT_USER_CODES = {
     name: 'Nicolas',
     role: 'supervisor',
     secretCode: PRIMARY_ADMIN_CODE
+  },
+  Cannes: {
+    name: 'Cannes',
+    role: 'employee',
+    secretCode: 'Cannes'
+  },
+  Maxime: {
+    name: 'Maxime',
+    role: 'employee',
+    secretCode: 'Maxime'
+  },
+  Tropez: {
+    name: 'Tropez',
+    role: 'employee',
+    secretCode: 'Tropez'
   }
 };
 
@@ -96,7 +111,10 @@ const getCodes = () => {
   const merged = hasStoredCodes
     ? {
         ...stored,
-        ...(stored[PRIMARY_ADMIN_CODE] ? {} : { [PRIMARY_ADMIN_CODE]: DEFAULT_USER_CODES[PRIMARY_ADMIN_CODE] })
+        ...(stored[PRIMARY_ADMIN_CODE] ? {} : { [PRIMARY_ADMIN_CODE]: DEFAULT_USER_CODES[PRIMARY_ADMIN_CODE] }),
+        ...(stored.Cannes ? {} : { Cannes: DEFAULT_USER_CODES.Cannes }),
+        ...(stored.Maxime ? {} : { Maxime: DEFAULT_USER_CODES.Maxime }),
+        ...(stored.Tropez ? {} : { Tropez: DEFAULT_USER_CODES.Tropez })
       }
     : { ...DEFAULT_USER_CODES };
 
@@ -110,6 +128,9 @@ const setCodes = (codesObj) => {
   if (!normalized[PRIMARY_ADMIN_CODE]) {
     normalized[PRIMARY_ADMIN_CODE] = DEFAULT_USER_CODES[PRIMARY_ADMIN_CODE];
   }
+  if (!normalized.Cannes) normalized.Cannes = DEFAULT_USER_CODES.Cannes;
+  if (!normalized.Maxime) normalized.Maxime = DEFAULT_USER_CODES.Maxime;
+  if (!normalized.Tropez) normalized.Tropez = DEFAULT_USER_CODES.Tropez;
   saveCodesToStorage(normalized);
   syncValidCodesObject(normalized);
   return normalized;

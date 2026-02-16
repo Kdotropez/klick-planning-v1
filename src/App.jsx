@@ -42,7 +42,7 @@ import {
   heartbeat,
   cleanupExpiredLocks
 } from './utils/collabLock';
-import { PRIMARY_ADMIN_CODE } from './config/userCodes';
+import { PRIMARY_ADMIN_CODE, pullUserCodesFromSupabase } from './config/userCodes';
 
 const App = () => {
   // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
@@ -217,6 +217,11 @@ const App = () => {
   // Charger les données depuis localStorage au démarrage
   useEffect(() => {
     try {
+      // Précharger les codes utilisateurs partagés pour l'écran de connexion
+      pullUserCodesFromSupabase().catch((error) => {
+        console.warn('⚠️ Préchargement des codes utilisateurs impossible:', error);
+      });
+
       // ⚡ VÉRIFICATION DE VERSION - FORCE LE VIDAGE DU CACHE SI NOUVELLE VERSION
       const { checkVersion, logVersionInfo } = require('./utils/versionManager');
       const versionChanged = checkVersion();

@@ -11,6 +11,29 @@ const UserIdentificationModal = ({
   const [userName, setUserName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncingCodes, setIsSyncingCodes] = useState(false);
+  const [codesStatus, setCodesStatus] = useState('');
+
+  const syncCodesFromCloud = async (showSuccess = false) => {
+    setIsSyncingCodes(true);
+    try {
+      await pullUserCodesFromSupabase();
+      if (showSuccess) {
+        setCodesStatus('✅ Codes synchronisés depuis Supabase.');
+      } else {
+        setCodesStatus('');
+      }
+    } catch (syncError) {
+      setCodesStatus('⚠️ Impossible de synchroniser les codes cloud (utilisation locale).');
+      console.warn('Synchronisation codes cloud impossible:', syncError);
+    } finally {
+      setIsSyncingCodes(false);
+    }
+  };
+
+  useEffect(() => {
+    syncCodesFromCloud(false);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,7 +42,7 @@ const UserIdentificationModal = ({
 
     try {
       // Charger les codes partagés Supabase avant vérification
-      await pullUserCodesFromSupabase();
+      await syncCodesFromCloud(false);
 
       if (lockCountdownSeconds > 0) {
         setError(
@@ -210,6 +233,42 @@ const UserIdentificationModal = ({
                 {error}
               </div>
             )}
+
+            {codesStatus && (
+              <div style={{
+                padding: '10px 14px',
+                backgroundColor: 'rgba(40, 167, 69, 0.9)',
+                color: '#ffffff',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                fontSize: '0.95rem',
+                fontWeight: '500',
+                textAlign: 'center',
+                boxShadow: '0 4px 12px rgba(40, 167, 69, 0.3)'
+              }}>
+                {codesStatus}
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+              <button
+                type="button"
+                disabled={isLoading || isSyncingCodes}
+                onClick={() => syncCodesFromCloud(true)}
+                style={{
+                  padding: '10px 16px',
+                  fontSize: '0.95rem',
+                  background: (isLoading || isSyncingCodes) ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.85)',
+                  color: (isLoading || isSyncingCodes) ? 'rgba(255, 255, 255, 0.7)' : '#333',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: (isLoading || isSyncingCodes) ? 'not-allowed' : 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                {isSyncingCodes ? '⏳ Synchronisation des codes...' : '🔄 Synchroniser les codes cloud'}
+              </button>
+            </div>
 
             {/* Boutons */}
             <div style={{
