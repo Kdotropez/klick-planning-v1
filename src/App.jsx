@@ -41,7 +41,9 @@ import {
   acquireLock,
   releaseLock,
   heartbeat,
-  cleanupExpiredLocks
+  cleanupExpiredLocks,
+  emergencyUnlock,
+  getCurrentSecurityCode
 } from './utils/collabLock';
 import { PRIMARY_ADMIN_CODE, pullUserCodesFromSupabase } from './config/userCodes';
 
@@ -497,6 +499,38 @@ const App = () => {
     setLockOwnerText('');
     setMode('main-startup');
     setFeedback(`👋 Bienvenue ${user.name} !`);
+  };
+
+  const handleEmergencyUnlock = async (userCode) => {
+    if (userCode !== PRIMARY_ADMIN_CODE) {
+      alert(`Déverrouillage d'urgence réservé au code ${PRIMARY_ADMIN_CODE}.`);
+      return false;
+    }
+
+    if (!initGlobalLock()) {
+      alert('Configuration Supabase manquante pour le déverrouillage d’urgence.');
+      return false;
+    }
+
+    const suggestedCode = getCurrentSecurityCode();
+    const securityCode = window.prompt(
+      `Saisissez le code de sécurité du jour (JJMM).\nExemple aujourd'hui: ${suggestedCode}`
+    );
+
+    if (!securityCode) {
+      return false;
+    }
+
+    const result = await emergencyUnlock(userCode, securityCode.trim());
+    if (result?.ok) {
+      setLockCountdownSeconds(0);
+      setLockOwnerText('');
+      alert('✅ Déverrouillage d’urgence effectué. Vous pouvez vous reconnecter.');
+      return true;
+    }
+
+    alert(`❌ Déverrouillage impossible : ${result?.error || 'erreur inconnue'}`);
+    return false;
   };
 
   const handleIdentificationCancel = () => {
@@ -1345,6 +1379,7 @@ const App = () => {
           onCancel={handleIdentificationCancel}
           lockCountdownSeconds={lockCountdownSeconds}
           lockOwnerText={lockOwnerText}
+          onEmergencyUnlock={handleEmergencyUnlock}
         />
       </ErrorBoundary>
     );

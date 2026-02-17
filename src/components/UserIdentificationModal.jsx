@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getValidUserCodes, pullUserCodesFromSupabase } from '../config/userCodes';
+import { PRIMARY_ADMIN_CODE } from '../config/userCodes';
 
 const UserIdentificationModal = ({
   onIdentification,
   onCancel,
   lockCountdownSeconds = 0,
-  lockOwnerText = ''
+  lockOwnerText = '',
+  onEmergencyUnlock
 }) => {
   const [userCode, setUserCode] = useState('');
   const [userName, setUserName] = useState('');
@@ -210,6 +212,29 @@ const UserIdentificationModal = ({
                 ⏳ Planning occupé sur {lockOwnerText || 'un autre poste'}.
                 <br />
                 Reconnexion possible dans {lockCountdownSeconds} seconde(s).
+                <div style={{ marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!onEmergencyUnlock) return;
+                      await onEmergencyUnlock(userCode.trim());
+                    }}
+                    disabled={isLoading || isSyncingCodes || userCode.trim() !== PRIMARY_ADMIN_CODE}
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: '0.9rem',
+                      backgroundColor: (isLoading || isSyncingCodes || userCode.trim() !== PRIMARY_ADMIN_CODE) ? 'rgba(0,0,0,0.25)' : '#dc3545',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: (isLoading || isSyncingCodes || userCode.trim() !== PRIMARY_ADMIN_CODE) ? 'not-allowed' : 'pointer',
+                      fontWeight: '700'
+                    }}
+                    title={`Disponible uniquement avec le code ${PRIMARY_ADMIN_CODE}`}
+                  >
+                    🔓 Déverrouillage d'urgence
+                  </button>
+                </div>
               </div>
             )}
 
