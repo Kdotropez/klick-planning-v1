@@ -502,14 +502,16 @@ const App = () => {
     setFeedback(`👋 Bienvenue ${user.name} !`);
   };
 
-  const handleEmergencyUnlock = async (userCode) => {
-    if (userCode !== PRIMARY_ADMIN_CODE) {
-      alert(`Déverrouillage d'urgence réservé au code ${PRIMARY_ADMIN_CODE}.`);
+  const handleEmergencyUnlock = async () => {
+    if (!initGlobalLock()) {
+      alert('Configuration Supabase manquante pour le déverrouillage d’urgence.');
       return false;
     }
 
-    if (!initGlobalLock()) {
-      alert('Configuration Supabase manquante pour le déverrouillage d’urgence.');
+    const unlockCode = window.prompt('Code de validation déverrouillage (admin):');
+    if (!unlockCode) return false;
+    if (unlockCode.trim() !== '2111') {
+      alert('❌ Code admin invalide. Déverrouillage annulé.');
       return false;
     }
 
@@ -522,7 +524,7 @@ const App = () => {
       return false;
     }
 
-    const result = await emergencyUnlock(userCode, securityCode.trim());
+    const result = await emergencyUnlock(PRIMARY_ADMIN_CODE, securityCode.trim());
     if (result?.ok) {
       setLockCountdownSeconds(0);
       setLockOwnerText('');

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { getValidUserCodes, pullUserCodesFromSupabase } from '../config/userCodes';
-import { PRIMARY_ADMIN_CODE } from '../config/userCodes';
 
 const UserIdentificationModal = ({
   onIdentification,
@@ -217,20 +216,20 @@ const UserIdentificationModal = ({
                     type="button"
                     onClick={async () => {
                       if (!onEmergencyUnlock) return;
-                      await onEmergencyUnlock(userCode.trim());
+                      await onEmergencyUnlock();
                     }}
-                    disabled={isLoading || isSyncingCodes || userCode.trim() !== PRIMARY_ADMIN_CODE}
+                    disabled={isLoading || isSyncingCodes}
                     style={{
                       padding: '8px 12px',
                       fontSize: '0.9rem',
-                      backgroundColor: (isLoading || isSyncingCodes || userCode.trim() !== PRIMARY_ADMIN_CODE) ? 'rgba(0,0,0,0.25)' : '#dc3545',
+                      backgroundColor: (isLoading || isSyncingCodes) ? 'rgba(0,0,0,0.25)' : '#dc3545',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '8px',
-                      cursor: (isLoading || isSyncingCodes || userCode.trim() !== PRIMARY_ADMIN_CODE) ? 'not-allowed' : 'pointer',
+                      cursor: (isLoading || isSyncingCodes) ? 'not-allowed' : 'pointer',
                       fontWeight: '700'
                     }}
-                    title={`Disponible uniquement avec le code ${PRIMARY_ADMIN_CODE}`}
+                    title="Demande le code admin 2111 puis le code sécurité du jour"
                   >
                     🔓 Déverrouillage d'urgence
                   </button>
@@ -367,6 +366,45 @@ const UserIdentificationModal = ({
                 }}
               >
                 ❌ Annuler
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    window.close();
+                  } catch (_) {
+                    // Fallback si le navigateur bloque window.close()
+                    onCancel?.();
+                  }
+                }}
+                disabled={isLoading}
+                style={{
+                  padding: '15px 30px',
+                  fontSize: '1.1rem',
+                  background: 'rgba(220, 53, 69, 0.25)',
+                  color: '#ffffff',
+                  border: '2px solid rgba(220, 53, 69, 0.5)',
+                  borderRadius: '12px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  fontWeight: '600',
+                  transition: 'all 0.3s ease',
+                  minWidth: '120px'
+                }}
+                onMouseOver={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.background = 'rgba(220, 53, 69, 0.35)';
+                    e.currentTarget.style.border = '2px solid rgba(220, 53, 69, 0.7)';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isLoading) {
+                    e.currentTarget.style.background = 'rgba(220, 53, 69, 0.25)';
+                    e.currentTarget.style.border = '2px solid rgba(220, 53, 69, 0.5)';
+                  }
+                }}
+              >
+                🚪 Fermer
               </button>
             </div>
           </form>

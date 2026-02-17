@@ -242,6 +242,40 @@ const PlanningMenuBar = ({
 
           <Button
             className="button-primary"
+            onClick={async () => {
+              if (window.confirm('Voulez-vous fermer l’application ?')) {
+                try {
+                  // Sauvegarde automatique avant fermeture
+                  if (typeof handleManualSave === 'function') {
+                    await Promise.resolve(handleManualSave());
+                  }
+                  window.close();
+                } catch (_) {
+                  // Certains navigateurs bloquent la fermeture
+                }
+              }
+            }}
+            style={{
+              backgroundColor: '#6c757d',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#495057'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6c757d'}
+          >
+            🚪 Fermer
+          </Button>
+
+          <Button
+            className="button-primary"
             onClick={handleRestoreFromSupabase}
             style={{
               backgroundColor: '#6f42c1',
