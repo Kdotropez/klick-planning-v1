@@ -79,6 +79,22 @@ const isCompletePlanningData = (data) => {
   );
 };
 
+const fetchRowData = async (shopId, weekKey) => {
+  const { data, error } = await supabase
+    .from('plannings')
+    .select('data')
+    .eq('shop_id', shopId)
+    .eq('week_key', weekKey)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`⚠️ Impossible de charger la ligne ${shopId}/${weekKey}:`, error.message);
+    return null;
+  }
+
+  return data?.data || null;
+};
+
 // Fonction pour nettoyer et resauvegarder les données avec la bonne structure
 export const cleanAndResaveData = async () => {
   console.log('🧹 Nettoyage et resauvegarde des données...');
@@ -214,13 +230,13 @@ export const loadCompletePlanningData = async () => {
     if (completeRow && completeRow.data && !isCompletePlanningData(completeRow.data)) {
       console.warn('⚠️ complete_file trouvé mais invalide (pas de shops), fallback multi-lignes...');
     }
-    // 2) Fallback: prendre la ligne la plus récente par updated_at
+    // 2) Fallback léger: récupérer seulement les métadonnées (évite timeout JSON volumineux)
     const { data: latestRows, error: latestErr } = await supabase
       .from('plannings')
-      .select('*')
+      .select('shop_id,week_key,updated_at')
       .neq('shop_id', 'system_config')
       .order('updated_at', { ascending: false })
-      .limit(100);
+      .limit(25);
     if (latestErr) {
       console.error('❌ Erreur lors du chargement (fallback):', latestErr);
       return null;
@@ -229,13 +245,25 @@ export const loadCompletePlanningData = async () => {
       console.log('❌ Aucune donnée trouvée dans Supabase');
       return null;
     }
-    const validRow = latestRows.find((row) => isCompletePlanningData(row?.data));
-    if (!validRow) {
+    // Prioriser les candidats les plus probables
+    const prioritizedRows = [
+      ...latestRows.filter((r) => r.shop_id === 'complete_file' || r.week_key === 'all_data'),
+      ...latestRows.filter((r) => !(r.shop_id === 'complete_file' || r.week_key === 'all_data'))
+    ];
+
+    let planningData = null;
+    for (const row of prioritizedRows) {
+      const rowData = await fetchRowData(row.shop_id, row.week_key);
+      if (isCompletePlanningData(rowData)) {
+        planningData = rowData;
+        break;
+      }
+    }
+
+    if (!planningData) {
       console.warn('⚠️ Aucune ligne Supabase avec un backup complet valide (shops) trouvée.');
       return null;
     }
-
-    const planningData = validRow.data;
     
     console.log('✅ loadCompletePlanningData success:', {
       shops: planningData.shops?.length || 0,

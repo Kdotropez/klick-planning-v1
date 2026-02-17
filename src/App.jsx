@@ -48,6 +48,7 @@ import {
 import { PRIMARY_ADMIN_CODE, pullUserCodesFromSupabase } from './config/userCodes';
 
 const App = () => {
+  const isRestoringSupabaseRef = useRef(false);
   // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
   const GLOBAL_LOCK_TTL_MS = 90 * 1000;
   const GLOBAL_HEARTBEAT_MS = 20 * 1000;
@@ -574,6 +575,12 @@ const App = () => {
   };
 
   const handleRestoreFromSupabase = async () => {
+    if (isRestoringSupabaseRef.current) {
+      setFeedback('⏳ Restauration déjà en cours...');
+      return;
+    }
+
+    isRestoringSupabaseRef.current = true;
     console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
     
     setFeedback('⏳ Chargement depuis Supabase...');
@@ -657,6 +664,8 @@ const App = () => {
       const message = '❌ Erreur: ' + error.message;
       setFeedback(message);
       if (showStartupAlert) alert(message);
+    } finally {
+      isRestoringSupabaseRef.current = false;
     }
   };
 
