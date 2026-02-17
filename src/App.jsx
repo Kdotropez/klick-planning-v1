@@ -477,11 +477,18 @@ const App = () => {
 
     const lockResult = await acquireGlobalLockForUser(user);
     if (!lockResult.ok) {
+      // Nettoyage défensif: aucune session locale ne doit rester si le verrou est refusé
+      localStorage.removeItem('current_user');
+      localStorage.removeItem('user_id');
       const ownerText = formatLockOwner(lockResult.lock);
       const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
       startLockCountdown(remainingSeconds ?? Math.ceil(GLOBAL_LOCK_TTL_MS / 1000), ownerText);
       return;
     }
+
+    // Session locale persistée uniquement après validation du verrou global
+    localStorage.setItem('current_user', JSON.stringify(user));
+    localStorage.setItem('user_id', `user_${user.code}_${Date.now()}`);
 
     setCurrentUser(user);
     setHasGlobalLock(true);

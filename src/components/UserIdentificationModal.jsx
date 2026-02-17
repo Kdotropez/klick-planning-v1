@@ -72,13 +72,9 @@ const UserIdentificationModal = ({
         sessionId: 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9)
       };
 
-      // Sauvegarder l'utilisateur dans localStorage
-      localStorage.setItem('current_user', JSON.stringify(user));
-      localStorage.setItem('user_id', `user_${user.code}_${Date.now()}`);
-
       console.log('🆔 Utilisateur identifié:', user);
 
-      // Appeler la fonction de callback
+      // Appeler la fonction de callback (la persistance est gérée dans App après validation du verrou)
       onIdentification(user);
 
     } catch (error) {
