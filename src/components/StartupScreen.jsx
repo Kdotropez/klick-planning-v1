@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Button from './common/Button';
-import { loadCompletePlanningData } from '../utils/remoteStore';
 
 // Types de licences
 const LICENSE_TYPES = {
@@ -445,39 +444,12 @@ const LicenseManager = () => {
     }
   };
 
-  const handleRestoreFromSupabase = async () => {
-    try {
-      console.log('🔄 Restauration complète depuis Supabase...');
-      
-      // Charger le fichier complet de planning
-      const completePlanningData = await loadCompletePlanningData();
-      if (!completePlanningData) {
-        alert('Aucune donnée trouvée dans Supabase ou erreur de chargement.');
-        return;
-      }
-      
-      console.log('✅ Fichier complet chargé depuis Supabase:', {
-        shops: Object.keys(completePlanningData),
-        totalWeeks: Object.values(completePlanningData).reduce((acc, shop) => acc + Object.keys(shop).length, 0)
-      });
-      
-      // Sauvegarder le fichier complet en local
-      localStorage.setItem('planningData', JSON.stringify(completePlanningData));
-      
-      // Utiliser la nouvelle fonction pour aller directement au planning
-      if (typeof onRestoreFromSupabase === 'function') {
-        console.log('📞 Appel de onRestoreFromSupabase...');
-        onRestoreFromSupabase();
-      } else {
-        console.log('❌ onRestoreFromSupabase n\'est pas une fonction');
-        // Fallback : utiliser onNewPlanning
-        onNewPlanning();
-      }
-      
-    } catch (error) {
-      console.error('❌ Erreur lors de la restauration depuis Supabase:', error);
-      alert('Erreur lors de la restauration depuis Supabase: ' + error.message);
+  const handleRestoreFromSupabase = () => {
+    if (typeof onRestoreFromSupabase === 'function') {
+      onRestoreFromSupabase();
+      return;
     }
+    alert('La fonction de restauration Supabase est indisponible.');
   };
 
   // Si le gestionnaire de licences est affiché

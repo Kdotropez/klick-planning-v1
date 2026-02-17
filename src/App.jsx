@@ -543,6 +543,7 @@ const App = () => {
     console.log('🔄 handleRestoreFromSupabase appelé dans App.jsx');
     
     setFeedback('⏳ Chargement depuis Supabase...');
+    const showStartupAlert = mode === 'startup';
     
     try {
       // Initialiser Supabase
@@ -551,7 +552,9 @@ const App = () => {
       const key = import.meta.env.VITE_SUPABASE_KEY;
       
       if (!url || !key) {
-        setFeedback('❌ Configuration Supabase manquante.');
+        const message = '❌ Configuration Supabase manquante.';
+        setFeedback(message);
+        if (showStartupAlert) alert(message);
         return;
       }
       
@@ -566,12 +569,16 @@ const App = () => {
       const restoredData = await loadCompletePlanningData();
       
       if (!restoredData) {
-        setFeedback('❌ Aucune donnée trouvée sur Supabase.');
+        const message = '❌ Aucune donnée trouvée sur Supabase.';
+        setFeedback(message);
+        if (showStartupAlert) alert(message);
         return;
       }
       
       if (!restoredData.shops || restoredData.shops.length === 0) {
-        setFeedback('❌ Aucune boutique trouvée dans les données.');
+        const message = '❌ Aucune boutique trouvée dans les données.';
+        setFeedback(message);
+        if (showStartupAlert) alert(message);
         return;
       }
       
@@ -605,11 +612,17 @@ const App = () => {
       
       // Aller à la sélection de semaine
       setMode('week-selection');
-      setFeedback('✅ Planning restauré depuis Supabase avec nettoyage complet ! Sélectionnez une semaine.');
+      {
+        const message = '✅ Planning restauré depuis Supabase avec nettoyage complet ! Sélectionnez une semaine.';
+        setFeedback(message);
+        if (showStartupAlert) alert('✅ Restauration Supabase réussie.');
+      }
       
     } catch (error) {
       console.error('❌ Erreur restauration:', error);
-      setFeedback('❌ Erreur: ' + error.message);
+      const message = '❌ Erreur: ' + error.message;
+      setFeedback(message);
+      if (showStartupAlert) alert(message);
     }
   };
 
