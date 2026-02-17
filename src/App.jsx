@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
 import { getAppVersion } from './utils/versionManager';
+import { checkVersion, logVersionInfo } from './utils/versionManager';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 import VersionBadge from './components/common/VersionBadge';
@@ -223,7 +224,6 @@ const App = () => {
       });
 
       // ⚡ VÉRIFICATION DE VERSION - FORCE LE VIDAGE DU CACHE SI NOUVELLE VERSION
-      const { checkVersion, logVersionInfo } = require('./utils/versionManager');
       const versionChanged = checkVersion();
       logVersionInfo();
       
