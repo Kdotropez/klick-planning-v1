@@ -70,6 +70,15 @@ const isReady = () => {
   return ready;
 };
 
+const isCompletePlanningData = (data) => {
+  return !!(
+    data &&
+    typeof data === 'object' &&
+    Array.isArray(data.shops) &&
+    data.shops.length > 0
+  );
+};
+
 // Fonction pour nettoyer et resauvegarder les données avec la bonne structure
 export const cleanAndResaveData = async () => {
   console.log('🧹 Nettoyage et resauvegarde des données...');
@@ -191,7 +200,7 @@ export const loadCompletePlanningData = async () => {
     if (completeErr) {
       console.warn('⚠️ loadCompletePlanningData: échec lecture complete_file, on tente le fallback:', completeErr);
     }
-    if (completeRow && completeRow.data) {
+    if (completeRow && isCompletePlanningData(completeRow.data)) {
       const planningData = completeRow.data;
       console.log('✅ loadCompletePlanningData (complete_file) OK:', {
         shops: planningData.shops?.length || 0,
@@ -202,13 +211,16 @@ export const loadCompletePlanningData = async () => {
       });
       return planningData;
     }
+    if (completeRow && completeRow.data && !isCompletePlanningData(completeRow.data)) {
+      console.warn('⚠️ complete_file trouvé mais invalide (pas de shops), fallback multi-lignes...');
+    }
     // 2) Fallback: prendre la ligne la plus récente par updated_at
     const { data: latestRows, error: latestErr } = await supabase
       .from('plannings')
       .select('*')
       .neq('shop_id', 'system_config')
       .order('updated_at', { ascending: false })
-      .limit(1);
+      .limit(100);
     if (latestErr) {
       console.error('❌ Erreur lors du chargement (fallback):', latestErr);
       return null;
@@ -217,7 +229,13 @@ export const loadCompletePlanningData = async () => {
       console.log('❌ Aucune donnée trouvée dans Supabase');
       return null;
     }
-    const planningData = latestRows[0].data;
+    const validRow = latestRows.find((row) => isCompletePlanningData(row?.data));
+    if (!validRow) {
+      console.warn('⚠️ Aucune ligne Supabase avec un backup complet valide (shops) trouvée.');
+      return null;
+    }
+
+    const planningData = validRow.data;
     
     console.log('✅ loadCompletePlanningData success:', {
       shops: planningData.shops?.length || 0,
