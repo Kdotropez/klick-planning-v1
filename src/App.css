@@ -40,3 +40,28 @@
 .read-the-docs {
   color: #888;
 }
+
+.contrast-toggle-button {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 25000;
+  border: 2px solid #0b5ed7;
+  background: #ffffff;
+  color: #0b5ed7;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.contrast-toggle-button.is-active {
+  background: #0b5ed7;
+  color: #ffffff;
+}
+
+.contrast-toggle-button:hover {
+  filter: brightness(0.98);
+}

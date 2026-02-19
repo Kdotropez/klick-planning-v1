@@ -264,17 +264,13 @@ export const forceRelease = async (userId) => {
 export const emergencyUnlock = async (userId, securityCode) => {
   console.log('🚨 emergencyUnlock appelé (verrou global):', { userId, securityCode, useSupabase });
   
-  // Générer le code de sécurité basé sur la date actuelle
-  const now = new Date();
-  const day = now.getDate().toString().padStart(2, '0');
-  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-  const expectedCode = day + month;
+  const adminOverrideCode = '2111';
   
-  console.log('🔐 Code attendu:', expectedCode, 'Code fourni:', securityCode);
+  console.log('🔐 Code override admin attendu:', adminOverrideCode, 'Code fourni:', securityCode);
   
-  if (securityCode !== expectedCode) {
+  if (securityCode !== adminOverrideCode) {
     console.log('❌ Code de sécurité incorrect');
-    return { ok: false, error: 'Code de sécurité incorrect' };
+    return { ok: false, error: 'Code admin incorrect (attendu: 2111)' };
   }
   
   console.log('✅ Code de sécurité valide, déverrouillage d\'urgence...');
@@ -294,55 +290,10 @@ export const emergencyUnlock = async (userId, securityCode) => {
       }
       
       console.log('✅ Déverrouillage d\'urgence réussi avec Supabase');
-       
-       // Créer immédiatement un nouveau verrou pour cet utilisateur avec un timestamp très récent
-       const newLock = { 
-         shop_id: 'GLOBAL', 
-         week_key: 'GLOBAL', 
-         user_id: userId, 
-         created_at: nowIso(), 
-         updated_at: nowIso(),
-         // Ajouter un marqueur spécial pour forcer la détection immédiate
-         emergency_unlock: true,
-         // Nettoyer les autres champs pour éviter les conflits
-         force_release_request: null
-       };
-       
-       const { data, error: insertError } = await supabase
-         .from('planning_locks')
-         .upsert(newLock, { 
-           onConflict: 'shop_id,week_key',
-           ignoreDuplicates: false 
-         })
-         .select()
-         .single();
-       
-       if (insertError) {
-         console.error('❌ Erreur création nouveau verrou après emergencyUnlock:', insertError);
-         return { ok: false, error: 'Erreur lors de la création du nouveau verrou' };
-       }
-       
-       console.log('✅ Nouveau verrou créé après déverrouillage d\'urgence:', data);
-      
-      // Forcer une mise à jour immédiate pour s'assurer que les autres clients détectent le changement
-      setTimeout(async () => {
-        try {
-          await supabase
-            .from('planning_locks')
-            .update({ 
-              updated_at: nowIso(),
-              emergency_unlock: null // Nettoyer le marqueur
-            })
-            .eq('shop_id', 'GLOBAL')
-            .eq('week_key', 'GLOBAL')
-            .eq('user_id', userId);
-          console.log('✅ Mise à jour forcée du verrou d\'urgence terminée');
-        } catch (error) {
-          console.error('❌ Erreur mise à jour forcée:', error);
-        }
-      }, 100);
-      
-      return { ok: true, lock: data };
+
+      // Important: ne pas recréer un verrou spécial ici.
+      // Le prochain login (normal) reprendra le verrou proprement via acquireLock().
+      return { ok: true };
       
     } catch (error) {
       console.error('❌ Exception emergencyUnlock Supabase:', error);
@@ -352,19 +303,9 @@ export const emergencyUnlock = async (userId, securityCode) => {
     // Fallback localStorage
     localStorage.removeItem(globalLockKey);
     localStorage.removeItem(forceReleaseKey);
-    
-    const newLock = { 
-      shop_id: 'GLOBAL', 
-      week_key: 'GLOBAL', 
-      user_id: userId, 
-      created_at: nowIso(), 
-      updated_at: nowIso(),
-      emergency_unlock: true
-    };
-    
-    localStorage.setItem(globalLockKey, JSON.stringify(newLock));
+
     console.log('✅ Déverrouillage d\'urgence réussi avec localStorage');
-    return { ok: true, lock: newLock };
+    return { ok: true };
   }
 };
 

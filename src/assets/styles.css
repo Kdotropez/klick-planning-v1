@@ -17,6 +17,71 @@ body {
     padding: 0;
 }
 
+/* Lisibilite globale des champs de saisie (PC peu puissants / ecrans ternes) */
+input,
+select,
+textarea {
+    color: #111827;
+    background-color: #ffffff;
+    border: 2px solid #6b7280;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: #0b5ed7;
+    box-shadow: 0 0 0 3px rgba(11, 94, 215, 0.22);
+}
+
+select option {
+    color: #111827;
+    background-color: #ffffff;
+    font-weight: 600;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #6b7280;
+    opacity: 1;
+}
+
+body.high-contrast-mode {
+    background-color: #ffffff;
+    color: #111111;
+}
+
+body.high-contrast-mode input,
+body.high-contrast-mode select,
+body.high-contrast-mode textarea {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    border-color: #000000 !important;
+    box-shadow: none !important;
+}
+
+body.high-contrast-mode input:focus,
+body.high-contrast-mode select:focus,
+body.high-contrast-mode textarea:focus {
+    border-color: #0037ff !important;
+    box-shadow: 0 0 0 3px rgba(0, 55, 255, 0.28) !important;
+}
+
+body.high-contrast-mode select option {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+body.high-contrast-mode .selector-label,
+body.high-contrast-mode .form-group label,
+body.high-contrast-mode .time-slot-label {
+    color: #111111 !important;
+}
+
 /* Conteneur principal pour toutes les étapes */
 .step-container, .week-selection-container, .employee-selection-container, .shop-selection-container, .planning-container {
     width: 100%;
@@ -418,8 +483,8 @@ body {
 .form-group select, .form-group input[type="text"], .form-group input[type="time"], .form-group input[type="month"], .form-group input[type="week"] {
     width: 100%;
     padding: 8px;
-    font-size: 14px;
-    border: 1px solid #ccc;
+    font-size: 15px;
+    border: 2px solid #6b7280;
     border-radius: 4px;
 }
 
@@ -523,8 +588,8 @@ body {
 .copy-paste-select, .copy-paste-input {
     width: 100%;
     padding: 10px;
-    font-size: 14px;
-    border: 1px solid #ccc;
+    font-size: 15px;
+    border: 2px solid #6b7280;
     border-radius: 4px;
     background-color: #fff;
     transition: border-color 0.2s, box-shadow 0.2s;

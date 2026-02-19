@@ -42,8 +42,7 @@ import {
   releaseLock,
   heartbeat,
   cleanupExpiredLocks,
-  emergencyUnlock,
-  getCurrentSecurityCode
+  emergencyUnlock
 } from './utils/collabLock';
 import { PRIMARY_ADMIN_CODE, pullUserCodesFromSupabase } from './config/userCodes';
 
@@ -137,6 +136,13 @@ const App = () => {
     Math.ceil(INACTIVITY_TIMEOUT_MS / 1000)
   );
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
+  const [highContrastMode, setHighContrastMode] = useState(() => {
+    try {
+      return localStorage.getItem('ui_high_contrast_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const lastActivityRef = useRef(Date.now());
 
   // Vérification centralisée pour les fonctions sensibles (protégées par le code administrateur)
@@ -456,6 +462,15 @@ const App = () => {
   }, [currentUser, hasGlobalLock]);
 
   useEffect(() => {
+    document.body.classList.toggle('high-contrast-mode', highContrastMode);
+    try {
+      localStorage.setItem('ui_high_contrast_mode', String(highContrastMode));
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder le mode contraste:', error);
+    }
+  }, [highContrastMode]);
+
+  useEffect(() => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const onBeforeUnload = () => {
@@ -515,16 +530,7 @@ const App = () => {
       return false;
     }
 
-    const suggestedCode = getCurrentSecurityCode();
-    const securityCode = window.prompt(
-      `Saisissez le code de sécurité du jour (JJMM).\nExemple aujourd'hui: ${suggestedCode}`
-    );
-
-    if (!securityCode) {
-      return false;
-    }
-
-    const result = await emergencyUnlock(PRIMARY_ADMIN_CODE, securityCode.trim());
+    const result = await emergencyUnlock(PRIMARY_ADMIN_CODE, unlockCode.trim());
     if (result?.ok) {
       setLockCountdownSeconds(0);
       setLockOwnerText('');
@@ -753,6 +759,17 @@ const App = () => {
       </div>
     );
   };
+
+  const renderContrastToggle = () => (
+    <button
+      type="button"
+      className={`contrast-toggle-button ${highContrastMode ? 'is-active' : ''}`}
+      onClick={() => setHighContrastMode((prev) => !prev)}
+      title={highContrastMode ? 'Désactiver le contraste élevé' : 'Activer le contraste élevé'}
+    >
+      {highContrastMode ? '🎨 Contraste: Fort' : '🎨 Contraste: Normal'}
+    </button>
+  );
 
   const handleClearLocalStorage = () => {
     if (window.confirm('Êtes-vous sûr de vouloir effacer toutes les données ? Cette action ne peut pas être annulée.')) {
@@ -1082,6 +1099,7 @@ const App = () => {
   if (mode === 'main-startup') {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         {renderInactivityCounter()}
         <MainStartupScreen 
           onSelectPlanning={handleSelectPlanning}
@@ -1095,6 +1113,7 @@ const App = () => {
   if (mode === 'startup') {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         {renderInactivityCounter()}
                   <StartupScreen
             onNewPlanning={handleNewPlanning}
@@ -1120,6 +1139,7 @@ const App = () => {
   if (mode === 'new') {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         {renderInactivityCounter()}
         <div className="app-container">
           {feedback && (
@@ -1182,6 +1202,7 @@ const App = () => {
   if (mode === 'week-selection') {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         {renderInactivityCounter()}
         <div className="app-container">
           {feedback && (
@@ -1290,6 +1311,7 @@ const App = () => {
   if (mode === 'planning') {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         {renderInactivityCounter()}
         <div className="app-container">
           {feedback && (
@@ -1375,6 +1397,7 @@ const App = () => {
   if (showLicenseManager) {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         <LicenseManager />
         <CopyrightNotice />
       </ErrorBoundary>
@@ -1385,6 +1408,7 @@ const App = () => {
   if (mode === 'identification') {
     return (
       <ErrorBoundary>
+        {renderContrastToggle()}
         <UserIdentificationModal 
           onIdentification={handleUserIdentification}
           onCancel={handleIdentificationCancel}
