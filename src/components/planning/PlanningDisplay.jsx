@@ -55,7 +55,8 @@ const PlanningDisplay = ({
   onBackToConfig,
   setFeedback,
   onDeleteEmployee,
-  onRestoreFromSupabase
+  onRestoreFromSupabase,
+  onRestoreBackupFromHistory
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
@@ -1881,6 +1882,7 @@ const PlanningDisplay = ({
             diagnoseSupabase={diagnoseSupabase}
             diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
+            handleRestoreBackupFromHistory={onRestoreBackupFromHistory}
           currentUser={currentUser}
           // Nouveaux props pour les boutons déplacés
           setShowResetModal={setShowResetModal}

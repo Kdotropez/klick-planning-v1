@@ -31,6 +31,7 @@ const PlanningMenuBar = ({
   setShowGlobalDayViewModalV2,
   handleManualSave,
   handleRestoreFromSupabase,
+  handleRestoreBackupFromHistory,
   // Modules
   onOpenDashboard,
   onOpenShopStats,
@@ -294,6 +295,28 @@ const PlanningMenuBar = ({
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6f42c1'}
           >
             🔄 RESTAURE SUPABASE
+          </Button>
+
+          <Button
+            className="button-primary"
+            onClick={handleRestoreBackupFromHistory}
+            style={{
+              backgroundColor: '#5e35b1',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#4527a0'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#5e35b1'}
+          >
+            🕘 HISTORIQUE SUPABASE
           </Button>
 
         {/* LIGNE 2: Fonctions utilitaires et Navigation */}

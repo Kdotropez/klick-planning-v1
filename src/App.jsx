@@ -34,7 +34,12 @@ import {
   importPlanningData
 } from './utils/planningDataManager.js';
 import './App.css';
-import { loadRemotePlanning, saveCompletePlanningData } from './utils/remoteStore';
+import {
+  loadRemotePlanning,
+  saveCompletePlanningData,
+  listCompletePlanningBackups,
+  loadCompletePlanningBackupByWeekKey
+} from './utils/remoteStore';
 import { versionChecker } from './utils/versionChecker';
 import {
   initLockService,
@@ -677,6 +682,83 @@ const App = () => {
     }
   };
 
+  const handleRestoreBackupFromHistory = async () => {
+    if (isRestoringSupabaseRef.current) {
+      setFeedback('⏳ Une restauration est déjà en cours...');
+      return;
+    }
+
+    isRestoringSupabaseRef.current = true;
+    setFeedback('⏳ Chargement de l’historique Supabase...');
+
+    try {
+      const backups = await listCompletePlanningBackups(15);
+      if (!backups || backups.length === 0) {
+        alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
+        setFeedback('❌ Aucun historique de sauvegarde trouvé.');
+        return;
+      }
+
+      const lines = backups.map((item, idx) => {
+        const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
+        const sourceLabel = item.weekKey === 'current_complete_file'
+          ? 'actuelle'
+          : item.weekKey.startsWith('legacy_row::')
+            ? 'legacy'
+            : 'snapshot';
+        return `${idx + 1}. ${dateText} (${item.shopsCount || 0} boutique(s), ${sourceLabel})`;
+      });
+
+      const selected = window.prompt(
+        `Historique Supabase (1-${backups.length}) :\n${lines.join('\n')}\n\nEntrez le numero a restaurer:`
+      );
+
+      if (!selected) {
+        setFeedback('ℹ️ Restauration historique annulée.');
+        return;
+      }
+
+      const parsedIndex = Number.parseInt(selected, 10) - 1;
+      if (Number.isNaN(parsedIndex) || parsedIndex < 0 || parsedIndex >= backups.length) {
+        alert('❌ Numero invalide.');
+        setFeedback('❌ Numero de sauvegarde invalide.');
+        return;
+      }
+
+      const chosen = backups[parsedIndex];
+      const restoredData = await loadCompletePlanningBackupByWeekKey(chosen.weekKey);
+      if (!restoredData || !restoredData.shops || restoredData.shops.length === 0) {
+        alert('❌ Sauvegarde historique invalide ou vide.');
+        setFeedback('❌ Sauvegarde historique invalide.');
+        return;
+      }
+
+      const currentUser = localStorage.getItem('current_user');
+      const userId = localStorage.getItem('user_id');
+      localStorage.clear();
+      if (currentUser) localStorage.setItem('current_user', currentUser);
+      if (userId) localStorage.setItem('user_id', userId);
+
+      setPlanningData(restoredData);
+      localStorage.setItem('planningData', JSON.stringify(restoredData));
+
+      const firstShop = restoredData.shops[0];
+      setSelectedShop(firstShop.id);
+      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+      setMode('week-selection');
+
+      const restoredAt = chosen.updatedAt ? new Date(chosen.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
+      setFeedback(`✅ Historique restauré (${restoredAt}).`);
+      alert(`✅ Historique restauré (${restoredAt}).`);
+    } catch (error) {
+      console.error('❌ Erreur restauration historique:', error);
+      setFeedback(`❌ Erreur restauration historique: ${error.message}`);
+      alert(`❌ Erreur restauration historique: ${error.message}`);
+    } finally {
+      isRestoringSupabaseRef.current = false;
+    }
+  };
+
   // Gestion de la licence
   const handleLicenseValid = () => {
     setShowLicenseModal(false);
@@ -1121,6 +1203,7 @@ const App = () => {
             onExit={handleExit}
             onClearLocalStorage={handleClearLocalStorage}
             onRestoreFromSupabase={handleRestoreFromSupabase}
+            onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
             onContinueWithLocalData={handleContinueWithLocalData}
             hasLocalData={planningData && planningData.shops && planningData.shops.length > 0}
           />
@@ -1380,6 +1463,7 @@ const App = () => {
               onBackToConfig={handleBackToConfig}
               setFeedback={setFeedback}
               onRestoreFromSupabase={handleRestoreFromSupabase}
+              onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
             />
           <CopyrightNotice />
         </div>

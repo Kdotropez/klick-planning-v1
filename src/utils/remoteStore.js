@@ -79,6 +79,68 @@ const isCompletePlanningData = (data) => {
   );
 };
 
+const HISTORY_SHOP_ID = 'backup_history';
+const HISTORY_WEEK_PREFIX = 'h_';
+const LEGACY_HISTORY_WEEK_PREFIX = 'snapshot_';
+const HISTORY_MAX_ITEMS = 30;
+const CURRENT_COMPLETE_SENTINEL = 'current_complete_file';
+const LEGACY_PREFIX = 'legacy_row::';
+
+const createHistoryWeekKey = () => {
+  const ts = Date.now().toString(36);
+  const rnd = Math.random().toString(36).slice(2, 5);
+  return `${HISTORY_WEEK_PREFIX}${ts}${rnd}`;
+};
+
+const saveHistorySnapshot = async (completePlanningData) => {
+  if (!isCompletePlanningData(completePlanningData)) return false;
+
+  const snapshotRow = {
+    shop_id: HISTORY_SHOP_ID,
+    week_key: createHistoryWeekKey(),
+    data: completePlanningData,
+    version: 1,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('plannings')
+    .insert(snapshotRow);
+
+  if (error) {
+    console.warn('⚠️ Impossible de sauvegarder le snapshot historique:', {
+      message: error.message,
+      code: error.code,
+      details: error.details
+    });
+    return false;
+  }
+
+  try {
+    const { data: historyRows, error: listError } = await supabase
+      .from('plannings')
+      .select('week_key,updated_at')
+      .eq('shop_id', HISTORY_SHOP_ID)
+      .order('updated_at', { ascending: false })
+      .limit(200);
+
+    if (!listError && Array.isArray(historyRows) && historyRows.length > HISTORY_MAX_ITEMS) {
+      const toDelete = historyRows.slice(HISTORY_MAX_ITEMS).map((row) => row.week_key).filter(Boolean);
+      if (toDelete.length > 0) {
+        await supabase
+          .from('plannings')
+          .delete()
+          .eq('shop_id', HISTORY_SHOP_ID)
+          .in('week_key', toDelete);
+      }
+    }
+  } catch (cleanupError) {
+    console.warn('⚠️ Nettoyage historique impossible:', cleanupError?.message || cleanupError);
+  }
+
+  return true;
+};
+
 const fetchRowData = async (shopId, weekKey) => {
   const { data, error } = await supabase
     .from('plannings')
@@ -188,11 +250,176 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       planningKeys: completePlanningData.planning ? Object.keys(completePlanningData.planning) : [],
       upsertResult: data
     });
+
+    await saveHistorySnapshot(completePlanningData);
     
     return true;
   } catch (error) {
     console.error('❌ Exception dans saveCompletePlanningData:', error);
     return false;
+  }
+};
+
+export const listCompletePlanningBackups = async (limit = 15) => {
+  if (!isReady()) return [];
+
+  try {
+    const safeLimit = Math.max(1, Math.min(50, Number(limit) || 15));
+    const { data, error } = await supabase
+      .from('plannings')
+      .select('week_key,updated_at,data')
+      .eq('shop_id', HISTORY_SHOP_ID)
+      .or(`week_key.like.${HISTORY_WEEK_PREFIX}%,week_key.like.${LEGACY_HISTORY_WEEK_PREFIX}%`)
+      .order('updated_at', { ascending: false })
+      .limit(safeLimit);
+
+    if (error) {
+      console.error('❌ listCompletePlanningBackups error:', error.message);
+      return [];
+    }
+
+    const historyItems = (data || [])
+      .filter((row) => isCompletePlanningData(row?.data))
+      .map((row) => ({
+        weekKey: row.week_key,
+        updatedAt: row.updated_at,
+        shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0
+      }));
+
+    // Compatibilité avec les sauvegardes historiques "pré-feature":
+    // même sans snapshots, on expose la sauvegarde complète courante.
+    const { data: currentComplete, error: currentError } = await supabase
+      .from('plannings')
+      .select('updated_at,data')
+      .eq('shop_id', 'complete_file')
+      .eq('week_key', 'all_data')
+      .maybeSingle();
+
+    if (!currentError && isCompletePlanningData(currentComplete?.data)) {
+      const currentItem = {
+        weekKey: CURRENT_COMPLETE_SENTINEL,
+        updatedAt: currentComplete.updated_at,
+        shopsCount: Array.isArray(currentComplete?.data?.shops) ? currentComplete.data.shops.length : 0
+      };
+      const merged = [currentItem, ...historyItems];
+
+      // Fallback legacy: exposer aussi les anciennes lignes "shop/week" valides
+      // qui contiennent des données complètes.
+      if (merged.length < safeLimit) {
+        const remaining = safeLimit - merged.length;
+        const { data: legacyRows, error: legacyError } = await supabase
+          .from('plannings')
+          .select('shop_id,week_key,updated_at,data')
+          .neq('shop_id', 'system_config')
+          .neq('shop_id', HISTORY_SHOP_ID)
+          .order('updated_at', { ascending: false })
+          .limit(60);
+
+        if (!legacyError && Array.isArray(legacyRows)) {
+          const legacyItems = legacyRows
+            .filter((row) => row.shop_id !== 'complete_file')
+            .filter((row) => isCompletePlanningData(row?.data))
+            .map((row) => ({
+              weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
+              updatedAt: row.updated_at,
+              shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0
+            }));
+
+          return [...merged, ...legacyItems].slice(0, safeLimit);
+        }
+      }
+
+      return merged.slice(0, safeLimit);
+    }
+
+    if (historyItems.length >= safeLimit) {
+      return historyItems.slice(0, safeLimit);
+    }
+
+    const { data: legacyRowsNoCurrent, error: legacyNoCurrentError } = await supabase
+      .from('plannings')
+      .select('shop_id,week_key,updated_at,data')
+      .neq('shop_id', 'system_config')
+      .neq('shop_id', HISTORY_SHOP_ID)
+      .order('updated_at', { ascending: false })
+      .limit(60);
+
+    if (!legacyNoCurrentError && Array.isArray(legacyRowsNoCurrent)) {
+      const legacyItems = legacyRowsNoCurrent
+        .filter((row) => row.shop_id !== 'complete_file')
+        .filter((row) => isCompletePlanningData(row?.data))
+        .map((row) => ({
+          weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
+          updatedAt: row.updated_at,
+          shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0
+        }));
+      return [...historyItems, ...legacyItems].slice(0, safeLimit);
+    }
+
+    return historyItems.slice(0, safeLimit);
+  } catch (error) {
+    console.error('❌ Exception listCompletePlanningBackups:', error);
+    return [];
+  }
+};
+
+export const loadCompletePlanningBackupByWeekKey = async (weekKey) => {
+  if (!isReady() || !weekKey) return null;
+
+  try {
+    if (weekKey === CURRENT_COMPLETE_SENTINEL) {
+      const { data: currentData, error: currentError } = await supabase
+        .from('plannings')
+        .select('data')
+        .eq('shop_id', 'complete_file')
+        .eq('week_key', 'all_data')
+        .maybeSingle();
+
+      if (currentError) {
+        console.error('❌ load current complete backup error:', currentError.message);
+        return null;
+      }
+
+      return isCompletePlanningData(currentData?.data) ? currentData.data : null;
+    }
+
+    if (weekKey.startsWith(LEGACY_PREFIX)) {
+      const payload = weekKey.replace(LEGACY_PREFIX, '');
+      const [shopId, ...rest] = payload.split('::');
+      const legacyWeekKey = rest.join('::');
+      if (!shopId || !legacyWeekKey) return null;
+
+      const { data: legacyData, error: legacyError } = await supabase
+        .from('plannings')
+        .select('data')
+        .eq('shop_id', shopId)
+        .eq('week_key', legacyWeekKey)
+        .maybeSingle();
+
+      if (legacyError) {
+        console.error('❌ load legacy backup error:', legacyError.message);
+        return null;
+      }
+
+      return isCompletePlanningData(legacyData?.data) ? legacyData.data : null;
+    }
+
+    const { data, error } = await supabase
+      .from('plannings')
+      .select('data')
+      .eq('shop_id', HISTORY_SHOP_ID)
+      .eq('week_key', weekKey)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ loadCompletePlanningBackupByWeekKey error:', error.message);
+      return null;
+    }
+
+    return isCompletePlanningData(data?.data) ? data.data : null;
+  } catch (error) {
+    console.error('❌ Exception loadCompletePlanningBackupByWeekKey:', error);
+    return null;
   }
 };
 
