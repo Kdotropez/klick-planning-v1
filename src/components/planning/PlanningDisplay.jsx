@@ -2879,9 +2879,6 @@ const PlanningDisplay = ({
                                            
                                            let congesParBoutique = [];
                                            
-                                           // Debug: Afficher les données de planning pour cet employé
-                                           console.log(`🔍 Debug congés pour ${employeeId} semaine ${selectedWeek}:`, planningData?.shops);
-                                           
                                            // Parcourir tous les jours de la semaine pour détecter les congés
                                            for (let i = 0; i < 7; i++) {
                                              const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
@@ -2892,12 +2889,8 @@ const PlanningDisplay = ({
                                                if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                                  const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                                  
-                                                 // Debug: Afficher les slots de ce jour
-                                                 console.log(`🔍 Jour ${dayKey} slots:`, slots, 'Type:', typeof slots);
-                                                 
                                                  if ((Array.isArray(slots) && slots.some(slot => slot === 'Congé ☀️')) || slots === 'Congé ☀️') {
                                                    hasCongé = true;
-                                                   console.log(`✅ Congé détecté pour ${dayKey}`);
                                                  }
                                                }
                                              });
@@ -3070,12 +3063,8 @@ const PlanningDisplay = ({
                                            <div>
                                              {(() => {
                                                if (!selectedWeek || !planningData) {
-                                                 console.log('🔍 Debug horaires:', { selectedWeek, planningData: !!planningData });
                                                  return null;
                                                }
-                                               
-                                               console.log('🔍 Debug horaires - Employee:', employeeId, 'Week:', selectedWeek);
-                                               console.log('🔍 Debug horaires - PlanningData shops:', Object.keys(planningData.shops || {}));
                                                
                                                const days = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE'];
                                                const horaires = [];
@@ -3085,25 +3074,19 @@ const PlanningDisplay = ({
                                                  const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
                                                  const dayName = days[i];
                                                  
-                                                 console.log(`🔍 Debug horaires - Jour ${dayName} (${dayKey}):`);
-                                                 
                                                  // Parcourir TOUTES les boutiques où l'employé peut travailler
                                                  if (planningData && planningData.shops) {
                                                    const boutiquesDuJour = [];
                                                    
                                                    planningData.shops.forEach(shop => {
                                                      if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                                       const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                                       console.log(`  🔍 Day planning found pour ${shop.name}:`, dayPlanning);
+                                                      const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                                        
                                                        // Utiliser exactement la même logique que GlobalDayViewModalV2
                                                        if (Array.isArray(dayPlanning)) {
                                                          // Récupérer timeSlots et interval depuis la configuration globale
                                                          const timeSlots = config?.timeSlots || [];
                                                          const interval = config?.interval || 60;
-                                                         
-                                                         console.log(`  🔍 Time slots:`, timeSlots);
-                                                         console.log(`  🔍 Interval:`, interval);
                                                          
                                                          let plagesConsolidees = [];
                                                          let currentStart = null;
@@ -3115,7 +3098,6 @@ const PlanningDisplay = ({
                                                              const slotTime = timeSlots[slotIndex];
                                                              if (!currentStart) {
                                                                currentStart = slotTime;
-                                                               console.log(`  🔍 Début plage: ${slotTime}`);
                                                              }
                                                              // Calculer l'heure de fin en ajoutant l'intervalle (comme dans la modale)
                                                              if (slotTime && typeof slotTime === 'string' && slotTime.includes(':')) {
@@ -3133,7 +3115,6 @@ const PlanningDisplay = ({
                                                              if (currentStart && currentEnd) {
                                                                const plage = `${currentStart}-${currentEnd}`;
                                                                plagesConsolidees.push(plage);
-                                                               console.log(`  🔍 Plage ajoutée: ${plage}`);
                                                              }
                                                              currentStart = null;
                                                              currentEnd = null;
@@ -3144,11 +3125,8 @@ const PlanningDisplay = ({
                                                          if (currentStart && currentEnd) {
                                                            const plage = `${currentStart}-${currentEnd}`;
                                                            plagesConsolidees.push(plage);
-                                                           console.log(`  🔍 Dernière plage ajoutée: ${plage}`);
                                                          }
-                                                         
-                                                         console.log(`  🔍 Plages consolidées pour ${shop.name}:`, plagesConsolidees);
-                                                         
+
                                                          if (plagesConsolidees.length > 0) {
                                                            boutiquesDuJour.push({
                                                              boutique: shop.name,
@@ -3166,13 +3144,9 @@ const PlanningDisplay = ({
                                                        boutiques: boutiquesDuJour
                                                      });
                                                    }
-                                                 } else {
-                                                   console.log(`  🔍 Pas de planningData.shops pour ${employeeId} le ${dayKey}`);
-                                                 }
+                                                }
                                                } // Fin de la boucle for
-                                             
-                                             console.log(`🔍 Horaires finaux:`, horaires);
-                                               
+
                                                if (horaires.length === 0) {
                                                  return (
                                                    <div style={{

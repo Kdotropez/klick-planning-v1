@@ -1,5 +1,5 @@
 const AUDIT_LOG_KEY = 'planning_audit_log_v1';
-const AUDIT_LOG_MAX_ITEMS = 1000;
+const AUDIT_LOG_MAX_ITEMS = 5000;
 
 const safeRead = () => {
   try {

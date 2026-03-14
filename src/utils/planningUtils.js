@@ -6,8 +6,6 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   // S'assurer que employee est une chaîne (ID) et non un objet
   const employeeId = typeof employee === 'object' && employee !== null ? employee.id || employee.name : employee;
   
-  console.log(`calculateEmployeeDailyHours for ${employeeId} on ${dayKey}:`, { planning, config });
-  
   // Vérifier si les données sont valides
   if (!planning || !config?.timeSlots || !Array.isArray(config.timeSlots)) {
     console.warn(`calculateEmployeeDailyHours: Invalid config for ${employeeId} on ${dayKey}`, { planning, config });
@@ -44,7 +42,6 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   
   // Vérifier s'il y a au moins un créneau sélectionné
   if (!slots.some(slot => slot === true)) {
-    console.log(`calculateEmployeeDailyHours: No selected slots for ${employeeId} on ${dayKey}`, { slots });
     return 0;
   }
   

@@ -2225,15 +2225,10 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
       days.push(format(dayDate, 'yyyy-MM-dd'));
     }
     
-    console.log('🔍 getWeekPlanning - Jours générés:', days);
-    console.log('🔍 getWeekPlanning - Données existantes:', weekData.planning);
-    
     shopEmployees.forEach(employee => {
       if (employee && employee.id) {
         initializedPlanning[employee.id] = {};
-        
-        console.log(`🔍 getWeekPlanning - Employé ${employee.id}:`, initializedPlanning[employee.id]);
-        
+
         days.forEach(dayKey => {
           // Vérifier si on a des données existantes pour ce jour et cet employé
           const existingData = weekData.planning?.[employee.id]?.[dayKey];
@@ -2242,7 +2237,6 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
             // 1) Nouveau format: statut sentinelle directement en chaîne ('Maladie 🤒' / 'Congé ☀️')
             if (typeof existingData === 'string') {
               initializedPlanning[employee.id][dayKey] = existingData;
-              console.log(`🔍 getWeekPlanning - Statut détecté pour ${dayKey} (${employee.id}):`, existingData);
               return;
             }
 
@@ -2252,19 +2246,16 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
               const hasLegacyConge = existingData.some(v => v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge'))));
               if (hasLegacyMaladie) {
                 initializedPlanning[employee.id][dayKey] = 'Maladie 🤒';
-                console.log(`🩺 Migration legacy -> Maladie pour ${dayKey} (${employee.id})`);
                 return;
               }
               if (hasLegacyConge) {
                 initializedPlanning[employee.id][dayKey] = 'Congé ☀️';
-                console.log(`🏖️ Migration legacy -> Congé pour ${dayKey} (${employee.id})`);
                 return;
               }
 
               // 3) Tableau booléen standard: copier/ajuster la longueur
               if (existingData.length === timeSlots.length) {
                 initializedPlanning[employee.id][dayKey] = [...existingData];
-                console.log(`🔍 getWeekPlanning - Utilisé données existantes pour ${dayKey} (${employee.id})`);
               } else {
                 if (existingData.length < timeSlots.length) {
                   initializedPlanning[employee.id][dayKey] = [
@@ -2274,25 +2265,20 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
                 } else {
                   initializedPlanning[employee.id][dayKey] = existingData.slice(0, timeSlots.length);
                 }
-                console.log(`🔍 getWeekPlanning - Ajusté longueur pour ${dayKey} (${employee.id})`);
               }
             } else {
               // Format inattendu: NE PAS initialiser automatiquement
               // Laisser undefined pour ne pas créer de données fantômes
-              console.warn(`⚠️ getWeekPlanning - Format inattendu pour ${dayKey} (${employee.id}), pas d'initialisation`);
             }
           } else {
             // ⚡ NE PLUS INITIALISER AUTOMATIQUEMENT
             // Si pas de données existantes, ne rien créer pour éviter les données parasites
             // Le jour reste undefined et ne sera pas affiché ni sauvegardé
-            console.log(`🔍 getWeekPlanning - Aucune donnée pour ${dayKey} (${employee.id}), pas d'initialisation`);
           }
         });
       }
     });
-    
-    console.log('🔍 getWeekPlanning - Résultat final:', initializedPlanning);
-    
+
     return {
       planning: initializedPlanning,
       selectedEmployees: weekData.selectedEmployees || []

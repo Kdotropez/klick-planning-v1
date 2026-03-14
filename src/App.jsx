@@ -180,6 +180,7 @@ const App = () => {
   const lastActivityRef = useRef(Date.now());
   const inactivityCounterRef = useRef(null);
   const inactivityDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 });
+  const interactionThrottleRef = useRef({ key: '', ts: 0 });
 
   // Vérification centralisée pour les fonctions sensibles (protégées par le code administrateur)
   const isPrimaryAdmin = currentUser && currentUser.code === PRIMARY_ADMIN_CODE;
@@ -220,6 +221,23 @@ const App = () => {
 
   const getShopNameById = (shopId, data = planningData) =>
     data?.shops?.find((shop) => shop.id === shopId)?.name || shopId || '';
+
+  const writeAudit = ({
+    action,
+    details = '',
+    shopId = selectedShop,
+    user = currentUser,
+    data = planningData
+  }) => {
+    addAuditLog({
+      action,
+      details,
+      userCode: user?.code,
+      userName: user?.name,
+      shopId: shopId || '',
+      shopName: getShopNameById(shopId || '', data)
+    });
+  };
 
   const initGlobalLock = () => {
     const url = import.meta.env.VITE_SUPABASE_URL;
@@ -373,6 +391,109 @@ const App = () => {
       return () => clearTimeout(timer);
     }
   }, [feedback]);
+
+  useEffect(() => {
+    if (!currentUser?.code) return undefined;
+
+    const cleanText = (value = '') =>
+      String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80);
+
+    const getElementDescriptor = (target) => {
+      const el = target instanceof Element ? target : null;
+      if (!el) return null;
+
+      const actionable =
+        el.closest('button') ||
+        el.closest('a') ||
+        el.closest('[role="button"]') ||
+        el.closest('input') ||
+        el.closest('select') ||
+        el.closest('textarea');
+
+      if (!actionable) return null;
+
+      const tag = actionable.tagName?.toLowerCase() || 'element';
+      const type = actionable.getAttribute?.('type') || '';
+      const aria = actionable.getAttribute?.('aria-label') || '';
+      const title = actionable.getAttribute?.('title') || '';
+      const id = actionable.id ? `#${actionable.id}` : '';
+      const name = actionable.getAttribute?.('name') || '';
+      const text = cleanText(actionable.textContent || actionable.value || '');
+      const label = cleanText([aria, title, name, text].filter(Boolean)[0] || '');
+
+      return {
+        key: `${tag}|${type}|${id}|${label}`.toLowerCase(),
+        tag,
+        type,
+        label: label || '(sans libelle)'
+      };
+    };
+
+    const shouldSkip = (key) => {
+      const now = Date.now();
+      const isDuplicate = interactionThrottleRef.current.key === key && now - interactionThrottleRef.current.ts < 1200;
+      if (isDuplicate) return true;
+      interactionThrottleRef.current = { key, ts: now };
+      return false;
+    };
+
+    const onClickCapture = (event) => {
+      const descriptor = getElementDescriptor(event.target);
+      if (!descriptor) return;
+      const key = `click:${descriptor.key}`;
+      if (shouldSkip(key)) return;
+      writeAudit({
+        action: 'Interaction UI',
+        details: `Clic ${descriptor.tag}${descriptor.type ? `(${descriptor.type})` : ''}: ${descriptor.label}`
+      });
+    };
+
+    const onChangeCapture = (event) => {
+      const descriptor = getElementDescriptor(event.target);
+      if (!descriptor) return;
+
+      const target = event.target;
+      const valuePreview =
+        target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
+          ? target.type === 'password'
+            ? '[masque]'
+            : cleanText(String(target.value || '')).slice(0, 40)
+          : '';
+
+      const key = `change:${descriptor.key}:${valuePreview}`;
+      if (shouldSkip(key)) return;
+      writeAudit({
+        action: 'Interaction UI',
+        details: `Modification ${descriptor.tag}${descriptor.type ? `(${descriptor.type})` : ''}: ${descriptor.label}${valuePreview ? ` -> ${valuePreview}` : ''}`
+      });
+    };
+
+    document.addEventListener('click', onClickCapture, true);
+    document.addEventListener('change', onChangeCapture, true);
+
+    return () => {
+      document.removeEventListener('click', onClickCapture, true);
+      document.removeEventListener('change', onChangeCapture, true);
+    };
+  }, [currentUser, selectedShop, planningData]);
+
+  const previousModeRef = useRef(mode);
+  useEffect(() => {
+    if (!currentUser?.code) {
+      previousModeRef.current = mode;
+      return;
+    }
+    if (previousModeRef.current !== mode) {
+      writeAudit({
+        action: 'Navigation',
+        details: `Changement d ecran: ${previousModeRef.current} -> ${mode}`
+      });
+      previousModeRef.current = mode;
+    }
+  }, [mode, currentUser]);
 
   useEffect(() => {
     if (!currentUser || !hasGlobalLock) {

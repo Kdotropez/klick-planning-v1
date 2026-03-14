@@ -113,7 +113,7 @@ const PlanningMenuBar = ({
   };
 
   const openAuditLog = () => {
-    const code = window.prompt('Code d acces journal d audit:');
+    const code = window.prompt('Code superviseur requis pour ouvrir le journal d audit:');
     if (!code) return;
     if (code.trim() !== '2111') {
       alert('❌ Code incorrect.');
@@ -508,7 +508,7 @@ const PlanningMenuBar = ({
           }}
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#263238'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#37474f'}
-          title="Journal d audit (acces protege 2111)"
+          title="Journal d audit (acces protege)"
         >
           📋 Journal d audit
         </Button>
@@ -931,7 +931,7 @@ const PlanningMenuBar = ({
         entries={auditEntries}
         onRefresh={() => setAuditEntries(listAuditLogs(500))}
         onClear={() => {
-          const code = window.prompt('Confirmer code 2111 pour vider le journal:');
+          const code = window.prompt('Confirmer le code superviseur pour vider le journal:');
           if (code?.trim() !== '2111') {
             alert('❌ Code incorrect.');
             return;

@@ -33,7 +33,7 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.53': [
     'Ajout du bouton "Journal d audit" dans le menu planning.',
-    'Acces protege par code 2111 avant affichage du journal.',
+    'Acces protege par code superviseur avant affichage du journal.',
     'Nouvel ecran lisible avec date, utilisateur, action, boutique et details.',
     'Trace locale des actions principales (connexion, restauration, sauvegarde manuelle, masquage/reactivation employe, fermeture session).'
   ]
