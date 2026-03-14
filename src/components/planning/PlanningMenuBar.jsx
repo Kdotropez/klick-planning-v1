@@ -111,10 +111,11 @@ const PlanningMenuBar = ({
   // Calculer le nombre d'employés masqués
   useEffect(() => {
     if (planningData) {
-      const hidden = getHiddenEmployees(planningData, new Date());
-      setHiddenEmployeesCount(hidden.length);
+      const currentShopData = planningData.shops?.find((shop) => shop.id === currentShop);
+      const hiddenInCurrentShop = (currentShopData?.employees || []).filter((emp) => !!emp?.hiddenFrom);
+      setHiddenEmployeesCount(hiddenInCurrentShop.length);
     }
-  }, [planningData]);
+  }, [planningData, currentShop]);
 
   return (
     <div 
@@ -883,6 +884,7 @@ const PlanningMenuBar = ({
         planningData={planningData}
         onEmployeeUpdate={onEmployeeUpdate}
         currentDate={new Date()}
+        currentShop={currentShop}
       />
     </div>
   );

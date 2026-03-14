@@ -69,16 +69,18 @@ const calculateDayNightFromSlots = (timeSlots, intervalMinutes, slots) => {
 };
 
 // Fonctions de gestion des employés masqués
-export const hideEmployee = (planningData, employeeId, hideFromDate) => {
-  console.log(`🔒 Masquage de l'employé ${employeeId} à partir du ${hideFromDate}`);
+export const hideEmployee = (planningData, employeeId, hideFromDate, shopId = null) => {
+  console.log(`🔒 Masquage de l'employé ${employeeId} à partir du ${hideFromDate}${shopId ? ` (boutique: ${shopId})` : ''}`);
   
   const updatedShops = planningData.shops.map(shop => ({
     ...shop,
-    employees: shop.employees.map(emp => 
-      emp.id === employeeId 
-        ? { ...emp, hiddenFrom: hideFromDate }
-        : emp
-    )
+    employees: shopId && shop.id !== shopId
+      ? shop.employees
+      : shop.employees.map(emp =>
+          emp.id === employeeId
+            ? { ...emp, hiddenFrom: hideFromDate }
+            : emp
+        )
   }));
   
   return {
@@ -87,16 +89,18 @@ export const hideEmployee = (planningData, employeeId, hideFromDate) => {
   };
 };
 
-export const showEmployee = (planningData, employeeId) => {
-  console.log(`🔓 Affichage de l'employé ${employeeId}`);
+export const showEmployee = (planningData, employeeId, shopId = null) => {
+  console.log(`🔓 Affichage de l'employé ${employeeId}${shopId ? ` (boutique: ${shopId})` : ''}`);
   
   const updatedShops = planningData.shops.map(shop => ({
     ...shop,
-    employees: shop.employees.map(emp => 
-      emp.id === employeeId 
-        ? { ...emp, hiddenFrom: null }
-        : emp
-    )
+    employees: shopId && shop.id !== shopId
+      ? shop.employees
+      : shop.employees.map(emp =>
+          emp.id === employeeId
+            ? { ...emp, hiddenFrom: null }
+            : emp
+        )
   }));
   
   return {

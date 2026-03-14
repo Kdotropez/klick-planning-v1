@@ -131,12 +131,13 @@ export const showVersionHighlightsOnce = () => {
   try {
     const currentVersion = version;
     const seenVersion = localStorage.getItem(VERSION_HIGHLIGHTS_SEEN_KEY);
-    if (seenVersion === currentVersion) return;
 
-    const versionsToShow = Object.keys(VERSION_HIGHLIGHTS)
+    const versionsUpToCurrent = Object.keys(VERSION_HIGHLIGHTS)
       .filter((v) => compareSemver(v, currentVersion) <= 0)
-      .filter((v) => !seenVersion || compareSemver(v, seenVersion) > 0)
       .sort(compareSemver);
+
+    const versionsToShow = versionsUpToCurrent
+      .filter((v) => !seenVersion || compareSemver(v, seenVersion) > 0)
 
     if (versionsToShow.length === 0) {
       localStorage.setItem(VERSION_HIGHLIGHTS_SEEN_KEY, currentVersion);
@@ -144,19 +145,33 @@ export const showVersionHighlightsOnce = () => {
     }
 
     const shouldShow = window.confirm(
-      `🆕 Mise a jour detectee (v${currentVersion}).\n\n` +
-      `Souhaitez-vous voir les dernieres modifications ?`
+      `🆕 Informations version (v${currentVersion}).\n\n` +
+      `Souhaitez-vous voir les dernieres modifications et l'historique des versions au lancement ?`
     );
 
     if (shouldShow) {
-      const fullText = versionsToShow
+      const newChangesText = versionsToShow.length > 0
+        ? versionsToShow
+            .map((v) => {
+              const items = VERSION_HIGHLIGHTS[v] || [];
+              return `Version ${v}\n${items.map((item, idx) => `  ${idx + 1}. ${item}`).join('\n')}`;
+            })
+            .join('\n\n')
+        : 'Aucune nouvelle modification depuis votre derniere version.';
+
+      const fullHistoryText = versionsUpToCurrent
         .map((v) => {
           const items = VERSION_HIGHLIGHTS[v] || [];
           return `Version ${v}\n${items.map((item, idx) => `  ${idx + 1}. ${item}`).join('\n')}`;
         })
         .join('\n\n');
 
-      alert(`Historique des modifications\n\n${fullText}`);
+      alert(
+        `Historique des modifications\n\n` +
+        `Nouveautes depuis votre derniere version:\n\n${newChangesText}\n\n` +
+        `----------------------------------------\n` +
+        `Historique complet jusqu'a v${currentVersion}:\n\n${fullHistoryText}`
+      );
     }
 
     localStorage.setItem(VERSION_HIGHLIGHTS_SEEN_KEY, currentVersion);

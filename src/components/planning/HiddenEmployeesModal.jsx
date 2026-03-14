@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { getHiddenEmployees, getAllEmployees } from '../../utils/planningDataManager';
 
 const HiddenEmployeesModal = ({ 
   isOpen, 
   onClose, 
   planningData, 
   onEmployeeUpdate,
-  currentDate = new Date() 
+  currentDate = new Date(),
+  currentShop
 }) => {
   const [hiddenEmployees, setHiddenEmployees] = useState([]);
   const [allEmployees, setAllEmployees] = useState([]);
@@ -18,25 +18,29 @@ const HiddenEmployeesModal = ({
   // Récupérer la liste des employés masqués et tous les employés
   useEffect(() => {
     if (isOpen && planningData) {
-      const hidden = getHiddenEmployees(planningData, currentDate);
-      const all = getAllEmployees(planningData, currentDate);
+      const currentShopData = planningData.shops?.find((shop) => shop.id === currentShop);
+      const shopEmployees = currentShopData?.employees || [];
+      const hidden = shopEmployees.filter((emp) => !!emp?.hiddenFrom);
+      const all = shopEmployees;
       setHiddenEmployees(hidden);
       setAllEmployees(all);
     }
-  }, [isOpen, planningData, currentDate]);
+  }, [isOpen, planningData, currentDate, currentShop]);
 
   if (!isOpen) return null;
 
   const handleShowEmployee = (employeeId) => {
-    if (!employeeId) return;
+    if (!employeeId || !currentShop) return;
     
     try {
       // Mettre à jour les données
       const updatedShops = planningData.shops.map(shop => ({
         ...shop,
-        employees: (shop.employees || []).map(emp =>
-          emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
-        )
+        employees: shop.id !== currentShop
+          ? (shop.employees || [])
+          : (shop.employees || []).map(emp =>
+              emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
+            )
       }));
       
       const updatedData = {
@@ -68,7 +72,7 @@ const HiddenEmployeesModal = ({
 
   // Nouvelle fonction pour modifier la date de masquage d'un employé
   const handleUpdateHideDate = async (employeeId, newHideDate) => {
-    if (!employeeId || !newHideDate) return;
+    if (!employeeId || !newHideDate || !currentShop) return;
     
     try {
       console.log('🔧 handleUpdateHideDate appelé avec:', { employeeId, newHideDate });
@@ -88,7 +92,8 @@ const HiddenEmployeesModal = ({
       }
       
       // Trouver l'employé pour l'affichage
-      const employee = planningData?.shops?.flatMap(shop => shop.employees || []).find(emp => emp.id === employeeId);
+      const currentShopData = planningData?.shops?.find((shop) => shop.id === currentShop);
+      const employee = currentShopData?.employees?.find((emp) => emp.id === employeeId);
       const employeeName = employee?.name || employeeId;
       
       console.log('🔍 Employé trouvé:', { employee, employeeName });
@@ -96,9 +101,11 @@ const HiddenEmployeesModal = ({
       // Mettre à jour les données
       const updatedShops = planningData.shops.map(shop => ({
         ...shop,
-        employees: (shop.employees || []).map(emp =>
-          emp && emp.id === employeeId ? { ...emp, hiddenFrom: newHideDate } : emp
-        )
+        employees: shop.id !== currentShop
+          ? (shop.employees || [])
+          : (shop.employees || []).map(emp =>
+              emp && emp.id === employeeId ? { ...emp, hiddenFrom: newHideDate } : emp
+            )
       }));
       
       const updatedData = {
@@ -143,7 +150,8 @@ const HiddenEmployeesModal = ({
       }
       
       // Rafraîchir la liste des employés masqués
-      const hidden = getHiddenEmployees(updatedData, currentDate);
+      const refreshedShop = updatedData.shops?.find((shop) => shop.id === currentShop);
+      const hidden = (refreshedShop?.employees || []).filter((emp) => !!emp?.hiddenFrom);
       setHiddenEmployees(hidden);
       console.log('📋 Liste des employés masqués mise à jour:', hidden.length, 'employés');
       
@@ -208,7 +216,7 @@ const HiddenEmployeesModal = ({
               fontSize: '14px',
               fontStyle: 'italic'
             }}>
-              💡 Pour masquer un employé, utilisez le bouton 🚫 sur sa carte
+              💡 Gestion par boutique : les actions s'appliquent uniquement à la boutique en cours
             </p>
           </div>
           <button
@@ -436,7 +444,7 @@ const HiddenEmployeesModal = ({
               <button
                 onClick={() => {
                   if (window.confirm(
-                    `Êtes-vous sûr de vouloir réactiver TOUS les employés masqués (${hiddenEmployees.length}) ?\n\nIls réapparaîtront dans tous les rapports.`
+                    `Êtes-vous sûr de vouloir réactiver TOUS les employés masqués de cette boutique (${hiddenEmployees.length}) ?`
                   )) {
                     hiddenEmployees.forEach(emp => handleShowEmployee(emp.id));
                   }
