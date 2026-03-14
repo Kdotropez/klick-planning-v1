@@ -25,6 +25,10 @@ const VERSION_HIGHLIGHTS = {
     'La version commune Supabase devient la source obligatoire au demarrage pour eviter les ecrasements.',
     'Popup Nouveautes passe en plein ecran pour une lecture confortable.',
     'Affichage des nouveautes/historique au lancement maintenu avec historique complet des versions.'
+  ],
+  '3.10.52': [
+    'Mise a jour version 3.10.52.',
+    'Historique a completer.'
   ]
 };
 
