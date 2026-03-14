@@ -35,6 +35,81 @@ const compareSemver = (a, b) => {
   return 0;
 };
 
+const escapeHtml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const showLargeVersionHighlightsModal = ({ currentVersion, newChangesText, fullHistoryText }) => {
+  const existing = document.getElementById('version-highlights-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'version-highlights-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.zIndex = '99999';
+  overlay.style.background = 'rgba(0,0,0,0.55)';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.padding = '0';
+
+  const modal = document.createElement('div');
+  modal.style.width = '100vw';
+  modal.style.height = '100vh';
+  modal.style.background = '#ffffff';
+  modal.style.borderRadius = '0';
+  modal.style.boxShadow = 'none';
+  modal.style.display = 'flex';
+  modal.style.flexDirection = 'column';
+  modal.style.overflow = 'hidden';
+  modal.style.border = 'none';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.padding = '14px 18px';
+  header.style.background = 'linear-gradient(90deg, #1e88e5 0%, #1565c0 100%)';
+  header.style.color = '#ffffff';
+  header.innerHTML = `
+    <div style="font-size:18px;font-weight:700;letter-spacing:.3px;">
+      Nouveautes et historique des modifications (v${escapeHtml(currentVersion)})
+    </div>
+    <button id="version-highlights-close-btn" style="background:#ffffff;color:#1565c0;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:700;">
+      Fermer
+    </button>
+  `;
+
+  const body = document.createElement('div');
+  body.style.padding = '16px 18px';
+  body.style.overflow = 'auto';
+  body.style.whiteSpace = 'pre-wrap';
+  body.style.fontSize = '14px';
+  body.style.lineHeight = '1.5';
+  body.style.color = '#1f2937';
+  body.textContent =
+    `Nouveautes depuis votre derniere version:\n\n${newChangesText}\n\n` +
+    `----------------------------------------\n` +
+    `Historique complet jusqu'a v${currentVersion}:\n\n${fullHistoryText}`;
+
+  modal.appendChild(header);
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) close();
+  });
+  const closeBtn = header.querySelector('#version-highlights-close-btn');
+  if (closeBtn) closeBtn.addEventListener('click', close);
+};
+
 /**
  * Vérifie si la version de l'application a changé
  * Si oui, vide le localStorage (sauf l'utilisateur) et force un rechargement
@@ -166,12 +241,11 @@ export const showVersionHighlightsOnce = () => {
         })
         .join('\n\n');
 
-      alert(
-        `Historique des modifications\n\n` +
-        `Nouveautes depuis votre derniere version:\n\n${newChangesText}\n\n` +
-        `----------------------------------------\n` +
-        `Historique complet jusqu'a v${currentVersion}:\n\n${fullHistoryText}`
-      );
+      showLargeVersionHighlightsModal({
+        currentVersion,
+        newChangesText,
+        fullHistoryText
+      });
     }
 
     localStorage.setItem(VERSION_HIGHLIGHTS_SEEN_KEY, currentVersion);
