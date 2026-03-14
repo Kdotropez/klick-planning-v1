@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
+import { saveToLocalStorage } from './utils/localStorage';
 import { checkVersion, logVersionInfo, showVersionHighlightsOnce } from './utils/versionManager';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
@@ -38,7 +38,8 @@ import {
   saveCompletePlanningData,
   listCompletePlanningBackups,
   loadCompletePlanningBackupByWeekKey,
-  getCurrentCompleteBackupInfo
+  getCurrentCompleteBackupInfo,
+  loadCompletePlanningData
 } from './utils/remoteStore';
 import { versionChecker } from './utils/versionChecker';
 import {
@@ -141,6 +142,7 @@ const App = () => {
     Math.ceil(INACTIVITY_TIMEOUT_MS / 1000)
   );
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
+  const [isSupabaseStartupReady, setIsSupabaseStartupReady] = useState(false);
   const [highContrastMode, setHighContrastMode] = useState(() => {
     try {
       return localStorage.getItem('ui_high_contrast_mode') === 'true';
@@ -229,9 +231,10 @@ const App = () => {
     }
   };
 
-  // Charger les données depuis localStorage au démarrage
+  // Charger la version commune depuis Supabase au démarrage
   useEffect(() => {
-    try {
+    const bootstrapFromSupabase = async () => {
+      try {
       // Précharger les codes utilisateurs partagés pour l'écran de connexion
       pullUserCodesFromSupabase().catch((error) => {
         console.warn('⚠️ Préchargement des codes utilisateurs impossible:', error);
@@ -253,81 +256,52 @@ const App = () => {
         console.error('❌ Erreur initialisation VersionChecker:', error);
       });
 
-      // Vérifier si un utilisateur est déjà connecté
-      const currentUser = localStorage.getItem('current_user');
-      if (currentUser) {
-        try {
-          const user = JSON.parse(currentUser);
-          setCurrentUser(user);
-          console.log('🆔 Utilisateur déjà connecté:', user);
-        } catch (e) {
-          console.log('❌ Erreur parsing utilisateur, nettoyage');
-          localStorage.removeItem('current_user');
-        }
-      }
+      // Au lancement/rechargement, forcer une nouvelle identification.
+      localStorage.removeItem('current_user');
+      localStorage.removeItem('user_id');
+      setCurrentUser(null);
+      setHasGlobalLock(false);
+      setIsSupabaseStartupReady(false);
 
-      // Charger les données depuis localStorage si elles existent
-      const savedData = loadFromLocalStorage('planningData');
-      console.log('Données chargées depuis localStorage:', savedData);
-      console.log('Structure complète des données:', {
-        version: savedData?.version,
-        hasShops: !!savedData?.shops,
-        shopsLength: savedData?.shops?.length,
-        allKeys: Object.keys(savedData || {}),
-        shopsType: typeof savedData?.shops,
-        isArray: Array.isArray(savedData?.shops)
-      });
-      
-      // Si un utilisateur est connecté et qu'il y a des données valides, aller au démarrage principal
-      if (currentUser && savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
-        // Vérifier que les données sont complètes et valides
-        const isValidData = savedData.shops.every(shop => 
-          shop.id && shop.name && shop.config && Array.isArray(shop.employees)
-        );
-        
-        if (isValidData) {
-          setPlanningData(savedData);
-          setMode('main-startup');
-          console.log('Utilisateur connecté et données valides, passage au démarrage principal');
-          setRestoredInfo('💾 Données locales disponibles - Choisissez votre action');
-        } else {
-          console.log('Données corrompues détectées, nettoyage du localStorage');
-          localStorage.clear();
-          setMode('identification');
-          setRestoredInfo('');
-        }
-      } else if (savedData && savedData.version === "2.0" && savedData.shops && savedData.shops.length > 0) {
-        // Données valides mais pas d'utilisateur connecté
-        const isValidData = savedData.shops.every(shop => 
-          shop.id && shop.name && shop.config && Array.isArray(shop.employees)
-        );
-        
-        if (isValidData) {
-          setPlanningData(savedData);
-          setMode('identification');
-          console.log('Données valides mais pas d\'utilisateur connecté, identification requise');
-        } else {
-          console.log('Données corrompues détectées, nettoyage du localStorage');
-          localStorage.clear();
-          setMode('identification');
-          setRestoredInfo('');
-        }
-      } else {
-        // Aucune donnée ou format incorrect, commencer par l'identification
-        console.log('Aucune donnée valide trouvée, identification requise');
-        if (savedData && savedData.version !== "2.0") {
-          localStorage.clear();
-        }
+      // Source de vérité obligatoire: Supabase au lancement.
+      const remoteData = await loadCompletePlanningData();
+      const isRemoteValid = !!(
+        remoteData &&
+        remoteData.version === '2.0' &&
+        Array.isArray(remoteData.shops) &&
+        remoteData.shops.length > 0
+      );
+
+      if (isRemoteValid) {
+        setPlanningData(remoteData);
+        localStorage.setItem('planningData', JSON.stringify(remoteData));
+        setIsSupabaseStartupReady(true);
         setMode('identification');
-        setRestoredInfo('');
+        setRestoredInfo('☁️ Version commune Supabase chargée au démarrage.');
+        console.log('✅ Bootstrap Supabase réussi: version commune appliquée.');
+      } else {
+        // Sécurité: ne jamais partir d'une copie locale potentiellement obsolète.
+        localStorage.removeItem('planningData');
+        setPlanningData(createNewPlanningData());
+        setIsSupabaseStartupReady(false);
+        setMode('identification');
+        setRestoredInfo('⚠️ Aucune version commune Supabase disponible au lancement.');
+        setFeedback('❌ Connexion bloquée: impossible de charger la version commune Supabase.');
+        console.warn('⚠️ Bootstrap Supabase invalide/vide. Connexion bloquée.');
       }
-    } catch (error) {
+      } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      console.log('Nettoyage du localStorage suite à l\'erreur');
-      localStorage.clear();
+      // Sécurité: empêcher l'utilisation d'une copie locale non synchronisée.
+      localStorage.removeItem('planningData');
+      setPlanningData(createNewPlanningData());
+      setIsSupabaseStartupReady(false);
       setMode('identification');
-      setRestoredInfo('');
-    }
+      setRestoredInfo('⚠️ Supabase indisponible au démarrage.');
+      setFeedback('❌ Connexion bloquée: Supabase indisponible au lancement.');
+      }
+    };
+
+    bootstrapFromSupabase();
   }, []);
 
   // Sauvegarder les données dans localStorage
@@ -499,6 +473,16 @@ const App = () => {
   // Gestion de l'identification
   const handleUserIdentification = async (user) => {
     console.log('🆔 Utilisateur identifié:', user);
+
+    if (!isSupabaseStartupReady) {
+      alert(
+        '❌ Connexion bloquée.\n\n' +
+        'La version commune Supabase n a pas été chargée au démarrage.\n' +
+        'Relancez lorsque Supabase est disponible.'
+      );
+      setFeedback('❌ Connexion bloquée: version commune Supabase non chargée.');
+      return;
+    }
 
     const lockResult = await acquireGlobalLockForUser(user);
     if (!lockResult.ok) {

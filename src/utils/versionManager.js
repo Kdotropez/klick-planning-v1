@@ -214,11 +214,6 @@ export const showVersionHighlightsOnce = () => {
     const versionsToShow = versionsUpToCurrent
       .filter((v) => !seenVersion || compareSemver(v, seenVersion) > 0)
 
-    if (versionsToShow.length === 0) {
-      localStorage.setItem(VERSION_HIGHLIGHTS_SEEN_KEY, currentVersion);
-      return;
-    }
-
     const shouldShow = window.confirm(
       `🆕 Informations version (v${currentVersion}).\n\n` +
       `Souhaitez-vous voir les dernieres modifications et l'historique des versions au lancement ?`
