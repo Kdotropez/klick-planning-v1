@@ -2,6 +2,38 @@
 import { version } from '../../package.json';
 
 const VERSION_KEY = 'app_version';
+const VERSION_HIGHLIGHTS_SEEN_KEY = 'app_version_highlights_seen';
+
+const VERSION_HIGHLIGHTS = {
+  '3.10.49': [
+    'Deverrouillage d urgence simplifie et securise.',
+    'Mode contraste eleve activable pour ameliorer la lisibilite sur PC plus faibles.',
+    'Historique Supabase integre avec restauration de versions (date, source, poste/utilisateur si disponible).',
+    'Compteur de sauvegarde JSON automatique affiche en secondes et plus fiable visuellement.',
+    'Masquage employe persistant jusqu a reactivation manuelle.'
+  ],
+  '3.10.50': [
+    'Restauration Supabase au demarrage amelioree: affichage date, poste et utilisateur de la derniere sauvegarde.',
+    'Bascule automatique vers l historique Supabase si la sauvegarde courante ne contient pas de metadonnees exploitables.',
+    'Fermeture application renforcee: sauvegarde puis liberation du verrou avant fermeture de session.',
+    'Recap employe reamenage: cartes par employe plus lisibles et actions essentielles regroupees sous le nom.',
+    'Affichage des elements de recap adapte pour gagner de la place tout en gardant les donnees importantes accessibles.'
+  ]
+};
+
+const parseSemver = (v) => String(v || '0.0.0').split('.').map((n) => Number.parseInt(n, 10) || 0);
+const compareSemver = (a, b) => {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  const max = Math.max(pa.length, pb.length);
+  for (let i = 0; i < max; i += 1) {
+    const da = pa[i] || 0;
+    const db = pb[i] || 0;
+    if (da > db) return 1;
+    if (da < db) return -1;
+  }
+  return 0;
+};
 
 /**
  * Vérifie si la version de l'application a changé
@@ -93,5 +125,43 @@ export const logVersionInfo = () => {
   console.log(`   Version actuelle: ${currentVersion}`);
   console.log(`   Version en cache: ${storedVersion || 'Aucune'}`);
   console.log(`   Status: ${storedVersion === currentVersion ? '✅ À jour' : '⚠️ Mise à jour nécessaire'}`);
+};
+
+export const showVersionHighlightsOnce = () => {
+  try {
+    const currentVersion = version;
+    const seenVersion = localStorage.getItem(VERSION_HIGHLIGHTS_SEEN_KEY);
+    if (seenVersion === currentVersion) return;
+
+    const versionsToShow = Object.keys(VERSION_HIGHLIGHTS)
+      .filter((v) => compareSemver(v, currentVersion) <= 0)
+      .filter((v) => !seenVersion || compareSemver(v, seenVersion) > 0)
+      .sort(compareSemver);
+
+    if (versionsToShow.length === 0) {
+      localStorage.setItem(VERSION_HIGHLIGHTS_SEEN_KEY, currentVersion);
+      return;
+    }
+
+    const shouldShow = window.confirm(
+      `🆕 Mise a jour detectee (v${currentVersion}).\n\n` +
+      `Souhaitez-vous voir les dernieres modifications ?`
+    );
+
+    if (shouldShow) {
+      const fullText = versionsToShow
+        .map((v) => {
+          const items = VERSION_HIGHLIGHTS[v] || [];
+          return `Version ${v}\n${items.map((item, idx) => `  ${idx + 1}. ${item}`).join('\n')}`;
+        })
+        .join('\n\n');
+
+      alert(`Historique des modifications\n\n${fullText}`);
+    }
+
+    localStorage.setItem(VERSION_HIGHLIGHTS_SEEN_KEY, currentVersion);
+  } catch (error) {
+    console.error('❌ Erreur affichage nouveautes version:', error);
+  }
 };
 

@@ -85,6 +85,50 @@ const LEGACY_HISTORY_WEEK_PREFIX = 'snapshot_';
 const HISTORY_MAX_ITEMS = 30;
 const CURRENT_COMPLETE_SENTINEL = 'current_complete_file';
 const LEGACY_PREFIX = 'legacy_row::';
+const DEVICE_ID_STORAGE_KEY = 'client_device_id';
+const DEVICE_LABEL_STORAGE_KEY = 'client_device_label';
+
+const getOrCreateDeviceId = () => {
+  try {
+    const existing = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (existing) return existing;
+    const created = generateId().slice(0, 8);
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, created);
+    return created;
+  } catch (_) {
+    return generateId().slice(0, 8);
+  }
+};
+
+const getOrCreateDeviceLabel = () => {
+  try {
+    const existingLabel = localStorage.getItem(DEVICE_LABEL_STORAGE_KEY);
+    if (existingLabel) return existingLabel;
+    const id = getOrCreateDeviceId();
+    const createdLabel = `PC-${id.toUpperCase()}`;
+    localStorage.setItem(DEVICE_LABEL_STORAGE_KEY, createdLabel);
+    return createdLabel;
+  } catch (_) {
+    return `PC-${getOrCreateDeviceId().toUpperCase()}`;
+  }
+};
+
+const getCurrentUserLabel = () => {
+  try {
+    const rawUser = localStorage.getItem('current_user');
+    if (!rawUser) return 'Inconnu';
+    const parsed = JSON.parse(rawUser);
+    return parsed?.name || parsed?.code || 'Inconnu';
+  } catch (_) {
+    return 'Inconnu';
+  }
+};
+
+const buildBackupMeta = () => ({
+  savedAt: new Date().toISOString(),
+  savedByDevice: getOrCreateDeviceLabel(),
+  savedByUser: getCurrentUserLabel()
+});
 
 const createHistoryWeekKey = () => {
   const ts = Date.now().toString(36);
@@ -201,24 +245,30 @@ export const saveCompletePlanningData = async (completePlanningData) => {
   }
   
   try {
+    const backupMeta = buildBackupMeta();
+    const dataWithMeta = {
+      ...completePlanningData,
+      _backupMeta: backupMeta
+    };
+
     // Sauvegarder le fichier complet en une seule ligne, sans supprimer les semaines
     const row = {
       shop_id: 'complete_file',
       week_key: 'all_data',
-      data: completePlanningData,
+      data: dataWithMeta,
       version: 1
     };
     console.log('📦 Upsert du fichier complet (complete_file)...');
     console.log('📦 Données à sauvegarder:', {
       shop_id: row.shop_id,
       week_key: row.week_key,
-      dataShops: completePlanningData.shops?.length || 0,
-      dataVersion: completePlanningData.version
+      dataShops: dataWithMeta.shops?.length || 0,
+      dataVersion: dataWithMeta.version
     });
     
     // Debug détaillé des boutiques et semaines
-    if (completePlanningData.shops) {
-      completePlanningData.shops.forEach((shop, index) => {
+    if (dataWithMeta.shops) {
+      dataWithMeta.shops.forEach((shop, index) => {
         console.log(`🏪 Boutique ${index + 1}: ${shop.name} (${shop.id})`);
         if (shop.weeks) {
           const weekKeys = Object.keys(shop.weeks);
@@ -251,7 +301,7 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       upsertResult: data
     });
 
-    await saveHistorySnapshot(completePlanningData);
+    await saveHistorySnapshot(dataWithMeta);
     
     return true;
   } catch (error) {
@@ -283,7 +333,9 @@ export const listCompletePlanningBackups = async (limit = 15) => {
       .map((row) => ({
         weekKey: row.week_key,
         updatedAt: row.updated_at,
-        shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0
+        shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0,
+        savedByDevice: row?.data?._backupMeta?.savedByDevice || 'PC inconnu',
+        savedByUser: row?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu'
       }));
 
     // Compatibilité avec les sauvegardes historiques "pré-feature":
@@ -299,7 +351,9 @@ export const listCompletePlanningBackups = async (limit = 15) => {
       const currentItem = {
         weekKey: CURRENT_COMPLETE_SENTINEL,
         updatedAt: currentComplete.updated_at,
-        shopsCount: Array.isArray(currentComplete?.data?.shops) ? currentComplete.data.shops.length : 0
+        shopsCount: Array.isArray(currentComplete?.data?.shops) ? currentComplete.data.shops.length : 0,
+        savedByDevice: currentComplete?.data?._backupMeta?.savedByDevice || 'PC inconnu',
+        savedByUser: currentComplete?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu'
       };
       const merged = [currentItem, ...historyItems];
 
@@ -322,7 +376,9 @@ export const listCompletePlanningBackups = async (limit = 15) => {
             .map((row) => ({
               weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
               updatedAt: row.updated_at,
-              shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0
+              shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0,
+              savedByDevice: row?.data?._backupMeta?.savedByDevice || 'PC legacy',
+              savedByUser: row?.data?._backupMeta?.savedByUser || 'Utilisateur legacy'
             }));
 
           return [...merged, ...legacyItems].slice(0, safeLimit);
@@ -351,7 +407,9 @@ export const listCompletePlanningBackups = async (limit = 15) => {
         .map((row) => ({
           weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
           updatedAt: row.updated_at,
-          shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0
+          shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0,
+          savedByDevice: row?.data?._backupMeta?.savedByDevice || 'PC legacy',
+          savedByUser: row?.data?._backupMeta?.savedByUser || 'Utilisateur legacy'
         }));
       return [...historyItems, ...legacyItems].slice(0, safeLimit);
     }
@@ -360,6 +418,31 @@ export const listCompletePlanningBackups = async (limit = 15) => {
   } catch (error) {
     console.error('❌ Exception listCompletePlanningBackups:', error);
     return [];
+  }
+};
+
+export const getCurrentCompleteBackupInfo = async () => {
+  if (!isReady()) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('plannings')
+      .select('updated_at,data')
+      .eq('shop_id', 'complete_file')
+      .eq('week_key', 'all_data')
+      .maybeSingle();
+
+    if (error || !data || !isCompletePlanningData(data?.data)) return null;
+
+    return {
+      updatedAt: data.updated_at || data?.data?._backupMeta?.savedAt || null,
+      savedByDevice: data?.data?._backupMeta?.savedByDevice || 'PC inconnu',
+      savedByUser: data?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu',
+      shopsCount: Array.isArray(data?.data?.shops) ? data.data.shops.length : 0
+    };
+  } catch (error) {
+    console.error('❌ getCurrentCompleteBackupInfo error:', error);
+    return null;
   }
 };
 

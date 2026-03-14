@@ -297,8 +297,13 @@ const HiddenEmployeesModal = ({
             </h3>
             
             <div style={{
-              display: 'grid',
-              gap: '10px'
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'nowrap',
+              gap: '10px',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              paddingBottom: '6px'
             }}>
               {hiddenEmployees.map((employee) => (
                 <div
@@ -309,9 +314,13 @@ const HiddenEmployeesModal = ({
                     borderRadius: '6px',
                     padding: '15px',
                     display: 'flex',
+                    flexDirection: 'column',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                    alignItems: 'stretch',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                    minWidth: '320px',
+                    maxWidth: '320px',
+                    flex: '0 0 auto'
                   }}
                 >
                   {/* Informations employé */}
@@ -344,7 +353,9 @@ const HiddenEmployeesModal = ({
                   {/* Boutons d'action */}
                   <div style={{
                     display: 'flex',
-                    gap: '10px'
+                    gap: '10px',
+                    marginTop: '12px',
+                    flexWrap: 'wrap'
                   }}>
                     <button
                       onClick={() => handleShowEmployee(employee.id)}

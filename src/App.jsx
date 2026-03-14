@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { loadFromLocalStorage, saveToLocalStorage } from './utils/localStorage';
-import { getAppVersion } from './utils/versionManager';
-import { checkVersion, logVersionInfo } from './utils/versionManager';
+import { checkVersion, logVersionInfo, showVersionHighlightsOnce } from './utils/versionManager';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import CopyrightNotice from './components/common/CopyrightNotice';
 import VersionBadge from './components/common/VersionBadge';
@@ -38,7 +37,8 @@ import {
   loadRemotePlanning,
   saveCompletePlanningData,
   listCompletePlanningBackups,
-  loadCompletePlanningBackupByWeekKey
+  loadCompletePlanningBackupByWeekKey,
+  getCurrentCompleteBackupInfo
 } from './utils/remoteStore';
 import { versionChecker } from './utils/versionChecker';
 import {
@@ -245,6 +245,8 @@ const App = () => {
       if (versionChanged) {
         return;
       }
+
+      showVersionHighlightsOnce();
       
       // Initialiser le vérificateur de version
       versionChecker.init().catch(error => {
@@ -600,6 +602,37 @@ const App = () => {
     const showStartupAlert = mode === 'startup';
     
     try {
+      if (showStartupAlert) {
+        const currentInfo = await getCurrentCompleteBackupInfo();
+        if (!currentInfo?.updatedAt) {
+          alert(
+            `ℹ️ Impossible d'identifier la sauvegarde courante (date/poste).\n\n` +
+            `Ouverture de l'historique Supabase pour choisir la version a restaurer.`
+          );
+          isRestoringSupabaseRef.current = false;
+          await handleRestoreBackupFromHistory({ bypassBusyGuard: true });
+          return;
+        }
+
+        const infoText =
+          `Date: ${new Date(currentInfo.updatedAt).toLocaleString('fr-FR')}\n` +
+          `Poste: ${currentInfo.savedByDevice || 'PC inconnu'}\n` +
+          `Utilisateur: ${currentInfo.savedByUser || 'Utilisateur inconnu'}\n` +
+          `Boutiques: ${currentInfo.shopsCount || 0}`;
+
+        const restoreCurrent = window.confirm(
+          `☁️ Sauvegarde Supabase détectée:\n\n${infoText}\n\n` +
+          `OK = Restaurer cette version\n` +
+          `Annuler = Voir l'historique des sauvegardes`
+        );
+
+        if (!restoreCurrent) {
+          isRestoringSupabaseRef.current = false;
+          await handleRestoreBackupFromHistory({ bypassBusyGuard: true });
+          return;
+        }
+      }
+
       // Initialiser Supabase
       const { createClient } = await import('@supabase/supabase-js');
       const url = import.meta.env.VITE_SUPABASE_URL;
@@ -682,13 +715,15 @@ const App = () => {
     }
   };
 
-  const handleRestoreBackupFromHistory = async () => {
-    if (isRestoringSupabaseRef.current) {
+  const handleRestoreBackupFromHistory = async ({ bypassBusyGuard = false } = {}) => {
+    if (!bypassBusyGuard && isRestoringSupabaseRef.current) {
       setFeedback('⏳ Une restauration est déjà en cours...');
       return;
     }
 
-    isRestoringSupabaseRef.current = true;
+    if (!bypassBusyGuard) {
+      isRestoringSupabaseRef.current = true;
+    }
     setFeedback('⏳ Chargement de l’historique Supabase...');
 
     try {
@@ -706,7 +741,7 @@ const App = () => {
           : item.weekKey.startsWith('legacy_row::')
             ? 'legacy'
             : 'snapshot';
-        return `${idx + 1}. ${dateText} (${item.shopsCount || 0} boutique(s), ${sourceLabel})`;
+        return `${idx + 1}. ${dateText} (${item.shopsCount || 0} boutique(s), ${sourceLabel}, ${item.savedByDevice || 'PC inconnu'}, ${item.savedByUser || 'Utilisateur inconnu'})`;
       });
 
       const selected = window.prompt(
@@ -755,7 +790,9 @@ const App = () => {
       setFeedback(`❌ Erreur restauration historique: ${error.message}`);
       alert(`❌ Erreur restauration historique: ${error.message}`);
     } finally {
-      isRestoringSupabaseRef.current = false;
+      if (!bypassBusyGuard) {
+        isRestoringSupabaseRef.current = false;
+      }
     }
   };
 
@@ -791,12 +828,31 @@ const App = () => {
   const handleImportData = handleImportPlanning;
 
   const handleExit = async () => {
-    if (window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) {
+    if (!window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) return;
+
+    try {
       if (currentUser?.code && hasGlobalLock) {
         await saveCompletePlanningData(planningData);
         await releaseLock(getLockHolderId(currentUser));
       }
+    } catch (error) {
+      console.error('❌ Erreur pendant la fermeture sécurisée:', error);
+    } finally {
+      // Nettoyage session même si la fermeture de fenêtre est bloquée
+      localStorage.removeItem('current_user');
+      localStorage.removeItem('user_id');
+      setCurrentUser(null);
+      setHasGlobalLock(false);
+      setMode('identification');
+      setFeedback('👋 Session fermée.');
+
       window.close();
+      setTimeout(() => {
+        if (!window.closed) {
+          // Fallback navigateur si fermeture onglet interdite
+          window.location.href = 'about:blank';
+        }
+      }, 300);
     }
   };
 
@@ -1464,6 +1520,7 @@ const App = () => {
               setFeedback={setFeedback}
               onRestoreFromSupabase={handleRestoreFromSupabase}
               onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
+              onExitApplication={handleExit}
             />
           <CopyrightNotice />
         </div>

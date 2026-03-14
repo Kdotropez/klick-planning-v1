@@ -56,7 +56,8 @@ const PlanningDisplay = ({
   setFeedback,
   onDeleteEmployee,
   onRestoreFromSupabase,
-  onRestoreBackupFromHistory
+  onRestoreBackupFromHistory,
+  onExitApplication
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
@@ -610,6 +611,8 @@ const PlanningDisplay = ({
     }
   }, [setPlanningData]);
 
+  const HIDE_EMPLOYEE_SINCE_DATE = '2026-01-01';
+
   // Fonction pour masquer un employé
   const handleHideEmployee = useCallback(async (employeeId) => {
     if (!employeeId) return;
@@ -621,14 +624,14 @@ const PlanningDisplay = ({
     // Demander confirmation avec une meilleure interface
     const confirmHide = window.confirm(
       `Êtes-vous sûr de vouloir masquer l'employé "${employeeName}" ?\n\n` +
-      `⚠️ ATTENTION : L'employé sera masqué à partir d'aujourd'hui et n'apparaîtra plus dans les rapports.\n\n` +
+      `⚠️ ATTENTION : L'employé sera masqué jusqu'à avis contraire (réactivation manuelle), avec référence depuis le 01/01/2026.\n\n` +
       `✅ Pour le réactiver plus tard, utilisez le bouton "🔓 Réactiver" sur sa carte.`
     );
     
     if (!confirmHide) return;
     
-    // Utiliser la date d'aujourd'hui comme date de masquage
-    const today = new Date().toISOString().split('T')[0];
+    // Date de référence fixe demandée pour le masquage persistant
+    const hideFromDate = HIDE_EMPLOYEE_SINCE_DATE;
     
     try {
       // Mettre à jour l'état local
@@ -638,11 +641,11 @@ const PlanningDisplay = ({
           shops: (prev.shops || []).map(shop => ({
             ...shop,
             employees: (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, hiddenFrom: today } : emp
+              emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
             )
           }))
         };
-        console.log('🔄 État local mis à jour avec hiddenFrom:', today);
+        console.log('🔄 État local mis à jour avec hiddenFrom:', hideFromDate);
         console.log('🔄 Nouvel état:', updated);
         return updated;
       });
@@ -652,7 +655,7 @@ const PlanningDisplay = ({
       const updatedShops = updatedData.shops.map(shop => ({
         ...shop,
         employees: (shop.employees || []).map(emp =>
-          emp && emp.id === employeeId ? { ...emp, hiddenFrom: today } : emp
+          emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
         )
       }));
       updatedData.shops = updatedShops;
@@ -664,14 +667,14 @@ const PlanningDisplay = ({
         const remoteResult = await saveCompletePlanningData(updatedData);
         if (remoteResult) {
           console.log('✅ Masquage sauvegardé dans Supabase');
-          setLocalFeedback(`🚫 Employé "${employeeName}" masqué avec succès et sauvegardé dans Supabase`);
+          setLocalFeedback(`🚫 Employé "${employeeName}" masqué jusqu'à réactivation manuelle (référence 01/01/2026) et sauvegardé dans Supabase`);
                 } else {
           console.log('❌ Échec sauvegarde Supabase du masquage');
-          setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement mais échec sauvegarde Supabase`);
+          setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement (référence 01/01/2026) mais échec sauvegarde Supabase`);
         }
       } catch (error) {
         console.error('❌ Erreur sauvegarde Supabase du masquage:', error);
-        setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement mais échec sauvegarde Supabase`);
+        setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement (référence 01/01/2026) mais échec sauvegarde Supabase`);
       }
     } catch (e) {
       console.error('Erreur masquage employé:', e);
@@ -1289,6 +1292,7 @@ const PlanningDisplay = ({
 
   // État pour la prochaine sauvegarde automatique
   const [nextAutoBackup, setNextAutoBackup] = useState(null);
+  const [autoBackupNowMs, setAutoBackupNowMs] = useState(Date.now());
 
   // Sauvegarde automatique JSON toutes les 5 minutes
   useEffect(() => {
@@ -1308,6 +1312,13 @@ const PlanningDisplay = ({
       return () => clearInterval(autoBackupInterval);
     }
   }, [planningData, createAutoBackupJSON, readOnly]);
+
+  useEffect(() => {
+    const countdownId = setInterval(() => {
+      setAutoBackupNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(countdownId);
+  }, []);
 
   const changeWeek = (direction) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
@@ -1846,7 +1857,7 @@ const PlanningDisplay = ({
           fontWeight: '500'
         }}>
           <span style={{ marginRight: '8px' }}>💾</span>
-          Sauvegarde automatique JSON dans {Math.max(0, Math.floor((nextAutoBackup - new Date()) / 1000 / 60))} min
+          Sauvegarde automatique JSON dans {Math.max(0, Math.ceil((nextAutoBackup - autoBackupNowMs) / 1000))} s
         </div>
       )}
 
@@ -1883,6 +1894,7 @@ const PlanningDisplay = ({
             diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
             handleRestoreBackupFromHistory={onRestoreBackupFromHistory}
+            handleExitApplication={onExitApplication}
           currentUser={currentUser}
           // Nouveaux props pour les boutons déplacés
           setShowResetModal={setShowResetModal}
@@ -1953,14 +1965,14 @@ const PlanningDisplay = ({
         </button>
       </div>
       
-      {showEmployeeRecap && localSelectedEmployees && localSelectedEmployees.length > 0 && (
+      {showEmployeeRecap && currentShopEmployees && currentShopEmployees.length > 0 && (
         <>
           <div style={{ 
-            display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, 240px)',
+            display: 'flex',
+            flexDirection: 'column',
+            flexWrap: 'nowrap',
             alignItems: 'stretch',
-            justifyItems: 'center',
-              justifyContent: 'center',
+            justifyContent: 'flex-start',
             gap: '16px',
             padding: '20px',
             background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
@@ -1969,30 +1981,89 @@ const PlanningDisplay = ({
             marginBottom: '20px',
             width: '100%',
             boxSizing: 'border-box',
-            overflowX: 'visible',
+            overflowX: 'hidden',
+            overflowY: 'auto',
             boxShadow: '0 4px 20px rgba(254, 215, 215, 0.3)'
           }}>
-            {localSelectedEmployees.map((employeeId) => {
+            {(localSelectedEmployees && localSelectedEmployees.length > 1
+              ? localSelectedEmployees
+              : (currentShopEmployees || []).map((emp) => emp.id)
+            ).map((employeeId) => {
               const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
               const employeeName = employee?.name || employeeId;
+              const weeklyTotalHours = (() => {
+                if (!selectedWeek || !planningData) return 0;
+                let totalHours = 0;
+                const employeeShops = (planningData?.shops || []).filter(shop =>
+                  shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]
+                );
+
+                employeeShops.forEach(shop => {
+                  for (let i = 0; i < 7; i++) {
+                    const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                    if (shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
+                      const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
+                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                        totalHours += hours;
+                      }
+                    }
+                  }
+                });
+                return totalHours;
+              })();
+              const monthlyTotalHours = (() => {
+                if (!selectedWeek || !planningData) return 0;
+                const currentDate = new Date(selectedWeek);
+                const year = currentDate.getFullYear();
+                const month = currentDate.getMonth();
+                const lastDayOfMonth = new Date(year, month + 1, 0);
+                let totalHours = 0;
+
+                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
+                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
+                  if (planningData.shops) {
+                    planningData.shops.forEach(shop => {
+                      if (shop.weeks) {
+                        Object.keys(shop.weeks).forEach(weekKey => {
+                          const weekData = shop.weeks[weekKey];
+                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
+                            const slots = weekData.planning[employeeId][dayKey];
+                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
+                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
+                              totalHours += hours;
+                            }
+                          }
+                        });
+                      }
+                    });
+                  }
+                }
+                return totalHours;
+              })();
               
               return (
                 <div key={employeeId} style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
+                  display: 'grid',
+                  gridAutoFlow: 'column',
+                  gridAutoColumns: deviceInfo.isTablet ? 'minmax(190px, auto)' : 'minmax(170px, auto)',
+                  columnGap: '10px',
+                  rowGap: '8px',
+                  alignItems: 'start',
                   padding: '22px 24px',
                   background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
                   borderRadius: '16px',
                   border: '2px solid #e3f2fd',
-                  width: '240px',
-                  minWidth: '240px',
-                  maxWidth: '240px',
+                  width: '100%',
+                  minWidth: '100%',
+                  maxWidth: 'none',
+                  flex: '0 0 auto',
                   textAlign: 'center',
                   boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
                   transition: 'all 0.3s ease',
                   position: 'relative',
-                  overflow: 'hidden',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
                   boxSizing: 'border-box'
                 }}>
                   <div style={{ 
@@ -2009,9 +2080,85 @@ const PlanningDisplay = ({
                     textOverflow: 'ellipsis',
                     boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
                     textShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                    letterSpacing: '0.5px'
+                    letterSpacing: '0.5px',
+                    gridColumn: '1 / -1'
                   }}>
                     👤 {employeeName}
+                  </div>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    width: '100%',
+                    gridColumn: '1 / -1'
+                  }}>
+                    <button
+                      onClick={() => {
+                        setSelectedEmployeeForWeeklyRecap(employeeId);
+                        setShowEmployeeWeeklyRecap(true);
+                      }}
+                      style={{
+                        backgroundColor: '#2e7d32',
+                        color: 'white',
+                        padding: deviceInfo.isTablet ? '10px 12px' : '9px 10px',
+                        fontSize: deviceInfo.isTablet ? '13px' : '12px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        letterSpacing: '0.2px',
+                        width: '100%',
+                        textAlign: 'center'
+                      }}
+                      title="Récapitulatif hebdomadaire"
+                    >
+                      📊 Semaine: {weeklyTotalHours.toFixed(1)}h
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedEmployeeForMonthlyDetail(employeeId);
+                        setShowEmployeeMonthlyDetail(true);
+                      }}
+                      style={{
+                        backgroundColor: '#1e88e5',
+                        color: 'white',
+                        padding: deviceInfo.isTablet ? '10px 12px' : '9px 10px',
+                        fontSize: deviceInfo.isTablet ? '13px' : '12px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        letterSpacing: '0.2px',
+                        width: '100%',
+                        textAlign: 'center'
+                      }}
+                      title="Récapitulatif mensuel global"
+                    >
+                      📈 Mois: {monthlyTotalHours.toFixed(2)}h
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedEmployeeForMonthlyRecap(employeeId);
+                        setShowEmployeeMonthlyRecap(true);
+                      }}
+                      style={{
+                        backgroundColor: '#ff9800',
+                        color: 'white',
+                        padding: deviceInfo.isTablet ? '10px 12px' : '9px 10px',
+                        fontSize: deviceInfo.isTablet ? '13px' : '12px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        letterSpacing: '0.2px',
+                        width: '100%',
+                        textAlign: 'center'
+                      }}
+                      title="Detail/mois/boutique"
+                    >
+                      📈 Detail/mois/boutique
+                    </button>
                   </div>
                   
                   {/* Bouton Semaine - Toujours présent avec couleur verte */}
@@ -2035,7 +2182,8 @@ const PlanningDisplay = ({
                       whiteSpace: 'nowrap',
                       minHeight: deviceInfo.isTablet ? '48px' : '40px',
                       letterSpacing: '0.5px',
-                      width: '100%'
+                      width: '100%',
+                      display: 'none'
                     }}
                     onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#1b5e20';
@@ -2297,7 +2445,8 @@ const PlanningDisplay = ({
                                 whiteSpace: 'nowrap',
                       minHeight: deviceInfo.isTablet ? '48px' : '40px',
                       letterSpacing: '0.5px',
-                      width: '100%'
+                      width: '100%',
+                      display: 'none'
                               }}
                               onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#1565c0';
@@ -2637,7 +2786,8 @@ const PlanningDisplay = ({
                       whiteSpace: 'nowrap',
                       minHeight: deviceInfo.isTablet ? '48px' : '40px',
                       letterSpacing: '0.5px',
-                      width: '100%'
+                      width: '100%',
+                      display: 'none'
                     }}
                     onMouseOver={(e) => {
                       e.currentTarget.style.backgroundColor = '#f57c00';
@@ -3237,7 +3387,7 @@ const PlanningDisplay = ({
                               e.currentTarget.style.backgroundColor = '#dc3545';
                               e.currentTarget.style.transform = 'translateY(0)';
                             }}
-                            title="Masquer l'employé - L'employé sera caché à partir d'aujourd'hui et n'apparaîtra plus dans les rapports"
+                            title="Masquer l'employé - Masqué jusqu'à réactivation manuelle (référence 01/01/2026)"
                           >
                             🚫 Masquer
                           </button>

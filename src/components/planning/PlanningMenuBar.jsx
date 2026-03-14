@@ -32,6 +32,7 @@ const PlanningMenuBar = ({
   handleManualSave,
   handleRestoreFromSupabase,
   handleRestoreBackupFromHistory,
+  handleExitApplication,
   // Modules
   onOpenDashboard,
   onOpenShopStats,
@@ -246,13 +247,23 @@ const PlanningMenuBar = ({
             onClick={async () => {
               if (window.confirm('Voulez-vous fermer l’application ?')) {
                 try {
-                  // Sauvegarde automatique avant fermeture
+                  if (typeof handleExitApplication === 'function') {
+                    await Promise.resolve(handleExitApplication());
+                    return;
+                  }
+
+                  // Fallback local si la fonction centrale n'est pas fournie
                   if (typeof handleManualSave === 'function') {
                     await Promise.resolve(handleManualSave());
                   }
                   window.close();
+                  setTimeout(() => {
+                    if (!window.closed) {
+                      window.location.href = 'about:blank';
+                    }
+                  }, 250);
                 } catch (_) {
-                  // Certains navigateurs bloquent la fermeture
+                  window.location.href = 'about:blank';
                 }
               }
             }}
