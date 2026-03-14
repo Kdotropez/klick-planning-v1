@@ -18,6 +18,13 @@ const VERSION_HIGHLIGHTS = {
     'Fermeture application renforcee: sauvegarde puis liberation du verrou avant fermeture de session.',
     'Recap employe reamenage: cartes par employe plus lisibles et actions essentielles regroupees sous le nom.',
     'Affichage des elements de recap adapte pour gagner de la place tout en gardant les donnees importantes accessibles.'
+  ],
+  '3.10.51': [
+    'Masquage et reactivation des employes corriges par boutique, sans fuite entre boutiques.',
+    'Filtrage strict des employes: seuls les employes reellement affectes a la boutique sont affiches.',
+    'La version commune Supabase devient la source obligatoire au demarrage pour eviter les ecrasements.',
+    'Popup Nouveautes passe en plein ecran pour une lecture confortable.',
+    'Affichage des nouveautes/historique au lancement maintenu avec historique complet des versions.'
   ]
 };
 

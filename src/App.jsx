@@ -857,7 +857,7 @@ const App = () => {
           position: 'fixed',
           top: '12px',
           right: '12px',
-          zIndex: 20000,
+          zIndex: 9000,
           backgroundColor: isWarning ? 'rgba(220, 53, 69, 0.95)' : 'rgba(23, 162, 184, 0.95)',
           color: '#fff',
           borderRadius: '10px',

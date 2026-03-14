@@ -143,7 +143,7 @@ export class VersionChecker {
         padding: 20px;
         border-radius: 10px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        z-index: 10000;
+        z-index: 50000;
         max-width: 350px;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         animation: slideIn 0.5s ease-out;
