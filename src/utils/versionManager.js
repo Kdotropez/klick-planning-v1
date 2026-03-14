@@ -25,10 +25,17 @@ const VERSION_HIGHLIGHTS = {
     'La version commune Supabase devient la source obligatoire au demarrage pour eviter les ecrasements.',
     'Popup Nouveautes passe en plein ecran pour une lecture confortable.',
     'Affichage des nouveautes/historique au lancement maintenu avec historique complet des versions.'
-  ],
+  ]
+,
   '3.10.52': [
     'Mise a jour version 3.10.52.',
     'Historique a completer.'
+  ],
+  '3.10.53': [
+    'Ajout du bouton "Journal d audit" dans le menu planning.',
+    'Acces protege par code 2111 avant affichage du journal.',
+    'Nouvel ecran lisible avec date, utilisateur, action, boutique et details.',
+    'Trace locale des actions principales (connexion, restauration, sauvegarde manuelle, masquage/reactivation employe, fermeture session).'
   ]
 };
 

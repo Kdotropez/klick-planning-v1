@@ -6,7 +6,9 @@ import Button from '../common/Button';
 import { checkUserPermission } from '../../config/userCodes';
 import UserManagementModal from '../admin/UserManagementModal';
 import HiddenEmployeesModal from './HiddenEmployeesModal';
+import AuditLogModal from './AuditLogModal';
 import { getHiddenEmployees } from '../../utils/planningDataManager';
+import { listAuditLogs, clearAuditLogs } from '../../utils/auditLog';
 import '../../assets/styles.css';
 
 const PlanningMenuBar = ({
@@ -91,6 +93,8 @@ const PlanningMenuBar = ({
 }) => {
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showHiddenEmployeesModal, setShowHiddenEmployeesModal] = useState(false);
+  const [showAuditLogModal, setShowAuditLogModal] = useState(false);
+  const [auditEntries, setAuditEntries] = useState([]);
   const [hiddenEmployeesCount, setHiddenEmployeesCount] = useState(0);
   
   const fileInputRef = useRef(null);
@@ -106,6 +110,17 @@ const PlanningMenuBar = ({
     }
     // Reset the input
     event.target.value = '';
+  };
+
+  const openAuditLog = () => {
+    const code = window.prompt('Code d acces journal d audit:');
+    if (!code) return;
+    if (code.trim() !== '2111') {
+      alert('❌ Code incorrect.');
+      return;
+    }
+    setAuditEntries(listAuditLogs(500));
+    setShowAuditLogModal(true);
   };
 
   // Calculer le nombre d'employés masqués
@@ -473,6 +488,29 @@ const PlanningMenuBar = ({
               {hiddenEmployeesCount}
             </span>
           )}
+        </Button>
+
+        <Button
+          className="button-primary"
+          onClick={openAuditLog}
+          style={{
+            backgroundColor: '#37474f',
+            color: '#fff',
+            padding: '10px 14px',
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#263238'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#37474f'}
+          title="Journal d audit (acces protege 2111)"
+        >
+          📋 Journal d audit
         </Button>
 
         <Button
@@ -885,6 +923,23 @@ const PlanningMenuBar = ({
         onEmployeeUpdate={onEmployeeUpdate}
         currentDate={new Date()}
         currentShop={currentShop}
+      />
+
+      <AuditLogModal
+        isOpen={showAuditLogModal}
+        onClose={() => setShowAuditLogModal(false)}
+        entries={auditEntries}
+        onRefresh={() => setAuditEntries(listAuditLogs(500))}
+        onClear={() => {
+          const code = window.prompt('Confirmer code 2111 pour vider le journal:');
+          if (code?.trim() !== '2111') {
+            alert('❌ Code incorrect.');
+            return;
+          }
+          if (!window.confirm('Vider completement le journal d audit ?')) return;
+          clearAuditLogs();
+          setAuditEntries(listAuditLogs(500));
+        }}
       />
     </div>
   );

@@ -30,6 +30,7 @@ import { usePlanningLock } from '../../hooks/usePlanningLock';
 import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
+import { addAuditLog } from '@/utils/auditLog';
 import '@/assets/styles.css';
 import '../dashboard/Dashboard.css';
 
@@ -680,6 +681,14 @@ const PlanningDisplay = ({
       }));
       updatedData.shops = updatedShops;
       localStorage.setItem('planningData', JSON.stringify(updatedData));
+      addAuditLog({
+        action: 'Masquage Employe',
+        details: `Employe ${employeeName} masque (reference ${HIDE_EMPLOYEE_SINCE_DATE}).`,
+        userCode: currentUser?.code,
+        userName: currentUser?.name,
+        shopId: selectedShop,
+        shopName: shopLabel
+      });
                 
                 // Sauvegarder dans Supabase
       try {
@@ -741,6 +750,14 @@ const PlanningDisplay = ({
       }));
       updatedData.shops = updatedShops;
       localStorage.setItem('planningData', JSON.stringify(updatedData));
+      addAuditLog({
+        action: 'Reactivation Employe',
+        details: `Employe ${employeeName} reactive.`,
+        userCode: currentUser?.code,
+        userName: currentUser?.name,
+        shopId: selectedShop,
+        shopName: shopLabel
+      });
       
       // Sauvegarder dans Supabase
       try {
@@ -1103,6 +1120,14 @@ const PlanningDisplay = ({
           if (remoteResult) {
             console.log('✅ Sauvegarde complète Supabase réussie');
             setLocalFeedback('💾 Sauvegarde complète réussie');
+            addAuditLog({
+              action: 'Sauvegarde Manuelle',
+              details: `Sauvegarde complete validee pour la semaine ${selectedWeek}.`,
+              userCode: currentUser?.code,
+              userName: currentUser?.name,
+              shopId: selectedShop,
+              shopName: shops.find((shop) => shop.id === selectedShop)?.name || selectedShop
+            });
           } else {
             console.log('❌ Échec sauvegarde complète Supabase');
             setLocalFeedback('❌ Échec sauvegarde complète');

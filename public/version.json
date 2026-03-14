@@ -1,7 +1,16 @@
 {
-  "version": "3.10.52",
+  "version": "3.10.53",
   "lastUpdate": "2026-03-14",
   "changelog": [
+    {
+      "version": "3.10.53",
+      "date": "2026-03-14",
+      "changes": [
+        "Ajout du Journal d audit dans la barre de menu du planning.",
+        "Acces protege par code 2111 avec affichage date/utilisateur/action/boutique/details.",
+        "Traçage local des actions principales pour suivi superviseur."
+      ]
+    },
     {
       "version": "3.10.52",
       "date": "2026-03-14",

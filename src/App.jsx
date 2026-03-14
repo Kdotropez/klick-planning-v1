@@ -41,6 +41,7 @@ import {
   getCurrentCompleteBackupInfo,
   loadCompletePlanningData
 } from './utils/remoteStore';
+import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
 import {
   initLockService,
@@ -156,6 +157,19 @@ const App = () => {
   );
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
   const [isSupabaseStartupReady, setIsSupabaseStartupReady] = useState(false);
+  const [inactivityCounterPosition, setInactivityCounterPosition] = useState(() => {
+    try {
+      const raw = localStorage.getItem('ui_inactivity_counter_position');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') {
+        return { x: parsed.x, y: parsed.y };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
   const [highContrastMode, setHighContrastMode] = useState(() => {
     try {
       return localStorage.getItem('ui_high_contrast_mode') === 'true';
@@ -164,6 +178,8 @@ const App = () => {
     }
   });
   const lastActivityRef = useRef(Date.now());
+  const inactivityCounterRef = useRef(null);
+  const inactivityDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 });
 
   // Vérification centralisée pour les fonctions sensibles (protégées par le code administrateur)
   const isPrimaryAdmin = currentUser && currentUser.code === PRIMARY_ADMIN_CODE;
@@ -201,6 +217,9 @@ const App = () => {
 
     return match?.id || shops[0]?.id || '';
   };
+
+  const getShopNameById = (shopId, data = planningData) =>
+    data?.shops?.find((shop) => shop.id === shopId)?.name || shopId || '';
 
   const initGlobalLock = () => {
     const url = import.meta.env.VITE_SUPABASE_URL;
@@ -488,6 +507,16 @@ const App = () => {
   }, [highContrastMode]);
 
   useEffect(() => {
+    try {
+      if (inactivityCounterPosition && typeof inactivityCounterPosition.x === 'number' && typeof inactivityCounterPosition.y === 'number') {
+        localStorage.setItem('ui_inactivity_counter_position', JSON.stringify(inactivityCounterPosition));
+      }
+    } catch (error) {
+      console.warn('⚠️ Impossible de sauvegarder la position du compteur inactivité:', error);
+    }
+  }, [inactivityCounterPosition]);
+
+  useEffect(() => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const onBeforeUnload = () => {
@@ -546,6 +575,14 @@ const App = () => {
     }
     setMode('main-startup');
     setFeedback(`👋 Bienvenue ${user.name} !`);
+    addAuditLog({
+      action: 'Connexion',
+      details: 'Connexion utilisateur validee.',
+      userCode: user?.code,
+      userName: user?.name,
+      shopId: preferredShopId,
+      shopName: getShopNameById(preferredShopId, planningData)
+    });
   };
 
   const handleEmergencyUnlock = async () => {
@@ -726,6 +763,14 @@ const App = () => {
         const message = '✅ Planning restauré depuis Supabase avec nettoyage complet ! Sélectionnez une semaine.';
         setFeedback(message);
         if (showStartupAlert) alert('✅ Restauration Supabase réussie.');
+        addAuditLog({
+          action: 'Restauration Supabase',
+          details: 'Version courante Supabase restauree.',
+          userCode: currentUser?.code,
+          userName: currentUser?.name,
+          shopId: selectedShop || restoredData?.shops?.[0]?.id || '',
+          shopName: getShopNameById(selectedShop || restoredData?.shops?.[0]?.id || '', restoredData)
+        });
       }
       
     } catch (error) {
@@ -807,6 +852,14 @@ const App = () => {
       const restoredAt = chosen.updatedAt ? new Date(chosen.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
       setFeedback(`✅ Historique restauré (${restoredAt}).`);
       alert(`✅ Historique restauré (${restoredAt}).`);
+      addAuditLog({
+        action: 'Restauration Historique Supabase',
+        details: `Sauvegarde restauree: ${restoredAt}`,
+        userCode: currentUser?.code,
+        userName: currentUser?.name,
+        shopId: firstShop?.id || '',
+        shopName: getShopNameById(firstShop?.id || '', restoredData)
+      });
     } catch (error) {
       console.error('❌ Erreur restauration historique:', error);
       setFeedback(`❌ Erreur restauration historique: ${error.message}`);
@@ -860,6 +913,14 @@ const App = () => {
     } catch (error) {
       console.error('❌ Erreur pendant la fermeture sécurisée:', error);
     } finally {
+      addAuditLog({
+        action: 'Fermeture Session',
+        details: 'Fermeture application demandee.',
+        userCode: currentUser?.code,
+        userName: currentUser?.name,
+        shopId: selectedShop || '',
+        shopName: getShopNameById(selectedShop || '')
+      });
       // Nettoyage session même si la fermeture de fenêtre est bloquée
       localStorage.removeItem('current_user');
       localStorage.removeItem('user_id');
@@ -885,16 +946,74 @@ const App = () => {
     return `${mm}:${ss}`;
   };
 
+  const startInactivityCounterDrag = (clientX, clientY) => {
+    const node = inactivityCounterRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    inactivityDragRef.current = {
+      dragging: true,
+      offsetX: clientX - rect.left,
+      offsetY: clientY - rect.top
+    };
+  };
+
+  useEffect(() => {
+    const handleMove = (clientX, clientY) => {
+      if (!inactivityDragRef.current.dragging) return;
+      const node = inactivityCounterRef.current;
+      if (!node) return;
+
+      const rect = node.getBoundingClientRect();
+      const maxX = Math.max(0, window.innerWidth - rect.width);
+      const maxY = Math.max(0, window.innerHeight - rect.height);
+      const nextX = Math.max(0, Math.min(clientX - inactivityDragRef.current.offsetX, maxX));
+      const nextY = Math.max(0, Math.min(clientY - inactivityDragRef.current.offsetY, maxY));
+
+      setInactivityCounterPosition({ x: nextX, y: nextY });
+    };
+
+    const onMouseMove = (event) => handleMove(event.clientX, event.clientY);
+    const onTouchMove = (event) => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      handleMove(touch.clientX, touch.clientY);
+    };
+    const endDrag = () => {
+      inactivityDragRef.current.dragging = false;
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', endDrag);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', endDrag);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', endDrag);
+    };
+  }, []);
+
   const renderInactivityCounter = () => {
     if (!showInactivityCounter || !currentUser || !hasGlobalLock || mode === 'identification') return null;
 
     const isWarning = inactivityRemainingSeconds <= 60;
     return (
       <div
+        ref={inactivityCounterRef}
+        onMouseDown={(event) => startInactivityCounterDrag(event.clientX, event.clientY)}
+        onTouchStart={(event) => {
+          const touch = event.touches?.[0];
+          if (!touch) return;
+          startInactivityCounterDrag(touch.clientX, touch.clientY);
+        }}
         style={{
           position: 'fixed',
-          top: '12px',
-          right: '12px',
+          top: `${inactivityCounterPosition?.y ?? 12}px`,
+          ...(typeof inactivityCounterPosition?.x === 'number'
+            ? { left: `${inactivityCounterPosition.x}px` }
+            : { right: '12px' }),
           zIndex: 9000,
           backgroundColor: isWarning ? 'rgba(220, 53, 69, 0.95)' : 'rgba(23, 162, 184, 0.95)',
           color: '#fff',
@@ -904,7 +1023,9 @@ const App = () => {
           fontSize: '13px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
           minWidth: '220px',
-          textAlign: 'center'
+          textAlign: 'center',
+          cursor: 'move',
+          userSelect: 'none'
         }}
       >
         <div style={{ fontWeight: '700', marginBottom: '4px' }}>
