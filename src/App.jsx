@@ -52,6 +52,19 @@ import {
 } from './utils/collabLock';
 import { PRIMARY_ADMIN_CODE, pullUserCodesFromSupabase } from './config/userCodes';
 
+const USER_DEFAULT_SHOP_ALIASES = {
+  ANGELIQUE: 'SAINT TROPEZ',
+  EVELYNE: 'SAINTE MAXIME',
+  CHRISTELLE: 'CANNES'
+};
+
+const normalizeToken = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
 const App = () => {
   const isRestoringSupabaseRef = useRef(false);
   // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
@@ -164,6 +177,29 @@ const App = () => {
       return false;
     }
     return true;
+  };
+
+  const resolvePreferredShopId = (user, data) => {
+    const shops = data?.shops || [];
+    if (!shops.length) return '';
+
+    const userName = normalizeToken(user?.name);
+    const userCode = normalizeToken(user?.code);
+
+    const preferredAlias = Object.entries(USER_DEFAULT_SHOP_ALIASES).find(([alias]) =>
+      userName.includes(alias) || userCode.includes(alias)
+    )?.[1];
+
+    if (!preferredAlias) return shops[0]?.id || '';
+
+    const target = normalizeToken(preferredAlias);
+    const match = shops.find((shop) => {
+      const idToken = normalizeToken(shop?.id);
+      const nameToken = normalizeToken(shop?.name);
+      return idToken === target || nameToken === target || idToken.includes(target) || nameToken.includes(target);
+    });
+
+    return match?.id || shops[0]?.id || '';
   };
 
   const initGlobalLock = () => {
@@ -504,6 +540,10 @@ const App = () => {
     resetInactivityTimer();
     setLockCountdownSeconds(0);
     setLockOwnerText('');
+    const preferredShopId = resolvePreferredShopId(user, planningData);
+    if (preferredShopId) {
+      setSelectedShop(preferredShopId);
+    }
     setMode('main-startup');
     setFeedback(`👋 Bienvenue ${user.name} !`);
   };
@@ -564,7 +604,7 @@ const App = () => {
   // Continuer avec les données locales
   const handleContinueWithLocalData = () => {
     if (planningData && planningData.shops && planningData.shops.length > 0) {
-      setSelectedShop(planningData.shops[0].id);
+      setSelectedShop(resolvePreferredShopId(currentUser, planningData));
       setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
       setMode('week-selection');
       setFeedback('✅ Continuation avec les données locales');
@@ -677,8 +717,7 @@ const App = () => {
       });
       
       // Sélectionner la première boutique
-      const firstShop = restoredData.shops[0];
-      setSelectedShop(firstShop.id);
+      setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
       setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
       
       // Aller à la sélection de semaine
@@ -761,8 +800,7 @@ const App = () => {
       setPlanningData(restoredData);
       localStorage.setItem('planningData', JSON.stringify(restoredData));
 
-      const firstShop = restoredData.shops[0];
-      setSelectedShop(firstShop.id);
+      setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
       setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
       setMode('week-selection');
 
@@ -795,7 +833,7 @@ const App = () => {
       
       // Sélectionner la première boutique par défaut
       if (importedData.shops && importedData.shops.length > 0) {
-        setSelectedShop(importedData.shops[0].id);
+        setSelectedShop(resolvePreferredShopId(currentUser, importedData));
       }
       
       // Aller à la sélection de semaine (comportement d'origine qui fonctionnait)
@@ -983,6 +1021,9 @@ const App = () => {
 
   // Nouvelles fonctions de navigation pour les modules
   const handleSelectPlanning = () => {
+    if (!selectedShop && planningData?.shops?.length > 0) {
+      setSelectedShop(resolvePreferredShopId(currentUser, planningData));
+    }
     setMode('startup'); // Retour à l'écran de démarrage du planning
   };
 
@@ -1047,7 +1088,7 @@ const App = () => {
     try {
       // Initialiser les valeurs par défaut pour le planning
       if (planningData.shops && planningData.shops.length > 0) {
-        const firstShop = planningData.shops[0];
+        const firstShop = planningData.shops.find((shop) => shop.id === resolvePreferredShopId(currentUser, planningData)) || planningData.shops[0];
         console.log('Première boutique:', firstShop);
         
         if (firstShop && firstShop.id) {
@@ -1066,12 +1107,12 @@ const App = () => {
       setSelectedWeek(currentWeek);
       
       // Initialiser les employés sélectionnés (employés affectés à la première boutique)
-      if (planningData.shops && planningData.shops.length > 0 && 
-          planningData.shops[0] && planningData.shops[0].employees && 
-          planningData.shops[0].employees.length > 0) {
-        const firstShop = planningData.shops[0];
-        console.log('Première boutique:', firstShop);
-        console.log('Tous les employés de la première boutique:', firstShop.employees);
+      const preferredShop = planningData.shops?.find((shop) => shop.id === resolvePreferredShopId(currentUser, planningData))
+        || planningData.shops?.[0];
+      if (preferredShop && preferredShop.employees && preferredShop.employees.length > 0) {
+        const firstShop = preferredShop;
+        console.log('Boutique par défaut utilisateur:', firstShop);
+        console.log('Tous les employés de la boutique par défaut:', firstShop.employees);
         
         const firstShopEmployees = firstShop.employees
           .filter(emp => emp && emp.id && emp.canWorkIn && emp.canWorkIn.includes(firstShop.id)) // Filtrer les employés affectés à cette boutique
@@ -1201,7 +1242,7 @@ const App = () => {
   const handleBackToWeekSelection = () => {
     // S'assurer qu'une boutique est sélectionnée
     if (!selectedShop && planningData.shops && planningData.shops.length > 0) {
-      setSelectedShop(planningData.shops[0].id);
+      setSelectedShop(resolvePreferredShopId(currentUser, planningData));
     }
     setMode('week-selection');
   };
