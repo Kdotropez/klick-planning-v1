@@ -1641,23 +1641,17 @@ const PlanningDisplay = ({
       // TRANSFORMATION DES CLÉS DE DATES : Créer un nouveau planning avec les clés de la semaine destination
       const transformedPlanning = {};
       
-      // Générer les dates de la semaine destination (4/08 au 10/08)
-      const destinationDates = [];
-      const startDate = new Date(destinationWeek);
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i);
-        destinationDates.push(date.toISOString().split('T')[0]);
-      }
-      
-      // Générer les dates de la semaine source (28/07 au 3/08)
-      const sourceDates = [];
-      const sourceStartDate = new Date(sourceWeek);
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(sourceStartDate);
-        date.setDate(sourceStartDate.getDate() + i);
-        sourceDates.push(date.toISOString().split('T')[0]);
-      }
+      const buildWeekDates = (weekStartKey) => {
+        const baseDate = parseISO(weekStartKey);
+        return Array.from({ length: 7 }, (_, index) =>
+          format(addDays(baseDate, index), 'yyyy-MM-dd')
+        );
+      };
+
+      // IMPORTANT: utiliser format() (timezone locale) et pas toISOString() pour eviter
+      // les decalages de jour qui cassent la copie semaine -> semaine+1.
+      const destinationDates = buildWeekDates(destinationWeek);
+      const sourceDates = buildWeekDates(sourceWeek);
       
       console.log('📅 Dates source:', sourceDates);
       console.log('📅 Dates destination:', destinationDates);
@@ -1669,8 +1663,11 @@ const PlanningDisplay = ({
         // Copier les données de chaque jour en transformant les clés
         sourceDates.forEach((sourceDate, index) => {
           const destinationDate = destinationDates[index];
-          if (sourcePlanning[empId][sourceDate]) {
-            transformedPlanning[empId][destinationDate] = [...sourcePlanning[empId][sourceDate]];
+          if (Object.prototype.hasOwnProperty.call(sourcePlanning[empId], sourceDate)) {
+            const sourceDayValue = sourcePlanning[empId][sourceDate];
+            transformedPlanning[empId][destinationDate] = Array.isArray(sourceDayValue)
+              ? [...sourceDayValue]
+              : sourceDayValue;
             console.log(`🔄 Copie ${sourceDate} → ${destinationDate} pour ${empId}`);
           }
         });
