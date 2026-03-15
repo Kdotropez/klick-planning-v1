@@ -36,6 +36,11 @@ const VERSION_HIGHLIGHTS = {
     'Acces protege par code superviseur avant affichage du journal.',
     'Nouvel ecran lisible avec date, utilisateur, action, boutique et details.',
     'Trace locale des actions principales (connexion, restauration, sauvegarde manuelle, masquage/reactivation employe, fermeture session).'
+  ],
+  '3.10.54': [
+    'Correction de la copie semaine vers semaine+1 (mapping des dates fiabilise en timezone locale).',
+    'Correction de la copie des statuts journaliers (conge/maladie) lors du report a la semaine suivante.',
+    'Stabilisation du Journal d audit (ordre des hooks React) et reduction des logs techniques bruyants.'
   ]
 };
 

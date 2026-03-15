@@ -1,7 +1,16 @@
 {
-  "version": "3.10.53",
-  "lastUpdate": "2026-03-14",
+  "version": "3.10.54",
+  "lastUpdate": "2026-03-15",
   "changelog": [
+    {
+      "version": "3.10.54",
+      "date": "2026-03-15",
+      "changes": [
+        "Correction de la copie semaine vers semaine+1 (dates locales fiables).",
+        "Correction de la copie des statuts conge/maladie vers la semaine destination.",
+        "Stabilisation du journal d'audit et reduction des logs debug bruyants."
+      ]
+    },
     {
       "version": "3.10.53",
       "date": "2026-03-14",
