@@ -1612,10 +1612,16 @@ const PlanningDisplay = ({
         console.log('✅ Utilisateur a confirmé l\'écrasement des données existantes');
       }
       
-      // Récupérer les données de la semaine source depuis planningData
+      // Récupérer les données de la semaine source depuis planningData.
+      // Si la semaine source est la semaine actuellement affichée, utiliser
+      // l'état local en mémoire pour inclure les modifications non encore sauvegardées
+      // (notamment statuts Congé/Maladie).
       const sourceWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[sourceWeek];
-      const sourcePlanning = sourceWeekData?.planning || {};
-      const sourceSelectedEmployees = sourceWeekData?.selectedEmployees || [];
+      const isSourceCurrentWeek = sourceWeek === selectedWeek;
+      const sourcePlanning = isSourceCurrentWeek ? (planning || {}) : (sourceWeekData?.planning || {});
+      const sourceSelectedEmployees = isSourceCurrentWeek
+        ? (localSelectedEmployees || [])
+        : (sourceWeekData?.selectedEmployees || []);
       
       console.log('📊 Planning source à copier (semaine 28/07):', sourcePlanning);
       console.log('📊 Structure détaillée du planning source:', JSON.stringify(sourcePlanning, null, 2));
@@ -1723,7 +1729,7 @@ const PlanningDisplay = ({
       console.error('❌ Erreur lors de la copie:', error);
       setLocalFeedback('❌ Erreur lors de la copie des données');
     }
-  }, [selectedShop, setSelectedWeek, planningData, setPlanningData]);
+  }, [selectedShop, setSelectedWeek, planningData, setPlanningData, planning, localSelectedEmployees, selectedWeek]);
 
 
 
