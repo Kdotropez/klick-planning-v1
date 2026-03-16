@@ -41,6 +41,10 @@ const VERSION_HIGHLIGHTS = {
     'Correction de la copie semaine vers semaine+1 (mapping des dates fiabilise en timezone locale).',
     'Correction de la copie des statuts journaliers (conge/maladie) lors du report a la semaine suivante.',
     'Stabilisation du Journal d audit (ordre des hooks React) et reduction des logs techniques bruyants.'
+  ],
+  '3.10.55': [
+    'Correction de la copie des conges/maladies vers semaine+1 quand la semaine source est en cours de modification.',
+    'La copie utilise maintenant les donnees en memoire de la semaine affichee (sans exiger une sauvegarde manuelle prealable).'
   ]
 };
 

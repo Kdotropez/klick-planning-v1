@@ -1,7 +1,15 @@
 {
-  "version": "3.10.54",
-  "lastUpdate": "2026-03-15",
+  "version": "3.10.55",
+  "lastUpdate": "2026-03-16",
   "changelog": [
+    {
+      "version": "3.10.55",
+      "date": "2026-03-16",
+      "changes": [
+        "Correction de la copie conges/maladies vers semaine+1 depuis la semaine en cours.",
+        "La copie prend les donnees en memoire de la semaine affichee sans sauvegarde manuelle obligatoire."
+      ]
+    },
     {
       "version": "3.10.54",
       "date": "2026-03-15",
