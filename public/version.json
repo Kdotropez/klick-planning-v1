@@ -1,7 +1,15 @@
 {
-  "version": "3.10.55",
+  "version": "3.10.56",
   "lastUpdate": "2026-03-16",
   "changelog": [
+    {
+      "version": "3.10.56",
+      "date": "2026-03-16",
+      "changes": [
+        "Correction des totaux heures jours/employes sur poste distant.",
+        "Calculs de semaine fiabilises avec parseISO pour eviter les decalages timezone."
+      ]
+    },
     {
       "version": "3.10.55",
       "date": "2026-03-16",

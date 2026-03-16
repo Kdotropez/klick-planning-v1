@@ -45,6 +45,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.55': [
     'Correction de la copie des conges/maladies vers semaine+1 quand la semaine source est en cours de modification.',
     'La copie utilise maintenant les donnees en memoire de la semaine affichee (sans exiger une sauvegarde manuelle prealable).'
+  ],
+  '3.10.56': [
+    'Correction des totaux heures (jours + employes) sur poste distant avec gestion timezone-safe.',
+    'Uniformisation des calculs de dates de semaine via parseISO pour eviter les decalages de jour.'
   ]
 };
 
