@@ -5,6 +5,7 @@ import { fr } from 'date-fns/locale';
 export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) => {
   // S'assurer que employee est une chaîne (ID) et non un objet
   const employeeId = typeof employee === 'object' && employee !== null ? employee.id || employee.name : employee;
+  const isSelectedSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
   
   // Vérifier si les données sont valides
   if (!planning || !config?.timeSlots || !Array.isArray(config.timeSlots)) {
@@ -41,7 +42,7 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   }
   
   // Vérifier s'il y a au moins un créneau sélectionné
-  if (!slots.some(slot => slot === true)) {
+  if (!slots.some(isSelectedSlot)) {
     return 0;
   }
   
@@ -60,10 +61,10 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
       continue;
     }
     
-    if (slots[i] && !inShift) {
+    if (isSelectedSlot(slots[i]) && !inShift) {
       inShift = true;
       shiftStartIndex = i;
-    } else if (!slots[i] && inShift) {
+    } else if (!isSelectedSlot(slots[i]) && inShift) {
       inShift = false;
       const startTime = config.timeSlots[shiftStartIndex];
       const endTime = config.timeSlots[i];

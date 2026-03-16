@@ -2199,6 +2199,9 @@ export const updateAllMainShops = (planningData) => {
 
 export const getWeekPlanning = (planningData, shopId, weekKey) => {
   try {
+    const normalizeSlotValue = (value) =>
+      value === true || value === 1 || value === '1' || value === 'true';
+
     if (!planningData || !shopId || !weekKey) {
       console.warn('getWeekPlanning: Paramètres manquants', { planningData, shopId, weekKey });
       return { planning: {}, selectedEmployees: [] };
@@ -2255,15 +2258,17 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
 
               // 3) Tableau booléen standard: copier/ajuster la longueur
               if (existingData.length === timeSlots.length) {
-                initializedPlanning[employee.id][dayKey] = [...existingData];
+                initializedPlanning[employee.id][dayKey] = existingData.map(normalizeSlotValue);
               } else {
                 if (existingData.length < timeSlots.length) {
                   initializedPlanning[employee.id][dayKey] = [
-                    ...existingData,
+                    ...existingData.map(normalizeSlotValue),
                     ...new Array(timeSlots.length - existingData.length).fill(false)
                   ];
                 } else {
-                  initializedPlanning[employee.id][dayKey] = existingData.slice(0, timeSlots.length);
+                  initializedPlanning[employee.id][dayKey] = existingData
+                    .slice(0, timeSlots.length)
+                    .map(normalizeSlotValue);
                 }
               }
             } else {
