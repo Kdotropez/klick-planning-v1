@@ -236,12 +236,12 @@ const PlanningDisplay = ({
   const deviceInfo = useDeviceDetection();
 
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
-  const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+  const validWeek = selectedWeek && !isNaN(parseISO(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
 
   // Fonction pour calculer le total des heures de la boutique pour le mois
   const calculateShopMonthlyTotal = () => {
     let totalHours = 0;
-    const currentDate = new Date(selectedWeek);
+    const currentDate = parseISO(selectedWeek);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
@@ -808,7 +808,7 @@ const PlanningDisplay = ({
 
   // S'assurer que la semaine commence par lundi
   const getMondayOfWeek = (dateString) => {
-    const date = new Date(dateString);
+    const date = parseISO(dateString);
     const day = date.getDay();
     const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Ajuster pour que lundi = 1
     return new Date(date.setDate(diff));
@@ -887,7 +887,7 @@ const PlanningDisplay = ({
       });
 
       // Conserver une vue globale pour les usages annexes, sans piloter l'affichage boutique avec canWorkIn
-      const weekDate = new Date(selectedWeek);
+      const weekDate = parseISO(selectedWeek);
       const allEmployeesData = getAllEmployees(freshPlanningData, weekDate);
       setAllEmployees(allEmployeesData);
 
@@ -1397,7 +1397,7 @@ const PlanningDisplay = ({
       }
     }
     
-    const currentDate = new Date(validWeek);
+    const currentDate = parseISO(validWeek);
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + (direction === 'next' ? 7 : -7));
     const newWeek = format(newDate, 'yyyy-MM-dd');
@@ -2052,7 +2052,7 @@ const PlanningDisplay = ({
 
                 employeeShops.forEach(shop => {
                   for (let i = 0; i < 7; i++) {
-                    const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                    const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                     if (shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                       const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                       if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2066,7 +2066,7 @@ const PlanningDisplay = ({
               })();
               const monthlyTotalHours = (() => {
                 if (!selectedWeek || !planningData) return 0;
-                const currentDate = new Date(selectedWeek);
+                const currentDate = parseISO(selectedWeek);
                 const year = currentDate.getFullYear();
                 const month = currentDate.getMonth();
                 const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2260,7 +2260,7 @@ const PlanningDisplay = ({
                       
                       employeeShops.forEach(shop => {
           for (let i = 0; i < 7; i++) {
-            const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+            const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                           if (shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                             const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                             if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2324,7 +2324,7 @@ const PlanningDisplay = ({
                                     if (!selectedWeek || !planningData) return 0;
                                     let totalHours = 0;
                                     for (let i = 0; i < 7; i++) {
-                                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                      const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                       if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                         const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                   if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2342,7 +2342,7 @@ const PlanningDisplay = ({
                                     if (!selectedWeek || !planningData) return 0;
                                     let totalHours = 0;
                                     for (let i = 0; i < 7; i++) {
-                                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                      const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                       if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                         const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                         if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2368,7 +2368,7 @@ const PlanningDisplay = ({
                                     if (!selectedWeek || !planningData) return 0;
                                     let totalHours = 0;
                                     for (let i = 0; i < 7; i++) {
-                                      const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                      const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                       if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                         const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                         if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2390,7 +2390,7 @@ const PlanningDisplay = ({
                                   if (!selectedWeek || !planningData) return 0;
                                   let totalHours = 0;
                                   for (let i = 0; i < 7; i++) {
-                                    const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                    const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                     if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                       const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                       if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2412,7 +2412,7 @@ const PlanningDisplay = ({
                                   if (!selectedWeek || !planningData) return 0;
                                   let totalHours = 0;
                                   for (let i = 0; i < 7; i++) {
-                                    const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                    const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                     if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                       const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                       if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2435,7 +2435,7 @@ const PlanningDisplay = ({
                                 if (!selectedWeek || !planningData) return '📊 0.0h';
                                 let totalHours = 0;
                                 for (let i = 0; i < 7; i++) {
-                                  const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                  const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                   if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                     const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                     if (Array.isArray(slots) && slots.some(slot => slot === true)) {
@@ -2516,7 +2516,7 @@ const PlanningDisplay = ({
                       if (!selectedWeek || !planningData) return '0.00';
                                 
                                 // Calculer les heures du mois complet sur toutes les boutiques
-                                const currentDate = new Date(selectedWeek);
+                                const currentDate = parseISO(selectedWeek);
                                 const year = currentDate.getFullYear();
                                 const month = currentDate.getMonth();
                                 
@@ -2599,7 +2599,7 @@ const PlanningDisplay = ({
                                 backgroundColor: (() => {
                                   const hours = (() => {
                                     if (!selectedWeek || !planningData) return 0;
-                                    const currentDate = new Date(selectedWeek);
+                                    const currentDate = parseISO(selectedWeek);
                                     const year = currentDate.getFullYear();
                                     const month = currentDate.getMonth();
                                     const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2627,7 +2627,7 @@ const PlanningDisplay = ({
                                 color: (() => {
                                   const hours = (() => {
                                     if (!selectedWeek || !planningData) return 0;
-                                    const currentDate = new Date(selectedWeek);
+                                    const currentDate = parseISO(selectedWeek);
                                     const year = currentDate.getFullYear();
                                     const month = currentDate.getMonth();
                                     const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2663,7 +2663,7 @@ const PlanningDisplay = ({
                                 boxShadow: (() => {
                                   const hours = (() => {
                                     if (!selectedWeek || !planningData) return 0;
-                                    const currentDate = new Date(selectedWeek);
+                                    const currentDate = parseISO(selectedWeek);
                                     const year = currentDate.getFullYear();
                                     const month = currentDate.getMonth();
                                     const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2695,7 +2695,7 @@ const PlanningDisplay = ({
                     onMouseOver={(e) => {
                                 const hours = (() => {
                                   if (!selectedWeek || !planningData) return 0;
-                                  const currentDate = new Date(selectedWeek);
+                                  const currentDate = parseISO(selectedWeek);
                                   const year = currentDate.getFullYear();
                                   const month = currentDate.getMonth();
                                   const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2727,7 +2727,7 @@ const PlanningDisplay = ({
                     onMouseOut={(e) => {
                                 const hours = (() => {
                                   if (!selectedWeek || !planningData) return 0;
-                                  const currentDate = new Date(selectedWeek);
+                                  const currentDate = parseISO(selectedWeek);
                                   const year = currentDate.getFullYear();
                                   const month = currentDate.getMonth();
                                   const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2760,7 +2760,7 @@ const PlanningDisplay = ({
                             >
                               {(() => {
                                 if (!selectedWeek || !planningData) return '📈 0.0h';
-          const currentDate = new Date(selectedWeek);
+          const currentDate = parseISO(selectedWeek);
           const year = currentDate.getFullYear();
           const month = currentDate.getMonth();
           const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -2884,7 +2884,7 @@ const PlanningDisplay = ({
                                            
                                            // Parcourir tous les jours de la semaine pour détecter les congés
                                            for (let i = 0; i < 7; i++) {
-                                             const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                             const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                              let hasCongé = false;
                                              
                                              // Vérifier si l'employé est en congé dans au moins une boutique ce jour-là
@@ -2900,7 +2900,7 @@ const PlanningDisplay = ({
                                              
                                              // Si l'employé est en congé ce jour, ajouter le jour à la liste
                                              if (hasCongé) {
-                                               const date = addDays(new Date(selectedWeek), i);
+                                               const date = addDays(parseISO(selectedWeek), i);
                                                const dayName = format(date, 'EEEE', { locale: fr }).toUpperCase();
                                                congesParBoutique.push(dayName);
                                              }
@@ -2965,7 +2965,7 @@ const PlanningDisplay = ({
                                            
                                            // Parcourir tous les jours de la semaine pour détecter les maladies
                                            for (let i = 0; i < 7; i++) {
-                                             const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                             const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                              let hasMaladie = false;
                                              
                                              // Vérifier si l'employé est en maladie dans au moins une boutique ce jour-là
@@ -2981,7 +2981,7 @@ const PlanningDisplay = ({
                                              
                                              // Si l'employé est en maladie ce jour, ajouter le jour à la liste
                                              if (hasMaladie) {
-                                               const date = addDays(new Date(selectedWeek), i);
+                                               const date = addDays(parseISO(selectedWeek), i);
                                                const dayName = format(date, 'EEEE', { locale: fr }).toUpperCase();
                                                maladiesParJour.push(dayName);
                                              }
@@ -3074,7 +3074,7 @@ const PlanningDisplay = ({
                                                
                                                // Parcourir les 7 jours de la semaine
                                                for (let i = 0; i < 7; i++) {
-                                                 const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
+                                                 const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
                                                  const dayName = days[i];
                                                  
                                                  // Parcourir TOUTES les boutiques où l'employé peut travailler
@@ -3544,7 +3544,7 @@ const PlanningDisplay = ({
 
             {/* Sélecteur de mois */}
             <select
-              value={selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : ''}
+              value={selectedWeek ? format(parseISO(selectedWeek), 'yyyy-MM') : ''}
               onChange={(e) => changeMonth(e.target.value)}
               style={{ 
                 padding: deviceInfo.isTablet ? '12px 16px' : '10px 14px',
@@ -3570,7 +3570,7 @@ const PlanningDisplay = ({
               }}
             >
               {(() => {
-                const currentDate = selectedWeek ? new Date(selectedWeek) : new Date();
+                const currentDate = selectedWeek ? parseISO(selectedWeek) : new Date();
                 const startDate = new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1);
                 const endDate = new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1);
                 

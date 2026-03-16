@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
@@ -13,7 +13,7 @@ const DayButtons = ({ days, currentDay, setCurrentDay, planning, config, selecte
     }
     
     // Vérifier que selectedWeek est valide
-    if (isNaN(new Date(selectedWeek).getTime())) {
+    if (isNaN(parseISO(selectedWeek).getTime())) {
       console.warn('calculateDayHours: selectedWeek is invalid', selectedWeek);
       return '0.0';
     }
@@ -23,7 +23,7 @@ const DayButtons = ({ days, currentDay, setCurrentDay, planning, config, selecte
       return '0.0';
     }
     
-    const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
+    const dayKey = format(addDays(parseISO(selectedWeek), dayIndex), 'yyyy-MM-dd');
     let totalHours = 0;
     
     selectedEmployees.forEach(employee => {

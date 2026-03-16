@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { format, addDays, addMinutes, parse } from 'date-fns';
+import { format, addDays, addMinutes, parse, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -52,7 +52,7 @@ const PlanningTable = ({
     
     console.log('handleMouseDown called:', { employeeId, slotIndex, dayIndex });
 
-    const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
+    const dayKey = format(addDays(parseISO(selectedWeek), dayIndex), 'yyyy-MM-dd');
     const dayData = planning?.[employeeId]?.[dayKey];
     // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
     const hasStatus = (
@@ -240,7 +240,7 @@ const PlanningTable = ({
       target.style.backgroundColor = '';
     }, 150);
     
-    const dayKey = format(addDays(new Date(selectedWeek), dayIndex), 'yyyy-MM-dd');
+    const dayKey = format(addDays(parseISO(selectedWeek), dayIndex), 'yyyy-MM-dd');
     const dayData = planning?.[employeeId]?.[dayKey];
     // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
     const hasStatus = (
@@ -371,7 +371,7 @@ const PlanningTable = ({
   };
 
   // Validation de selectedWeek
-  const validWeek = selectedWeek && !isNaN(new Date(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+  const validWeek = selectedWeek && !isNaN(parseISO(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
   
   // Validation de la configuration des tranches horaires
   const validTimeSlots = config?.timeSlots && Array.isArray(config.timeSlots) && config.timeSlots.length > 0 
@@ -399,8 +399,8 @@ const PlanningTable = ({
   }
   
   const days = Array.from({ length: 7 }, (_, i) => ({
-    name: format(addDays(new Date(validWeek), i), 'EEEE', { locale: fr }),
-    date: format(addDays(new Date(validWeek), i), 'd MMMM', { locale: fr }),
+    name: format(addDays(parseISO(validWeek), i), 'EEEE', { locale: fr }),
+    date: format(addDays(parseISO(validWeek), i), 'd MMMM', { locale: fr }),
   }));
 
   const getEmployeeColorClass = (index) => {
@@ -410,7 +410,7 @@ const PlanningTable = ({
 
   // Fonction pour déterminer le style d'un créneau selon le mode
   const getSlotStyle = (employeeId, dayIndex, slotIndex) => {
-    const dayKey = format(addDays(new Date(validWeek), dayIndex), 'yyyy-MM-dd');
+    const dayKey = format(addDays(parseISO(validWeek), dayIndex), 'yyyy-MM-dd');
     const slotKey = `${employeeId}_${dayKey}_${slotIndex}`;
     
     if (copyMode) {
@@ -492,7 +492,7 @@ const PlanningTable = ({
         </thead>
         <tbody>
           {(selectedEmployees || []).map((employeeId, employeeIndex) => {
-            const dayKey = format(addDays(new Date(validWeek), currentDay), 'yyyy-MM-dd');
+            const dayKey = format(addDays(parseISO(validWeek), currentDay), 'yyyy-MM-dd');
             const dayData = planning?.[employeeId]?.[dayKey];
             const dayStatus = typeof dayData === 'string' ? dayData : null;
             const legacyArrayStatus = Array.isArray(dayData)
