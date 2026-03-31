@@ -40,6 +40,7 @@ const PlanningMenuBar = ({
   onOpenShopStats,
   onOpenGestion,
   onOpenNotes,
+  onOpenLabourInspection,
   
   // Récapitulatifs
   selectedEmployees,
@@ -258,6 +259,29 @@ const PlanningMenuBar = ({
           title="Export lisible des horaires employes"
         >
           🗓️ Export Horaires Lisibles
+        </Button>
+
+        <Button
+          className="button-primary"
+          onClick={() => onOpenLabourInspection && onOpenLabourInspection()}
+          style={{
+            backgroundColor: '#0d9488',
+            color: '#fff',
+            padding: '10px 14px',
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0f766e'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0d9488'}
+          title="Affichage obligatoire inspection du travail"
+        >
+          🧾 Inspection Travail
         </Button>
 
           <Button

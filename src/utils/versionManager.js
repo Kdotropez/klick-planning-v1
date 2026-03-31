@@ -57,6 +57,26 @@ const VERSION_HIGHLIGHTS = {
   '3.10.58': [
     'Ajout d un export lisible des horaires employes en mode collectif ou individuel.',
     'Export texte hebdomadaire multi-boutiques avec plages horaires consolidees, statuts (conge/maladie) et jours de repos.'
+  ],
+  '3.10.59': [
+    'Ajout d un mode Inspection du travail avec affichage hebdomadaire par boutique.',
+    'Mentions obligatoires par boutique sauvegardees localement + impression et export PDF dedies.'
+  ],
+  '3.10.60': [
+    'Correction de la memorisation des mentions inspection par boutique (cles robustes id + nom normalise).',
+    'Ajout des champs obligatoires complementaires: inspection du travail, medecine du travail, secours urgence, date/signature employeur.'
+  ],
+  '3.10.61': [
+    'Mode inspection renforce: champs horaires collectifs, pause/coupure, date de publication et bloc legal d affichage date/signe.',
+    'Mentions inspection enregistrees dans planningData (inspectionMetaByShop) pour inclusion automatique dans les sauvegardes JSON/Supabase.'
+  ],
+  '3.10.62': [
+    'Fiche inspection: ajout de la date d entree editable par employe et affichage de la duree de contrat au jour d edition.',
+    'Les dates d entree sont sauvegardees dans planningData (employes.dateEntree) pour inclusion complete dans les sauvegardes/restaurations.'
+  ],
+  '3.10.63': [
+    'Fiche inspection: ajout des colonnes date de sortie et heures contractuelles (modifiables, hausse/baisse).',
+    'Calcul de duree de contrat au jour d edition avec prise en compte de la date de sortie, et sauvegarde dans planningData (dateSortie/contratHours).'
   ]
 };
 

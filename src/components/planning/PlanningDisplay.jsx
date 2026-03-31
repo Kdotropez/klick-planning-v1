@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
 import PlanningMenuBar from './PlanningMenuBar';
 import DayButtons from './DayButtons';
@@ -22,6 +24,7 @@ import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
+import LabourInspectionModal from './LabourInspectionModal';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -84,12 +87,54 @@ const PlanningDisplay = ({
   
   // État pour la modale de notes
   const [showNotesModal, setShowNotesModal] = useState(false);
+  const [showLabourInspectionModal, setShowLabourInspectionModal] = useState(false);
   
   // État pour la page des statistiques de la boutique
   const [showShopStatsPage, setShowShopStatsPage] = useState(false);
   
   // État pour la page de gestion boutique
   const [showGestionBoutique, setShowGestionBoutique] = useState(false);
+
+  const handleSaveInspectionMeta = useCallback((shopId, shopName, metaPayload) => {
+    if (!shopId || !metaPayload) return;
+    setPlanningData((prev) => {
+      const next = {
+        ...prev,
+        inspectionMetaByShop: {
+          ...(prev?.inspectionMetaByShop || {}),
+          [shopId]: {
+            ...(metaPayload || {}),
+            boutiqueAffichee: shopName || metaPayload?.boutiqueAffichee || shopId,
+            updatedAt: new Date().toISOString()
+          }
+        }
+      };
+      saveToLocalStorage('planningData', next);
+      return next;
+    });
+  }, [setPlanningData]);
+
+  const handleSaveInspectionEmployeeContractData = useCallback((shopId, contractDataByEmployee) => {
+    if (!shopId || !contractDataByEmployee || typeof contractDataByEmployee !== 'object') return;
+    setPlanningData((prev) => {
+      const nextShops = (prev?.shops || []).map((shop) => ({
+        ...shop,
+        employees: (shop.employees || []).map((emp) => {
+          const payload = contractDataByEmployee?.[emp.id];
+          if (!payload) return emp;
+          return {
+            ...emp,
+            dateEntree: payload.dateEntree || '',
+            dateSortie: payload.dateSortie || '',
+            contratHours: payload.contratHours ?? ''
+          };
+        })
+      }));
+      const next = { ...prev, shops: nextShops };
+      saveToLocalStorage('planningData', next);
+      return next;
+    });
+  }, [setPlanningData]);
 
   // Nouveau système de verrou à bail avec identification personnalisée
   const currentUserIdRef = useRef(null);
@@ -1747,10 +1792,20 @@ const PlanningDisplay = ({
         return;
       }
 
-      const mode = window.prompt(
+      const exportMode = window.prompt(
+        'Format export:\n1 = TXT lisible\n2 = PDF presente\n\nEntrez 1 ou 2:'
+      );
+      if (!exportMode) return;
+      const normalizedExportMode = exportMode.trim();
+      if (normalizedExportMode !== '1' && normalizedExportMode !== '2') {
+        setLocalFeedback('❌ Format invalide. Utilisez 1 ou 2.');
+        return;
+      }
+
+      const audienceMode = window.prompt(
         'Export horaires lisibles:\n1 = Collectif (tous employes)\n2 = Individuel (un employe)\n\nEntrez 1 ou 2:'
       );
-      if (!mode) return;
+      if (!audienceMode) return;
 
       const weekStart = parseISO(selectedWeek);
       const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -1816,7 +1871,7 @@ const PlanningDisplay = ({
       }
 
       let targetEmployeeIds = allEmployeeIds;
-      if (mode.trim() === '2') {
+      if (audienceMode.trim() === '2') {
         const list = allEmployeeIds
           .map((id, idx) => `${idx + 1}. ${employeeMap.get(id) || id}`)
           .join('\n');
@@ -1828,63 +1883,143 @@ const PlanningDisplay = ({
           return;
         }
         targetEmployeeIds = [allEmployeeIds[index]];
-      } else if (mode.trim() !== '1') {
+      } else if (audienceMode.trim() !== '1') {
         setLocalFeedback('❌ Choix invalide. Utilisez 1 ou 2.');
         return;
       }
 
-      const lines = [];
-      lines.push('PLANNING EMPLOYES - EXPORT LISIBLE');
-      lines.push(`Semaine: ${weekLabel}`);
-      lines.push(`Genere le: ${new Date().toLocaleString('fr-FR')}`);
-      lines.push('');
-
-      targetEmployeeIds.forEach((employeeId) => {
-        const employeeName = employeeMap.get(employeeId) || employeeId;
-        lines.push(`============================================================`);
-        lines.push(`Employe: ${employeeName}`);
-        lines.push(`============================================================`);
-
+      const buildEmployeeDayRows = (employeeId) => {
         const employeeDataAcrossShops = weekDataByEmployee.get(employeeId) || [];
-        weekDays.forEach((dayDate) => {
+        return weekDays.map((dayDate) => {
           const dayKey = format(dayDate, 'yyyy-MM-dd');
           const dayLabel = `${format(dayDate, 'EEEE', { locale: fr })} ${format(dayDate, 'dd/MM')}`;
           const entries = [];
+          const isCongeStatus = (value) => /cong[eé]/i.test(String(value ?? ''));
 
           employeeDataAcrossShops.forEach(({ shopName, config: cfg, employeePlanning }) => {
             const dayValue = employeePlanning?.[dayKey];
             if (dayValue === undefined || dayValue === null) return;
 
             if (typeof dayValue === 'string') {
-              entries.push(`${shopName}: ${dayValue}`);
+              entries.push({ shopName, value: dayValue });
               return;
             }
 
             if (Array.isArray(dayValue) && dayValue.some(normalizeSlot)) {
               const ranges = slotRanges(dayValue, cfg.timeSlots || config.timeSlots || [], cfg.interval || config.interval || 30);
               if (ranges.length > 0) {
-                entries.push(`${shopName}: ${ranges.join(', ')}`);
+                entries.push({ shopName, value: ranges.join(', ') });
               }
             }
           });
 
-          lines.push(`${dayLabel} -> ${entries.length ? entries.join(' | ') : 'Repos'}`);
+          // Si l'employe est en conge ce jour-la, on masque la boutique:
+          // l'information importante est le statut, pas le lieu.
+          if (entries.some((entry) => isCongeStatus(entry.value))) {
+            return { dayLabel, entries: [{ shopName: '', value: 'Congé' }] };
+          }
+
+          return { dayLabel, entries };
+        });
+      };
+
+      const toPdfSafeText = (value) =>
+        String(value ?? '')
+          .replace(/Cong[eé]\s*☀️?/gi, 'Conge')
+          .replace(/Maladie\s*🤒?/gi, 'Maladie')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^\x20-\x7E]/g, '')
+          .trim();
+
+      if (normalizedExportMode === '1') {
+        const lines = [];
+        lines.push('PLANNING EMPLOYES - EXPORT LISIBLE');
+        lines.push(`Semaine: ${weekLabel}`);
+        lines.push(`Genere le: ${new Date().toLocaleString('fr-FR')}`);
+        lines.push('');
+
+        targetEmployeeIds.forEach((employeeId) => {
+          const employeeName = employeeMap.get(employeeId) || employeeId;
+          lines.push('============================================================');
+          lines.push(`Employe: ${employeeName}`);
+          lines.push('============================================================');
+
+          buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }) => {
+            const formatted = entries.length
+              ? entries
+                  .map((entry) => (entry.shopName ? `${entry.shopName}: ${entry.value}` : `${entry.value}`))
+                  .join(' | ')
+              : 'Repos';
+            lines.push(`${dayLabel} -> ${formatted}`);
+          });
+
+          lines.push('');
         });
 
-        lines.push('');
-      });
+        const content = lines.join('\n');
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const suffix = audienceMode.trim() === '2' ? 'individuel' : 'collectif';
+        a.download = `horaires_${suffix}_${selectedWeek}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
 
-      const content = lines.join('\n');
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const suffix = mode.trim() === '2' ? 'individuel' : 'collectif';
-      a.download = `horaires_${suffix}_${selectedWeek}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
+        targetEmployeeIds.forEach((employeeId, index) => {
+          if (index > 0) {
+            doc.addPage();
+          }
 
-      setLocalFeedback(`✅ Export ${mode.trim() === '2' ? 'individuel' : 'collectif'} genere.`);
+          const employeeName = employeeMap.get(employeeId) || employeeId;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(15);
+          doc.text('Planning hebdomadaire employe', pageWidth / 2, 14, { align: 'center' });
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Semaine: ${weekLabel}`, pageWidth / 2, 21, { align: 'center' });
+          doc.text(`Employe: ${employeeName}`, 14, 29);
+          doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, 14, 35);
+
+          const body = [];
+          buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }) => {
+            if (!entries.length) {
+              body.push([dayLabel, '-', 'Repos']);
+              return;
+            }
+            entries.forEach((entry, entryIdx) => {
+              body.push([
+                entryIdx === 0 ? toPdfSafeText(dayLabel) : '',
+                toPdfSafeText(entry.shopName || '-'),
+                toPdfSafeText(entry.value)
+              ]);
+            });
+          });
+
+          doc.autoTable({
+            startY: 40,
+            head: [['Jour', 'Boutique', 'Horaires / Statut']],
+            body,
+            styles: { fontSize: 9, cellPadding: 2.2, lineColor: [230, 230, 230], lineWidth: 0.1 },
+            headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+              0: { cellWidth: 46 },
+              1: { cellWidth: 45 },
+              2: { cellWidth: 'auto' }
+            }
+          });
+        });
+
+        const suffix = audienceMode.trim() === '2' ? 'individuel' : 'collectif';
+        doc.save(`horaires_${suffix}_${selectedWeek}.pdf`);
+      }
+
+      setLocalFeedback(`✅ Export ${normalizedExportMode === '2' ? 'PDF' : 'TXT'} ${audienceMode.trim() === '2' ? 'individuel' : 'collectif'} genere.`);
     } catch (error) {
       console.error('Erreur export horaires lisibles:', error);
       setLocalFeedback('❌ Erreur lors de l export horaires lisibles.');
@@ -2090,6 +2225,7 @@ const PlanningDisplay = ({
             onOpenShopStats={() => setShowShopStatsPage(true)}
             onOpenGestion={() => setShowGestionBoutique(true)}
             onOpenNotes={() => setShowNotesModal(true)}
+            onOpenLabourInspection={() => setShowLabourInspectionModal(true)}
             testSupabase={testSupabase}
             cleanSupabaseData={cleanSupabaseData}
             diagnoseSupabase={diagnoseSupabase}
@@ -4013,6 +4149,20 @@ const PlanningDisplay = ({
         selectedWeek={validWeek}
         selectedEmployees={localSelectedEmployees}
         currentShopEmployees={currentShopEmployees}
+      />
+
+      <LabourInspectionModal
+        isOpen={showLabourInspectionModal}
+        onClose={() => setShowLabourInspectionModal(false)}
+        planningData={planningData}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        currentPlanning={planning}
+        currentConfig={config}
+        activeEmployees={currentShopEmployees}
+        savedMetaByShop={planningData?.inspectionMetaByShop || {}}
+        onSaveMeta={handleSaveInspectionMeta}
+        onSaveEmployeeContractData={handleSaveInspectionEmployeeContractData}
       />
 
       

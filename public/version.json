@@ -1,7 +1,47 @@
 {
-  "version": "3.10.58",
+  "version": "3.10.63",
   "lastUpdate": "2026-03-31",
   "changelog": [
+    {
+      "version": "3.10.63",
+      "date": "2026-03-31",
+      "changes": [
+        "Fiche inspection: ajout des colonnes date de sortie et heures contractuelles (modifiables, hausse/baisse).",
+        "Calcul de duree de contrat au jour d edition avec prise en compte de la date de sortie, et sauvegarde dans planningData (dateSortie/contratHours)."
+      ]
+    },
+    {
+      "version": "3.10.62",
+      "date": "2026-03-31",
+      "changes": [
+        "Fiche inspection: ajout de la date d entree editable par employe et affichage de la duree de contrat au jour d edition.",
+        "Les dates d entree sont sauvegardees dans planningData (employes.dateEntree) pour inclusion complete dans les sauvegardes/restaurations."
+      ]
+    },
+    {
+      "version": "3.10.61",
+      "date": "2026-03-31",
+      "changes": [
+        "Mode inspection renforce: champs horaires collectifs, pause/coupure, date de publication et bloc legal d affichage date/signe.",
+        "Mentions inspection enregistrees dans planningData (inspectionMetaByShop) pour inclusion automatique dans les sauvegardes JSON/Supabase."
+      ]
+    },
+    {
+      "version": "3.10.60",
+      "date": "2026-03-31",
+      "changes": [
+        "Correction de la memorisation des mentions inspection par boutique (cles robustes id + nom normalise).",
+        "Ajout des champs obligatoires complementaires: inspection du travail, medecine du travail, secours urgence, date/signature employeur."
+      ]
+    },
+    {
+      "version": "3.10.59",
+      "date": "2026-03-31",
+      "changes": [
+        "Ajout d un mode Inspection du travail avec affichage hebdomadaire par boutique.",
+        "Mentions obligatoires par boutique sauvegardees localement + impression et export PDF dedies."
+      ]
+    },
     {
       "version": "3.10.58",
       "date": "2026-03-31",
