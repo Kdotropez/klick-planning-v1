@@ -65,6 +65,7 @@ const PlanningMenuBar = ({
   getTotalShopEmployeesCount,
   showCalendarTotals,
   onCreateJSONBackup,
+  onExportReadableSchedules,
   testSupabase,
   cleanSupabaseData,
   diagnoseSupabase,
@@ -235,6 +236,29 @@ const PlanningMenuBar = ({
           >
             <FaDownload /> Exporter les données
           </Button>
+
+        <Button
+          className="button-primary"
+          onClick={onExportReadableSchedules}
+          style={{
+            backgroundColor: '#0ea5a6',
+            color: '#fff',
+            padding: '10px 14px',
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0b8b8c'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0ea5a6'}
+          title="Export lisible des horaires employes"
+        >
+          🗓️ Export Horaires Lisibles
+        </Button>
 
           <Button
             className="button-primary"

@@ -49,6 +49,14 @@ const VERSION_HIGHLIGHTS = {
   '3.10.56': [
     'Correction des totaux heures (jours + employes) sur poste distant avec gestion timezone-safe.',
     'Uniformisation des calculs de dates de semaine via parseISO pour eviter les decalages de jour.'
+  ],
+  '3.10.57': [
+    'Correction des faux totaux (heures employees/jours) quand des anciens formats de creneaux existent.',
+    'Normalisation des valeurs de creneaux legacy (1, "1", "true") en booleens pour aligner affichage et calcul.'
+  ],
+  '3.10.58': [
+    'Ajout d un export lisible des horaires employes en mode collectif ou individuel.',
+    'Export texte hebdomadaire multi-boutiques avec plages horaires consolidees, statuts (conge/maladie) et jours de repos.'
   ]
 };
 

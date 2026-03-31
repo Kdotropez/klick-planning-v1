@@ -1,7 +1,23 @@
 {
-  "version": "3.10.56",
-  "lastUpdate": "2026-03-16",
+  "version": "3.10.58",
+  "lastUpdate": "2026-03-31",
   "changelog": [
+    {
+      "version": "3.10.58",
+      "date": "2026-03-31",
+      "changes": [
+        "Ajout d un export lisible des horaires employes (collectif ou individuel).",
+        "Export hebdomadaire multi-boutiques avec plages horaires consolidees et statuts conge/maladie."
+      ]
+    },
+    {
+      "version": "3.10.57",
+      "date": "2026-03-16",
+      "changes": [
+        "Correction des faux totaux heures employees/jours lies aux anciens formats de creneaux.",
+        "Normalisation des valeurs legacy (1, \"1\", \"true\") pour aligner affichage des cases et calculs."
+      ]
+    },
     {
       "version": "3.10.56",
       "date": "2026-03-16",

@@ -1740,6 +1740,157 @@ const PlanningDisplay = ({
     copyWeekToWeek(sourceWeek, destinationWeek);
   }, [selectedWeek, copyWeekToWeek]);
 
+  const exportReadableSchedules = useCallback(() => {
+    try {
+      if (!selectedWeek || !planningData?.shops?.length) {
+        setLocalFeedback('❌ Export impossible: semaine ou donnees indisponibles.');
+        return;
+      }
+
+      const mode = window.prompt(
+        'Export horaires lisibles:\n1 = Collectif (tous employes)\n2 = Individuel (un employe)\n\nEntrez 1 ou 2:'
+      );
+      if (!mode) return;
+
+      const weekStart = parseISO(selectedWeek);
+      const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+      const weekLabel = `${format(weekStart, 'dd/MM/yyyy')} - ${format(addDays(weekStart, 6), 'dd/MM/yyyy')}`;
+
+      const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
+
+      const slotRanges = (slots, timeSlots = [], interval = 30) => {
+        const ranges = [];
+        let startIndex = null;
+        for (let i = 0; i < slots.length; i += 1) {
+          const selected = normalizeSlot(slots[i]);
+          if (selected && startIndex === null) startIndex = i;
+          if (!selected && startIndex !== null) {
+            const start = timeSlots[startIndex];
+            const endBase = timeSlots[Math.max(0, i - 1)];
+            if (start && endBase) {
+              const [eh, em] = String(endBase).split(':').map((n) => Number.parseInt(n, 10) || 0);
+              const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
+              const end = format(endDate, 'HH:mm');
+              ranges.push(`${start}-${end}`);
+            }
+            startIndex = null;
+          }
+        }
+        if (startIndex !== null) {
+          const start = timeSlots[startIndex];
+          const last = timeSlots[Math.max(0, timeSlots.length - 1)];
+          if (start && last) {
+            const [eh, em] = String(last).split(':').map((n) => Number.parseInt(n, 10) || 0);
+            const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
+            ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
+          }
+        }
+        return ranges;
+      };
+
+      const employeeMap = new Map();
+      const weekDataByEmployee = new Map();
+
+      (planningData.shops || []).forEach((shop) => {
+        (shop.employees || []).forEach((emp) => {
+          if (!employeeMap.has(emp.id)) employeeMap.set(emp.id, emp.name || emp.id);
+        });
+
+        const week = shop.weeks?.[selectedWeek];
+        if (!week?.planning) return;
+        Object.keys(week.planning).forEach((employeeId) => {
+          if (!weekDataByEmployee.has(employeeId)) weekDataByEmployee.set(employeeId, []);
+          weekDataByEmployee.get(employeeId).push({
+            shopId: shop.id,
+            shopName: shop.name || shop.id,
+            config: shop.config || {},
+            employeePlanning: week.planning[employeeId] || {}
+          });
+        });
+      });
+
+      const allEmployeeIds = Array.from(weekDataByEmployee.keys());
+      if (!allEmployeeIds.length) {
+        setLocalFeedback('⚠️ Aucun horaire trouve pour la semaine selectionnee.');
+        return;
+      }
+
+      let targetEmployeeIds = allEmployeeIds;
+      if (mode.trim() === '2') {
+        const list = allEmployeeIds
+          .map((id, idx) => `${idx + 1}. ${employeeMap.get(id) || id}`)
+          .join('\n');
+        const pick = window.prompt(`Choisissez un employe:\n${list}\n\nEntrez le numero:`);
+        if (!pick) return;
+        const index = Number.parseInt(pick, 10) - 1;
+        if (Number.isNaN(index) || index < 0 || index >= allEmployeeIds.length) {
+          setLocalFeedback('❌ Numero employe invalide.');
+          return;
+        }
+        targetEmployeeIds = [allEmployeeIds[index]];
+      } else if (mode.trim() !== '1') {
+        setLocalFeedback('❌ Choix invalide. Utilisez 1 ou 2.');
+        return;
+      }
+
+      const lines = [];
+      lines.push('PLANNING EMPLOYES - EXPORT LISIBLE');
+      lines.push(`Semaine: ${weekLabel}`);
+      lines.push(`Genere le: ${new Date().toLocaleString('fr-FR')}`);
+      lines.push('');
+
+      targetEmployeeIds.forEach((employeeId) => {
+        const employeeName = employeeMap.get(employeeId) || employeeId;
+        lines.push(`============================================================`);
+        lines.push(`Employe: ${employeeName}`);
+        lines.push(`============================================================`);
+
+        const employeeDataAcrossShops = weekDataByEmployee.get(employeeId) || [];
+        weekDays.forEach((dayDate) => {
+          const dayKey = format(dayDate, 'yyyy-MM-dd');
+          const dayLabel = `${format(dayDate, 'EEEE', { locale: fr })} ${format(dayDate, 'dd/MM')}`;
+          const entries = [];
+
+          employeeDataAcrossShops.forEach(({ shopName, config: cfg, employeePlanning }) => {
+            const dayValue = employeePlanning?.[dayKey];
+            if (dayValue === undefined || dayValue === null) return;
+
+            if (typeof dayValue === 'string') {
+              entries.push(`${shopName}: ${dayValue}`);
+              return;
+            }
+
+            if (Array.isArray(dayValue) && dayValue.some(normalizeSlot)) {
+              const ranges = slotRanges(dayValue, cfg.timeSlots || config.timeSlots || [], cfg.interval || config.interval || 30);
+              if (ranges.length > 0) {
+                entries.push(`${shopName}: ${ranges.join(', ')}`);
+              }
+            }
+          });
+
+          lines.push(`${dayLabel} -> ${entries.length ? entries.join(' | ') : 'Repos'}`);
+        });
+
+        lines.push('');
+      });
+
+      const content = lines.join('\n');
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const suffix = mode.trim() === '2' ? 'individuel' : 'collectif';
+      a.download = `horaires_${suffix}_${selectedWeek}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setLocalFeedback(`✅ Export ${mode.trim() === '2' ? 'individuel' : 'collectif'} genere.`);
+    } catch (error) {
+      console.error('Erreur export horaires lisibles:', error);
+      setLocalFeedback('❌ Erreur lors de l export horaires lisibles.');
+    }
+  }, [selectedWeek, planningData, config, setLocalFeedback]);
+
   if (!currentShopData) {
     return (
       <div style={{ 
@@ -1934,6 +2085,7 @@ const PlanningDisplay = ({
                           setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
             handleManualSave={handleManualSave}
             onCreateJSONBackup={createAutoBackupJSON}
+            onExportReadableSchedules={exportReadableSchedules}
             onOpenDashboard={() => setShowDashboard(true)}
             onOpenShopStats={() => setShowShopStatsPage(true)}
             onOpenGestion={() => setShowGestionBoutique(true)}
