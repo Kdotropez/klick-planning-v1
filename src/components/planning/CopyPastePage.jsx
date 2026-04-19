@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { format, addDays, parseISO, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getWeekPlanning, saveWeekPlanning } from '../../utils/planningDataManager';
+import { dayCellHasPlanningContent } from '../../utils/planningUtils';
 
 const CopyPastePage = ({ 
   planningData, 
   setPlanningData,
   selectedShop, 
   selectedWeek,
+  /** Planning en mémoire (écran courant) — fusionné si semaine source = semaine affichée */
+  liveWeekPlanning,
   onBack 
 }) => {
   const [sourceWeek, setSourceWeek] = useState('');
@@ -58,6 +61,35 @@ const CopyPastePage = ({
     }
   }, [planningData, selectedShop]);
 
+  // Rétablir le presse-papiers après rechargement (F5)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('copyPasteBuffer');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.data && parsed?.sourceWeek) {
+        setCopiedData(parsed);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }, []);
+
+  const mergeLiveIntoStoredPlanning = (storedPlanning, livePlanning) => {
+    if (!livePlanning || typeof livePlanning !== 'object') return storedPlanning;
+    const out = { ...storedPlanning };
+    Object.keys(livePlanning).forEach((empId) => {
+      if (!livePlanning[empId]) return;
+      out[empId] = { ...(out[empId] || {}) };
+      Object.keys(livePlanning[empId]).forEach((dayKey) => {
+        const v = livePlanning[empId][dayKey];
+        if (v === undefined || v === null) return;
+        out[empId][dayKey] = Array.isArray(v) ? [...v] : v;
+      });
+    });
+    return out;
+  };
+
   // Fonction de copie simplifiée
   const handleCopy = useCallback(() => {
     try {
@@ -73,11 +105,15 @@ const CopyPastePage = ({
         return;
       }
 
-      // Récupérer les données source
+      // Récupérer les données source (grille init. + fusion écran courant si même semaine)
       const sourceData = getWeekPlanning(planningData, selectedShop, sourceWeek);
-      console.log('🔍 Données source récupérées:', sourceData);
+      let planningSource = sourceData.planning || {};
+      if (liveWeekPlanning && sourceWeek === selectedWeek) {
+        planningSource = mergeLiveIntoStoredPlanning(planningSource, liveWeekPlanning);
+      }
+      console.log('🔍 Données source récupérées (éventuellement fusionnées):', planningSource);
       
-      if (!sourceData.planning || Object.keys(sourceData.planning).length === 0) {
+      if (!planningSource || Object.keys(planningSource).length === 0) {
         setFeedback('❌ Aucune donnée à copier dans la semaine source');
         return;
       }
@@ -86,17 +122,28 @@ const CopyPastePage = ({
       const dataToCopy = {};
       
       selectedEmployees.forEach(empId => {
-        if (sourceData.planning[empId]) {
+        if (planningSource[empId]) {
           dataToCopy[empId] = {};
           
-          // Copier tous les jours de l'employé
-          Object.keys(sourceData.planning[empId]).forEach(dayKey => {
-            if (sourceData.planning[empId][dayKey] && Array.isArray(sourceData.planning[empId][dayKey])) {
-              dataToCopy[empId][dayKey] = [...sourceData.planning[empId][dayKey]];
+          Object.keys(planningSource[empId]).forEach(dayKey => {
+            const cell = planningSource[empId][dayKey];
+            if (!dayCellHasPlanningContent(cell)) return;
+            if (Array.isArray(cell)) {
+              dataToCopy[empId][dayKey] = [...cell];
+            } else if (typeof cell === 'string') {
+              dataToCopy[empId][dayKey] = cell;
             }
           });
         }
       });
+
+      const copiedCells = Object.keys(dataToCopy).reduce((n, empId) => {
+        return n + Object.keys(dataToCopy[empId] || {}).length;
+      }, 0);
+      if (copiedCells === 0) {
+        setFeedback('❌ Aucun créneau ou statut (congé, maladie…) à copier pour les employés sélectionnés');
+        return;
+      }
 
       // Sauvegarder dans localStorage
       const copyBuffer = {
@@ -113,13 +160,13 @@ const CopyPastePage = ({
       const sourceWeekStart = format(new Date(sourceWeek), 'dd/MM');
       const sourceWeekEnd = format(new Date(new Date(sourceWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
       
-      setFeedback(`✅ Copie réussie : ${employeeCount} employé(s) de la semaine du ${sourceWeekStart} au ${sourceWeekEnd}`);
+      setFeedback(`✅ Copie réussie : ${copiedCells} jour(s)-employé, ${employeeCount} employé(s) — semaine du ${sourceWeekStart} au ${sourceWeekEnd}`);
 
     } catch (error) {
       console.error('Erreur lors de la copie:', error);
       setFeedback('❌ Erreur lors de la copie');
     }
-  }, [planningData, selectedShop, sourceWeek, selectedEmployees]);
+  }, [planningData, selectedShop, sourceWeek, selectedWeek, selectedEmployees, liveWeekPlanning]);
 
   // Fonction de collage simplifiée
   const handlePaste = useCallback(() => {
@@ -131,9 +178,21 @@ const CopyPastePage = ({
         return;
       }
 
-      if (!copiedData) {
+      let buffer = copiedData;
+      if (!buffer) {
+        try {
+          const raw = localStorage.getItem('copyPasteBuffer');
+          if (raw) buffer = JSON.parse(raw);
+        } catch (_) {
+          buffer = null;
+        }
+      }
+      if (!buffer?.data || typeof buffer.data !== 'object') {
         setFeedback('❌ Aucune donnée copiée. Veuillez d\'abord copier des données.');
         return;
+      }
+      if (!copiedData && buffer) {
+        setCopiedData(buffer);
       }
 
       // Récupérer les données de destination actuelles
@@ -142,9 +201,10 @@ const CopyPastePage = ({
       
       console.log('🔍 Données destination récupérées:', destinationData);
 
-      // Vérifier s'il y a des données existantes à écraser
-      const hasExistingData = Object.keys(currentPlanning).some(empId => 
-        Object.keys(currentPlanning[empId] || {}).length > 0
+      const hasExistingData = Object.keys(currentPlanning).some((empId) =>
+        Object.keys(currentPlanning[empId] || {}).some((dayKey) =>
+          dayCellHasPlanningContent(currentPlanning[empId][dayKey])
+        )
       );
 
       if (hasExistingData) {
@@ -163,21 +223,22 @@ const CopyPastePage = ({
       const newPlanning = { ...currentPlanning };
 
       // Transformer les dates de la semaine source vers la semaine destination
-      const sourceWeekStart = parseISO(copiedData.sourceWeek);
+      const sourceWeekStart = parseISO(buffer.sourceWeek);
       const targetWeekStart = parseISO(destinationWeek);
 
-      Object.keys(copiedData.data).forEach(empId => {
+      Object.keys(buffer.data).forEach(empId => {
         if (!newPlanning[empId]) {
           newPlanning[empId] = {};
         }
         
-        Object.keys(copiedData.data[empId]).forEach(dayKey => {
+        Object.keys(buffer.data[empId]).forEach(dayKey => {
           // Vérifier si c'est une date valide
           if (dayKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
             const sourceDay = parseISO(dayKey);
             const dayIndex = differenceInDays(sourceDay, sourceWeekStart);
             const targetDay = format(addDays(targetWeekStart, dayIndex), 'yyyy-MM-dd');
-            newPlanning[empId][targetDay] = [...copiedData.data[empId][dayKey]];
+            const srcVal = buffer.data[empId][dayKey];
+            newPlanning[empId][targetDay] = Array.isArray(srcVal) ? [...srcVal] : srcVal;
           }
         });
       });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { format, addDays, startOfWeek, parseISO } from 'date-fns';
+import { format, addDays, startOfWeek, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
 import jsPDF from 'jspdf';
@@ -26,7 +26,7 @@ import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, dayCellHasPlanningContent } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
 
@@ -1629,24 +1629,23 @@ const PlanningDisplay = ({
       const destinationWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[destinationWeek];
       const existingDestinationPlanning = destinationWeekData?.planning || {};
       
-      // Compter les cliques existants dans la semaine destination
-      let existingClicksCount = 0;
+      // Compter les jours-employés déjà planifiés (créneaux, congé, maladie, etc.)
+      let existingCellsCount = 0;
       Object.keys(existingDestinationPlanning).forEach(empId => {
-        Object.keys(existingDestinationPlanning[empId]).forEach(dayKey => {
-          const daySlots = existingDestinationPlanning[empId][dayKey];
-          if (daySlots && Array.isArray(daySlots)) {
-            existingClicksCount += daySlots.filter(slot => slot === true).length;
+        Object.keys(existingDestinationPlanning[empId] || {}).forEach(dayKey => {
+          if (dayCellHasPlanningContent(existingDestinationPlanning[empId][dayKey])) {
+            existingCellsCount += 1;
           }
         });
       });
       
-      console.log(`🔍 Semaine destination (${destinationWeek}) contient ${existingClicksCount} cliques existants`);
+      console.log(`🔍 Semaine destination (${destinationWeek}) contient ${existingCellsCount} cellule(s) déjà remplies`);
       
       // Si la semaine destination contient des données, demander confirmation
-      if (existingClicksCount > 0) {
+      if (existingCellsCount > 0) {
         const destinationWeekStart = format(new Date(destinationWeek), 'dd/MM');
         const destinationWeekEnd = format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
-        const confirmMessage = `⚠️ La semaine du ${destinationWeekStart} au ${destinationWeekEnd} contient déjà ${existingClicksCount} cliques.\n\nVoulez-vous vraiment écraser ces données ?\n\nCette action ne peut pas être annulée.`;
+        const confirmMessage = `⚠️ La semaine du ${destinationWeekStart} au ${destinationWeekEnd} contient déjà ${existingCellsCount} jour(s)-employé planifié(s) (créneaux ou statuts).\n\nVoulez-vous vraiment écraser ces données ?\n\nCette action ne peut pas être annulée.`;
         
         if (!window.confirm(confirmMessage)) {
           console.log('❌ Copie annulée par l\'utilisateur');
@@ -1888,6 +1887,65 @@ const PlanningDisplay = ({
         return;
       }
 
+      const getMonthWeeksForSelectedMonth = () => {
+        const start = startOfMonth(parseISO(selectedWeek));
+        const end = endOfMonth(parseISO(selectedWeek));
+        const weeks = [];
+        let current = startOfWeek(start, { weekStartsOn: 1 });
+        while (current <= end) {
+          weeks.push(current);
+          current = addDays(current, 7);
+        }
+        return weeks;
+      };
+
+      const resolveWeekPlanningForShop = (shop, weekKey) => {
+        const w = shop.weeks?.[weekKey];
+        const inline = w?.planning;
+        if (inline && typeof inline === 'object' && Object.keys(inline).length > 0) {
+          return inline;
+        }
+        return loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
+      };
+
+      const sumEmployeeHoursForExportedWeek = (employeeId) => {
+        let total = 0;
+        const employeeDataAcrossShops = weekDataByEmployee.get(employeeId) || [];
+        weekDays.forEach((dayDate) => {
+          const dayKey = format(dayDate, 'yyyy-MM-dd');
+          employeeDataAcrossShops.forEach(({ employeePlanning, config: cfg }) => {
+            const slicePlanning = { [employeeId]: employeePlanning };
+            total += calculateEmployeeDailyHours(employeeId, dayKey, slicePlanning, cfg || config);
+          });
+        });
+        return total;
+      };
+
+      const getEmployeeMonthlyHoursByShop = (employeeId) => {
+        const monthWeeks = getMonthWeeksForSelectedMonth();
+        const rows = [];
+        let monthGrand = 0;
+        (planningData.shops || []).forEach((shop) => {
+          const cfg = shop.config || config;
+          let shopMonth = 0;
+          monthWeeks.forEach((weekStart) => {
+            const weekKey = format(weekStart, 'yyyy-MM-dd');
+            const weekPlanning = resolveWeekPlanningForShop(shop, weekKey);
+            for (let i = 0; i < 7; i += 1) {
+              const dayKey = format(addDays(weekStart, i), 'yyyy-MM-dd');
+              shopMonth += calculateEmployeeDailyHours(employeeId, dayKey, weekPlanning, cfg);
+            }
+          });
+          if (shopMonth > 0) {
+            monthGrand += shopMonth;
+            rows.push({ shopName: shop.name || shop.id, hours: shopMonth });
+          }
+        });
+        return { rows, monthGrand };
+      };
+
+      const monthLabel = format(parseISO(selectedWeek), 'MMMM yyyy', { locale: fr });
+
       const buildEmployeeDayRows = (employeeId) => {
         const employeeDataAcrossShops = weekDataByEmployee.get(employeeId) || [];
         return weekDays.map((dayDate) => {
@@ -1954,6 +2012,19 @@ const PlanningDisplay = ({
             lines.push(`${dayLabel} -> ${formatted}`);
           });
 
+          const weekTotalH = sumEmployeeHoursForExportedWeek(employeeId);
+          lines.push(`Total semaine: ${weekTotalH.toFixed(1)} h`);
+          lines.push('');
+          lines.push(`Cumul mensuel (${monthLabel}) — detail par boutique:`);
+          const { rows: monthlyByShop, monthGrand } = getEmployeeMonthlyHoursByShop(employeeId);
+          if (monthlyByShop.length === 0) {
+            lines.push('  (aucune heure enregistree sur ce mois dans les plannings)');
+          } else {
+            monthlyByShop.forEach(({ shopName, hours }) => {
+              lines.push(`  ${shopName}: ${hours.toFixed(1)} h`);
+            });
+            lines.push(`  Total mois (toutes boutiques): ${monthGrand.toFixed(1)} h`);
+          }
           lines.push('');
         });
 
@@ -2013,6 +2084,31 @@ const PlanningDisplay = ({
               2: { cellWidth: 'auto' }
             }
           });
+
+          const weekTotalPdf = sumEmployeeHoursForExportedWeek(employeeId);
+          const { rows: monthlyRowsPdf, monthGrand: monthGrandPdf } = getEmployeeMonthlyHoursByShop(employeeId);
+          let yPdf = (doc.lastAutoTable?.finalY ?? 40) + 10;
+          const pageH = doc.internal.pageSize.getHeight();
+          const writeLine = (txt) => {
+            if (yPdf > pageH - 18) {
+              doc.addPage();
+              yPdf = 18;
+            }
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            doc.text(toPdfSafeText(txt), 14, yPdf);
+            yPdf += 6;
+          };
+          writeLine(`Total semaine: ${weekTotalPdf.toFixed(1)} h`);
+          writeLine(`Cumul mensuel (${toPdfSafeText(monthLabel)}) — detail par boutique:`);
+          if (monthlyRowsPdf.length === 0) {
+            writeLine('(aucune heure sur ce mois dans les plannings)');
+          } else {
+            monthlyRowsPdf.forEach(({ shopName, hours }) => {
+              writeLine(`  ${shopName}: ${hours.toFixed(1)} h`);
+            });
+            writeLine(`  Total mois (toutes boutiques): ${monthGrandPdf.toFixed(1)} h`);
+          }
         });
 
         const suffix = audienceMode.trim() === '2' ? 'individuel' : 'collectif';
@@ -2066,6 +2162,7 @@ const PlanningDisplay = ({
         setPlanningData={setPlanningData}
         selectedShop={selectedShop}
         selectedWeek={selectedWeek}
+        liveWeekPlanning={planning}
         onBack={() => setShowCopyPastePage(false)}
       />
     );

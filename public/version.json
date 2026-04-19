@@ -1,7 +1,16 @@
 {
-  "version": "3.10.63",
-  "lastUpdate": "2026-03-31",
+  "version": "3.10.64",
+  "lastUpdate": "2026-04-19",
   "changelog": [
+    {
+      "version": "3.10.64",
+      "date": "2026-04-19",
+      "changes": [
+        "Export horaires lisibles (TXT/PDF): total heures semaine par employe et cumul mensuel detaille par boutique.",
+        "Copier-coller planning: statuts conge/maladie inclus, fusion avec la semaine en memoire, alertes d ecrasement fiables, buffer reprenable apres F5.",
+        "Copie vers semaine suivante: meme detection des donnees existantes (statuts inclus) pour la confirmation."
+      ]
+    },
     {
       "version": "3.10.63",
       "date": "2026-03-31",

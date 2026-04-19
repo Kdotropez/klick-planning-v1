@@ -213,3 +213,20 @@ export const getEmployeeMonthlySummaryData = (employee, selectedWeek, shops, con
   console.log(`getEmployeeMonthlySummaryData: Result for ${employee}:`, { monthlyTotal, weeklySummaries });
   return { monthlyTotal, weeklySummaries };
 };
+
+/** Indique si une cellule jour (créneaux ou statut) contient autre chose que du vide / grille neutre. */
+export const dayCellHasPlanningContent = (value) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) {
+    return value.some((slot) => {
+      if (slot === true || slot === 1 || slot === '1' || slot === 'true') return true;
+      if (typeof slot === 'string') {
+        const s = slot.toLowerCase();
+        return s.includes('maladie') || s.includes('cong') || slot === 'M' || slot === 'C';
+      }
+      return false;
+    });
+  }
+  return false;
+};

@@ -77,6 +77,12 @@ const VERSION_HIGHLIGHTS = {
   '3.10.63': [
     'Fiche inspection: ajout des colonnes date de sortie et heures contractuelles (modifiables, hausse/baisse).',
     'Calcul de duree de contrat au jour d edition avec prise en compte de la date de sortie, et sauvegarde dans planningData (dateSortie/contratHours).'
+  ],
+  '3.10.64': [
+    'Export horaires lisibles (TXT et PDF): total des heures sur la semaine exportee par employe, plus cumul mensuel detaille par boutique (mois de la semaine affichee).',
+    'Copier-coller de planning: prise en compte des statuts conge/maladie, fusion avec le planning en memoire pour la semaine source = semaine affichee.',
+    'Detection des cellules reellement renseignees (plus de fausses alertes a cause des grilles vides), reprise du presse-papiers apres rechargement.',
+    'Copie semaine vers semaine suivante: meme logique pour l avertissement d ecrasement (conges et statuts comptes comme des donnees presentes).'
   ]
 };
 
