@@ -1,7 +1,14 @@
 {
-  "version": "3.10.66",
+  "version": "3.10.67",
   "lastUpdate": "2026-04-26",
   "changelog": [
+    {
+      "version": "3.10.67",
+      "date": "2026-04-26",
+      "changes": [
+        "Fusion: une seule entree « Pilotage semaine » (KPI, jour par jour, absences) remplace la vue globale par jour + le dashboard conges; indicateurs bases sur le planning reel (calculateEmployeeDailyHours) et l absence (isEmployeeOnLeave). Impression planning conservee en pied de fenetre."
+      ]
+    },
     {
       "version": "3.10.66",
       "date": "2026-04-26",

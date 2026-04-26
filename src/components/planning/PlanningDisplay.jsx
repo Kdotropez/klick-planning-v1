@@ -10,12 +10,11 @@ import DayButtons from './DayButtons';
 import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
-import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
+import ShopWeekInsightsModal from './ShopWeekInsightsModal';
 import WeeklyWorkMatrixModal from './WeeklyWorkMatrixModal';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
-import Dashboard from '../dashboard/Dashboard';
 
 import EmployeeMonthlyWeeklyModal from './EmployeeMonthlyWeeklyModal';
 import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
@@ -36,7 +35,6 @@ import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadC
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import { addAuditLog } from '@/utils/auditLog';
 import '@/assets/styles.css';
-import '../dashboard/Dashboard.css';
 
 const PlanningDisplay = ({ 
   planningData, 
@@ -65,7 +63,7 @@ const PlanningDisplay = ({
   onExitApplication
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
-  const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
+  const [showShopWeekInsights, setShowShopWeekInsights] = useState(false);
   const [showWeeklyWorkMatrix, setShowWeeklyWorkMatrix] = useState(false);
 
   const [showResetModal, setShowResetModal] = useState(false);
@@ -81,8 +79,6 @@ const PlanningDisplay = ({
   const [showEmployeeMonthlyDetail, setShowEmployeeMonthlyDetail] = useState(false);
   const [selectedEmployeeForMonthlyDetail, setSelectedEmployeeForMonthlyDetail] = useState('');
 
-  // État pour le tableau de bord
-  const [showDashboard, setShowDashboard] = useState(false);
   
   // État pour la page copier-coller avancé
   const [showCopyPastePage, setShowCopyPastePage] = useState(false);
@@ -2438,12 +2434,11 @@ const PlanningDisplay = ({
             onExport={handleExport}
             onImport={onImport}
             onReset={() => setShowResetModal(true)}
-                          setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+            onOpenShopWeekInsights={() => setShowShopWeekInsights(true)}
             onOpenWeeklyWorkMatrix={() => setShowWeeklyWorkMatrix(true)}
             handleManualSave={handleManualSave}
             onCreateJSONBackup={createAutoBackupJSON}
             onExportReadableSchedules={exportReadableSchedules}
-            onOpenDashboard={() => setShowDashboard(true)}
             onOpenShopStats={() => setShowShopStatsPage(true)}
             onOpenGestion={() => setShowGestionBoutique(true)}
             onOpenNotes={() => setShowNotesModal(true)}
@@ -3595,7 +3590,7 @@ const PlanningDisplay = ({
                                                      if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
                                                       const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
                                                        
-                                                       // Utiliser exactement la même logique que GlobalDayViewModalV2
+                                                       // Meme logique que le pilotage semaine / grille horaire
                                                        if (Array.isArray(dayPlanning)) {
                                                          // Récupérer timeSlots et interval depuis la configuration globale
                                                          const timeSlots = config?.timeSlots || [];
@@ -4361,16 +4356,20 @@ const PlanningDisplay = ({
       
 
       {/* Version 2 de la modale globale */}
-      <GlobalDayViewModalV2
-        showGlobalDayViewModal={showGlobalDayViewModalV2}
-        setShowGlobalDayViewModal={setShowGlobalDayViewModalV2}
-        planning={planning}
+      <ShopWeekInsightsModal
+        isOpen={showShopWeekInsights}
+        onClose={() => setShowShopWeekInsights(false)}
         planningData={planningData}
-        config={config}
         selectedShop={selectedShop}
         selectedWeek={validWeek}
-        selectedEmployees={localSelectedEmployees}
+        planning={planning}
+        config={config}
         currentShopEmployees={currentShopEmployees}
+        selectedEmployees={localSelectedEmployees}
+        shops={shops}
+        changeShop={changeShop}
+        changeMonth={changeMonth}
+        changeToSpecificWeek={changeToSpecificWeek}
       />
 
       <WeeklyWorkMatrixModal
@@ -4397,61 +4396,6 @@ const PlanningDisplay = ({
       />
 
       
-
-      {/* Modale du tableau de bord */}
-      {showDashboard && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            padding: '20px',
-            maxWidth: '95%',
-            maxHeight: '95%',
-            overflow: 'auto',
-            position: 'relative'
-          }}>
-            <button
-              onClick={() => setShowDashboard(false)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                background: 'none',
-                border: 'none',
-                fontSize: '24px',
-                cursor: 'pointer',
-                color: '#666'
-              }}
-            >
-              ×
-            </button>
-            <Dashboard
-              selectedShop={selectedShop}
-              selectedWeek={validWeek}
-              selectedEmployees={localSelectedEmployees}
-              globalPlanning={planning}
-              planningData={planningData}
-              onShopChange={changeShop}
-              onWeekChange={changeToSpecificWeek}
-              onMonthChange={changeMonth}
-              shops={shops}
-              employees={currentShopEmployees}
-              config={config}
-            />
-          </div>
-        </div>
-      )}
 
       {showMonthlyRecapModal && (
       <MonthlyRecapModals

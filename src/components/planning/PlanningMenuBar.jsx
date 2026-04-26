@@ -30,14 +30,13 @@ const PlanningMenuBar = ({
   onExport,
   onImport,
   onReset,
-  setShowGlobalDayViewModalV2,
+  onOpenShopWeekInsights,
   onOpenWeeklyWorkMatrix,
   handleManualSave,
   handleRestoreFromSupabase,
   handleRestoreBackupFromHistory,
   handleExitApplication,
   // Modules
-  onOpenDashboard,
   onOpenShopStats,
   onOpenGestion,
   onOpenNotes,
@@ -195,24 +194,25 @@ const PlanningMenuBar = ({
         {/* LIGNE 1: Fonctions principales */}
           <Button
             className="button-primary"
-            onClick={() => setShowGlobalDayViewModalV2(true)}
+            onClick={() => onOpenShopWeekInsights && onOpenShopWeekInsights()}
             style={{
-              backgroundColor: '#1e88e5',
+              backgroundColor: '#1e3a5f',
               color: '#fff',
-            padding: '10px 14px',
-            fontSize: '13px',
+              padding: '10px 14px',
+              fontSize: '13px',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-            gap: '6px',
+              gap: '6px',
               whiteSpace: 'nowrap'
             }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#152a45')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1e3a5f')}
+            title="KPI: heures, effectifs, couverture par jour, absences (ex-vue globale + dashboard)"
           >
-            📊 Vue globale par jour
+            Pilotage semaine
           </Button>
 
           <Button
@@ -581,28 +581,6 @@ const PlanningMenuBar = ({
           title="Journal d audit (acces protege)"
         >
           📋 Journal d audit
-        </Button>
-
-        <Button
-          className="button-primary"
-          onClick={onOpenDashboard}
-          style={{
-            backgroundColor: '#9c27b0',
-            color: '#fff',
-            padding: '10px 14px',
-            fontSize: '13px',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            whiteSpace: 'nowrap'
-          }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7b1fa2'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#9c27b0'}
-        >
-          📊 Dashboard
         </Button>
 
         <Button

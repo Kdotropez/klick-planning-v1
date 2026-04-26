@@ -1,0 +1,574 @@
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import {
+  addDays,
+  addMinutes,
+  format,
+  parse,
+  parseISO,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  startOfMonth,
+  endOfMonth
+} from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { isEmployeeOnLeave } from '../../utils/planningDataManager';
+import WeeklyPlanningPrint from '../dashboard/WeeklyPlanningPrint';
+
+const normSlot = (v) => v === true || v === 1 || v === '1' || v === 'true';
+
+/**
+ * Pilotage semaine (boutique courante) : couverture horaire, effectifs, absences.
+ * Remplace l’ancienne « vue globale par jour » + le tableau de bord congés (une seule entrée).
+ */
+const ShopWeekInsightsModal = ({
+  isOpen,
+  onClose,
+  planningData,
+  selectedShop,
+  selectedWeek,
+  planning = {},
+  config = {},
+  currentShopEmployees = [],
+  selectedEmployees = [],
+  shops = [],
+  changeShop,
+  changeMonth,
+  changeToSpecificWeek
+}) => {
+  const [tab, setTab] = useState('synthese');
+  const [showPrint, setShowPrint] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setTab('synthese');
+  }, [isOpen]);
+
+  const timeSlots = config.timeSlots || [];
+  const interval = config.interval || 30;
+  const days = config.days || [
+    { name: 'Lundi', short: 'Lun' },
+    { name: 'Mardi', short: 'Mar' },
+    { name: 'Mercredi', short: 'Mer' },
+    { name: 'Jeudi', short: 'Jeu' },
+    { name: 'Vendredi', short: 'Ven' },
+    { name: 'Samedi', short: 'Sam' },
+    { name: 'Dimanche', short: 'Dim' }
+  ];
+
+  const shopLabel = useMemo(() => {
+    const s = shops.find((x) => x.id === selectedShop);
+    return s?.name || selectedShop;
+  }, [shops, selectedShop]);
+
+  const visibleIds = useMemo(() => {
+    const ids = (currentShopEmployees || []).map((e) => e.id);
+    if (selectedEmployees?.length) {
+      return selectedEmployees.filter((id) => ids.includes(id));
+    }
+    return ids;
+  }, [currentShopEmployees, selectedEmployees]);
+
+  const weekRangeLabel = useMemo(() => {
+    if (!selectedWeek) return '';
+    const a = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
+    const b = endOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
+    return `${format(a, 'd MMM', { locale: fr })} – ${format(b, 'd MMM yyyy', { locale: fr })}`;
+  }, [selectedWeek]);
+
+  const kpis = useMemo(() => {
+    if (!isOpen || !selectedWeek) return null;
+    let totalH = 0;
+    const weekStart = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
+    const wDays = eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
+    const perDayHours = wDays.map((d) => format(d, 'yyyy-MM-dd')).map((dayKey) => {
+      let h = 0;
+      visibleIds.forEach((empId) => {
+        h += calculateEmployeeDailyHours(empId, dayKey, planning, config);
+      });
+      return { dayKey, h };
+    });
+    perDayHours.forEach(({ h }) => {
+      totalH += h;
+    });
+    const active = visibleIds.filter((empId) =>
+      wDays.some((d) => {
+        const dk = format(d, 'yyyy-MM-dd');
+        return calculateEmployeeDailyHours(empId, dk, planning, config) > 0.001;
+      })
+    ).length;
+    const openDays = perDayHours.filter((x) => x.h > 0.001).length;
+    return { totalH, active, openDays, perDayHours, wDays };
+  }, [isOpen, selectedWeek, planning, config, visibleIds]);
+
+  const dayDetails = useMemo(() => {
+    if (!isOpen || !selectedWeek) return [];
+    return days.map((d, index) => {
+      const dayKey = format(addDays(parseISO(selectedWeek), index), 'yyyy-MM-dd');
+      const dayDate = addDays(parseISO(selectedWeek), index);
+      let hours = 0;
+      visibleIds.forEach((empId) => {
+        hours += calculateEmployeeDailyHours(empId, dayKey, planning, config);
+      });
+      const slotData = timeSlots.map((slot, slotIndex) => {
+        const c = visibleIds.filter(
+          (empId) => normSlot(planning[empId]?.[dayKey]?.[slotIndex])
+        ).length;
+        return { time: slot, count: c };
+      });
+      let openT = null;
+      let closeT = null;
+      for (let i = 0; i < slotData.length; i += 1) {
+        if (slotData[i].count > 0 && !openT) openT = slotData[i].time;
+        if (slotData[i].count > 0) {
+          closeT = format(addMinutes(parse(slotData[i].time, 'HH:mm', new Date()), interval), 'HH:mm');
+        }
+      }
+      const maxEmp = Math.max(0, ...slotData.map((s) => s.count));
+      return {
+        name: d.name,
+        short: d.short,
+        dayKey,
+        dayDate,
+        hours,
+        openT: openT || null,
+        closeT: closeT || null,
+        maxEmp,
+        hasWork: hours > 0.001
+      };
+    });
+  }, [isOpen, selectedWeek, days, timeSlots, planning, config, visibleIds, interval]);
+
+  const absenceData = useMemo(() => {
+    if (!isOpen || !planningData || !selectedWeek || !visibleIds.length) {
+      return { employees: [], dayRows: [], monthLeaveTotal: 0 };
+    }
+    const w0 = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
+    const wDays = eachDayOfInterval({ start: w0, end: addDays(w0, 6) });
+    const m0 = startOfMonth(parseISO(selectedWeek));
+    const m1 = endOfMonth(parseISO(selectedWeek));
+    const mDays = eachDayOfInterval({ start: m0, end: m1 });
+
+    const nameOf = (id) => currentShopEmployees.find((e) => e.id === id)?.name || id;
+    const employees = [];
+    visibleIds.forEach((empId) => {
+      let wk = 0;
+      let mo = 0;
+      wDays.forEach((d) => {
+        if (isEmployeeOnLeave(empId, format(d, 'yyyy-MM-dd'), planningData)) wk += 1;
+      });
+      mDays.forEach((d) => {
+        if (isEmployeeOnLeave(empId, format(d, 'yyyy-MM-dd'), planningData)) mo += 1;
+      });
+      if (wk > 0 || mo > 0) {
+        employees.push({ id: empId, name: nameOf(empId), week: wk, month: mo });
+      }
+    });
+    employees.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+    const dayRows = wDays.map((d) => {
+      const dk = format(d, 'yyyy-MM-dd');
+      const names = [];
+      visibleIds.forEach((empId) => {
+        if (isEmployeeOnLeave(empId, dk, planningData)) names.push(nameOf(empId));
+      });
+      return {
+        date: d,
+        label: `${format(d, 'EEEE d MMM', { locale: fr })}`,
+        count: names.length,
+        names
+      };
+    });
+    const monthLeaveTotal = employees.reduce((s, e) => s + e.month, 0);
+    const weekLeaveTotal = employees.reduce((s, e) => s + e.week, 0);
+    return { employees, dayRows, monthLeaveTotal, weekLeaveTotal };
+  }, [isOpen, planningData, selectedWeek, visibleIds, currentShopEmployees]);
+
+  const cardStyle = {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: 10,
+    padding: '14px 16px',
+    minWidth: 0
+  };
+  const valStyle = { fontSize: 22, fontWeight: 800, color: '#0f172a', margin: '4px 0 0' };
+  const labelStyle = { fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' };
+
+  const onWeekSelect = useCallback(
+    (e) => {
+      if (changeToSpecificWeek) changeToSpecificWeek(e.target.value);
+    },
+    [changeToSpecificWeek]
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        zIndex: 50000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: 'min(1024px, 100%)',
+          maxHeight: 'min(92vh, 900px)',
+          background: '#fff',
+          borderRadius: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 24px 48px rgba(0,0,0,0.18)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header
+          style={{
+            padding: '16px 20px',
+            background: 'linear-gradient(135deg, #0f4c75 0%, #1b4964 100%)',
+            color: '#fff'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Pilotage de la semaine</h2>
+              <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, maxWidth: 640 }}>
+                Indicateurs sur la <strong>boutique affichée</strong> (planning en cours) : heures planifiées, pointes
+                d’effectif et absences détectées (aucun créneau sur les boutiques d’affectation = congé).
+              </p>
+              <p style={{ margin: '6px 0 0', fontSize: 14, fontWeight: 600 }}>{shopLabel} · {weekRangeLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                border: '1px solid rgba(255,255,255,0.4)',
+                background: 'rgba(255,255,255,0.1)',
+                color: '#fff',
+                borderRadius: 8,
+                padding: '8px 16px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              Fermer
+            </button>
+          </div>
+
+          {planningData?.shops?.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 10,
+                marginTop: 14,
+                alignItems: 'center',
+                fontSize: 13
+              }}
+            >
+              {changeShop && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.85 }}>Boutique</span>
+                  <select
+                    value={selectedShop}
+                    onChange={(e) => changeShop(e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #94a3b8', minWidth: 160 }}
+                  >
+                    {planningData.shops.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name || s.id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {changeMonth && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.85 }}>Mois</span>
+                  <select
+                    value={format(parseISO(selectedWeek), 'yyyy-MM')}
+                    onChange={(e) => changeMonth(e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #94a3b8' }}
+                  >
+                    {Array.from({ length: 24 }, (_, i) => {
+                      const cur = parseISO(selectedWeek);
+                      const d = new Date(cur.getFullYear(), cur.getMonth() - 6 + i, 1);
+                      const key = format(d, 'yyyy-MM');
+                      return (
+                        <option key={key} value={key}>
+                          {format(d, 'MMMM yyyy', { locale: fr })}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              )}
+              {changeToSpecificWeek && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.85 }}>Semaine</span>
+                  <select
+                    value={selectedWeek}
+                    onChange={onWeekSelect}
+                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #94a3b8', minWidth: 200 }}
+                  >
+                    {(() => {
+                      const cur = parseISO(selectedWeek);
+                      const mStart = startOfMonth(cur);
+                      const mEnd = endOfMonth(cur);
+                      const wks = [];
+                      let w = startOfWeek(mStart, { weekStartsOn: 1 });
+                      while (w <= mEnd) {
+                        const key = format(w, 'yyyy-MM-dd');
+                        const wEnd = endOfWeek(w, { weekStartsOn: 1 });
+                        wks.push(
+                          <option key={key} value={key}>
+                            {format(w, 'd', { locale: fr })} – {format(wEnd, 'd MMM', { locale: fr })}
+                          </option>
+                        );
+                        w = addDays(w, 7);
+                      }
+                      return wks;
+                    })()}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+
+          <nav style={{ display: 'flex', gap: 4, marginTop: 16, borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+            {[
+              { id: 'synthese', label: 'Synthèse' },
+              { id: 'jour', label: 'Jour par jour' },
+              { id: 'absences', label: 'Absences' }
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                style={{
+                  padding: '10px 16px',
+                  border: 'none',
+                  background: tab === t.id ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: '#fff',
+                  fontWeight: tab === t.id ? 800 : 500,
+                  cursor: 'pointer',
+                  borderRadius: '8px 8px 0 0',
+                  borderBottom: tab === t.id ? '3px solid #fff' : '3px solid transparent',
+                  marginBottom: -1
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+        </header>
+
+        <div style={{ padding: 18, overflow: 'auto', flex: 1, background: '#f1f5f9' }}>
+          {tab === 'synthese' && kpis && (
+            <div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                  gap: 12
+                }}
+              >
+                <div style={cardStyle}>
+                  <div style={labelStyle}>Heures planifiées (semaine)</div>
+                  <div style={valStyle}>
+                    {kpis.totalH.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Somme des durées sur la grille (boutique actuelle)</div>
+                </div>
+                <div style={cardStyle}>
+                  <div style={labelStyle}>Employés en activité</div>
+                  <div style={valStyle}>{kpis.active}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Au moins un créneau sur la semaine (liste affichée)</div>
+                </div>
+                <div style={cardStyle}>
+                  <div style={labelStyle}>Jours avec heures</div>
+                  <div style={valStyle}>
+                    {kpis.openDays} / 7
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Jours où le total &gt; 0 h</div>
+                </div>
+                <div style={cardStyle}>
+                  <div style={labelStyle}>Jours d’absence (congé)</div>
+                  <div style={valStyle}>{absenceData.weekLeaveTotal}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Cumul sur la semaine (jours·personne)</div>
+                </div>
+                <div style={cardStyle}>
+                  <div style={labelStyle}>Effectifs concernés (absence)</div>
+                  <div style={valStyle}>{absenceData.employees.length}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Avec au moins un jour congé (semaine ou mois)</div>
+                </div>
+                <div style={cardStyle}>
+                  <div style={labelStyle}>Jours d’absence (mois)</div>
+                  <div style={valStyle}>{absenceData.monthLeaveTotal}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Calendaire {format(parseISO(selectedWeek), 'MMMM yyyy', { locale: fr })}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'jour' && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                gap: 12
+              }}
+            >
+              {dayDetails.map((d) => (
+                <div
+                  key={d.dayKey}
+                  style={{
+                    ...cardStyle,
+                    borderColor: d.hasWork ? '#94a3b8' : '#e2e8f0',
+                    opacity: d.hasWork ? 1 : 0.88
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 15 }}>
+                    {d.name} {format(d.dayDate, 'dd/MM', { locale: fr })}
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 20, fontWeight: 800, color: '#0d9488' }}>
+                    {d.hours.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569', marginTop: 8 }}>
+                    {d.hasWork ? (
+                      <>
+                        Couverture : {d.openT} – {d.closeT}
+                        <br />
+                        Pic simultané : {d.maxEmp} pers.
+                      </>
+                    ) : (
+                      'Aucune heure planifiée'
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === 'absences' && (
+            <div style={{ maxWidth: 900 }}>
+              <h3 style={{ fontSize: 15, color: '#0f172a', margin: '0 0 10px' }}>Par jour (semaine)</h3>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  background: '#fff',
+                  fontSize: 13,
+                  marginBottom: 20,
+                  border: '1px solid #e2e8f0'
+                }}
+              >
+                <thead>
+                  <tr style={{ background: '#0f4c75', color: '#fff' }}>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Jour</th>
+                    <th style={{ textAlign: 'center', padding: 8, width: 72 }}>Nb</th>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Personnes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {absenceData.dayRows.map((r) => (
+                    <tr key={r.label} style={{ borderTop: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: 8 }}>{r.label}</td>
+                      <td style={{ textAlign: 'center', padding: 8 }}>{r.count}</td>
+                      <td style={{ padding: 8, color: r.names.length ? '#334155' : '#94a3b8' }}>
+                        {r.names.length ? r.names.join(', ') : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <h3 style={{ fontSize: 15, color: '#0f172a', margin: '0 0 10px' }}>Par personne</h3>
+              <table
+                style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', fontSize: 13, border: '1px solid #e2e8f0' }}
+              >
+                <thead>
+                  <tr style={{ background: '#0f4c75', color: '#fff' }}>
+                    <th style={{ textAlign: 'left', padding: 8 }}>Employé</th>
+                    <th style={{ textAlign: 'right', padding: 8, width: 100 }}>J. congé (semaine)</th>
+                    <th style={{ textAlign: 'right', padding: 8, width: 100 }}>J. congé (mois)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {absenceData.employees.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ padding: 16, textAlign: 'center', color: '#64748b' }}>
+                        Aucune absence de ce type sur la période affichée.
+                      </td>
+                    </tr>
+                  ) : (
+                    absenceData.employees.map((e) => (
+                      <tr key={e.id} style={{ borderTop: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: 8, fontWeight: 600 }}>{e.name}</td>
+                        <td style={{ textAlign: 'right', padding: 8 }}>{e.week}</td>
+                        <td style={{ textAlign: 'right', padding: 8 }}>{e.month}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <footer
+          style={{
+            padding: '12px 18px',
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 10,
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#fff'
+          }}
+        >
+          <span style={{ fontSize: 11, color: '#64748b' }}>Klick — pilotage (données issues du planning en mémoire)</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowPrint(true)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                background: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Imprimer planning
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      {showPrint && (
+        <WeeklyPlanningPrint
+          selectedShop={selectedShop}
+          selectedWeek={selectedWeek}
+          planningData={planningData}
+          shops={shops}
+          employees={currentShopEmployees}
+          config={config}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default ShopWeekInsightsModal;

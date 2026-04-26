@@ -90,6 +90,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.66': [
     'Recap semaine (tous): affichage des heures par jour et total hebdomadaire par employe (Multi-boutiques), PDF enrichi en consequence.'
+  ],
+  '3.10.67': [
+    'Pilotage semaine: module unique (ex-vue globale + ex-dashboard) avec KPI, couverture par jour, absences, selecteurs boutique/mois/semaine et impression du planning. Vue globale / dashboard separes retires du menu.'
   ]
 };
 
