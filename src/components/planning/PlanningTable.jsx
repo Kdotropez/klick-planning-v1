@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, addMinutes, parse, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
@@ -377,6 +377,37 @@ const PlanningTable = ({
   const validTimeSlots = config?.timeSlots && Array.isArray(config.timeSlots) && config.timeSlots.length > 0 
     ? config.timeSlots.filter(slot => slot && typeof slot === 'string')
     : [];
+
+  // Lignes affichées : sélection + employés de la boutique ayant congé/maladie ce jour
+  // (sinis la croix de retrait n'apparaît pas si l'employé n'est pas coché dans la sélection)
+  const rowEmployeeIds = useMemo(() => {
+    const sel = selectedEmployees || [];
+    const dayKey = format(addDays(parseISO(validWeek), currentDay), 'yyyy-MM-dd');
+    const hasCongeOrMaladieThisDay = (employeeId) => {
+      const dayData = planning?.[employeeId]?.[dayKey];
+      if (dayData == null) return false;
+      if (typeof dayData === 'string') {
+        const s = dayData.toLowerCase();
+        return s.includes('maladie') || s.includes('congé') || s.includes('conge');
+      }
+      if (Array.isArray(dayData)) {
+        return dayData.some(
+          (v) =>
+            v === 'M' ||
+            v === 'C' ||
+            (typeof v === 'string' &&
+              (v.toLowerCase().includes('maladie') ||
+                v.toLowerCase().includes('congé') ||
+                v.toLowerCase().includes('conge')))
+        );
+      }
+      return false;
+    };
+    const extra = (currentShopEmployees || [])
+      .map((e) => e.id)
+      .filter((id) => hasCongeOrMaladieThisDay(id) && !sel.includes(id));
+    return Array.from(new Set([...sel, ...extra]));
+  }, [selectedEmployees, planning, validWeek, currentDay, currentShopEmployees]);
   
   if (validTimeSlots.length === 0) {
     console.warn('PlanningTable: Configuration des tranches horaires invalide:', { config, timeSlots: config?.timeSlots });
@@ -491,7 +522,7 @@ const PlanningTable = ({
           </tr>
         </thead>
         <tbody>
-          {(selectedEmployees || []).map((employeeId, employeeIndex) => {
+          {rowEmployeeIds.map((employeeId, employeeIndex) => {
             const dayKey = format(addDays(parseISO(validWeek), currentDay), 'yyyy-MM-dd');
             const dayData = planning?.[employeeId]?.[dayKey];
             const dayStatus = typeof dayData === 'string' ? dayData : null;
@@ -564,23 +595,32 @@ const PlanningTable = ({
                     return null;
                   })()}
                   {displayStatus && (
-                    <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 'bold', color: isSickDay ? '#dc3545' : '#ff9800' }}>
+                    <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 'bold', color: isSickDay ? '#dc3545' : '#ff9800', display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                       {displayStatus}
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (typeof onSetDayStatus === 'function') {
                             onSetDayStatus(employeeId, currentDay, 'none');
                           }
                         }}
-                        title="Retirer le statut"
+                        title="Retirer congé ou maladie pour ce jour"
+                        aria-label="Retirer le statut du jour"
                         style={{
-                          marginLeft: '6px',
-                          border: 'none',
-                          background: 'transparent',
-                          color: '#6c757d',
+                          marginLeft: '4px',
+                          minWidth: '28px',
+                          minHeight: '28px',
+                          padding: '0 6px',
+                          border: '1px solid #ced4da',
+                          borderRadius: '6px',
+                          background: '#fff',
+                          color: '#495057',
                           cursor: 'pointer',
-                          fontWeight: 'bold'
+                          fontWeight: 'bold',
+                          fontSize: '15px',
+                          lineHeight: 1,
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
                         }}
                       >
                         ✕

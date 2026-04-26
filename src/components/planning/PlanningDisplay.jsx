@@ -570,8 +570,7 @@ const PlanningDisplay = ({
     // Sauvegarde silencieuse du planning actuel avant le changement de jour
     if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
       try {
-        const updatedPlanningData = safeSaveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-        setPlanningData(updatedPlanningData);
+        setPlanningData((prev) => safeSaveWeekPlanning(prev, selectedShop, selectedWeek, planning, localSelectedEmployees));
         console.log('💾 Sauvegarde silencieuse lors du changement de jour');
       } catch (error) {
         console.error('Erreur lors de la sauvegarde silencieuse:', error);
@@ -593,7 +592,7 @@ const PlanningDisplay = ({
       });
     }
     setCurrentDay(newDay);
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay, selectedShop, selectedWeek, planning, planningData, localSelectedEmployees, setPlanningData]);
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay, selectedShop, selectedWeek, planning, localSelectedEmployees, setPlanningData, safeSaveWeekPlanning]);
 
   // Mettre à jour les employés sélectionnés globalement
   useEffect(() => {
@@ -1085,8 +1084,10 @@ const PlanningDisplay = ({
       // SAUVEGARDE AUTOMATIQUE IMMÉDIATE (seulement si on a la main)
       if (selectedShop && selectedWeek && !readOnly) {
         try {
-          const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees);
-          setPlanningData(updatedPlanningData);
+          // Toujours partir du planningData le plus récent (évite d'écraser d'autres boutiques avec un snapshot périmé)
+          setPlanningData((prevData) =>
+            saveWeekPlanning(prevData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees)
+          );
           setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde
           console.log('💾 Sauvegarde automatique après modification');
         } catch (error) {
@@ -1099,7 +1100,7 @@ const PlanningDisplay = ({
       
       return updatedPlanning;
     });
-  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay]);
+  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, selectedWeek, localSelectedEmployees, readOnly]);
 
   // Fonction pour marquer un créneau comme validé
   const markAsValidated = useCallback((employee, dayKey, slotIndex) => {
@@ -1137,16 +1138,21 @@ const PlanningDisplay = ({
     try {
       if (selectedShop && selectedWeek) {
         // Forcer la sauvegarde des données actuelles en mémoire
-        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-        setPlanningData(updatedPlanningData);
-        saveToLocalStorage('planningData', updatedPlanningData);
+        let updatedSnapshot;
+        setPlanningData((prev) => {
+          updatedSnapshot = saveWeekPlanning(prev, selectedShop, selectedWeek, planning, localSelectedEmployees);
+          return updatedSnapshot;
+        });
+        if (updatedSnapshot) {
+          saveToLocalStorage('planningData', updatedSnapshot);
+        }
         
         // Attendre un peu pour s'assurer que le state est mis à jour
         await new Promise(resolve => setTimeout(resolve, 100));
         
         // Sauvegarder d'abord la semaine courante (enregistrement visible par boutique/semaine)
         try {
-          const weekSaved = await saveRemotePlanning(updatedPlanningData, selectedShop, selectedWeek);
+          const weekSaved = await saveRemotePlanning(updatedSnapshot, selectedShop, selectedWeek);
           if (weekSaved) {
             console.log('✅ Sauvegarde semaine Supabase réussie');
             setLocalFeedback('💾 Semaine sauvegardée (Supabase)');
@@ -1160,7 +1166,7 @@ const PlanningDisplay = ({
         // Puis sauvegarde du fichier complet (backup) avec les données fraîches
         try { 
           console.log('🔄 Sauvegarde complète avec données fraîches...');
-          const remoteResult = await saveCompletePlanningData(updatedPlanningData);
+          const remoteResult = await saveCompletePlanningData(updatedSnapshot);
           if (remoteResult) {
             console.log('✅ Sauvegarde complète Supabase réussie');
             setLocalFeedback('💾 Sauvegarde complète réussie');
@@ -1189,7 +1195,7 @@ const PlanningDisplay = ({
       console.error('Erreur sauvegarde manuelle:', error);
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
-  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, planningData, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly]);
+  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly, shops, currentUser?.code, currentUser?.name]);
 
   // Fonction de test de connexion Supabase
   const testSupabase = useCallback(async () => {
@@ -1469,8 +1475,9 @@ const PlanningDisplay = ({
     // Sauvegarder les modifications actuelles avant de changer de semaine
     if (!readOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
       try {
-        const updatedPlanningData = saveWeekPlanning(planningData, selectedShop, selectedWeek, planning, localSelectedEmployees);
-        setPlanningData(updatedPlanningData);
+        setPlanningData((prev) =>
+          saveWeekPlanning(prev, selectedShop, selectedWeek, planning, localSelectedEmployees)
+        );
         console.log('💾 Sauvegarde automatique avant changement vers semaine spécifique');
       } catch (error) {
         console.error('Erreur lors de la sauvegarde avant changement vers semaine spécifique:', error);
@@ -4338,39 +4345,50 @@ const PlanningDisplay = ({
                 }
                 // Sauvegarde immédiate
                 try {
-                  // Propager le statut aux autres boutiques si multi-boutiques
-                  let planningDataToSave = planningData;
-                  const baseUpdatedForCurrentShop = saveWeekPlanning(planningDataToSave, selectedShop, selectedWeek, updated, localSelectedEmployees);
-                  planningDataToSave = baseUpdatedForCurrentShop;
-                  try {
-                    const employeeGlobal = (planningDataToSave.shops || []).flatMap(s => s.employees || []).find(e => e.id === employeeId);
-                    const otherShopIds = (employeeGlobal?.canWorkIn || []).filter(id => id !== selectedShop);
-                    if (otherShopIds.length > 0) {
-                      otherShopIds.forEach(shopId => {
-                        const shop = (planningDataToSave.shops || []).find(s => s.id === shopId);
-                        if (!shop) return;
-                        const timeSlots = Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : (Array.isArray(config?.timeSlots) ? config.timeSlots : []);
-                        const empWeek = shop.weeks?.[selectedWeek]?.planning?.[employeeId] || {};
-                        const currentDayValue = empWeek[dayKey];
-                        // Construire un planning minimal pour cette propagation
-                        const patch = { [employeeId]: { [dayKey]: null } };
-                        if (status === 'maladie') {
-                          patch[employeeId][dayKey] = 'Maladie 🤒';
-                        } else if (status === 'conge') {
-                          patch[employeeId][dayKey] = 'Congé ☀️';
-                        } else {
-                          // none -> si on enlève, on remet un tableau de la bonne taille
-                          const length = Array.isArray(currentDayValue) ? currentDayValue.length : timeSlots.length;
-                          patch[employeeId][dayKey] = new Array(length).fill(false);
-                        }
-                        planningDataToSave = saveWeekPlanning(planningDataToSave, shopId, selectedWeek, { ...(shop.weeks?.[selectedWeek]?.planning || {}), ...patch }, shop.weeks?.[selectedWeek]?.selectedEmployees || []);
-                      });
+                  setPlanningData((currentPlanning) => {
+                    // Toujours fusionner sur l'état courant
+                    let d = saveWeekPlanning(
+                      currentPlanning,
+                      selectedShop,
+                      selectedWeek,
+                      updated,
+                      localSelectedEmployees
+                    );
+                    // Ne pas propager le retrait (none) : sinon on écrase le même jour dans les autres
+                    // boutiques (Grimaud, etc.) et on peut vider le travail planifié ailleurs.
+                    if (status === 'none') {
+                      return d;
                     }
-                  } catch (e2) {
-                    console.warn('Propagation multi-boutiques ignorée:', e2);
-                  }
-                  const updatedPlanningData = planningDataToSave;
-                  setPlanningData(updatedPlanningData);
+                    // Propager congé / maladie aux autres canWorkIn uniquement
+                    try {
+                      const employeeGlobal = (d.shops || [])
+                        .flatMap(s => s.employees || [])
+                        .find(e => e.id === employeeId);
+                      const otherShopIds = (employeeGlobal?.canWorkIn || [])
+                        .filter(id => id !== selectedShop);
+                      if (otherShopIds.length > 0) {
+                        otherShopIds.forEach(shopId => {
+                          const shop = (d.shops || []).find(s => s.id === shopId);
+                          if (!shop) return;
+                          const patch = {
+                            [employeeId]: {
+                              [dayKey]: status === 'maladie' ? 'Maladie 🤒' : 'Congé ☀️'
+                            }
+                          };
+                          d = saveWeekPlanning(
+                            d,
+                            shopId,
+                            selectedWeek,
+                            { ...(shop.weeks?.[selectedWeek]?.planning || {}), ...patch },
+                            shop.weeks?.[selectedWeek]?.selectedEmployees || []
+                          );
+                        });
+                      }
+                    } catch (e2) {
+                      console.warn('Propagation multi-boutiques ignorée:', e2);
+                    }
+                    return d;
+                  });
                   setHasUnsavedChanges(false);
                 } catch (e) {
                   console.error('Erreur sauvegarde statut jour:', e);
