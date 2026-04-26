@@ -1,7 +1,14 @@
 {
-  "version": "3.10.68",
+  "version": "3.10.69",
   "lastUpdate": "2026-04-27",
   "changelog": [
+    {
+      "version": "3.10.69",
+      "date": "2026-04-27",
+      "changes": [
+        "Pilotage semaine: clic sur chaque carte (synthese) ou sur les cartes Jour par jour, ou sur les lignes des tableaux Absences, pour ouvrir une fenetre de detail (decomposition heures, employes, conges par jour / par personne)."
+      ]
+    },
     {
       "version": "3.10.68",
       "date": "2026-04-27",

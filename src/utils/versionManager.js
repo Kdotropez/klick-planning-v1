@@ -98,6 +98,9 @@ const VERSION_HIGHLIGHTS = {
     'Recap semaine « qui / ou » : perimetre par boutique, exclusion des employes masques et non affectes, export coherents.',
     'Vue par employe ou par boutique (1re colonne boutique, employes par jour) avec PDF decide.',
     'Ouverture du recap sur la boutique courante; export horaires lisible et cumul mensuel filtres sur les memes regles d eligibilite.'
+  ],
+  '3.10.69': [
+    'Pilotage de la semaine: detail en pop-up en cliquant sur les cartes (synthese), chaque jour (onglet Jour par jour) ou chaque ligne (Absences) — tableaux, listes d employes, dates de conges par semaine / mois.'
   ]
 };
 

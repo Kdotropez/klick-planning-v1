@@ -18,6 +18,117 @@ import WeeklyPlanningPrint from '../dashboard/WeeklyPlanningPrint';
 
 const normSlot = (v) => v === true || v === 1 || v === '1' || v === 'true';
 
+const buildSlotRangeLines = (slots, timeSlots = [], interval = 30) => {
+  if (!Array.isArray(slots) || !timeSlots.length) return [];
+  const ranges = [];
+  let startIndex = null;
+  for (let i = 0; i < slots.length; i += 1) {
+    const selected = normSlot(slots[i]);
+    if (selected && startIndex === null) startIndex = i;
+    if (!selected && startIndex !== null) {
+      const start = timeSlots[startIndex];
+      const endBase = timeSlots[Math.max(0, i - 1)];
+      if (start && endBase) {
+        const [eh, em] = String(endBase).split(':').map((n) => Number.parseInt(n, 10) || 0);
+        const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
+        ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
+      }
+      startIndex = null;
+    }
+  }
+  if (startIndex !== null) {
+    const start = timeSlots[startIndex];
+    const last = timeSlots[Math.max(0, timeSlots.length - 1)];
+    if (start && last) {
+      const [eh, em] = String(last).split(':').map((n) => Number.parseInt(n, 10) || 0);
+      const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
+      ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
+    }
+  }
+  return ranges;
+};
+
+const describeCellForDay = (empId, dayKey, planning, config) => {
+  const ep = planning?.[empId]?.[dayKey];
+  if (ep === undefined || ep === null) return null;
+  if (typeof ep === 'string') {
+    return { type: 'status', text: ep };
+  }
+  if (Array.isArray(ep) && ep.some(normSlot)) {
+    const ranges = buildSlotRangeLines(ep, config.timeSlots || [], config.interval || 30);
+    const h = calculateEmployeeDailyHours(empId, dayKey, { [empId]: planning[empId] }, config);
+    return { type: 'slots', text: ranges.join(', ') || '—', h };
+  }
+  return null;
+};
+
+const DetailLayer = ({ title, onClose, children }) => (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 51000,
+      background: 'rgba(15,23,42,0.45)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20
+    }}
+    onClick={(e) => {
+      e.stopPropagation();
+      onClose();
+    }}
+  >
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        width: 'min(560px, 100%)',
+        maxHeight: 'min(80vh, 700px)',
+        background: '#fff',
+        borderRadius: 12,
+        boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+    >
+      <div
+        style={{
+          padding: '14px 18px',
+          background: 'linear-gradient(90deg, #0f4c75 0%, #1b4964 100%)',
+          color: '#fff',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{title}</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            border: '1px solid rgba(255,255,255,0.45)',
+            background: 'rgba(255,255,255,0.12)',
+            color: '#fff',
+            borderRadius: 8,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            fontWeight: 600
+          }}
+        >
+          Fermer
+        </button>
+      </div>
+      <div style={{ padding: 16, overflow: 'auto', flex: 1, fontSize: 13, color: '#334155', lineHeight: 1.5 }}>
+        {children}
+      </div>
+    </div>
+  </div>
+);
+
 /**
  * Pilotage semaine (boutique courante) : couverture horaire, effectifs, absences.
  * Remplace l’ancienne « vue globale par jour » + le tableau de bord congés (une seule entrée).
@@ -184,6 +295,48 @@ const ShopWeekInsightsModal = ({
     return { employees, dayRows, monthLeaveTotal, weekLeaveTotal };
   }, [isOpen, planningData, selectedWeek, visibleIds, currentShopEmployees]);
 
+  const employeeWeekBreakdown = useMemo(() => {
+    if (!isOpen || !selectedWeek) return [];
+    const w0 = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
+    const wDays = eachDayOfInterval({ start: w0, end: addDays(w0, 6) });
+    return visibleIds
+      .map((empId) => {
+        const name = currentShopEmployees.find((e) => e.id === empId)?.name || empId;
+        let total = 0;
+        const perDay = [];
+        wDays.forEach((d) => {
+          const dk = format(d, 'yyyy-MM-dd');
+          const h = calculateEmployeeDailyHours(empId, dk, planning, config);
+          total += h;
+          if (h > 0.001) {
+            perDay.push({ dk, label: format(d, 'EEE d MMM', { locale: fr }), h });
+          }
+        });
+        return { id: empId, name, total, perDay };
+      })
+      .filter((x) => x.total > 0.001)
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+  }, [isOpen, selectedWeek, visibleIds, planning, config, currentShopEmployees]);
+
+  const monthAbsenceDetailList = useMemo(() => {
+    if (!isOpen || !planningData || !selectedWeek) return [];
+    const m0 = startOfMonth(parseISO(selectedWeek));
+    const m1 = endOfMonth(parseISO(selectedWeek));
+    const mDays = eachDayOfInterval({ start: m0, end: m1 });
+    return visibleIds
+      .map((empId) => {
+        const name = currentShopEmployees.find((e) => e.id === empId)?.name || empId;
+        const dates = mDays
+          .filter((d) => isEmployeeOnLeave(empId, format(d, 'yyyy-MM-dd'), planningData))
+          .map((d) => format(d, 'EEEE d MMM', { locale: fr }));
+        return { id: empId, name, dates, count: dates.length };
+      })
+      .filter((x) => x.count > 0)
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+  }, [isOpen, planningData, selectedWeek, visibleIds, currentShopEmployees]);
+
+  const [detail, setDetail] = useState(null);
+
   const cardStyle = {
     background: '#f8fafc',
     border: '1px solid #e2e8f0',
@@ -200,6 +353,293 @@ const ShopWeekInsightsModal = ({
     },
     [changeToSpecificWeek]
   );
+
+  useEffect(() => {
+    if (!isOpen) setDetail(null);
+  }, [isOpen]);
+
+  const tableSmall = { width: '100%', borderCollapse: 'collapse', fontSize: 12, background: '#fff', border: '1px solid #e2e8f0' };
+  const thSmall = { textAlign: 'left', padding: '8px 10px', background: '#f1f5f9', fontWeight: 700, color: '#0f172a' };
+  const tdSmall = { padding: '8px 10px', borderTop: '1px solid #e2e8f0' };
+
+  const renderDetailBody = () => {
+    if (!detail) return null;
+    const k = detail.kind;
+    if (k === 'heures-semaine' && kpis) {
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>Boutique : {shopLabel}. Somme des durées sur la grille (employés listés sur le planning).</p>
+          <h4 style={{ margin: '12px 0 8px', fontSize: 13 }}>Répartition par jour</h4>
+          <table style={tableSmall}>
+            <thead>
+              <tr>
+                <th style={thSmall}>Jour</th>
+                <th style={{ ...thSmall, textAlign: 'right' }}>Heures</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kpis.wDays.map((d, i) => {
+                const dayKey = format(d, 'yyyy-MM-dd');
+                const r = kpis.perDayHours[i];
+                return (
+                  <tr key={dayKey}>
+                    <td style={tdSmall}>{format(d, 'EEEE d MMM', { locale: fr })}</td>
+                    <td style={{ ...tdSmall, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {r.h.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <h4 style={{ margin: '16px 0 8px', fontSize: 13 }}>Répartition par employé</h4>
+          {employeeWeekBreakdown.length === 0 ? (
+            <p style={{ color: '#94a3b8' }}>Aucune heure comptée.</p>
+          ) : (
+            <table style={tableSmall}>
+              <thead>
+                <tr>
+                  <th style={thSmall}>Employé</th>
+                  <th style={{ ...thSmall, textAlign: 'right' }}>Total semaine</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employeeWeekBreakdown.map((r) => (
+                  <tr key={r.id}>
+                    <td style={tdSmall}>{r.name}</td>
+                    <td style={{ ...tdSmall, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {r.total.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+    if (k === 'employes-actif' && kpis) {
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>Employés avec au moins un créneau comptant des heures sur la semaine.</p>
+          {employeeWeekBreakdown.length === 0 ? (
+            <p style={{ color: '#94a3b8' }}>Aucun.</p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {employeeWeekBreakdown.map((r) => (
+                <li key={r.id} style={{ marginBottom: 8 }}>
+                  <strong>{r.name}</strong> — {r.total.toFixed(1)} h sur la semaine
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    {r.perDay.map((p) => p.label + ` (${p.h.toFixed(1)} h)`).join(' · ')}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    }
+    if (k === 'jours-avec-heures' && kpis) {
+      const open = kpis.wDays
+        .map((d, i) => ({ d, h: kpis.perDayHours[i].h }))
+        .filter((x) => x.h > 0.001);
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>Jours où le total d’heures planifiées est &gt; 0.</p>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {open.map((x) => (
+              <li key={x.d.toISOString()}>
+                {format(x.d, 'EEEE d MMM yyyy', { locale: fr })} — {x.h.toFixed(1)} h
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+    if (k === 'conges-semaine-cumul' && absenceData) {
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>Cumul « jours·personne » : chaque personne comptée chaque jour de congé sur la semaine affichée.</p>
+          <h4 style={{ margin: '12px 0 8px', fontSize: 13 }}>Par jour</h4>
+          <table style={tableSmall}>
+            <thead>
+              <tr>
+                <th style={thSmall}>Jour</th>
+                <th style={{ ...thSmall, textAlign: 'center', width: 48 }}>Nb</th>
+                <th style={thSmall}>Personnes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {absenceData.dayRows.map((r) => (
+                <tr key={r.label}>
+                  <td style={tdSmall}>{r.label}</td>
+                  <td style={{ ...tdSmall, textAlign: 'center' }}>{r.count}</td>
+                  <td style={tdSmall}>{r.names.length ? r.names.join(', ') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (k === 'conges-effectifs' && absenceData) {
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>Employés du planning avec au moins un jour de congé détecté (semaine ou mois).</p>
+          {absenceData.employees.length === 0 ? (
+            <p style={{ color: '#94a3b8' }}>Aucun.</p>
+          ) : (
+            <table style={tableSmall}>
+              <thead>
+                <tr>
+                  <th style={thSmall}>Employé</th>
+                  <th style={{ ...thSmall, textAlign: 'right' }}>J. congé (semaine)</th>
+                  <th style={{ ...thSmall, textAlign: 'right' }}>J. congé (mois)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {absenceData.employees.map((e) => (
+                  <tr key={e.id}>
+                    <td style={tdSmall}>{e.name}</td>
+                    <td style={{ ...tdSmall, textAlign: 'right' }}>{e.week}</td>
+                    <td style={{ ...tdSmall, textAlign: 'right' }}>{e.month}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+    if (k === 'conges-mois-cumul') {
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>
+            Mois : {format(parseISO(selectedWeek), 'MMMM yyyy', { locale: fr })}. Liste des jours reconnus en congé.
+          </p>
+          {monthAbsenceDetailList.length === 0 ? (
+            <p style={{ color: '#94a3b8' }}>Aucun jour de congé sur le mois.</p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {monthAbsenceDetailList.map((e) => (
+                <li key={e.id} style={{ marginBottom: 10 }}>
+                  <strong>{e.name}</strong> — {e.count} j.
+                  <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{e.dates.join(' · ')}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    }
+    if (k === 'jour' && detail.d) {
+      const d = detail.d;
+      const rows = [];
+      visibleIds.forEach((empId) => {
+        const name = currentShopEmployees.find((e) => e.id === empId)?.name || empId;
+        const h = calculateEmployeeDailyHours(empId, d.dayKey, planning, config);
+        const desc = describeCellForDay(empId, d.dayKey, planning, config);
+        if (h > 0.001 || (desc && desc.type === 'status')) {
+          let detailLine = '—';
+          if (desc?.type === 'status') detailLine = desc.text;
+          else if (desc?.type === 'slots') {
+            detailLine = `${desc.text} — ${h.toFixed(1)} h`;
+          } else if (h > 0.001) detailLine = `${h.toFixed(1)} h`;
+          rows.push({ name, detailLine, h });
+        }
+      });
+      rows.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>{d.name} — {format(d.dayDate, 'dd/MM/yyyy', { locale: fr })}</p>
+          <p>
+            <strong>Total jour :</strong>{' '}
+            {d.hours.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+            {d.hasWork && (
+              <>
+                {' '}
+                · <strong>Couverture :</strong> {d.openT} – {d.closeT} · <strong>Pic :</strong> {d.maxEmp} pers.
+              </>
+            )}
+          </p>
+          {rows.length === 0 ? (
+            <p style={{ color: '#94a3b8' }}>Aucun créneau horaire (ou uniquement congé/maladie sans tranches).</p>
+          ) : (
+            <table style={tableSmall}>
+              <thead>
+                <tr>
+                  <th style={thSmall}>Employé</th>
+                  <th style={thSmall}>Détail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, idx) => (
+                  <tr key={`${r.name}-${idx}`}>
+                    <td style={{ ...tdSmall, fontWeight: 600 }}>{r.name}</td>
+                    <td style={tdSmall}>{r.detailLine}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+    if (k === 'absence-jour' && detail.row) {
+      const r = detail.row;
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>{r.label}</p>
+          <p>
+            <strong>{r.count}</strong> personne{r.count > 1 ? 's' : ''} en congé.
+          </p>
+          {r.names.length > 0 ? (
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {r.names.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ color: '#94a3b8' }}>Aucun nom.</p>
+          )}
+        </div>
+      );
+    }
+    if (k === 'absence-emp' && detail.emp) {
+      const e = detail.emp;
+      const w0 = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
+      const wDays = eachDayOfInterval({ start: w0, end: addDays(w0, 6) });
+      const wLabels = wDays
+        .filter((d) => isEmployeeOnLeave(e.id, format(d, 'yyyy-MM-dd'), planningData))
+        .map((d) => format(d, 'EEEE d MMM', { locale: fr }));
+      const m0 = startOfMonth(parseISO(selectedWeek));
+      const m1 = endOfMonth(parseISO(selectedWeek));
+      const mDays = eachDayOfInterval({ start: m0, end: m1 });
+      const mLabels = mDays
+        .filter((d) => isEmployeeOnLeave(e.id, format(d, 'yyyy-MM-dd'), planningData))
+        .map((d) => format(d, 'EEEE d MMM', { locale: fr }));
+      return (
+        <div>
+          <p style={{ marginTop: 0, color: '#64748b' }}>Congés détectés (aucun créneau travaillé sur toutes les boutiques d&apos;affectation pour ce jour).</p>
+          <h4 style={{ margin: '12px 0 6px', fontSize: 13 }}>Jours sur la semaine affichée ({e.week} j. au total comptage)</h4>
+          {wLabels.length ? <p style={{ fontSize: 12 }}>{wLabels.join(' · ')}</p> : <p style={{ color: '#94a3b8' }}>Aucun sur la semaine.</p>}
+          <h4 style={{ margin: '14px 0 6px', fontSize: 13 }}>Jours sur le mois ({e.month} j. au total comptage)</h4>
+          {mLabels.length ? (
+            <p style={{ fontSize: 12, lineHeight: 1.6 }}>{mLabels.join(' · ')}</p>
+          ) : (
+            <p style={{ color: '#94a3b8' }}>Aucun sur le mois.</p>
+          )}
+        </div>
+      );
+    }
+    return <p>—</p>;
+  };
+
+  const cardStyleClick = {
+    ...cardStyle,
+    cursor: 'pointer',
+    transition: 'background 0.12s, border-color 0.12s'
+  };
 
   if (!isOpen) return null;
 
@@ -374,6 +814,9 @@ const ShopWeekInsightsModal = ({
         <div style={{ padding: 18, overflow: 'auto', flex: 1, background: '#f1f5f9' }}>
           {tab === 'synthese' && kpis && (
             <div>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 10px' }}>
+                Cliquez sur une carte pour afficher le détail.
+              </p>
               <div
                 style={{
                   display: 'grid',
@@ -381,36 +824,150 @@ const ShopWeekInsightsModal = ({
                   gap: 12
                 }}
               >
-                <div style={cardStyle}>
+                <div
+                  style={cardStyleClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDetail({ kind: 'heures-semaine', title: 'Détail — heures planifiées (semaine)' });
+                    }
+                  }}
+                  onClick={() => setDetail({ kind: 'heures-semaine', title: 'Détail — heures planifiées (semaine)' })}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
                   <div style={labelStyle}>Heures planifiées (semaine)</div>
                   <div style={valStyle}>
                     {kpis.totalH.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Somme des durées sur la grille (boutique actuelle)</div>
                 </div>
-                <div style={cardStyle}>
+                <div
+                  style={cardStyleClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDetail({ kind: 'employes-actif', title: "Détail — employés en activité" });
+                    }
+                  }}
+                  onClick={() => setDetail({ kind: 'employes-actif', title: "Détail — employés en activité" })}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
                   <div style={labelStyle}>Employés en activité</div>
                   <div style={valStyle}>{kpis.active}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Au moins un créneau sur la semaine (liste affichée)</div>
                 </div>
-                <div style={cardStyle}>
+                <div
+                  style={cardStyleClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDetail({ kind: 'jours-avec-heures', title: 'Détail — jours avec heures' });
+                    }
+                  }}
+                  onClick={() => setDetail({ kind: 'jours-avec-heures', title: 'Détail — jours avec heures' })}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
                   <div style={labelStyle}>Jours avec heures</div>
                   <div style={valStyle}>
                     {kpis.openDays} / 7
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Jours où le total &gt; 0 h</div>
                 </div>
-                <div style={cardStyle}>
+                <div
+                  style={cardStyleClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDetail({ kind: 'conges-semaine-cumul', title: "Détail — jours d'absence (semaine)" });
+                    }
+                  }}
+                  onClick={() => setDetail({ kind: 'conges-semaine-cumul', title: "Détail — jours d'absence (semaine)" })}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
                   <div style={labelStyle}>Jours d’absence (congé)</div>
                   <div style={valStyle}>{absenceData.weekLeaveTotal}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Cumul sur la semaine (jours·personne)</div>
                 </div>
-                <div style={cardStyle}>
+                <div
+                  style={cardStyleClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDetail({ kind: 'conges-effectifs', title: "Détail — effectifs concernés (absence)" });
+                    }
+                  }}
+                  onClick={() => setDetail({ kind: 'conges-effectifs', title: "Détail — effectifs concernés (absence)" })}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
                   <div style={labelStyle}>Effectifs concernés (absence)</div>
                   <div style={valStyle}>{absenceData.employees.length}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Avec au moins un jour congé (semaine ou mois)</div>
                 </div>
-                <div style={cardStyle}>
+                <div
+                  style={cardStyleClick}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setDetail({ kind: 'conges-mois-cumul', title: "Détail — jours d'absence (mois)" });
+                    }
+                  }}
+                  onClick={() => setDetail({ kind: 'conges-mois-cumul', title: "Détail — jours d'absence (mois)" })}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f8fafc';
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                  }}
+                >
                   <div style={labelStyle}>Jours d’absence (mois)</div>
                   <div style={valStyle}>{absenceData.monthLeaveTotal}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Calendaire {format(parseISO(selectedWeek), 'MMMM yyyy', { locale: fr })}</div>
@@ -420,46 +977,69 @@ const ShopWeekInsightsModal = ({
           )}
 
           {tab === 'jour' && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 12
-              }}
-            >
-              {dayDetails.map((d) => (
-                <div
-                  key={d.dayKey}
-                  style={{
-                    ...cardStyle,
-                    borderColor: d.hasWork ? '#94a3b8' : '#e2e8f0',
-                    opacity: d.hasWork ? 1 : 0.88
-                  }}
-                >
-                  <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 15 }}>
-                    {d.name} {format(d.dayDate, 'dd/MM', { locale: fr })}
+            <div>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 10px' }}>
+                Cliquez sur un jour pour le détail par employé (créneaux / statut).
+              </p>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: 12
+                }}
+              >
+                {dayDetails.map((d) => (
+                  <div
+                    key={d.dayKey}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setDetail({ kind: 'jour', title: `Détail — ${d.name} ${format(d.dayDate, 'dd/MM', { locale: fr })}`, d });
+                      }
+                    }}
+                    onClick={() => setDetail({ kind: 'jour', title: `Détail — ${d.name} ${format(d.dayDate, 'dd/MM', { locale: fr })}`, d })}
+                    style={{
+                      ...cardStyleClick,
+                      borderColor: d.hasWork ? '#94a3b8' : '#e2e8f0',
+                      opacity: d.hasWork ? 1 : 0.88
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f1f5f9';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#f8fafc';
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 15 }}>
+                      {d.name} {format(d.dayDate, 'dd/MM', { locale: fr })}
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 20, fontWeight: 800, color: '#0d9488' }}>
+                      {d.hours.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+                    </div>
+                    <div style={{ fontSize: 12, color: '#475569', marginTop: 8 }}>
+                      {d.hasWork ? (
+                        <>
+                          Couverture : {d.openT} – {d.closeT}
+                          <br />
+                          Pic simultané : {d.maxEmp} pers.
+                        </>
+                      ) : (
+                        'Aucune heure planifiée'
+                      )}
+                    </div>
                   </div>
-                  <div style={{ marginTop: 10, fontSize: 20, fontWeight: 800, color: '#0d9488' }}>
-                    {d.hours.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
-                  </div>
-                  <div style={{ fontSize: 12, color: '#475569', marginTop: 8 }}>
-                    {d.hasWork ? (
-                      <>
-                        Couverture : {d.openT} – {d.closeT}
-                        <br />
-                        Pic simultané : {d.maxEmp} pers.
-                      </>
-                    ) : (
-                      'Aucune heure planifiée'
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 
           {tab === 'absences' && (
             <div style={{ maxWidth: 900 }}>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 12px' }}>
+                Cliquez sur une ligne pour le détail (jour ou personne).
+              </p>
               <h3 style={{ fontSize: 15, color: '#0f172a', margin: '0 0 10px' }}>Par jour (semaine)</h3>
               <table
                 style={{
@@ -480,7 +1060,17 @@ const ShopWeekInsightsModal = ({
                 </thead>
                 <tbody>
                   {absenceData.dayRows.map((r) => (
-                    <tr key={r.label} style={{ borderTop: '1px solid #e2e8f0' }}>
+                    <tr
+                      key={r.label}
+                      style={{ borderTop: '1px solid #e2e8f0', cursor: 'pointer' }}
+                      onClick={() => setDetail({ kind: 'absence-jour', title: r.label, row: r })}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f8fafc';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                    >
                       <td style={{ padding: 8 }}>{r.label}</td>
                       <td style={{ textAlign: 'center', padding: 8 }}>{r.count}</td>
                       <td style={{ padding: 8, color: r.names.length ? '#334155' : '#94a3b8' }}>
@@ -511,7 +1101,17 @@ const ShopWeekInsightsModal = ({
                     </tr>
                   ) : (
                     absenceData.employees.map((e) => (
-                      <tr key={e.id} style={{ borderTop: '1px solid #e2e8f0' }}>
+                      <tr
+                        key={e.id}
+                        style={{ borderTop: '1px solid #e2e8f0', cursor: 'pointer' }}
+                        onClick={() => setDetail({ kind: 'absence-emp', title: e.name, emp: e })}
+                        onMouseEnter={(ev) => {
+                          ev.currentTarget.style.background = '#f8fafc';
+                        }}
+                        onMouseLeave={(ev) => {
+                          ev.currentTarget.style.background = 'transparent';
+                        }}
+                      >
                         <td style={{ padding: 8, fontWeight: 600 }}>{e.name}</td>
                         <td style={{ textAlign: 'right', padding: 8 }}>{e.week}</td>
                         <td style={{ textAlign: 'right', padding: 8 }}>{e.month}</td>
@@ -555,6 +1155,12 @@ const ShopWeekInsightsModal = ({
           </div>
         </footer>
       </div>
+
+      {detail && (
+        <DetailLayer title={detail.title} onClose={() => setDetail(null)}>
+          {renderDetailBody()}
+        </DetailLayer>
+      )}
 
       {showPrint && (
         <WeeklyPlanningPrint
