@@ -83,6 +83,10 @@ const VERSION_HIGHLIGHTS = {
     'Copier-coller de planning: prise en compte des statuts conge/maladie, fusion avec le planning en memoire pour la semaine source = semaine affichee.',
     'Detection des cellules reellement renseignees (plus de fausses alertes a cause des grilles vides), reprise du presse-papiers apres rechargement.',
     'Copie semaine vers semaine suivante: meme logique pour l avertissement d ecrasement (conges et statuts comptes comme des donnees presentes).'
+  ],
+  '3.10.65': [
+    'Inspection du travail: identite et SIRET imposes (Cannes separe), activite 4725Z, memorisation des autres champs, type de contrat et heures, sans date de sortie, alignement des donnees sur toutes les boutiques pour un meme employe.',
+    'Export horaires lisibles: telechargement en chaine d un PDF ou TXT par employe, tableau du cumul mensuel en PDF, page synthese semaine et mois sur l export collectif en un seul PDF.'
   ]
 };
 

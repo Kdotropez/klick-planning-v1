@@ -125,8 +125,9 @@ const PlanningDisplay = ({
           return {
             ...emp,
             dateEntree: payload.dateEntree || '',
-            dateSortie: payload.dateSortie || '',
-            contratHours: payload.contratHours ?? ''
+            typeContrat: payload.typeContrat || '',
+            contratHours: payload.contratHours ?? '',
+            dateSortie: null
           };
         })
       }));
@@ -1802,9 +1803,18 @@ const PlanningDisplay = ({
       }
 
       const audienceMode = window.prompt(
-        'Export horaires lisibles:\n1 = Collectif (tous employes)\n2 = Individuel (un employe)\n\nEntrez 1 ou 2:'
+        "Cible de l'export:\n" +
+          '1 = Collectif (tous les employes) — un seul fichier\n' +
+          '2 = Un seul employe (choisir le numero) — un fichier\n' +
+          "3 = Tous : un fichier par employe (telechargements a la chaine, envoi mail)\n\n" +
+          'Entrez 1, 2 ou 3:'
       );
       if (!audienceMode) return;
+      const audienceTrim = audienceMode.trim();
+      if (audienceTrim !== '1' && audienceTrim !== '2' && audienceTrim !== '3') {
+        setLocalFeedback('❌ Choix invalide. Utilisez 1, 2 ou 3.');
+        return;
+      }
 
       const weekStart = parseISO(selectedWeek);
       const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -1870,7 +1880,7 @@ const PlanningDisplay = ({
       }
 
       let targetEmployeeIds = allEmployeeIds;
-      if (audienceMode.trim() === '2') {
+      if (audienceTrim === '2') {
         const list = allEmployeeIds
           .map((id, idx) => `${idx + 1}. ${employeeMap.get(id) || id}`)
           .join('\n');
@@ -1882,9 +1892,6 @@ const PlanningDisplay = ({
           return;
         }
         targetEmployeeIds = [allEmployeeIds[index]];
-      } else if (audienceMode.trim() !== '1') {
-        setLocalFeedback('❌ Choix invalide. Utilisez 1 ou 2.');
-        return;
       }
 
       const getMonthWeeksForSelectedMonth = () => {
@@ -1990,19 +1997,136 @@ const PlanningDisplay = ({
           .replace(/[^\x20-\x7E]/g, '')
           .trim();
 
-      if (normalizedExportMode === '1') {
-        const lines = [];
-        lines.push('PLANNING EMPLOYES - EXPORT LISIBLE');
-        lines.push(`Semaine: ${weekLabel}`);
-        lines.push(`Genere le: ${new Date().toLocaleString('fr-FR')}`);
-        lines.push('');
+      const sanitizeFileName = (name) => {
+        const s = String(name || 'employe')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9-_.]+/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '')
+          .slice(0, 50);
+        return s || 'employe';
+      };
 
-        targetEmployeeIds.forEach((employeeId) => {
+      const appendEmployeeReadableSchedulePdf = (doc, employeeId) => {
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const employeeName = employeeMap.get(employeeId) || employeeId;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.text('Planning hebdomadaire employe', pageWidth / 2, 14, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Semaine: ${weekLabel}`, pageWidth / 2, 21, { align: 'center' });
+        doc.text(`Employe: ${employeeName}`, 14, 29);
+        doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, 14, 35);
+
+        const body = [];
+        buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }) => {
+          if (!entries.length) {
+            body.push([dayLabel, '-', 'Repos']);
+            return;
+          }
+          entries.forEach((entry, entryIdx) => {
+            body.push([
+              entryIdx === 0 ? toPdfSafeText(dayLabel) : '',
+              toPdfSafeText(entry.shopName || '-'),
+              toPdfSafeText(entry.value)
+            ]);
+          });
+        });
+
+        doc.autoTable({
+          startY: 40,
+          head: [['Jour', 'Boutique', 'Horaires / Statut']],
+          body,
+          styles: { fontSize: 9, cellPadding: 2.2, lineColor: [230, 230, 230], lineWidth: 0.1 },
+          headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { cellWidth: 46 },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 'auto' }
+          }
+        });
+
+        const weekTotalPdf = sumEmployeeHoursForExportedWeek(employeeId);
+        const { rows: monthlyRowsPdf, monthGrand: monthGrandPdf } = getEmployeeMonthlyHoursByShop(employeeId);
+        let yStart = (doc.lastAutoTable?.finalY ?? 40) + 8;
+        if (yStart > pageH - 40) {
+          doc.addPage();
+          yStart = 18;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(`Total semaine (semaine affichee): ${weekTotalPdf.toFixed(1)} h`, 14, yStart);
+        yStart += 8;
+        doc.text(`Cumul du mois (${toPdfSafeText(monthLabel)}) : detail par boutique`, 14, yStart);
+        yStart += 5;
+
+        if (monthlyRowsPdf.length === 0) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.text('(aucune heure sur ce mois dans les plannings)', 14, yStart);
+        } else {
+          const monthBody = monthlyRowsPdf.map(({ shopName, hours }) => [
+            toPdfSafeText(shopName),
+            `${hours.toFixed(1)} h`
+          ]);
+          monthBody.push(['Total toutes boutiques', `${monthGrandPdf.toFixed(1)} h`]);
+          doc.autoTable({
+            startY: yStart,
+            head: [['Boutique', 'Heures (mois)']],
+            body: monthBody,
+            styles: { fontSize: 9, cellPadding: 2.2 },
+            headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
+            didParseCell: (data) => {
+              if (
+                data.section === 'body' &&
+                data.table.body.length > 0 &&
+                data.row.index === data.table.body.length - 1
+              ) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [240, 248, 246];
+              }
+            }
+          });
+        }
+      };
+
+      const appendSynthesisAllEmployeesTablePage = (doc) => {
+        const pageW = doc.internal.pageSize.getWidth();
+        doc.addPage();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.text('Synthese : semaine & cumul du mois (tous les employes)', pageW / 2, 16, { align: 'center' });
+        const synBody = targetEmployeeIds.map((id) => {
+          const wH = sumEmployeeHoursForExportedWeek(id);
+          const { monthGrand } = getEmployeeMonthlyHoursByShop(id);
+          return [
+            toPdfSafeText(employeeMap.get(id) || id),
+            `${wH.toFixed(1)} h`,
+            `${monthGrand.toFixed(1)} h`
+          ];
+        });
+        doc.autoTable({
+          startY: 24,
+          head: [['Employe', 'Heures (semaine affichee)', 'Cumul du mois (toutes boutiques)']],
+          body: synBody,
+          styles: { fontSize: 9, cellPadding: 2.4 },
+          headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' }
+        });
+      };
+
+      if (normalizedExportMode === '1') {
+        const buildTxtLinesForEmployee = (employeeId) => {
+          const lines = [];
           const employeeName = employeeMap.get(employeeId) || employeeId;
           lines.push('============================================================');
           lines.push(`Employe: ${employeeName}`);
           lines.push('============================================================');
-
           buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }) => {
             const formatted = entries.length
               ? entries
@@ -2011,7 +2135,6 @@ const PlanningDisplay = ({
               : 'Repos';
             lines.push(`${dayLabel} -> ${formatted}`);
           });
-
           const weekTotalH = sumEmployeeHoursForExportedWeek(employeeId);
           lines.push(`Total semaine: ${weekTotalH.toFixed(1)} h`);
           lines.push('');
@@ -2021,101 +2144,100 @@ const PlanningDisplay = ({
             lines.push('  (aucune heure enregistree sur ce mois dans les plannings)');
           } else {
             monthlyByShop.forEach(({ shopName, hours }) => {
-              lines.push(`  ${shopName}: ${hours.toFixed(1)} h`);
+              lines.push(`  ${shopName} | ${hours.toFixed(1)} h`);
             });
             lines.push(`  Total mois (toutes boutiques): ${monthGrand.toFixed(1)} h`);
           }
           lines.push('');
-        });
+          return lines;
+        };
 
-        const content = lines.join('\n');
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const suffix = audienceMode.trim() === '2' ? 'individuel' : 'collectif';
-        a.download = `horaires_${suffix}_${selectedWeek}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pageWidth = doc.internal.pageSize.getWidth();
-
-        targetEmployeeIds.forEach((employeeId, index) => {
-          if (index > 0) {
-            doc.addPage();
-          }
-
-          const employeeName = employeeMap.get(employeeId) || employeeId;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(15);
-          doc.text('Planning hebdomadaire employe', pageWidth / 2, 14, { align: 'center' });
-          doc.setFontSize(11);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`Semaine: ${weekLabel}`, pageWidth / 2, 21, { align: 'center' });
-          doc.text(`Employe: ${employeeName}`, 14, 29);
-          doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, 14, 35);
-
-          const body = [];
-          buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }) => {
-            if (!entries.length) {
-              body.push([dayLabel, '-', 'Repos']);
+        if (audienceTrim === '3') {
+          const runTxtChain = (idx) => {
+            if (idx >= targetEmployeeIds.length) {
+              setLocalFeedback(`✅ ${targetEmployeeIds.length} fichier(s) TXT (un par employe). Autorisez les telechargements multiples si le navigateur le demande.`);
               return;
             }
-            entries.forEach((entry, entryIdx) => {
-              body.push([
-                entryIdx === 0 ? toPdfSafeText(dayLabel) : '',
-                toPdfSafeText(entry.shopName || '-'),
-                toPdfSafeText(entry.value)
-              ]);
-            });
-          });
-
-          doc.autoTable({
-            startY: 40,
-            head: [['Jour', 'Boutique', 'Horaires / Statut']],
-            body,
-            styles: { fontSize: 9, cellPadding: 2.2, lineColor: [230, 230, 230], lineWidth: 0.1 },
-            headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
-            columnStyles: {
-              0: { cellWidth: 46 },
-              1: { cellWidth: 45 },
-              2: { cellWidth: 'auto' }
-            }
-          });
-
-          const weekTotalPdf = sumEmployeeHoursForExportedWeek(employeeId);
-          const { rows: monthlyRowsPdf, monthGrand: monthGrandPdf } = getEmployeeMonthlyHoursByShop(employeeId);
-          let yPdf = (doc.lastAutoTable?.finalY ?? 40) + 10;
-          const pageH = doc.internal.pageSize.getHeight();
-          const writeLine = (txt) => {
-            if (yPdf > pageH - 18) {
-              doc.addPage();
-              yPdf = 18;
-            }
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.text(toPdfSafeText(txt), 14, yPdf);
-            yPdf += 6;
+            const eid = targetEmployeeIds[idx];
+            const header = [
+              'PLANNING EMPLOYES - EXPORT LISIBLE',
+              `Semaine: ${weekLabel}`,
+              `Genere le: ${new Date().toLocaleString('fr-FR')}`,
+              '',
+              'Recapitulatif mois: detail par boutique (voir ci-dessous).',
+              ''
+            ];
+            const content = [...header, ...buildTxtLinesForEmployee(eid)].join('\n');
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `horaires_${sanitizeFileName(employeeMap.get(eid) || eid)}_${selectedWeek}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setTimeout(() => runTxtChain(idx + 1), 420);
           };
-          writeLine(`Total semaine: ${weekTotalPdf.toFixed(1)} h`);
-          writeLine(`Cumul mensuel (${toPdfSafeText(monthLabel)}) — detail par boutique:`);
-          if (monthlyRowsPdf.length === 0) {
-            writeLine('(aucune heure sur ce mois dans les plannings)');
-          } else {
-            monthlyRowsPdf.forEach(({ shopName, hours }) => {
-              writeLine(`  ${shopName}: ${hours.toFixed(1)} h`);
-            });
-            writeLine(`  Total mois (toutes boutiques): ${monthGrandPdf.toFixed(1)} h`);
+          runTxtChain(0);
+        } else {
+          const lines = [];
+          lines.push('PLANNING EMPLOYES - EXPORT LISIBLE');
+          lines.push(`Semaine: ${weekLabel}`);
+          lines.push(`Genere le: ${new Date().toLocaleString('fr-FR')}`);
+          lines.push('');
+          targetEmployeeIds.forEach((employeeId) => {
+            lines.push(...buildTxtLinesForEmployee(employeeId));
+          });
+          const content = lines.join('\n');
+          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const suffix = audienceTrim === '2' ? 'individuel' : 'collectif';
+          a.download = `horaires_${suffix}_${selectedWeek}.txt`;
+          a.click();
+          URL.revokeObjectURL(url);
+          setLocalFeedback(
+            `✅ Export TXT ${audienceTrim === '2' ? 'individuel' : 'collectif'} genere.`
+          );
+        }
+      } else {
+        if (audienceTrim === '3') {
+          const runPdfChain = (idx) => {
+            if (idx >= targetEmployeeIds.length) {
+              setLocalFeedback(
+                `✅ ${targetEmployeeIds.length} PDF telecharges (un par employe). Verifiez le dossier de telechargement et l autorisation des telechargements multiples.`
+              );
+              return;
+            }
+            const eid = targetEmployeeIds[idx];
+            const docOne = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            appendEmployeeReadableSchedulePdf(docOne, eid);
+            docOne.save(
+              `horaires_${sanitizeFileName(employeeMap.get(eid) || eid)}_${selectedWeek}.pdf`
+            );
+            setTimeout(() => runPdfChain(idx + 1), 450);
+          };
+          runPdfChain(0);
+        } else {
+          const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+          targetEmployeeIds.forEach((employeeId, index) => {
+            if (index > 0) {
+              doc.addPage();
+            }
+            appendEmployeeReadableSchedulePdf(doc, employeeId);
+          });
+          if (audienceTrim === '1' && targetEmployeeIds.length > 0) {
+            appendSynthesisAllEmployeesTablePage(doc);
           }
-        });
-
-        const suffix = audienceMode.trim() === '2' ? 'individuel' : 'collectif';
-        doc.save(`horaires_${suffix}_${selectedWeek}.pdf`);
+          const suffix = audienceTrim === '2' ? 'individuel' : 'collectif';
+          doc.save(`horaires_${suffix}_${selectedWeek}.pdf`);
+          setLocalFeedback(
+            `✅ Export PDF ${audienceTrim === '2' ? 'individuel' : 'collectif'} genere${
+              audienceTrim === '1' ? ' (avec page synthese semaine + mois)' : ''
+            }.`
+          );
+        }
       }
-
-      setLocalFeedback(`✅ Export ${normalizedExportMode === '2' ? 'PDF' : 'TXT'} ${audienceMode.trim() === '2' ? 'individuel' : 'collectif'} genere.`);
     } catch (error) {
       console.error('Erreur export horaires lisibles:', error);
       setLocalFeedback('❌ Erreur lors de l export horaires lisibles.');

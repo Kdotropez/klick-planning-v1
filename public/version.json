@@ -1,7 +1,15 @@
 {
-  "version": "3.10.64",
-  "lastUpdate": "2026-04-19",
+  "version": "3.10.65",
+  "lastUpdate": "2026-04-26",
   "changelog": [
+    {
+      "version": "3.10.65",
+      "date": "2026-04-26",
+      "changes": [
+        "Inspection du travail: raison sociale, SIRET (Cannes separe), activite 4725Z imposes; champs d affichage et heure d edition memorises; type de contrat et heures liees; date de sortie retiree; donnees contractuelles recopiees a l identique pour employes multiboutiques.",
+        "Export horaires lisibles: option 3 = un fichier PDF ou TXT par employe (chaine d envoi); cumul du mois en tableau PDF; page synthese semaine + mois (tous employes) en export collectif un seul PDF."
+      ]
+    },
     {
       "version": "3.10.64",
       "date": "2026-04-19",

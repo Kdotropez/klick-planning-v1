@@ -75,10 +75,46 @@ const getRanges = (slots, timeSlots = [], interval = 30) => {
   return ranges;
 };
 
+const RAISON_SOCIALE_FIXE = 'Relais des coches boutique';
+const ACTIVITE_FIXE = 'Commerce de détail de boissons en magasin spécialisé - 4725Z';
+const SIRET_DEFAUT = '81853491900019';
+const SIRET_CANNES = '81853491900076';
+
+const isCannesShop = (shop, selectedShopId) => {
+  const name = String(shop?.name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const id = String(selectedShopId || shop?.id || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return name.includes('cannes') || id.includes('cannes');
+};
+
+const getSiretForShop = (shop, selectedShopId) =>
+  isCannesShop(shop, selectedShopId) ? SIRET_CANNES : SIRET_DEFAUT;
+
+const CONTRAT_TYPES = [
+  { id: 'cdi_35', label: 'CDI — 35 h / semaine', hours: 35 },
+  { id: 'cdi_39', label: 'CDI — 39 h / semaine', hours: 39 },
+  { id: 'cdd_35', label: 'CDD — 35 h / semaine', hours: 35 },
+  { id: 'tp_30', label: 'Temps partiel — 30 h / semaine', hours: 30 },
+  { id: 'tp_24', label: 'Temps partiel — 24 h / semaine', hours: 24 },
+  { id: 'tp_20', label: 'Temps partiel — 20 h / semaine', hours: 20 },
+  { id: 'autre', label: 'Autre (saisir les heures ci-dessous)', hours: null }
+];
+
+const hoursForTypeContrat = (typeId) => {
+  const found = CONTRAT_TYPES.find((t) => t.id === typeId);
+  return found && found.hours != null ? String(found.hours) : '';
+};
+
 const defaultMeta = (shopName = '') => ({
-  raisonSociale: '',
+  raisonSociale: RAISON_SOCIALE_FIXE,
   adresseEtablissement: '',
-  siret: '',
+  siret: SIRET_DEFAUT,
+  activite: ACTIVITE_FIXE,
   conventionCollective: '',
   responsable: '',
   inspecteurTravail: '',
@@ -87,6 +123,7 @@ const defaultMeta = (shopName = '') => ({
   horairesCollectifs: '',
   pauseCollective: '',
   datePublication: '',
+  heureEdition: '',
   dateSignature: '',
   boutiqueAffichee: shopName
 });
@@ -100,15 +137,12 @@ const toDateInputValue = (value) => {
   return format(parsed, 'yyyy-MM-dd');
 };
 
-const formatContractDuration = (entryDateValue, exitDateValue, referenceDate = new Date()) => {
+const formatContractDuration = (entryDateValue, referenceDate = new Date()) => {
   const input = toDateInputValue(entryDateValue);
   if (!input) return '-';
   const start = parseISO(input);
   if (Number.isNaN(start.getTime())) return '-';
-  const normalizedExit = toDateInputValue(exitDateValue);
-  const exit = normalizedExit ? parseISO(normalizedExit) : null;
-  const endSource = exit && !Number.isNaN(exit.getTime()) && exit < referenceDate ? exit : referenceDate;
-  const ref = new Date(endSource.getFullYear(), endSource.getMonth(), endSource.getDate());
+  const ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
   const begin = new Date(start.getFullYear(), start.getMonth(), start.getDate());
   if (begin > ref) return '0 jour';
 
@@ -130,7 +164,44 @@ const formatContractDuration = (entryDateValue, exitDateValue, referenceDate = n
   if (years > 0) parts.push(`${years} an${years > 1 ? 's' : ''}`);
   if (months > 0) parts.push(`${months} mois`);
   if (days > 0 || !parts.length) parts.push(`${days} jour${days > 1 ? 's' : ''}`);
-  return `${parts.join(' ')}${exit && !Number.isNaN(exit.getTime()) && exit < referenceDate ? ' (sorti)' : ''}`;
+  return parts.join(' ');
+};
+
+const getCanonicalContractFields = (planningData, employee) => {
+  if (!employee?.id || !planningData?.shops) {
+    return {
+      dateEntree: toDateInputValue(employee?.dateEntree),
+      typeContrat: employee?.typeContrat || '',
+      contratHours: employee?.contratHours ?? ''
+    };
+  }
+  const id = employee.id;
+  const shops = planningData.shops;
+  const mainShop = employee.mainShop ? shops.find((s) => s.id === employee.mainShop) : null;
+  const fromMain = mainShop?.employees?.find((e) => e.id === id);
+  if (fromMain) {
+    return {
+      dateEntree:
+        toDateInputValue(fromMain.dateEntree) ||
+        toDateInputValue(employee?.dateEntree) ||
+        '',
+      typeContrat: fromMain.typeContrat || employee?.typeContrat || '',
+      contratHours: fromMain.contratHours ?? employee?.contratHours ?? ''
+    };
+  }
+  let merged = { dateEntree: '', typeContrat: '', contratHours: '' };
+  for (const s of shops) {
+    const e = s.employees?.find((x) => x.id === id);
+    if (!e) continue;
+    if (e.dateEntree) merged.dateEntree = toDateInputValue(e.dateEntree);
+    if (e.typeContrat) merged.typeContrat = e.typeContrat;
+    if (e.contratHours != null && e.contratHours !== '') merged.contratHours = e.contratHours;
+  }
+  return {
+    dateEntree: merged.dateEntree || toDateInputValue(employee?.dateEntree) || '',
+    typeContrat: merged.typeContrat || employee?.typeContrat || '',
+    contratHours: merged.contratHours || employee?.contratHours || ''
+  };
 };
 
 const LabourInspectionModal = ({
@@ -176,23 +247,31 @@ const LabourInspectionModal = ({
     const timeSlots = currentConfig?.timeSlots || shop.config?.timeSlots || [];
 
     return employees.map((employee) => {
-      const persistedEntryDate = toDateInputValue(employee?.dateEntree);
-      const persistedExitDate = toDateInputValue(employee?.dateSortie);
-      const persistedHours = employee?.contratHours ?? '';
+      const canonical = getCanonicalContractFields(planningData, employee);
       const payload = contractDataByEmployee?.[employee.id] || {};
       const customEntryDate = toDateInputValue(payload?.dateEntree);
-      const customExitDate = toDateInputValue(payload?.dateSortie);
+      const customType = payload?.typeContrat;
       const customHours = payload?.contratHours;
-      const entryDate = customEntryDate || persistedEntryDate || '';
-      const exitDate = customExitDate || persistedExitDate || '';
-      const contractHours = customHours ?? persistedHours ?? '';
+      const entryDate = customEntryDate || canonical.dateEntree || '';
+      const typeContrat =
+        customType !== undefined && customType !== null ? customType : canonical.typeContrat || '';
+      let contractHours;
+      if (typeContrat && typeContrat !== 'autre') {
+        const h = hoursForTypeContrat(typeContrat);
+        contractHours = h || String(customHours ?? canonical.contratHours ?? '');
+      } else {
+        contractHours =
+          customHours !== undefined && customHours !== null && customHours !== ''
+            ? String(customHours)
+            : String(canonical.contratHours || '');
+      }
       const row = {
         employeeId: employee.id,
         employeeName: employee.name || employee.id,
         entryDate,
-        exitDate,
+        typeContrat: typeContrat || '',
         contractHours,
-        contractDuration: formatContractDuration(entryDate, exitDate),
+        contractDuration: formatContractDuration(entryDate),
         cells: []
       };
       weekDays.forEach((dayDate) => {
@@ -215,7 +294,16 @@ const LabourInspectionModal = ({
       });
       return row;
     });
-  }, [shop, selectedWeek, weekDays, currentPlanning, currentConfig, activeEmployees, contractDataByEmployee]);
+  }, [
+    shop,
+    selectedWeek,
+    weekDays,
+    currentPlanning,
+    currentConfig,
+    activeEmployees,
+    contractDataByEmployee,
+    planningData
+  ]);
 
   useEffect(() => {
     if (!isOpen || !selectedShop) return;
@@ -242,6 +330,9 @@ const LabourInspectionModal = ({
       setMeta({
         ...defaultMeta(shop?.name || selectedShop),
         ...(parsed || {}),
+        raisonSociale: RAISON_SOCIALE_FIXE,
+        siret: getSiretForShop(shop, selectedShop),
+        activite: ACTIVITE_FIXE,
         boutiqueAffichee: shop?.name || selectedShop
       });
     } catch {
@@ -257,15 +348,16 @@ const LabourInspectionModal = ({
     const next = {};
     sourceEmployees.forEach((emp) => {
       if (emp?.id) {
+        const c = getCanonicalContractFields(planningData, emp);
         next[emp.id] = {
-          dateEntree: toDateInputValue(emp?.dateEntree),
-          dateSortie: toDateInputValue(emp?.dateSortie),
-          contratHours: emp?.contratHours ?? ''
+          dateEntree: c.dateEntree,
+          typeContrat: c.typeContrat || '',
+          contratHours: c.contratHours
         };
       }
     });
     setContractDataByEmployee(next);
-  }, [isOpen, activeEmployees, shop]);
+  }, [isOpen, activeEmployees, shop, planningData]);
 
   if (!isOpen) return null;
 
@@ -275,6 +367,9 @@ const LabourInspectionModal = ({
       const metaMap = readMetaMap();
       const payload = {
         ...meta,
+        raisonSociale: RAISON_SOCIALE_FIXE,
+        siret: getSiretForShop(shop, selectedShop),
+        activite: ACTIVITE_FIXE,
         boutiqueAffichee: shop?.name || selectedShop
       };
       shopKeys.forEach((key) => {
@@ -296,12 +391,14 @@ const LabourInspectionModal = ({
     }
   };
 
+  const labelTypeContrat = (id) => CONTRAT_TYPES.find((t) => t.id === id)?.label || id || '—';
+
   const printSheet = () => {
     const rowsHtml = scheduleRows
       .map((row) => {
         const dayCells = row.cells.map((cell) => `<td>${cell}</td>`).join('');
-        const duration = formatContractDuration(row.entryDate, row.exitDate);
-        return `<tr><td><b>${row.employeeName}</b></td><td>${row.entryDate || '-'}</td><td>${row.exitDate || '-'}</td><td>${row.contractHours || '-'}</td><td>${duration}</td>${dayCells}</tr>`;
+        const duration = formatContractDuration(row.entryDate);
+        return `<tr><td><b>${row.employeeName}</b></td><td>${row.entryDate || '-'}</td><td>${labelTypeContrat(row.typeContrat)}</td><td>${row.contractHours || '-'}</td><td>${duration}</td>${dayCells}</tr>`;
       })
       .join('');
     const dayHeaders = weekDays
@@ -319,23 +416,24 @@ const LabourInspectionModal = ({
       </style></head><body>
       <h1>Affichage des horaires - Inspection du travail</h1>
       <div class="meta"><b>Boutique:</b> ${meta.boutiqueAffichee || '-'}</div>
-      <div class="meta"><b>Raison sociale:</b> ${meta.raisonSociale || '-'}</div>
+      <div class="meta"><b>Raison sociale:</b> ${RAISON_SOCIALE_FIXE}</div>
       <div class="meta"><b>Adresse etablissement:</b> ${meta.adresseEtablissement || '-'}</div>
-      <div class="meta"><b>SIRET:</b> ${meta.siret || '-'}</div>
+      <div class="meta"><b>SIRET:</b> ${getSiretForShop(shop, selectedShop)}</div>
+      <div class="meta"><b>Activite (NAF/APE):</b> ${ACTIVITE_FIXE}</div>
       <div class="meta"><b>Convention collective:</b> ${meta.conventionCollective || '-'}</div>
       <div class="meta"><b>Responsable:</b> ${meta.responsable || '-'}</div>
       <div class="meta"><b>Semaine affichee:</b> ${selectedWeek || '-'}</div>
       <div class="meta"><b>Horaires collectifs de reference:</b> ${meta.horairesCollectifs || '-'}</div>
       <div class="meta"><b>Pause / coupure collective:</b> ${meta.pauseCollective || '-'}</div>
-      <div class="meta"><b>Date de publication affichage:</b> ${meta.datePublication || '-'}</div>
+      <div class="meta"><b>Date d affichage / publication:</b> ${meta.datePublication || '-'}</div>
+      <div class="meta"><b>Heure d edition (affichage):</b> ${meta.heureEdition || '-'}</div>
       <div class="meta"><b>Inspection du travail:</b> ${meta.inspecteurTravail || '-'}</div>
       <div class="meta"><b>Medecine du travail:</b> ${meta.medecineTravail || '-'}</div>
       <div class="meta"><b>Secours urgence:</b> ${meta.secoursUrgence || '-'}</div>
       <div class="meta"><b>Date/signature employeur:</b> ${meta.dateSignature || '-'}</div>
       <div class="meta"><i>Document d affichage collectif date et signe par l employeur.</i></div>
-      <div class="meta"><b>Date d'edition:</b> ${new Date().toLocaleString('fr-FR')}</div>
       <table>
-      <thead><tr><th>Employe</th><th>Date entree</th><th>Date sortie</th><th>Heures contrat</th><th>Duree contrat</th>${dayHeaders}</tr></thead>
+      <thead><tr><th>Employe</th><th>Date entree</th><th>Type de contrat</th><th>Heures contrat</th><th>Duree contrat</th>${dayHeaders}</tr></thead>
       <tbody>${rowsHtml}</tbody>
       </table>
       </body></html>`;
@@ -355,21 +453,27 @@ const LabourInspectionModal = ({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(`Boutique: ${meta.boutiqueAffichee || '-'}`, 14, 18);
-    doc.text(`Raison sociale: ${meta.raisonSociale || '-'}`, 14, 23);
+    doc.text(`Raison sociale: ${RAISON_SOCIALE_FIXE}`, 14, 23);
     doc.text(`Adresse: ${meta.adresseEtablissement || '-'}`, 14, 28);
-    doc.text(`SIRET: ${meta.siret || '-'} | Convention: ${meta.conventionCollective || '-'}`, 14, 33);
-    doc.text(`Responsable: ${meta.responsable || '-'}`, 14, 38);
+    doc.text(`SIRET: ${getSiretForShop(shop, selectedShop)} | Activite: ${ACTIVITE_FIXE}`, 14, 33);
+    doc.text(`Convention: ${meta.conventionCollective || '-'} | Responsable: ${meta.responsable || '-'}`, 14, 38);
     doc.text(`Horaires collectifs: ${meta.horairesCollectifs || '-'} | Pause: ${meta.pauseCollective || '-'}`, 14, 43);
-    doc.text(`Publication: ${meta.datePublication || '-'} | Date/signature: ${meta.dateSignature || '-'}`, 14, 48);
+    doc.text(`Date affichage: ${meta.datePublication || '-'} | Heure edition: ${meta.heureEdition || '-'} | Signatures: ${meta.dateSignature || '-'}`, 14, 48);
     doc.text(`Inspection: ${meta.inspecteurTravail || '-'} | Medecine: ${meta.medecineTravail || '-'}`, 14, 53);
     doc.text(`Secours: ${meta.secoursUrgence || '-'} | Semaine: ${selectedWeek || '-'}`, 14, 58);
-    doc.text(`Edition: ${new Date().toLocaleString('fr-FR')}`, 14, 63);
 
-    const head = [['Employe', 'Date entree', 'Date sortie', 'Heures contrat', 'Duree contrat', ...weekDays.map((dayDate) => format(dayDate, 'EEE dd/MM', { locale: fr }))]];
-    const body = scheduleRows.map((row) => [row.employeeName, row.entryDate || '-', row.exitDate || '-', row.contractHours || '-', row.contractDuration, ...row.cells]);
+    const head = [['Employe', 'Date entree', 'Type contrat', 'Heures contrat', 'Duree contrat', ...weekDays.map((dayDate) => format(dayDate, 'EEE dd/MM', { locale: fr }))]];
+    const body = scheduleRows.map((row) => [
+      row.employeeName,
+      row.entryDate || '-',
+      labelTypeContrat(row.typeContrat),
+      row.contractHours || '-',
+      row.contractDuration,
+      ...row.cells
+    ]);
 
     doc.autoTable({
-      startY: 68,
+      startY: 63,
       head,
       body,
       styles: { fontSize: 8, cellPadding: 1.6 },
@@ -421,11 +525,30 @@ const LabourInspectionModal = ({
           🧾 Affichage Inspection du travail
         </div>
 
+        <div
+          style={{
+            padding: '10px 14px',
+            borderBottom: '1px solid #e0e0e0',
+            background: '#f8fafc',
+            fontSize: '13px',
+            lineHeight: 1.5
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: '6px' }}>Entreprise (champs imposés, identiques partout)</div>
+          <div>
+            <b>Raison sociale :</b> {RAISON_SOCIALE_FIXE}
+          </div>
+          <div>
+            <b>SIRET :</b> {getSiretForShop(shop, selectedShop)}
+          </div>
+          <div>
+            <b>Activité (NAF/APE) :</b> {ACTIVITE_FIXE}
+          </div>
+        </div>
+
         <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', borderBottom: '1px solid #e0e0e0' }}>
-          {field('raisonSociale', 'Raison sociale')}
           {field('adresseEtablissement', 'Adresse etablissement')}
-          {field('siret', 'SIRET')}
-          {field('conventionCollective', 'Convention collective')}
+          {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)')}
           {field('responsable', 'Responsable')}
           {field('boutiqueAffichee', 'Boutique affichee')}
           {field('inspecteurTravail', 'Inspection du travail (nom/contact)')}
@@ -433,7 +556,24 @@ const LabourInspectionModal = ({
           {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)')}
           {field('horairesCollectifs', 'Horaires collectifs de reference')}
           {field('pauseCollective', 'Pause/coupure collective')}
-          {field('datePublication', 'Date de publication affichage')}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+            <span style={{ fontWeight: 700 }}>Date d affichage / publication (mémorisé)</span>
+            <input
+              type="date"
+              value={toDateInputValue(meta.datePublication)}
+              onChange={(event) => setMeta((prev) => ({ ...prev, datePublication: event.target.value }))}
+              style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+            <span style={{ fontWeight: 700 }}>Heure d édition (mémorisée)</span>
+            <input
+              type="time"
+              value={meta.heureEdition || ''}
+              onChange={(event) => setMeta((prev) => ({ ...prev, heureEdition: event.target.value }))}
+              style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
+            />
+          </label>
           {field('dateSignature', 'Date et signature employeur')}
         </div>
 
@@ -450,7 +590,7 @@ const LabourInspectionModal = ({
               <tr>
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Employe</th>
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Date entree</th>
-                <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Date sortie</th>
+                <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Type de contrat</th>
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Heures contrat</th>
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Duree contrat</th>
                 {weekDays.map((dayDate) => (
@@ -462,7 +602,7 @@ const LabourInspectionModal = ({
             </thead>
             <tbody>
               {scheduleRows.map((row) => (
-                <tr key={row.employeeName}>
+                <tr key={row.employeeId}>
                   <td style={{ border: '1px solid #eceff1', padding: '8px', fontWeight: 700 }}>{row.employeeName}</td>
                   <td style={{ border: '1px solid #eceff1', padding: '8px' }}>
                     <input
@@ -481,42 +621,54 @@ const LabourInspectionModal = ({
                     />
                   </td>
                   <td style={{ border: '1px solid #eceff1', padding: '8px' }}>
-                    <input
-                      type="date"
-                      value={row.exitDate || ''}
-                      onChange={(event) =>
-                        setContractDataByEmployee((prev) => ({
-                          ...prev,
-                          [row.employeeId]: {
-                            ...(prev[row.employeeId] || {}),
-                            dateSortie: event.target.value
+                    <select
+                      value={row.typeContrat || ''}
+                      onChange={(event) => {
+                        const v = event.target.value;
+                        setContractDataByEmployee((prev) => {
+                          const next = { ...(prev[row.employeeId] || {}), typeContrat: v };
+                          if (v && v !== 'autre') {
+                            const h = hoursForTypeContrat(v);
+                            if (h) next.contratHours = h;
                           }
-                        }))
-                      }
-                      style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '6px 8px', width: '150px' }}
-                    />
+                          return { ...prev, [row.employeeId]: next };
+                        });
+                      }}
+                      style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '6px 8px', maxWidth: '260px' }}
+                    >
+                      <option value="">—</option>
+                      {CONTRAT_TYPES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td style={{ border: '1px solid #eceff1', padding: '8px' }}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={row.contractHours}
-                      onChange={(event) =>
-                        setContractDataByEmployee((prev) => ({
-                          ...prev,
-                          [row.employeeId]: {
-                            ...(prev[row.employeeId] || {}),
-                            contratHours: event.target.value
-                          }
-                        }))
-                      }
-                      style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '6px 8px', width: '110px' }}
-                    />
+                    {row.typeContrat === 'autre' ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={row.contractHours}
+                        onChange={(event) =>
+                          setContractDataByEmployee((prev) => ({
+                            ...prev,
+                            [row.employeeId]: {
+                              ...(prev[row.employeeId] || {}),
+                              contratHours: event.target.value
+                            }
+                          }))
+                        }
+                        style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '6px 8px', width: '110px' }}
+                      />
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{row.contractHours || '—'}</span>
+                    )}
                   </td>
                   <td style={{ border: '1px solid #eceff1', padding: '8px', fontWeight: 600 }}>{row.contractDuration}</td>
                   {row.cells.map((cell, idx) => (
-                    <td key={`${row.employeeName}_${idx}`} style={{ border: '1px solid #eceff1', padding: '8px' }}>
+                    <td key={`${row.employeeId}_${idx}`} style={{ border: '1px solid #eceff1', padding: '8px' }}>
                       {cell}
                     </td>
                   ))}

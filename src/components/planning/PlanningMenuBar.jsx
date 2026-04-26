@@ -256,7 +256,7 @@ const PlanningMenuBar = ({
           }}
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0b8b8c'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0ea5a6'}
-          title="Export lisible des horaires employes"
+          title="Export lisible: TXT/PDF, collectif, un employe, ou 1 fichier par employe (chaine d envoi mail)"
         >
           🗓️ Export Horaires Lisibles
         </Button>
