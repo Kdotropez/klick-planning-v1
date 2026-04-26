@@ -150,9 +150,14 @@ const ShopWeekInsightsModal = ({
 }) => {
   const [tab, setTab] = useState('synthese');
   const [showPrint, setShowPrint] = useState(false);
+  /** '' = toute l'équipe (visible sur le planning) ; sinon un id employé */
+  const [scopeEmployeeId, setScopeEmployeeId] = useState('');
 
   useEffect(() => {
-    if (isOpen) setTab('synthese');
+    if (isOpen) {
+      setTab('synthese');
+      setScopeEmployeeId('');
+    }
   }, [isOpen]);
 
   const timeSlots = config.timeSlots || [];
@@ -180,6 +185,17 @@ const ShopWeekInsightsModal = ({
     return ids;
   }, [currentShopEmployees, selectedEmployees]);
 
+  useEffect(() => {
+    if (scopeEmployeeId && !visibleIds.includes(scopeEmployeeId)) {
+      setScopeEmployeeId('');
+    }
+  }, [visibleIds, scopeEmployeeId]);
+
+  const scopedVisibleIds = useMemo(() => {
+    if (!scopeEmployeeId) return visibleIds;
+    return visibleIds.includes(scopeEmployeeId) ? [scopeEmployeeId] : [];
+  }, [visibleIds, scopeEmployeeId]);
+
   const weekRangeLabel = useMemo(() => {
     if (!selectedWeek) return '';
     const a = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
@@ -194,7 +210,7 @@ const ShopWeekInsightsModal = ({
     const wDays = eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
     const perDayHours = wDays.map((d) => format(d, 'yyyy-MM-dd')).map((dayKey) => {
       let h = 0;
-      visibleIds.forEach((empId) => {
+      scopedVisibleIds.forEach((empId) => {
         h += calculateEmployeeDailyHours(empId, dayKey, planning, config);
       });
       return { dayKey, h };
@@ -202,7 +218,7 @@ const ShopWeekInsightsModal = ({
     perDayHours.forEach(({ h }) => {
       totalH += h;
     });
-    const active = visibleIds.filter((empId) =>
+    const active = scopedVisibleIds.filter((empId) =>
       wDays.some((d) => {
         const dk = format(d, 'yyyy-MM-dd');
         return calculateEmployeeDailyHours(empId, dk, planning, config) > 0.001;
@@ -210,7 +226,7 @@ const ShopWeekInsightsModal = ({
     ).length;
     const openDays = perDayHours.filter((x) => x.h > 0.001).length;
     return { totalH, active, openDays, perDayHours, wDays };
-  }, [isOpen, selectedWeek, planning, config, visibleIds]);
+  }, [isOpen, selectedWeek, planning, config, scopedVisibleIds]);
 
   const dayDetails = useMemo(() => {
     if (!isOpen || !selectedWeek) return [];
@@ -218,11 +234,11 @@ const ShopWeekInsightsModal = ({
       const dayKey = format(addDays(parseISO(selectedWeek), index), 'yyyy-MM-dd');
       const dayDate = addDays(parseISO(selectedWeek), index);
       let hours = 0;
-      visibleIds.forEach((empId) => {
+      scopedVisibleIds.forEach((empId) => {
         hours += calculateEmployeeDailyHours(empId, dayKey, planning, config);
       });
       const slotData = timeSlots.map((slot, slotIndex) => {
-        const c = visibleIds.filter(
+        const c = scopedVisibleIds.filter(
           (empId) => normSlot(planning[empId]?.[dayKey]?.[slotIndex])
         ).length;
         return { time: slot, count: c };
@@ -248,11 +264,11 @@ const ShopWeekInsightsModal = ({
         hasWork: hours > 0.001
       };
     });
-  }, [isOpen, selectedWeek, days, timeSlots, planning, config, visibleIds, interval]);
+  }, [isOpen, selectedWeek, days, timeSlots, planning, config, scopedVisibleIds, interval]);
 
   const absenceData = useMemo(() => {
-    if (!isOpen || !planningData || !selectedWeek || !visibleIds.length) {
-      return { employees: [], dayRows: [], monthLeaveTotal: 0 };
+    if (!isOpen || !planningData || !selectedWeek || !scopedVisibleIds.length) {
+      return { employees: [], dayRows: [], monthLeaveTotal: 0, weekLeaveTotal: 0 };
     }
     const w0 = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
     const wDays = eachDayOfInterval({ start: w0, end: addDays(w0, 6) });
@@ -262,7 +278,7 @@ const ShopWeekInsightsModal = ({
 
     const nameOf = (id) => currentShopEmployees.find((e) => e.id === id)?.name || id;
     const employees = [];
-    visibleIds.forEach((empId) => {
+    scopedVisibleIds.forEach((empId) => {
       let wk = 0;
       let mo = 0;
       wDays.forEach((d) => {
@@ -280,7 +296,7 @@ const ShopWeekInsightsModal = ({
     const dayRows = wDays.map((d) => {
       const dk = format(d, 'yyyy-MM-dd');
       const names = [];
-      visibleIds.forEach((empId) => {
+      scopedVisibleIds.forEach((empId) => {
         if (isEmployeeOnLeave(empId, dk, planningData)) names.push(nameOf(empId));
       });
       return {
@@ -293,13 +309,13 @@ const ShopWeekInsightsModal = ({
     const monthLeaveTotal = employees.reduce((s, e) => s + e.month, 0);
     const weekLeaveTotal = employees.reduce((s, e) => s + e.week, 0);
     return { employees, dayRows, monthLeaveTotal, weekLeaveTotal };
-  }, [isOpen, planningData, selectedWeek, visibleIds, currentShopEmployees]);
+  }, [isOpen, planningData, selectedWeek, scopedVisibleIds, currentShopEmployees]);
 
   const employeeWeekBreakdown = useMemo(() => {
     if (!isOpen || !selectedWeek) return [];
     const w0 = startOfWeek(parseISO(selectedWeek), { weekStartsOn: 1 });
     const wDays = eachDayOfInterval({ start: w0, end: addDays(w0, 6) });
-    return visibleIds
+    return scopedVisibleIds
       .map((empId) => {
         const name = currentShopEmployees.find((e) => e.id === empId)?.name || empId;
         let total = 0;
@@ -316,14 +332,14 @@ const ShopWeekInsightsModal = ({
       })
       .filter((x) => x.total > 0.001)
       .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-  }, [isOpen, selectedWeek, visibleIds, planning, config, currentShopEmployees]);
+  }, [isOpen, selectedWeek, scopedVisibleIds, planning, config, currentShopEmployees]);
 
   const monthAbsenceDetailList = useMemo(() => {
     if (!isOpen || !planningData || !selectedWeek) return [];
     const m0 = startOfMonth(parseISO(selectedWeek));
     const m1 = endOfMonth(parseISO(selectedWeek));
     const mDays = eachDayOfInterval({ start: m0, end: m1 });
-    return visibleIds
+    return scopedVisibleIds
       .map((empId) => {
         const name = currentShopEmployees.find((e) => e.id === empId)?.name || empId;
         const dates = mDays
@@ -333,7 +349,7 @@ const ShopWeekInsightsModal = ({
       })
       .filter((x) => x.count > 0)
       .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-  }, [isOpen, planningData, selectedWeek, visibleIds, currentShopEmployees]);
+  }, [isOpen, planningData, selectedWeek, scopedVisibleIds, currentShopEmployees]);
 
   const [detail, setDetail] = useState(null);
 
@@ -535,7 +551,7 @@ const ShopWeekInsightsModal = ({
     if (k === 'jour' && detail.d) {
       const d = detail.d;
       const rows = [];
-      visibleIds.forEach((empId) => {
+      scopedVisibleIds.forEach((empId) => {
         const name = currentShopEmployees.find((e) => e.id === empId)?.name || empId;
         const h = calculateEmployeeDailyHours(empId, d.dayKey, planning, config);
         const desc = describeCellForDay(empId, d.dayKey, planning, config);
@@ -682,9 +698,19 @@ const ShopWeekInsightsModal = ({
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Pilotage de la semaine</h2>
               <p style={{ margin: '6px 0 0', fontSize: 13, opacity: 0.9, maxWidth: 640 }}>
                 Indicateurs sur la <strong>boutique affichée</strong> (planning en cours) : heures planifiées, pointes
-                d’effectif et absences détectées (aucun créneau sur les boutiques d’affectation = congé).
+                d’effectif et absences détectées (aucun créneau sur les boutiques d’affectation = congé). Utilisez le
+                menu <strong>Employé</strong> pour filtrer les cartes, les onglets et l’impression sur une seule
+                personne.
               </p>
-              <p style={{ margin: '6px 0 0', fontSize: 14, fontWeight: 600 }}>{shopLabel} · {weekRangeLabel}</p>
+              <p style={{ margin: '6px 0 0', fontSize: 14, fontWeight: 600 }}>
+                {shopLabel} · {weekRangeLabel}
+                {scopeEmployeeId ? (
+                  <span style={{ fontWeight: 500 }}>
+                    {' '}
+                    · {currentShopEmployees.find((e) => e.id === scopeEmployeeId)?.name || scopeEmployeeId}
+                  </span>
+                ) : null}
+              </p>
             </div>
             <button
               type="button"
@@ -780,6 +806,27 @@ const ShopWeekInsightsModal = ({
                   </select>
                 </label>
               )}
+              {visibleIds.length > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ opacity: 0.85 }}>Employé</span>
+                  <select
+                    value={scopeEmployeeId}
+                    onChange={(e) => setScopeEmployeeId(e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #94a3b8', minWidth: 200, maxWidth: 280 }}
+                    title="Filtrer indicateurs, absences et impression sur un employé"
+                  >
+                    <option value="">Tous (équipe)</option>
+                    {visibleIds.map((id) => {
+                      const n = currentShopEmployees.find((e) => e.id === id)?.name || id;
+                      return (
+                        <option key={id} value={id}>
+                          {n}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              )}
             </div>
           )}
 
@@ -814,6 +861,12 @@ const ShopWeekInsightsModal = ({
         <div style={{ padding: 18, overflow: 'auto', flex: 1, background: '#f1f5f9' }}>
           {tab === 'synthese' && kpis && (
             <div>
+              {scopeEmployeeId && (
+                <p style={{ fontSize: 12, color: '#0f4c75', margin: '0 0 8px', fontWeight: 600 }}>
+                  Périmètre : {currentShopEmployees.find((e) => e.id === scopeEmployeeId)?.name || scopeEmployeeId} — totaux, effectifs
+                  et absences concernent uniquement cette personne.
+                </p>
+              )}
               <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 10px' }}>
                 Cliquez sur une carte pour afficher le détail.
               </p>
@@ -872,7 +925,9 @@ const ShopWeekInsightsModal = ({
                 >
                   <div style={labelStyle}>Employés en activité</div>
                   <div style={valStyle}>{kpis.active}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>Au moins un créneau sur la semaine (liste affichée)</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+                    Au moins un créneau sur la semaine{scopeEmployeeId ? ' (employé filtré)' : ' (liste affichée)'}
+                  </div>
                 </div>
                 <div
                   style={cardStyleClick}
@@ -1168,7 +1223,11 @@ const ShopWeekInsightsModal = ({
           selectedWeek={selectedWeek}
           planningData={planningData}
           shops={shops}
-          employees={currentShopEmployees}
+          employees={
+            scopeEmployeeId
+              ? currentShopEmployees.filter((e) => e.id === scopeEmployeeId)
+              : currentShopEmployees
+          }
           config={config}
           onClose={() => setShowPrint(false)}
         />

@@ -1,7 +1,16 @@
 {
-  "version": "3.10.69",
-  "lastUpdate": "2026-04-27",
+  "version": "3.10.70",
+  "lastUpdate": "2026-04-26",
   "changelog": [
+    {
+      "version": "3.10.70",
+      "date": "2026-04-26",
+      "changes": [
+        "Pilotage de la semaine: sélecteur Employé — toute l'équipe ou une personne; KPI, jour par jour, absences et détails modale filtrés en conséquence.",
+        "Impression du planning hebdomadaire depuis le pilotage: une seule personne quand un employé est ciblé.",
+        "Sous-titre de contexte, rappel en synthèse; retour automatique à Tous si l'employé n'est plus dans la boutique affichée."
+      ]
+    },
     {
       "version": "3.10.69",
       "date": "2026-04-27",

@@ -101,6 +101,11 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.69': [
     'Pilotage de la semaine: detail en pop-up en cliquant sur les cartes (synthese), chaque jour (onglet Jour par jour) ou chaque ligne (Absences) — tableaux, listes d employes, dates de conges par semaine / mois.'
+  ],
+  '3.10.70': [
+    'Pilotage de la semaine: menu Employe pour filtrer toute l equipe ou une personne (KPI, jour par jour, absences, details modale).',
+    'Impression du planning hebdo depuis le pilotage: une seule feuille si un employe est selectionne.',
+    'Sous-titre et rappel de perimetre quand un employe est cible; retour automatique a Tous si l employe n est plus dans la boutique affichee.'
   ]
 };
 
