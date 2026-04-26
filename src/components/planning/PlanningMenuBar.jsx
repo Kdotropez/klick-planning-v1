@@ -31,6 +31,7 @@ const PlanningMenuBar = ({
   onImport,
   onReset,
   setShowGlobalDayViewModalV2,
+  onOpenWeeklyWorkMatrix,
   handleManualSave,
   handleRestoreFromSupabase,
   handleRestoreBackupFromHistory,
@@ -214,7 +215,28 @@ const PlanningMenuBar = ({
             📊 Vue globale par jour
           </Button>
 
-          
+          <Button
+            className="button-primary"
+            onClick={() => onOpenWeeklyWorkMatrix && onOpenWeeklyWorkMatrix()}
+            style={{
+              backgroundColor: '#1565c0',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0d47a1')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1565c0')}
+            title="Tableau : qui travaille dans quelle boutique, jour par jour (semaine affichee)"
+          >
+            📋 Récap. semaine (tous)
+          </Button>
 
           <Button
             className="button-primary"

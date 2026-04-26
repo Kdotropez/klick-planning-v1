@@ -11,6 +11,7 @@ import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
 import GlobalDayViewModalV2 from './GlobalDayViewModalV2';
+import WeeklyWorkMatrixModal from './WeeklyWorkMatrixModal';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
@@ -65,6 +66,7 @@ const PlanningDisplay = ({
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showGlobalDayViewModalV2, setShowGlobalDayViewModalV2] = useState(false);
+  const [showWeeklyWorkMatrix, setShowWeeklyWorkMatrix] = useState(false);
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [showRecapModal, setShowRecapModal] = useState(null);
@@ -2437,6 +2439,7 @@ const PlanningDisplay = ({
             onImport={onImport}
             onReset={() => setShowResetModal(true)}
                           setShowGlobalDayViewModalV2={setShowGlobalDayViewModalV2}
+            onOpenWeeklyWorkMatrix={() => setShowWeeklyWorkMatrix(true)}
             handleManualSave={handleManualSave}
             onCreateJSONBackup={createAutoBackupJSON}
             onExportReadableSchedules={exportReadableSchedules}
@@ -4368,6 +4371,15 @@ const PlanningDisplay = ({
         selectedWeek={validWeek}
         selectedEmployees={localSelectedEmployees}
         currentShopEmployees={currentShopEmployees}
+      />
+
+      <WeeklyWorkMatrixModal
+        isOpen={showWeeklyWorkMatrix}
+        onClose={() => setShowWeeklyWorkMatrix(false)}
+        planningData={planningData}
+        selectedWeek={validWeek}
+        currentShopId={selectedShop}
+        currentWeekPlanning={planning}
       />
 
       <LabourInspectionModal
