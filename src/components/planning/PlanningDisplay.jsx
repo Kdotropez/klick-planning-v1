@@ -1958,6 +1958,23 @@ const PlanningDisplay = ({
         return total;
       };
 
+      /** Même règle que le récap « par boutique » : heures de la semaine sur une seule boutique. */
+      const sumEmployeeHoursForShopWeek = (employeeId, shopId) => {
+        if (shopId == null) return 0;
+        const blocks = (weekDataByEmployee.get(employeeId) || []).filter(
+          (b) => String(b.shopId) === String(shopId)
+        );
+        let total = 0;
+        weekDays.forEach((dayDate) => {
+          const dayKey = format(dayDate, 'yyyy-MM-dd');
+          blocks.forEach(({ employeePlanning, config: cfg }) => {
+            const slicePlanning = { [employeeId]: employeePlanning };
+            total += calculateEmployeeDailyHours(employeeId, dayKey, slicePlanning, cfg || config);
+          });
+        });
+        return total;
+      };
+
       const getEmployeeMonthlyHoursByShop = (employeeId) => {
         const monthWeeks = getMonthWeeksForSelectedMonth();
         const rows = [];
@@ -1983,6 +2000,8 @@ const PlanningDisplay = ({
       };
 
       const monthLabel = format(parseISO(selectedWeek), 'MMMM yyyy', { locale: fr });
+      const selectedShopLabelName =
+        (planningData.shops || []).find((s) => String(s.id) === String(selectedShop))?.name || selectedShop;
 
       const buildEmployeeDayRows = (employeeId) => {
         const employeeDataAcrossShops = weekDataByEmployee.get(employeeId) || [];
@@ -1990,7 +2009,6 @@ const PlanningDisplay = ({
           const dayKey = format(dayDate, 'yyyy-MM-dd');
           const dayLabel = `${format(dayDate, 'EEEE', { locale: fr })} ${format(dayDate, 'dd/MM')}`;
           const entries = [];
-          const isCongeStatus = (value) => /cong[eé]/i.test(String(value ?? ''));
 
           employeeDataAcrossShops.forEach(({ shopName, config: cfg, employeePlanning }) => {
             const dayValue = employeePlanning?.[dayKey];
@@ -2009,11 +2027,10 @@ const PlanningDisplay = ({
             }
           });
 
-          // Si l'employe est en conge ce jour-la, on masque la boutique:
-          // l'information importante est le statut, pas le lieu.
-          if (entries.some((entry) => isCongeStatus(entry.value))) {
-            return { dayLabel, entries: [{ shopName: '', value: 'Congé' }] };
-          }
+          /** Multi-boutiques: une ligne par magasin, pas de repli en un seul « Congé » (écrasait les horaires ailleurs). */
+          entries.sort((a, b) =>
+            (a.shopName || '').localeCompare(b.shopName || '', 'fr', { sensitivity: 'base' })
+          );
 
           return { dayLabel, entries };
         });
@@ -2083,6 +2100,7 @@ const PlanningDisplay = ({
         });
 
         const weekTotalPdf = sumEmployeeHoursForExportedWeek(employeeId);
+        const weekTotalAtSelectedShop = sumEmployeeHoursForShopWeek(employeeId, selectedShop);
         const { rows: monthlyRowsPdf, monthGrand: monthGrandPdf } = getEmployeeMonthlyHoursByShop(employeeId);
         let yStart = (doc.lastAutoTable?.finalY ?? 40) + 8;
         if (yStart > pageH - 40) {
@@ -2092,8 +2110,16 @@ const PlanningDisplay = ({
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
-        doc.text(`Total semaine (semaine affichee): ${weekTotalPdf.toFixed(1)} h`, 14, yStart);
+        doc.text(`Total toutes boutiques (cette semaine) : ${weekTotalPdf.toFixed(1)} h`, 14, yStart);
         yStart += 8;
+        if (selectedShop != null) {
+          doc.text(
+            `Total ${toPdfSafeText(selectedShopLabelName)} (cette semaine) : ${weekTotalAtSelectedShop.toFixed(1)} h`,
+            14,
+            yStart
+          );
+          yStart += 8;
+        }
         doc.text(`Cumul du mois (${toPdfSafeText(monthLabel)}) : detail par boutique`, 14, yStart);
         yStart += 5;
 
@@ -2167,7 +2193,11 @@ const PlanningDisplay = ({
             lines.push(`${dayLabel} -> ${formatted}`);
           });
           const weekTotalH = sumEmployeeHoursForExportedWeek(employeeId);
-          lines.push(`Total semaine: ${weekTotalH.toFixed(1)} h`);
+          lines.push(`Total toutes boutiques (cette semaine) : ${weekTotalH.toFixed(1)} h`);
+          if (selectedShop != null) {
+            const atShop = sumEmployeeHoursForShopWeek(employeeId, selectedShop);
+            lines.push(`Total ${selectedShopLabelName} (cette semaine) : ${atShop.toFixed(1)} h`);
+          }
           lines.push('');
           lines.push(`Cumul mensuel (${monthLabel}) — detail par boutique:`);
           const { rows: monthlyByShop, monthGrand } = getEmployeeMonthlyHoursByShop(employeeId);
