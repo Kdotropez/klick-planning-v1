@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
@@ -59,6 +59,9 @@ const sumHoursDayForScope = (
   return total;
 };
 
+const isCongeStatus = (value) => /cong[eé]/i.test(String(value ?? ''));
+const isMaladieStatus = (value) => /maladie/i.test(String(value ?? ''));
+
 const WeeklyWorkMatrixModal = ({
   isOpen,
   onClose,
@@ -68,6 +71,17 @@ const WeeklyWorkMatrixModal = ({
   currentWeekPlanning = {}
 }) => {
   const [recapShopKey, setRecapShopKey] = useState('all');
+  /** 'employees' = une ligne par employé ; 'shops' = une ligne par boutique, 1ʳᵉ col. = boutique. */
+  const [tableView, setTableView] = useState('employees');
+  const wasModalOpen = useRef(false);
+
+  /** À l'ouverture : périmètre = boutique affichée dans le planning (ou « toutes » si aucune). */
+  useEffect(() => {
+    if (isOpen && !wasModalOpen.current) {
+      setRecapShopKey(currentShopId ? String(currentShopId) : 'all');
+    }
+    wasModalOpen.current = isOpen;
+  }, [isOpen, currentShopId]);
 
   const weekLabel = useMemo(() => {
     if (!selectedWeek) return '';
@@ -143,9 +157,7 @@ const WeeklyWorkMatrixModal = ({
           const dayKey = format(dayDate, 'yyyy-MM-dd');
           const dayLabel = `${format(dayDate, 'EEE', { locale: fr })} ${format(dayDate, 'dd/MM')}`;
           const entries = [];
-          const isCongeStatus = (value) => /cong[eé]/i.test(String(value ?? ''));
-
-          (planningData.shops || []).forEach((shop) => {
+            (planningData.shops || []).forEach((shop) => {
             if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return;
             if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
             const wk = resolvePlanningForShop(shop);
@@ -173,7 +185,7 @@ const WeeklyWorkMatrixModal = ({
           if (entries.some((e) => isCongeStatus(e.value))) {
             return { dayLabel, display: 'Congé', hoursH: 0 };
           }
-          if (entries.some((e) => /maladie/i.test(String(e.value ?? '')))) {
+          if (entries.some((e) => isMaladieStatus(e.value))) {
             return { dayLabel, display: 'Maladie', hoursH: 0 };
           }
           if (entries.length === 0) {
@@ -206,7 +218,154 @@ const WeeklyWorkMatrixModal = ({
     return { rows };
   }, [isOpen, selectedWeek, planningData, weekDays, resolvePlanningForShop, recapShopKey]);
 
+  const shopMatrix = useMemo(() => {
+    if (!isOpen || !selectedWeek || !planningData?.shops?.length) {
+      return { rows: [] };
+    }
+
+    const employeeMap = new Map();
+    (planningData.shops || []).forEach((shop) => {
+      (shop.employees || []).forEach((emp) => {
+        if (!employeeMap.has(emp.id)) employeeMap.set(emp.id, emp.name || emp.id);
+      });
+    });
+
+    const shopsInScope = (planningData.shops || []).filter((shop) => {
+      if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return false;
+      return true;
+    });
+
+    const rows = shopsInScope
+      .map((shop) => {
+        const wk = resolvePlanningForShop(shop) || {};
+        const eligible = new Set();
+        Object.keys(wk).forEach((id) => {
+          if (isEmployeeVisibleForRecap(planningData, id, shop.id)) {
+            if (!employeeMap.has(id)) employeeMap.set(id, id);
+            eligible.add(id);
+          }
+        });
+
+        const dayCells = weekDays.map((dayDate) => {
+          const dayKey = format(dayDate, 'yyyy-MM-dd');
+          const dayLabel = `${format(dayDate, 'EEE', { locale: fr })} ${format(dayDate, 'dd/MM')}`;
+          const parts = [];
+          let dayHoursSum = 0;
+
+          const sortedIds = Array.from(eligible).sort((a, b) => {
+            const na = employeeMap.get(a) || a;
+            const nb = employeeMap.get(b) || b;
+            return na.localeCompare(nb, 'fr', { sensitivity: 'base' });
+          });
+
+          sortedIds.forEach((employeeId) => {
+            const name = employeeMap.get(employeeId) || employeeId;
+            const ep = wk[employeeId];
+            if (!ep) return;
+            const dayValue = ep[dayKey];
+            if (dayValue === undefined || dayValue === null) return;
+
+            if (typeof dayValue === 'string') {
+              if (isCongeStatus(dayValue)) {
+                parts.push({ text: `${name} — Congé`, h: 0 });
+                return;
+              }
+              if (isMaladieStatus(dayValue)) {
+                parts.push({ text: `${name} — Maladie`, h: 0 });
+                return;
+              }
+              parts.push({ text: `${name} — ${dayValue}`, h: 0 });
+              return;
+            }
+
+            if (Array.isArray(dayValue) && dayValue.some(normalizeSlot)) {
+              const cfg = shop.config || {};
+              const ranges = slotRanges(
+                dayValue,
+                cfg.timeSlots || [],
+                cfg.interval || 30
+              );
+              const slice = { [employeeId]: ep };
+              const h = calculateEmployeeDailyHours(employeeId, dayKey, slice, cfg);
+              dayHoursSum += h;
+              const tranche = ranges.length ? ranges.join(', ') : '—';
+              parts.push({
+                text: h > 0.001 ? `${name} : ${tranche} (${h.toFixed(1)} h)` : `${name} : ${tranche}`,
+                h
+              });
+            }
+          });
+
+          const display = parts.length === 0 ? '—' : parts.map((p) => p.text).join('\n');
+          return { dayKey, dayLabel, display, hoursH: dayHoursSum };
+        });
+
+        const weekTotal = dayCells.reduce((s, c) => s + (typeof c.hoursH === 'number' ? c.hoursH : 0), 0);
+        return {
+          shopId: shop.id,
+          shopName: shop.name || String(shop.id),
+          dayCells,
+          weekTotal
+        };
+      })
+      .sort((a, b) => a.shopName.localeCompare(b.shopName, 'fr', { sensitivity: 'base' }));
+
+    return { rows };
+  }, [isOpen, selectedWeek, planningData, weekDays, resolvePlanningForShop, recapShopKey]);
+
   const exportPdf = () => {
+    if (tableView === 'shops') {
+      const { rows: shopRows } = shopMatrix;
+      if (!shopRows.length) return;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('Par boutique — qui est present (semaine)', pageW / 2, 12, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(
+        recapShopKey === 'all'
+          ? 'Perimetre : toutes les boutiques'
+          : `Perimetre : ${selectedShopName || String(recapShopKey)}`,
+        pageW / 2,
+        18,
+        { align: 'center' }
+      );
+      doc.setFontSize(9);
+      doc.text(weekLabel, pageW / 2, 24, { align: 'center' });
+      doc.text(`Genere le ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`, pageW / 2, 29, { align: 'center' });
+
+      const head = [
+        [
+          'Boutique',
+          ...weekDays.map((d) => `${format(d, 'EEE', { locale: fr })} ${format(d, 'dd/MM')}`),
+          'Total h'
+        ]
+      ];
+      const body = shopRows.map((r) => [
+        r.shopName,
+        ...r.dayCells.map((c) => c.display.replace(/\n/g, ' | ')),
+        `${r.weekTotal.toFixed(1)} h`
+      ]);
+
+      doc.autoTable({
+        startY: 35,
+        head,
+        body,
+        styles: { fontSize: 6.5, cellPadding: 1.2, lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [33, 80, 130], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        bodyStyles: { valign: 'top' },
+        columnStyles: {
+          0: { cellWidth: 26, fontStyle: 'bold' },
+          8: { cellWidth: 14, fontStyle: 'bold', halign: 'right' }
+        }
+      });
+      const scopeSlug = recapShopKey === 'all' ? 'toutes' : String(recapShopKey).replace(/[^\w-]+/g, '_');
+      doc.save(`recap_semaine_par_boutique_${scopeSlug}_${selectedWeek}.pdf`);
+      return;
+    }
+
     const { rows } = matrix;
     if (!rows.length) return;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -264,6 +423,11 @@ const WeeklyWorkMatrixModal = ({
   if (!isOpen) return null;
 
   const { rows } = matrix;
+  const { rows: shopRows } = shopMatrix;
+  const canExport =
+    tableView === 'employees' ? rows.length > 0 : shopRows.length > 0;
+  const showEmpty =
+    tableView === 'employees' ? !rows.length : !shopRows.length;
 
   return (
     <div
@@ -325,7 +489,7 @@ const WeeklyWorkMatrixModal = ({
                 fontWeight: 600
               }}
             >
-              Périmètre
+              Boutique (récap)
               <select
                 value={recapShopKey}
                 onChange={(e) => setRecapShopKey(e.target.value)}
@@ -350,14 +514,14 @@ const WeeklyWorkMatrixModal = ({
             <button
               type="button"
               onClick={exportPdf}
-              disabled={!rows.length}
+              disabled={!canExport}
               style={{
                 padding: '8px 14px',
                 borderRadius: '6px',
                 border: 'none',
-                background: rows.length ? '#0d9488' : '#94a3b8',
+                background: canExport ? '#0d9488' : '#94a3b8',
                 color: '#fff',
-                cursor: rows.length ? 'pointer' : 'not-allowed',
+                cursor: canExport ? 'pointer' : 'not-allowed',
                 fontWeight: 600
               }}
             >
@@ -381,12 +545,60 @@ const WeeklyWorkMatrixModal = ({
           </div>
         </div>
 
+        <div
+          style={{
+            padding: '10px 16px',
+            background: '#e8eef4',
+            borderBottom: '1px solid #cbd5e1',
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}
+        >
+          <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>Organisation du tableau :</span>
+          <button
+            type="button"
+            onClick={() => setTableView('employees')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: tableView === 'employees' ? '2px solid #1a5276' : '1px solid #94a3b8',
+              background: tableView === 'employees' ? '#1a5276' : '#fff',
+              color: tableView === 'employees' ? '#fff' : '#334155',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '12px'
+            }}
+          >
+            Par employé — 1re colonne : employé
+          </button>
+          <button
+            type="button"
+            onClick={() => setTableView('shops')}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: tableView === 'shops' ? '2px solid #1a5276' : '1px solid #94a3b8',
+              background: tableView === 'shops' ? '#1a5276' : '#fff',
+              color: tableView === 'shops' ? '#fff' : '#334155',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '12px'
+            }}
+          >
+            Par boutique — 1re colonne : boutique
+          </button>
+        </div>
+
         <div style={{ padding: '12px 16px', overflow: 'auto', flex: 1, background: '#f1f5f9' }}>
-          {!rows.length ? (
+          {showEmpty ? (
             <div style={{ textAlign: 'center', color: '#64748b', padding: '32px' }}>
-              Aucun horaire enregistré sur cette semaine pour les boutiques.
+              {tableView === 'employees'
+                ? 'Aucun horaire enregistré sur cette semaine pour les employés du périmètre.'
+                : 'Aucune donnée pour les boutiques du périmètre.'}
             </div>
-          ) : (
+          ) : tableView === 'employees' ? (
             <div style={{ overflow: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
               <table
                 style={{
@@ -518,6 +730,121 @@ const WeeklyWorkMatrixModal = ({
                 </tbody>
               </table>
             </div>
+          ) : (
+            <div style={{ overflow: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: '12px',
+                  background: '#fff'
+                }}
+              >
+                <thead>
+                  <tr style={{ background: '#0f4c75', color: '#fff' }}>
+                    <th
+                      style={{
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 2,
+                        minWidth: '150px',
+                        border: '1px solid #0a3d5c'
+                      }}
+                    >
+                      Boutique
+                    </th>
+                    {weekDays.map((d) => (
+                      <th
+                        key={format(d, 'yyyy-MM-dd')}
+                        style={{
+                          textAlign: 'left',
+                          padding: '10px 10px',
+                          minWidth: '140px',
+                          border: '1px solid #0a3d5c',
+                          fontWeight: 700
+                        }}
+                      >
+                        {format(d, 'EEE', { locale: fr })}{' '}
+                        <span style={{ fontWeight: 500, opacity: 0.9 }}>{format(d, 'dd/MM')}</span>
+                      </th>
+                    ))}
+                    <th
+                      style={{
+                        textAlign: 'right',
+                        padding: '10px 12px',
+                        minWidth: '72px',
+                        border: '1px solid #0a3d5c',
+                        fontWeight: 800,
+                        background: '#0a3d5c',
+                        color: '#fff'
+                      }}
+                    >
+                      Total h
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shopRows.map((row, rIdx) => (
+                    <tr
+                      key={row.shopId}
+                      style={{ background: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}
+                    >
+                      <td
+                        style={{
+                          fontWeight: 700,
+                          padding: '10px 12px',
+                          border: '1px solid #e2e8f0',
+                          position: 'sticky',
+                          left: 0,
+                          background: rIdx % 2 === 0 ? '#fff' : '#f8fafc',
+                          zIndex: 1,
+                          boxShadow: '2px 0 6px rgba(0,0,0,0.04)',
+                          color: '#0f172a'
+                        }}
+                      >
+                        {row.shopName}
+                      </td>
+                      {row.dayCells.map((cell) => (
+                        <td
+                          key={cell.dayKey}
+                          style={{
+                            verticalAlign: 'top',
+                            padding: '8px 10px',
+                            border: '1px solid #e2e8f0',
+                            color: '#334155',
+                            lineHeight: 1.45,
+                            whiteSpace: 'pre-line'
+                          }}
+                        >
+                          {cell.display}
+                        </td>
+                      ))}
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          verticalAlign: 'middle',
+                          padding: '10px 12px',
+                          border: '1px solid #e2e8f0',
+                          fontWeight: 800,
+                          fontSize: '13px',
+                          color: '#0f4c75',
+                          background: rIdx % 2 === 0 ? 'rgba(15,76,117,0.06)' : 'rgba(15,76,117,0.1)',
+                          fontVariantNumeric: 'tabular-nums'
+                        }}
+                      >
+                        {row.weekTotal.toLocaleString('fr-FR', {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1
+                        })}{' '}
+                        h
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
         <div
@@ -529,8 +856,17 @@ const WeeklyWorkMatrixModal = ({
             background: '#fff'
           }}
         >
-          Heures = somme des durees sur le perimetre selectionne (uniquement les employes actifs, non masques, et
-          affectes a la boutique). Conge / maladie = 0 h. La colonne Total est la somme de la semaine.
+          {tableView === 'employees' ? (
+            <>
+              Heures = somme des durees sur le périmètre sélectionné (uniquement les employés actifs, non masqués, et
+              affectés à la boutique). Congé / maladie = 0 h. La colonne Total est la somme de la semaine.
+            </>
+          ) : (
+            <>
+              Chaque case liste les employés éligibles (non masqués, affectés à la boutique) avec créneaux ou statut
+              (congé, maladie). Total = somme des heures travaillées de la semaine pour la boutique.
+            </>
+          )}
         </div>
       </div>
     </div>
