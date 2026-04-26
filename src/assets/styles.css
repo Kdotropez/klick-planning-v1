@@ -188,6 +188,14 @@ body.high-contrast-mode .time-slot-label {
     padding: 12px 8px;
 }
 
+/* Congé / maladie : badges + bouton retirer — ne pas couper (évite croix invisible) */
+.fixed-col.employee.employee-day-status {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    vertical-align: top;
+}
+
 .fixed-col.employee-0, .employee-0 {
     background-color: #e6f0fa;
 }

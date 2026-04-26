@@ -5,6 +5,28 @@ import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import '../../assets/styles.css';
 
+/** Congé (chaîne « Congé ☀️ » ou marqueurs legacy) — exclut la maladie. */
+const isCongeStatusValue = (dayData) => {
+  if (dayData == null) return false;
+  if (typeof dayData === 'string') {
+    const s = dayData.toLowerCase();
+    return (s.includes('congé') || s.includes('conge')) && !s.includes('maladie');
+  }
+  if (Array.isArray(dayData)) {
+    const hasMaladie = dayData.some(
+      (v) => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie'))
+    );
+    if (hasMaladie) return false;
+    return dayData.some(
+      (v) =>
+        v === 'C' ||
+        (typeof v === 'string' &&
+          (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge')))
+    );
+  }
+  return false;
+};
+
 const PlanningTable = ({ 
   config, 
   selectedWeek, 
@@ -55,23 +77,35 @@ const PlanningTable = ({
     const dayKey = format(addDays(parseISO(selectedWeek), dayIndex), 'yyyy-MM-dd');
     const dayData = planning?.[employeeId]?.[dayKey];
     // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
-    const hasStatus = (
-      typeof dayData === 'string' ||
-      (Array.isArray(dayData) && dayData.some(v => v === 'M' || v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('maladie') || v.toLowerCase().includes('congé')))))
-    );
+    const hasStatus =
+      (typeof dayData === 'string' && dayData.length > 0) ||
+      (Array.isArray(dayData) &&
+        dayData.some(
+          (v) =>
+            v === 'M' ||
+            v === 'C' ||
+            (typeof v === 'string' &&
+              (v.toLowerCase().includes('maladie') ||
+                v.toLowerCase().includes('congé') ||
+                v.toLowerCase().includes('conge')))
+        ));
     const totalSlots = (config?.timeSlots?.length || 0);
     const isFirst = slotIndex === 0;
     const isLast = slotIndex === totalSlots - 1;
+    const isSecond = slotIndex === 1;
+    const isSecondLast = totalSlots >= 2 && slotIndex === totalSlots - 2;
     if (hasStatus) {
-      // Autoriser la gestuelle premier+dernier pour RETIRER le statut
-      if (isFirst || isLast) {
+      const congeDay = isCongeStatusValue(dayData);
+      // Retrait congé : 2e + avant-dernier (même geste que pour poser le congé)
+      if (congeDay && (isSecond || isSecondLast)) {
         const now = Date.now();
-        const edge = isFirst ? 'first' : 'last';
+        const edge = isSecond ? 'second' : 'secondLast';
         if (
           edgeSelection &&
           edgeSelection.employeeId === employeeId &&
           edgeSelection.dayIndex === dayIndex &&
           edgeSelection.edge !== edge &&
+          edgeSelection.type === 'congeClear' &&
           now - edgeSelection.ts <= 3000
         ) {
           if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
@@ -83,12 +117,44 @@ const PlanningTable = ({
             return;
           }
         } else {
-          setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+          setEdgeSelection({ employeeId, dayIndex, edge, ts: now, type: 'congeClear' });
           if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
           edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
           event.preventDefault();
           return;
         }
+      }
+      // Retrait maladie (ou retrait congé alternatif) : 1er + dernier créneau
+      if (isFirst || isLast) {
+        const now = Date.now();
+        const edge = isFirst ? 'first' : 'last';
+        if (
+          edgeSelection &&
+          edgeSelection.employeeId === employeeId &&
+          edgeSelection.dayIndex === dayIndex &&
+          edgeSelection.edge !== edge &&
+          (edgeSelection.type === undefined || edgeSelection.type === 'statusClearFL') &&
+          now - edgeSelection.ts <= 3000
+        ) {
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          setEdgeSelection(null);
+          if (typeof onSetDayStatus === 'function') {
+            event.preventDefault();
+            if (clickTimeout) clearTimeout(clickTimeout);
+            onSetDayStatus(employeeId, dayIndex, 'none');
+            return;
+          }
+        } else {
+          setEdgeSelection({ employeeId, dayIndex, edge, ts: now, type: 'statusClearFL' });
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+          event.preventDefault();
+          return;
+        }
+      }
+      if (edgeSelection) {
+        setEdgeSelection(null);
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
       }
       event.preventDefault();
       return;
@@ -126,8 +192,6 @@ const PlanningTable = ({
     }
 
     // Geste congé: clic deuxième et avant-dernier créneau
-    const isSecond = slotIndex === 1;
-    const isSecondLast = slotIndex === totalSlots - 2;
     if (isSecond || isSecondLast) {
       const now = Date.now();
       const edge = isSecond ? 'second' : 'secondLast';
@@ -245,21 +309,24 @@ const PlanningTable = ({
     // Si un statut (Maladie/Congé) est déjà posé (nouveau ou legacy)
     const hasStatus = (
       typeof dayData === 'string' ||
-      (Array.isArray(dayData) && dayData.some(v => v === 'M' || v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('maladie') || v.toLowerCase().includes('congé')))))
+      (Array.isArray(dayData) && dayData.some(v => v === 'M' || v === 'C' || (typeof v === 'string' && (v.toLowerCase().includes('maladie') || v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge')))))
     );
     const totalSlots = (config?.timeSlots?.length || 0);
     const isFirst = slotIndex === 0;
     const isLast = slotIndex === totalSlots - 1;
+    const isSecond = slotIndex === 1;
+    const isSecondLast = totalSlots >= 2 && slotIndex === totalSlots - 2;
     if (hasStatus) {
-      // Autoriser la gestuelle premier+dernier pour RETIRER le statut en touch
-      if (isFirst || isLast) {
+      const congeDay = isCongeStatusValue(dayData);
+      if (congeDay && (isSecond || isSecondLast)) {
         const now = Date.now();
-        const edge = isFirst ? 'first' : 'last';
+        const edge = isSecond ? 'second' : 'secondLast';
         if (
           edgeSelection &&
           edgeSelection.employeeId === employeeId &&
           edgeSelection.dayIndex === dayIndex &&
           edgeSelection.edge !== edge &&
+          edgeSelection.type === 'congeClear' &&
           now - edgeSelection.ts <= 3000
         ) {
           if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
@@ -269,11 +336,39 @@ const PlanningTable = ({
             return;
           }
         } else {
-          setEdgeSelection({ employeeId, dayIndex, edge, ts: now });
+          setEdgeSelection({ employeeId, dayIndex, edge, ts: now, type: 'congeClear' });
           if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
           edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
           return;
         }
+      }
+      if (isFirst || isLast) {
+        const now = Date.now();
+        const edge = isFirst ? 'first' : 'last';
+        if (
+          edgeSelection &&
+          edgeSelection.employeeId === employeeId &&
+          edgeSelection.dayIndex === dayIndex &&
+          edgeSelection.edge !== edge &&
+          (edgeSelection.type === undefined || edgeSelection.type === 'statusClearFL') &&
+          now - edgeSelection.ts <= 3000
+        ) {
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          setEdgeSelection(null);
+          if (typeof onSetDayStatus === 'function') {
+            onSetDayStatus(employeeId, dayIndex, 'none');
+            return;
+          }
+        } else {
+          setEdgeSelection({ employeeId, dayIndex, edge, ts: now, type: 'statusClearFL' });
+          if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
+          edgeTimerRef.current = setTimeout(() => setEdgeSelection(null), 3000);
+          return;
+        }
+      }
+      if (edgeSelection) {
+        setEdgeSelection(null);
+        if (edgeTimerRef.current) clearTimeout(edgeTimerRef.current);
       }
       return;
     }
@@ -306,8 +401,6 @@ const PlanningTable = ({
     }
 
     // Geste congé tactile: clic deuxième et avant-dernier créneau
-    const isSecond = slotIndex === 1;
-    const isSecondLast = slotIndex === totalSlots - 2;
     if (isSecond || isSecondLast) {
       const now = Date.now();
       const edge = isSecond ? 'second' : 'secondLast';
@@ -379,7 +472,7 @@ const PlanningTable = ({
     : [];
 
   // Lignes affichées : sélection + employés de la boutique ayant congé/maladie ce jour
-  // (sinis la croix de retrait n'apparaît pas si l'employé n'est pas coché dans la sélection)
+  // (sinon la croix de retrait n'apparaît pas si l'employé n'est pas coché dans la sélection)
   const rowEmployeeIds = useMemo(() => {
     const sel = selectedEmployees || [];
     const dayKey = format(addDays(parseISO(validWeek), currentDay), 'yyyy-MM-dd');
@@ -545,7 +638,9 @@ const PlanningTable = ({
             const isLocked = lockedEmployees.includes(employeeId);
             
             const isSickDay = typeof displayStatus === 'string' && displayStatus.toLowerCase().includes('maladie');
-            const isCongéDay = typeof displayStatus === 'string' && displayStatus.toLowerCase().includes('congé');
+            const isCongéDay =
+              typeof displayStatus === 'string' &&
+              (displayStatus.toLowerCase().includes('congé') || displayStatus.toLowerCase().includes('conge'));
             
             // Construire la classe CSS pour la ligne
             let rowClassName = isLocked ? 'locked-employee' : '';
@@ -557,8 +652,10 @@ const PlanningTable = ({
             
             return (
               <tr key={employeeId} className={rowClassName}>
-                <td 
-                  className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}`}
+                <td
+                  className={`fixed-col employee ${getEmployeeColorClass(employeeIndex)} ${isLocked ? 'locked' : ''}${
+                    displayStatus ? ' employee-day-status' : ''
+                  }`}
                 >
                   {employeeName} ({hours.toFixed(1)} h)
                   {(() => {
