@@ -93,6 +93,11 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.67': [
     'Pilotage semaine: module unique (ex-vue globale + ex-dashboard) avec KPI, couverture par jour, absences, selecteurs boutique/mois/semaine et impression du planning. Vue globale / dashboard separes retires du menu.'
+  ],
+  '3.10.68': [
+    'Recap semaine « qui / ou » : perimetre par boutique, exclusion des employes masques et non affectes, export coherents.',
+    'Vue par employe ou par boutique (1re colonne boutique, employes par jour) avec PDF decide.',
+    'Ouverture du recap sur la boutique courante; export horaires lisible et cumul mensuel filtres sur les memes regles d eligibilite.'
   ]
 };
 

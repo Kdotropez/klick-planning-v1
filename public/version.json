@@ -1,7 +1,16 @@
 {
-  "version": "3.10.67",
-  "lastUpdate": "2026-04-26",
+  "version": "3.10.68",
+  "lastUpdate": "2026-04-27",
   "changelog": [
+    {
+      "version": "3.10.68",
+      "date": "2026-04-27",
+      "changes": [
+        "Recap semaine « qui / ou » : perimetre toutes les boutiques ou une boutique; employes masques et non affectes exclus des recaps et exports (regles communes planningData).",
+        "Deux tableaux: par employe (1re col. employe) ou par boutique (1re col. boutique, liste des employes par jour), PDF separe pour la vue par boutique.",
+        "Ouverture du recap sur la boutique courante; libelle du bouton menu et cumul mensuel de l export lisible filtre par eligibilite boutique."
+      ]
+    },
     {
       "version": "3.10.67",
       "date": "2026-04-26",
