@@ -87,6 +87,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.65': [
     'Inspection du travail: identite et SIRET imposes (Cannes separe), activite 4725Z, memorisation des autres champs, type de contrat et heures, sans date de sortie, alignement des donnees sur toutes les boutiques pour un meme employe.',
     'Export horaires lisibles: telechargement en chaine d un PDF ou TXT par employe, tableau du cumul mensuel en PDF, page synthese semaine et mois sur l export collectif en un seul PDF.'
+  ],
+  '3.10.66': [
+    'Recap semaine (tous): affichage des heures par jour et total hebdomadaire par employe (Multi-boutiques), PDF enrichi en consequence.'
   ]
 };
 
