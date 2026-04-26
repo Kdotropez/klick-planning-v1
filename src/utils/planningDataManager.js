@@ -116,6 +116,38 @@ export const isEmployeeHidden = (employee, weekDate) => {
   return !!employee?.hiddenFrom;
 };
 
+/**
+ * Même règle que le planning: canWorkIn prioritaire, sinon mainShop, sinon refus.
+ */
+export const isEmployeeAssignedToShop = (employee, shop) => {
+  if (!employee || !shop) return false;
+  const canWorkIn = Array.isArray(employee.canWorkIn) ? employee.canWorkIn.map((s) => String(s)) : [];
+  if (canWorkIn.length > 0) return canWorkIn.includes(String(shop.id));
+  if (employee.mainShop) return String(employee.mainShop) === String(shop.id);
+  return false;
+};
+
+/**
+ * Employés visibles dans les récap: non masqués et affectés à la boutique.
+ * Si `shopId` est null, retourne true si l'employé est éligible pour au moins une boutique.
+ */
+export const isEmployeeVisibleForRecap = (planningData, employeeId, shopId = null) => {
+  const shops = planningData?.shops || [];
+  if (shopId != null) {
+    const shop = shops.find((s) => String(s.id) === String(shopId));
+    if (!shop) return false;
+    const emp = shop.employees?.find((e) => e.id === employeeId);
+    if (!emp || isEmployeeHidden(emp)) return false;
+    return isEmployeeAssignedToShop(emp, shop);
+  }
+  for (const shop of shops) {
+    const emp = shop.employees?.find((e) => e.id === employeeId);
+    if (!emp || isEmployeeHidden(emp)) continue;
+    if (isEmployeeAssignedToShop(emp, shop)) return true;
+  }
+  return false;
+};
+
 export const getVisibleEmployees = (planningData, currentDate = new Date()) => {
   const visibleEmployees = [];
   

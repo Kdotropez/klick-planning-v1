@@ -1,9 +1,10 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { loadFromLocalStorage } from '../../utils/localStorage';
+import { isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
 
 const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
@@ -37,9 +38,17 @@ const slotRanges = (slots, timeSlots = [], interval = 30) => {
   return ranges;
 };
 
-const sumHoursDayAcrossShops = (planningData, resolvePlanningForShop, employeeId, dayKey) => {
+const sumHoursDayForScope = (
+  planningData,
+  resolvePlanningForShop,
+  employeeId,
+  dayKey,
+  recapShopKey
+) => {
   let total = 0;
   (planningData.shops || []).forEach((shop) => {
+    if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return;
+    if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
     const wk = resolvePlanningForShop(shop);
     if (!wk?.[employeeId]) return;
     const cfg = shop.config;
@@ -58,6 +67,8 @@ const WeeklyWorkMatrixModal = ({
   currentShopId,
   currentWeekPlanning = {}
 }) => {
+  const [recapShopKey, setRecapShopKey] = useState('all');
+
   const weekLabel = useMemo(() => {
     if (!selectedWeek) return '';
     const start = parseISO(selectedWeek);
@@ -86,6 +97,11 @@ const WeeklyWorkMatrixModal = ({
     [currentShopId, currentWeekPlanning, selectedWeek]
   );
 
+  const selectedShopName = useMemo(() => {
+    if (recapShopKey === 'all') return null;
+    return (planningData?.shops || []).find((s) => String(s.id) === String(recapShopKey))?.name;
+  }, [recapShopKey, planningData?.shops]);
+
   const matrix = useMemo(() => {
     if (!isOpen || !selectedWeek || !planningData?.shops?.length) {
       return { rows: [] };
@@ -100,12 +116,22 @@ const WeeklyWorkMatrixModal = ({
 
     const employeeIdsSet = new Set();
     (planningData.shops || []).forEach((shop) => {
+      if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return;
       const weekPlanning = resolvePlanningForShop(shop);
       if (!weekPlanning || typeof weekPlanning !== 'object') return;
-      Object.keys(weekPlanning).forEach((id) => employeeIdsSet.add(id));
+      Object.keys(weekPlanning).forEach((id) => {
+        if (isEmployeeVisibleForRecap(planningData, id, shop.id)) {
+          employeeIdsSet.add(id);
+        }
+      });
     });
 
-    const uniqueEmpIds = Array.from(employeeIdsSet);
+    const uniqueEmpIds = Array.from(employeeIdsSet).filter((id) => {
+      if (recapShopKey === 'all') {
+        return isEmployeeVisibleForRecap(planningData, id, null);
+      }
+      return isEmployeeVisibleForRecap(planningData, id, recapShopKey);
+    });
     uniqueEmpIds.forEach((id) => {
       if (!employeeMap.has(id)) employeeMap.set(id, id);
     });
@@ -120,6 +146,8 @@ const WeeklyWorkMatrixModal = ({
           const isCongeStatus = (value) => /cong[eé]/i.test(String(value ?? ''));
 
           (planningData.shops || []).forEach((shop) => {
+            if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return;
+            if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
             const wk = resolvePlanningForShop(shop);
             const ep = wk?.[employeeId];
             if (!ep) return;
@@ -149,22 +177,24 @@ const WeeklyWorkMatrixModal = ({
             return { dayLabel, display: 'Maladie', hoursH: 0 };
           }
           if (entries.length === 0) {
-            const hoursH = sumHoursDayAcrossShops(
+            const hoursH = sumHoursDayForScope(
               planningData,
               resolvePlanningForShop,
               employeeId,
-              dayKey
+              dayKey,
+              recapShopKey
             );
             return { dayLabel, display: '—', hoursH };
           }
           const block = entries
             .map((e) => `${e.shopName} : ${e.value}`)
             .join('\n');
-          const hoursH = sumHoursDayAcrossShops(
+          const hoursH = sumHoursDayForScope(
             planningData,
             resolvePlanningForShop,
             employeeId,
-            dayKey
+            dayKey,
+            recapShopKey
           );
           return { dayLabel, display: block, hoursH };
         });
@@ -174,7 +204,7 @@ const WeeklyWorkMatrixModal = ({
       .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
     return { rows };
-  }, [isOpen, selectedWeek, planningData, weekDays, resolvePlanningForShop]);
+  }, [isOpen, selectedWeek, planningData, weekDays, resolvePlanningForShop, recapShopKey]);
 
   const exportPdf = () => {
     const { rows } = matrix;
@@ -185,9 +215,18 @@ const WeeklyWorkMatrixModal = ({
     doc.setFontSize(13);
     doc.text('Qui travaille ou — semaine', pageW / 2, 12, { align: 'center' });
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(
+      recapShopKey === 'all'
+        ? 'Perimetre : toutes les boutiques'
+        : `Perimetre : ${selectedShopName || String(recapShopKey)}`,
+      pageW / 2,
+      18,
+      { align: 'center' }
+    );
     doc.setFontSize(9);
-    doc.text(weekLabel, pageW / 2, 18, { align: 'center' });
-    doc.text(`Genere le ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`, pageW / 2, 23, { align: 'center' });
+    doc.text(weekLabel, pageW / 2, 24, { align: 'center' });
+    doc.text(`Genere le ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`, pageW / 2, 29, { align: 'center' });
 
     const head = [
       [
@@ -207,7 +246,7 @@ const WeeklyWorkMatrixModal = ({
     ]);
 
     doc.autoTable({
-      startY: 28,
+      startY: 35,
       head,
       body,
       styles: { fontSize: 7, cellPadding: 1.4, lineColor: [200, 200, 200], lineWidth: 0.1 },
@@ -218,7 +257,8 @@ const WeeklyWorkMatrixModal = ({
         8: { cellWidth: 16, fontStyle: 'bold', halign: 'right' }
       }
     });
-    doc.save(`recap_semaine_qui_ou_${selectedWeek}.pdf`);
+    const scopeSlug = recapShopKey === 'all' ? 'toutes' : String(recapShopKey).replace(/[^\w-]+/g, '_');
+    doc.save(`recap_semaine_qui_ou_${scopeSlug}_${selectedWeek}.pdf`);
   };
 
   if (!isOpen) return null;
@@ -267,9 +307,46 @@ const WeeklyWorkMatrixModal = ({
         >
           <div>
             <div style={{ fontSize: '18px', fontWeight: 800 }}>Récapitulatif semaine — qui travaille où</div>
-            <div style={{ fontSize: '13px', opacity: 0.92, marginTop: '4px' }}>Toutes les boutiques · {weekLabel}</div>
+            <div style={{ fontSize: '13px', opacity: 0.92, marginTop: '4px' }}>
+              {recapShopKey === 'all'
+                ? 'Toutes les boutiques'
+                : `Boutique : ${selectedShopName || String(recapShopKey)}`}{' '}
+              · {weekLabel}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: 'rgba(255,255,255,0.95)',
+                fontSize: '13px',
+                fontWeight: 600
+              }}
+            >
+              Périmètre
+              <select
+                value={recapShopKey}
+                onChange={(e) => setRecapShopKey(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  background: 'rgba(255,255,255,0.15)',
+                  color: '#0f172a',
+                  maxWidth: '220px',
+                  fontWeight: 600
+                }}
+              >
+                <option value="all">Toutes les boutiques</option>
+                {(planningData?.shops || []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name || s.id}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={exportPdf}
@@ -452,8 +529,8 @@ const WeeklyWorkMatrixModal = ({
             background: '#fff'
           }}
         >
-          Heures = somme des durees calculee a partir des crenaux cochees (toutes les boutiques). Conge / maladie
-          = 0 h. La colonne Total est la somme de la semaine.
+          Heures = somme des durees sur le perimetre selectionne (uniquement les employes actifs, non masques, et
+          affectes a la boutique). Conge / maladie = 0 h. La colonne Total est la somme de la semaine.
         </div>
       </div>
     </div>

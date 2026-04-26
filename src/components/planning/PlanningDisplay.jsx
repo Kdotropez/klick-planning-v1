@@ -25,7 +25,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent } from '../../utils/planningUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
@@ -1861,6 +1861,7 @@ const PlanningDisplay = ({
         const week = shop.weeks?.[selectedWeek];
         if (!week?.planning) return;
         Object.keys(week.planning).forEach((employeeId) => {
+          if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
           if (!weekDataByEmployee.has(employeeId)) weekDataByEmployee.set(employeeId, []);
           weekDataByEmployee.get(employeeId).push({
             shopId: shop.id,
@@ -1931,6 +1932,7 @@ const PlanningDisplay = ({
         const rows = [];
         let monthGrand = 0;
         (planningData.shops || []).forEach((shop) => {
+          if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
           const cfg = shop.config || config;
           let shopMonth = 0;
           monthWeeks.forEach((weekStart) => {
