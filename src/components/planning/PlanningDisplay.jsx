@@ -1853,21 +1853,42 @@ const PlanningDisplay = ({
       const employeeMap = new Map();
       const weekDataByEmployee = new Map();
 
+      /**
+       * Même logique que le récap semaine (WeeklyWorkMatrix) : priorité planning en mémoire
+       * pour la boutique + semaine affichée, sinon planningData, sinon localStorage.
+       */
+      const resolveExportWeekPlanning = (shop) => {
+        if (
+          selectedShop != null &&
+          String(shop.id) === String(selectedShop) &&
+          planning &&
+          typeof planning === 'object' &&
+          Object.keys(planning).length > 0
+        ) {
+          return planning;
+        }
+        const w = shop.weeks?.[selectedWeek];
+        const inline = w?.planning;
+        if (inline && typeof inline === 'object' && Object.keys(inline).length > 0) {
+          return inline;
+        }
+        return loadFromLocalStorage(`planning_${shop.id}_${selectedWeek}`, {});
+      };
+
       (planningData.shops || []).forEach((shop) => {
         (shop.employees || []).forEach((emp) => {
           if (!employeeMap.has(emp.id)) employeeMap.set(emp.id, emp.name || emp.id);
         });
 
-        const week = shop.weeks?.[selectedWeek];
-        if (!week?.planning) return;
-        Object.keys(week.planning).forEach((employeeId) => {
+        const weekPlan = resolveExportWeekPlanning(shop);
+        Object.keys(weekPlan).forEach((employeeId) => {
           if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
           if (!weekDataByEmployee.has(employeeId)) weekDataByEmployee.set(employeeId, []);
           weekDataByEmployee.get(employeeId).push({
             shopId: shop.id,
             shopName: shop.name || shop.id,
             config: shop.config || {},
-            employeePlanning: week.planning[employeeId] || {}
+            employeePlanning: weekPlan[employeeId] || {}
           });
         });
       });
@@ -1906,6 +1927,16 @@ const PlanningDisplay = ({
       };
 
       const resolveWeekPlanningForShop = (shop, weekKey) => {
+        if (
+          selectedShop != null &&
+          String(shop.id) === String(selectedShop) &&
+          weekKey === selectedWeek &&
+          planning &&
+          typeof planning === 'object' &&
+          Object.keys(planning).length > 0
+        ) {
+          return planning;
+        }
         const w = shop.weeks?.[weekKey];
         const inline = w?.planning;
         if (inline && typeof inline === 'object' && Object.keys(inline).length > 0) {
@@ -2242,7 +2273,7 @@ const PlanningDisplay = ({
       console.error('Erreur export horaires lisibles:', error);
       setLocalFeedback('❌ Erreur lors de l export horaires lisibles.');
     }
-  }, [selectedWeek, planningData, config, setLocalFeedback]);
+  }, [selectedWeek, selectedShop, planning, planningData, config, setLocalFeedback]);
 
   if (!currentShopData) {
     return (
