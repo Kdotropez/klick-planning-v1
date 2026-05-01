@@ -118,6 +118,10 @@ const VERSION_HIGHLIGHTS = {
     'updateShopConfig et resync au chargement planning: grille canonique marche + migration des coches si ancienne grille uniforme (boutiques marche ambulant).',
     'Tableau drag-and-drop: colonnes creneaux uniformes; colgroup en pourcentages pour largeur ecran sans scroll horizontal.',
     'PlanningDisplay: overflow horizontal coupe, vertical conserve; conteneurs planning-content / left / right avec minWidth 0.'
+  ],
+  '3.10.73': [
+    'Heures journalieres: debut = ligne DE du premier creneau cochu, fin = ligne A du dernier creneau cochu (toutes boutiques, grilles a durees variables).',
+    'calculateEmployeeDailyHours refactorise (overlap avec affichage tableau); plus de log console par calcul.'
   ]
 };
 

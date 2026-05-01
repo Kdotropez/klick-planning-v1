@@ -1,37 +1,36 @@
 import { loadFromLocalStorage } from './localStorage';
 import { parse, differenceInMinutes, format, addDays, addMinutes, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
-import { getSlotDurationMinutes } from './slotDurationUtils';
+import { minutesBetweenHHmm, getSlotEndTimeFormatted } from './slotDurationUtils';
 import { fr } from 'date-fns/locale';
 
+/**
+ * Heures travaillées sur un jour — même convention pour toutes les boutiques :
+ * début = ligne du haut (DE) du premier créneau coché du bloc ;
+ * fin = ligne du bas (À) du dernier créneau coché (= borne de fin du créneau, durées variables prises en compte).
+ * Plusieurs blocs séparés par des cases vides sont additionnés.
+ */
 export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) => {
-  // S'assurer que employee est une chaîne (ID) et non un objet
   const employeeId = typeof employee === 'object' && employee !== null ? employee.id || employee.name : employee;
   const isSelectedSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
-  
-  // Vérifier si les données sont valides
+
   if (!planning || !config?.timeSlots || !Array.isArray(config.timeSlots)) {
     console.warn(`calculateEmployeeDailyHours: Invalid config for ${employeeId} on ${dayKey}`, { planning, config });
     return 0;
   }
-  
-  // Validation supplémentaire de la configuration des tranches horaires
+
   if (config.timeSlots.length === 0) {
     console.warn(`calculateEmployeeDailyHours: Configuration des tranches horaires vide pour ${employeeId} on ${dayKey}`, { config });
     return 0;
   }
-  
-  // Chercher les données de l'employé dans le planning
+
   const employeeData = planning[employeeId];
   if (!employeeData || !employeeData[dayKey]) {
-    // console.warn(`calculateEmployeeDailyHours: No data for ${employeeId} on ${dayKey}`, { planning });
     return 0;
   }
-  
+
   const slots = employeeData[dayKey];
-  
-  // Vérifier que les slots sont un tableau valide ou un statut spécial
+
   if (!Array.isArray(slots)) {
-    // Support des statuts sentinelles: Congé / Maladie
     if (typeof slots === 'string') {
       const normalized = slots.toLowerCase();
       if (normalized.includes('congé') || normalized.includes('conge') || normalized.includes('maladie')) {
@@ -41,68 +40,44 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
     console.warn(`calculateEmployeeDailyHours: Invalid slots for ${employeeId} on ${dayKey}`, { slots });
     return 0;
   }
-  
-  // Vérifier s'il y a au moins un créneau sélectionné
+
   if (!slots.some(isSelectedSlot)) {
     return 0;
   }
-  
+
+  const timeSlots = config.timeSlots;
+  const n = Math.min(slots.length, timeSlots.length);
   let totalMinutes = 0;
-  let inShift = false;
-  let shiftStartIndex = null;
 
-  for (let i = 0; i < slots.length && i < config.timeSlots.length; i++) {
-    // Validation de chaque tranche horaire
-    if (!config.timeSlots[i] || typeof config.timeSlots[i] !== 'string') {
-      console.warn(`calculateEmployeeDailyHours: timeSlots[${i}] invalide pour ${employeeId} on ${dayKey}`, { 
-        timeSlot: config.timeSlots[i], 
-        timeSlotType: typeof config.timeSlots[i] 
-      });
-      continue;
+  const slotHeaderOk = (idx) =>
+    idx >= 0 &&
+    idx < timeSlots.length &&
+    timeSlots[idx] &&
+    typeof timeSlots[idx] === 'string';
+
+  let i = 0;
+  while (i < n) {
+    while (i < n && (!isSelectedSlot(slots[i]) || !slotHeaderOk(i))) {
+      i += 1;
     }
-    
-    if (isSelectedSlot(slots[i]) && !inShift) {
-      inShift = true;
-      shiftStartIndex = i;
-    } else if (!isSelectedSlot(slots[i]) && inShift) {
-      inShift = false;
-      const startTime = config.timeSlots[shiftStartIndex];
-      const endTime = config.timeSlots[i];
-      if (startTime && endTime) {
-        try {
-          const start = parse(startTime, 'HH:mm', new Date());
-          const end = parse(endTime, 'HH:mm', new Date());
-          totalMinutes += differenceInMinutes(end, start);
-        } catch (e) {
-          console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, endTime, error: e });
-        }
-      }
-      shiftStartIndex = null;
+    if (i >= n) break;
+
+    const startIdx = i;
+    while (i < n && isSelectedSlot(slots[i])) {
+      i += 1;
     }
+    const endIdx = i - 1;
+
+    if (!slotHeaderOk(startIdx) || !slotHeaderOk(endIdx)) continue;
+
+    const startStr = timeSlots[startIdx];
+    const endStr = getSlotEndTimeFormatted(timeSlots, endIdx, config);
+    if (!startStr || !endStr || endStr === '-') continue;
+
+    totalMinutes += minutesBetweenHHmm(startStr, endStr);
   }
 
-  if (inShift && shiftStartIndex !== null) {
-    let lastSel = shiftStartIndex;
-    for (let i = shiftStartIndex; i < Math.min(slots.length, config.timeSlots.length); i++) {
-      if (isSelectedSlot(slots[i])) lastSel = i;
-    }
-    const startTime = config.timeSlots[shiftStartIndex];
-    const lastStartTime = config.timeSlots[lastSel];
-    if (startTime && lastStartTime) {
-      try {
-        const start = parse(startTime, 'HH:mm', new Date());
-        const dur = getSlotDurationMinutes(config.timeSlots, lastSel, config);
-        const end = addMinutes(parse(lastStartTime, 'HH:mm', new Date()), dur);
-        totalMinutes += differenceInMinutes(end, start);
-      } catch (e) {
-        console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, lastStartTime, error: e });
-      }
-    }
-  }
-
-  const hours = totalMinutes / 60;
-  console.log(`calculateEmployeeDailyHours: Result for ${employeeId} on ${dayKey}:`, { slots, hours });
-  return hours;
+  return totalMinutes / 60;
 };
 
 export const getTimeSlotsWithBreaks = (employee, dayKey, weekPlanning, config) => {
