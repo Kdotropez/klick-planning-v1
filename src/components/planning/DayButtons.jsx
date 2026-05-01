@@ -1,7 +1,7 @@
 import React from 'react';
 import { format, addDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import '@/assets/styles.css';
 
@@ -9,18 +9,18 @@ const DayButtons = ({ days, currentDay, setCurrentDay, planning, config, selecte
   const calculateDayHours = (dayIndex) => {
     // Vérifier que toutes les données nécessaires sont disponibles
     if (!selectedWeek || !selectedShop || !config || !selectedEmployees || !planning) {
-      return '0.0';
+      return formatWorkedHoursForDisplay(0);
     }
     
     // Vérifier que selectedWeek est valide
     if (isNaN(parseISO(selectedWeek).getTime())) {
       console.warn('calculateDayHours: selectedWeek is invalid', selectedWeek);
-      return '0.0';
+      return formatWorkedHoursForDisplay(0);
     }
     
     // Vérifier que selectedEmployees est valide
     if (!Array.isArray(selectedEmployees) || selectedEmployees.length === 0) {
-      return '0.0';
+      return formatWorkedHoursForDisplay(0);
     }
     
     const dayKey = format(addDays(parseISO(selectedWeek), dayIndex), 'yyyy-MM-dd');
@@ -31,7 +31,7 @@ const DayButtons = ({ days, currentDay, setCurrentDay, planning, config, selecte
       totalHours += isNaN(hours) ? 0 : hours;
     });
     
-    return totalHours.toFixed(1);
+    return formatWorkedHoursForDisplay(totalHours);
   };
 
   return (
@@ -63,7 +63,7 @@ const DayButtons = ({ days, currentDay, setCurrentDay, planning, config, selecte
             {day.date}
           </div>
           <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#4caf50' }}>
-            {calculateDayHours(index)} h
+            {calculateDayHours(index)}
           </div>
         </button>
       ))}

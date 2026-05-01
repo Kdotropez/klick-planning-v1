@@ -80,6 +80,20 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   return totalMinutes / 60;
 };
 
+/**
+ * Affichage des heures planifiées (grilles au quart d’heure / mixtes).
+ * Évite les valeurs trompeuses du type « 8,8 h » pour 8 h 45 (8,75 h décimal).
+ */
+export function formatWorkedHoursForDisplay(hours) {
+  if (hours == null || !Number.isFinite(hours) || hours <= 0) return '0 h';
+  const totalMin = Math.round(hours * 60);
+  if (totalMin <= 0) return '0 h';
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${String(m).padStart(2, '0')}`;
+}
+
 export const getTimeSlotsWithBreaks = (employee, dayKey, weekPlanning, config) => {
   console.log(`getTimeSlotsWithBreaks for ${employee} on ${dayKey}`, { weekPlanning, config });
   

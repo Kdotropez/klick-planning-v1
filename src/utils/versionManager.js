@@ -122,6 +122,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.73': [
     'Heures journalieres: debut = ligne DE du premier creneau cochu, fin = ligne A du dernier creneau cochu (toutes boutiques, grilles a durees variables).',
     'calculateEmployeeDailyHours refactorise (overlap avec affichage tableau); plus de log console par calcul.'
+  ],
+  '3.10.74': [
+    'Totaux journaliers et heures sur la ligne employe au format horaire (h et minutes), coherent avec une grille au quart d heure — plus de 8,8 h pour 8 h 45.'
   ]
 };
 

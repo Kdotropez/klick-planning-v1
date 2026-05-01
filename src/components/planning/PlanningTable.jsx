@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, parse, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import '../../assets/styles.css';
@@ -667,7 +667,7 @@ const PlanningTable = ({
                     displayStatus ? ' employee-day-status' : ''
                   }`}
                 >
-                  {employeeName} ({hours.toFixed(1)} h)
+                  {employeeName} ({formatWorkedHoursForDisplay(hours)})
                   {(() => {
                     // Vérifier si l'employé travaille déjà ce jour dans d'autres boutiques
                     if (!planningData || !planningData.shops) return null;
