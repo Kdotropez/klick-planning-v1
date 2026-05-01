@@ -25,8 +25,9 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent } from '../../utils/planningUtils';
+import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
 
@@ -281,6 +282,21 @@ const PlanningDisplay = ({
 
   // Définir validWeek tout au début pour éviter les erreurs d'initialisation
   const validWeek = selectedWeek && !isNaN(parseISO(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+
+  // Marché ambulant : corrige grille uniforme persistée + migre les coches (une fois au changement de boutique)
+  useEffect(() => {
+    if (!selectedShop) return;
+    setPlanningData((prev) => {
+      const next = resyncShopMarcheAmbulantGrid(prev, selectedShop);
+      if (next === prev) return prev;
+      try {
+        saveToLocalStorage('planningData', next);
+      } catch (_) {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [selectedShop, setPlanningData]);
 
   // Fonction pour calculer le total des heures de la boutique pour le mois
   const calculateShopMonthlyTotal = () => {
@@ -1827,36 +1843,6 @@ const PlanningDisplay = ({
 
       const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
-      const slotRanges = (slots, timeSlots = [], interval = 30) => {
-        const ranges = [];
-        let startIndex = null;
-        for (let i = 0; i < slots.length; i += 1) {
-          const selected = normalizeSlot(slots[i]);
-          if (selected && startIndex === null) startIndex = i;
-          if (!selected && startIndex !== null) {
-            const start = timeSlots[startIndex];
-            const endBase = timeSlots[Math.max(0, i - 1)];
-            if (start && endBase) {
-              const [eh, em] = String(endBase).split(':').map((n) => Number.parseInt(n, 10) || 0);
-              const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
-              const end = format(endDate, 'HH:mm');
-              ranges.push(`${start}-${end}`);
-            }
-            startIndex = null;
-          }
-        }
-        if (startIndex !== null) {
-          const start = timeSlots[startIndex];
-          const last = timeSlots[Math.max(0, timeSlots.length - 1)];
-          if (start && last) {
-            const [eh, em] = String(last).split(':').map((n) => Number.parseInt(n, 10) || 0);
-            const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
-            ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
-          }
-        }
-        return ranges;
-      };
-
       const employeeMap = new Map();
       const weekDataByEmployee = new Map();
 
@@ -2027,7 +2013,10 @@ const PlanningDisplay = ({
             }
 
             if (Array.isArray(dayValue) && dayValue.some(normalizeSlot)) {
-              const ranges = slotRanges(dayValue, cfg.timeSlots || config.timeSlots || [], cfg.interval || config.interval || 30);
+              const ranges = buildSlotRangeLines(dayValue, cfg.timeSlots || config.timeSlots || [], {
+                interval: cfg.interval || config.interval || 30,
+                endTime: cfg.endTime ?? config.endTime,
+              });
               if (ranges.length > 0) {
                 entries.push({ shopName, value: ranges.join(', ') });
               }
@@ -2382,7 +2371,8 @@ const PlanningDisplay = ({
       display: 'flex',
       flexDirection: 'column',
       gap: deviceInfo.isTablet ? '25px' : '20px',
-      overflow: 'auto',
+      overflowX: 'hidden',
+      overflowY: 'auto',
       maxWidth: '100vw',
       margin: '0 auto'
     }}>
@@ -4022,17 +4012,24 @@ const PlanningDisplay = ({
 
       <div className="planning-content" style={{
         width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
         flex: '1',
         display: 'flex',
         flexDirection: 'column',
         gap: '20px',
-        minHeight: '0'
+        minHeight: '0',
+        overflowX: 'hidden',
+        boxSizing: 'border-box'
       }}>
         <div className="planning-left" style={{
           width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px'
+          gap: '20px',
+          boxSizing: 'border-box'
         }}>
           {/* Sélecteur de boutique et navigation */}
           <div style={{
@@ -4315,11 +4312,15 @@ const PlanningDisplay = ({
 
         <div className="planning-right" style={{
           width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           gap: '20px',
           flex: '1',
-          minHeight: '0'
+          minHeight: '0',
+          overflowX: 'hidden',
+          boxSizing: 'border-box'
         }}>
           <PlanningTable
             employees={currentShopEmployees}

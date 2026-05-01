@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { getWeekPlanning, determineEmployeeMainShop } from '../../utils/planningDataManager';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -85,79 +86,33 @@ const WeeklyPlanningPrint = ({
       return { periods: [], hours: 0 };
     }
     
-    // Analyser les créneaux pour trouver les périodes de travail
     const periods = [];
-    let currentPeriod = null;
-    
+    let currentStart = null;
+    let lastIdx = null;
+
     for (let i = 0; i < slots.length && i < config.timeSlots.length; i++) {
       if (slots[i] === true) {
-        // Début d'une nouvelle période
-        if (currentPeriod === null) {
-          currentPeriod = {
-            start: config.timeSlots[i],
-            end: config.timeSlots[i]
-          };
+        if (currentStart === null) {
+          currentStart = config.timeSlots[i];
+          lastIdx = i;
         } else {
-          // Continuer la période actuelle
-          currentPeriod.end = config.timeSlots[i];
+          lastIdx = i;
         }
-      } else {
-        // Fin d'une période
-        if (currentPeriod !== null) {
-          // Calculer l'heure de fin en ajoutant l'intervalle
-          const startMinutes = parseInt(currentPeriod.start.split(':')[0]) * 60 + parseInt(currentPeriod.start.split(':')[1]);
-          const endMinutes = parseInt(currentPeriod.end.split(':')[0]) * 60 + parseInt(currentPeriod.end.split(':')[1]) + config.interval;
-          const endTimeFormatted = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
-          
-          periods.push({
-            start: currentPeriod.start,
-            end: endTimeFormatted
-          });
-          currentPeriod = null;
-        }
-      }
-    }
-    
-    // Ajouter la dernière période si elle existe
-    if (currentPeriod !== null) {
-      // Calculer l'heure de fin en ajoutant l'intervalle
-      const startMinutes = parseInt(currentPeriod.start.split(':')[0]) * 60 + parseInt(currentPeriod.start.split(':')[1]);
-      const endMinutes = parseInt(currentPeriod.end.split(':')[0]) * 60 + parseInt(currentPeriod.end.split(':')[1]) + config.interval;
-      const endTimeFormatted = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
-      
-      periods.push({
-        start: currentPeriod.start,
-        end: endTimeFormatted
-      });
-    }
-    
-    // Si aucune période trouvée mais des créneaux actifs, créer une période simple
-    if (periods.length === 0 && slots.some(slot => slot === true)) {
-      let firstActiveIndex = -1;
-      let lastActiveIndex = -1;
-      
-      for (let i = 0; i < slots.length && i < config.timeSlots.length; i++) {
-        if (slots[i] === true) {
-          if (firstActiveIndex === -1) firstActiveIndex = i;
-          lastActiveIndex = i;
-        }
-      }
-      
-      if (firstActiveIndex !== -1 && lastActiveIndex !== -1) {
-        // Calculer l'heure de fin en ajoutant l'intervalle
-        const startTime = config.timeSlots[firstActiveIndex];
-        const endTime = config.timeSlots[lastActiveIndex];
-        
-        // Convertir en minutes pour calculer l'heure de fin
-        const startMinutes = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
-        const endMinutes = parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]) + config.interval;
-        const endTimeFormatted = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
-        
+      } else if (currentStart !== null) {
         periods.push({
-          start: startTime,
-          end: endTimeFormatted
+          start: currentStart,
+          end: getSlotEndTimeFormatted(config.timeSlots, lastIdx, config),
         });
+        currentStart = null;
+        lastIdx = null;
       }
+    }
+
+    if (currentStart !== null && lastIdx !== null) {
+      periods.push({
+        start: currentStart,
+        end: getSlotEndTimeFormatted(config.timeSlots, lastIdx, config),
+      });
     }
     
     const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);

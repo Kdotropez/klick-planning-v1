@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import '@/assets/styles.css';
 
 const EmployeeMonthlyDetailModal = ({ 
@@ -296,19 +297,8 @@ const EmployeeMonthlyDetailModal = ({
     selectedSlots.sort((a, b) => a.index - b.index);
     
     const entry = selectedSlots[0].time;
-    // Calculer la fin réelle du dernier créneau (ex: 21:30 -> 22:00)
     const lastSelected = selectedSlots[selectedSlots.length - 1];
-    let exit = lastSelected.time;
-    if (config?.timeSlots && typeof lastSelected.index === 'number') {
-      const nextSlotTime = config.timeSlots[lastSelected.index + 1];
-      if (nextSlotTime) {
-        exit = nextSlotTime;
-      } else {
-        const exitStartDate = new Date(`2000-01-01T${lastSelected.time}:00`);
-        const exitEndDate = new Date(exitStartDate.getTime() + (config.interval || 30) * 60 * 1000);
-        exit = format(exitEndDate, 'HH:mm');
-      }
-    }
+    const exit = getSlotEndTimeFormatted(config.timeSlots, lastSelected.index, config);
     
     // Détecter les pauses (gaps dans les créneaux sélectionnés)
     let pause = null;
@@ -320,16 +310,8 @@ const EmployeeMonthlyDetailModal = ({
       
       // Si il y a un gap de plus d'un créneau, c'est une pause
       if (nextIndex - currentIndex > 1) {
-        const currentTime = config.timeSlots[currentIndex];
-        const nextTime = config.timeSlots[nextIndex];
-        
-        // Calculer l'heure de fin du créneau actuel
-        const currentTimeDate = new Date(`2000-01-01T${currentTime}:00`);
-        const endTimeDate = new Date(currentTimeDate.getTime() + (config.interval || 30) * 60 * 1000);
-        const endTime = format(endTimeDate, 'HH:mm');
-        
-        pause = endTime;
-        returnTime = nextTime;
+        pause = getSlotEndTimeFormatted(config.timeSlots, currentIndex, config);
+        returnTime = config.timeSlots[nextIndex];
         break;
       }
     }
@@ -369,19 +351,8 @@ const EmployeeMonthlyDetailModal = ({
     selectedSlots.sort((a, b) => a.index - b.index);
     
     const entry = selectedSlots[0].time;
-    // Calculer la fin réelle du dernier créneau (ex: 21:30 -> 22:00)
     const lastSelected = selectedSlots[selectedSlots.length - 1];
-    let exit = lastSelected.time;
-    if (config?.timeSlots && typeof lastSelected.index === 'number') {
-      const nextSlotTime = config.timeSlots[lastSelected.index + 1];
-      if (nextSlotTime) {
-        exit = nextSlotTime;
-      } else {
-        const exitStartDate = new Date(`2000-01-01T${lastSelected.time}:00`);
-        const exitEndDate = new Date(exitStartDate.getTime() + (config.interval || 30) * 60 * 1000);
-        exit = format(exitEndDate, 'HH:mm');
-      }
-    }
+    const exit = getSlotEndTimeFormatted(config.timeSlots, lastSelected.index, config);
     
     // Détecter les pauses (gaps dans les créneaux sélectionnés)
     let pause = null;
@@ -393,16 +364,8 @@ const EmployeeMonthlyDetailModal = ({
       
       // Si il y a un gap de plus d'un créneau, c'est une pause
       if (nextIndex - currentIndex > 1) {
-        const currentTime = config.timeSlots[currentIndex];
-        const nextTime = config.timeSlots[nextIndex];
-        
-        // Calculer l'heure de fin du créneau actuel
-        const currentTimeDate = new Date(`2000-01-01T${currentTime}:00`);
-        const endTimeDate = new Date(currentTimeDate.getTime() + (config.interval || 30) * 60 * 1000);
-        const endTime = format(endTimeDate, 'HH:mm');
-        
-        pause = endTime;
-        returnTime = nextTime;
+        pause = getSlotEndTimeFormatted(config.timeSlots, currentIndex, config);
+        returnTime = config.timeSlots[nextIndex];
         break;
       }
     }

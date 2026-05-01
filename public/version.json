@@ -1,7 +1,27 @@
 {
-  "version": "3.10.70",
-  "lastUpdate": "2026-04-26",
+  "version": "3.10.72",
+  "lastUpdate": "2026-05-01",
   "changelog": [
+    {
+      "version": "3.10.72",
+      "date": "2026-05-01",
+      "changes": [
+        "Configuration boutique (ShopConfig) : préréglage marché ambulant (grille mixte persistée, mixedSlotProfile).",
+        "updateShopConfig : créneaux canoniques marché ambulant si profil mixte ; resync + migration des coches (overlap temporel) à l'ouverture du planning pour boutiques concernées.",
+        "Tableau drag-and-drop : colonnes créneaux à même largeur ; colgroup en pourcentages pour tenir dans l'écran sans défilement horizontal.",
+        "Zone planning : overflow horizontal masqué, défilement vertical conservé ; conteneurs flex avec minWidth 0."
+      ]
+    },
+    {
+      "version": "3.10.71",
+      "date": "2026-05-01",
+      "changes": [
+        "Grille créneaux variables : durée réelle dérivée des colonnes (écart entre heures + fin de journée endTime).",
+        "Marché ambulant : préréglage 5h–17h, quarts d'heure sauf tranches d'1 h entre 8h et 13h ; calculs heures et exports alignés.",
+        "Fusion boutique (updateShopConfig) : conservation des timeSlots explicites pour les grilles mixtes.",
+        "Affichages, récaps, impression planning, sauvegardes et vues globales : prise en charge des durées par créneau."
+      ]
+    },
     {
       "version": "3.10.70",
       "date": "2026-04-26",
@@ -386,48 +406,7 @@
         "⚙️ Menu déroulant 'Retour' supprimé et remplacé par boutons directs",
         "🎨 Interface plus propre et cohérente"
       ]
-    },
-    "🔧 CORRECTION: Déverrouillage d'urgence réparé",
-    "⚡ Exclusion du déverrouillage d'urgence des protections anti-boucle",
-    "🛡️ Flag spécial pour bypasser les délais lors d'emergency unlock",
-    "🔧 CORRECTION: Résolution de la boucle infinie",
-    "⚡ Protection contre les boucles infinies lors de la connexion multi-PC",
-    "🛡️ Délai minimum de 3s entre les tentatives d'acquisition de verrou",
-    "⏱️ Vérification périodique réduite à 5s au lieu de 2s",
-    "🧹 SIMPLIFICATION: Suppression du système \"toc toc\"",
-    "⚡ Simplification du système de verrouillage collaboratif",
-    "🛡️ Suppression des fonctions requestMain et checkMainRequest",
-    "🔧 CORRECTION: Déverrouillage d'urgence avec nettoyage des champs",
-    "⚡ Correction de emergencyUnlock pour éviter les erreurs de création",
-    "🛡️ Nettoyage des champs force_release_request et main_request",
-    "🔧 CORRECTION: Résolution des conflits de clé unique",
-    "⚡ Utilisation d'upsert au lieu d'insert pour éviter les erreurs 409",
-    "🛡️ Protection contre les violations de contrainte unique",
-    "🚪 Système de demande de main \"toc toc\"",
-    "😊 Demande polie de la main avec notification",
-    "📱 Modal conviviale pour accepter/refuser la demande",
-    "💾 Sauvegarde automatique lors de l'acceptation",
-    "🔄 Synchronisation en temps réel des demandes",
-    "⚡ AMÉLIORATION: Réactivité immédiate du déverrouillage d'urgence",
-    "🔒 Verrouillage immédiat des autres PC après déverrouillage d'urgence",
-    "⏱️ Vérification périodique plus fréquente (2s au lieu de 5s)",
-    "🔄 Détection automatique des changements de verrou",
-    "🚨 Marqueur spécial pour les déverrouillages d'urgence",
-    "📡 Synchronisation améliorée entre les clients",
-    "🔧 Optimisation de la détection des changements d'état",
-    "🚨 NOUVEAU: Système de déverrouillage d'urgence",
-    "🔐 Code de sécurité basé sur la date (JJMM)",
-    "⚡ Déverrouillage forcé sans notification à l'autre PC",
-    "🛡️ Protection contre les verrous bloqués",
-    "📱 Interface modale sécurisée pour le déverrouillage",
-    "🔧 Amélioration du système de verrouillage global",
-    "🔄 Renouvellement automatique du verrou pour le même utilisateur",
-    "⚡ Réduction des conflits lors des changements de semaine",
-    "🛡️ Protection contre les acquisitions de verrou multiples",
-    "⏱️ Vérification périodique plus stable (5s au lieu de 3s)",
-    "🧹 Nettoyage des verrous expirés moins agressif",
-    "🔒 Gestion améliorée des états de verrouillage",
-    "📊 Meilleure stabilité du système collaboratif"
+    }
   ],
   "features": [
     "Verrouillage global unique par application",

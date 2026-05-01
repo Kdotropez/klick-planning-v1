@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { format, addDays, addMinutes, parse, startOfWeek, endOfWeek } from 'date-fns';
+import { format, addDays, parse, startOfWeek, endOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { getSlotDurationMinutes, getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
@@ -72,13 +73,13 @@ const GlobalDayViewModalV2 = ({
           openTime = slotData[i].time;
         }
         if (slotData[i].count > 0) {
-          closeTime = format(addMinutes(parse(slotData[i].time, 'HH:mm', new Date()), config.interval), 'HH:mm');
+          closeTime = getSlotEndTimeFormatted(timeSlots, i, config);
         }
       }
 
       // Calcul du total d'heures
-      const totalHours = slotData.reduce((total, slot) => {
-        return total + (slot.count > 0 ? config.interval / 60 : 0);
+      const totalHours = slotData.reduce((total, slot, slotIndex) => {
+        return total + (slot.count > 0 ? getSlotDurationMinutes(timeSlots, slotIndex, config) / 60 : 0);
       }, 0);
 
       return {
@@ -201,7 +202,7 @@ const GlobalDayViewModalV2 = ({
                         }
                         employeeGroups[slot.count].push({
                           time: slot.time,
-                          endTime: format(addMinutes(parse(slot.time, 'HH:mm', new Date()), config.interval), 'HH:mm'),
+                          endTime: getSlotEndTimeFormatted(timeSlots, index, config),
                           employees: slot.employees
                         });
                       }
@@ -369,7 +370,7 @@ const GlobalDayViewModalV2 = ({
                   style={{ backgroundColor: getSlotColor(slot.count) }}
                 >
                   <div className="slot-time">
-                    {slot.time} - {format(addMinutes(parse(slot.time, 'HH:mm', new Date()), config.interval), 'HH:mm')}
+                    {slot.time} - {getSlotEndTimeFormatted(timeSlots, index, config)}
                   </div>
                   <div className="slot-employees">
                     {slot.count === 0 ? '⚠️' : `${getEmployeeIcon(slot.count)} ${slot.count}`}
@@ -407,7 +408,7 @@ const GlobalDayViewModalV2 = ({
                 <th key={index} className="scrollable-col header">
                   <div style={{ fontSize: '7px', fontWeight: 'bold', textAlign: 'center', transform: 'none' }}>{slot}</div>
                   <div style={{ fontSize: '7px', fontWeight: 'bold', textAlign: 'center', transform: 'none' }}>
-                    {format(addMinutes(parse(slot, 'HH:mm', new Date()), config.interval), 'HH:mm')}
+                    {getSlotEndTimeFormatted(timeSlots, index, config)}
                   </div>
                 </th>
               ))}
@@ -483,7 +484,7 @@ const GlobalDayViewModalV2 = ({
           if (!currentStart) {
             currentStart = slotTime;
           }
-          currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+          currentEnd = getSlotEndTimeFormatted(timeSlots, slotIndex, config);
         } else if (currentStart) {
           schedules.push({
             start: currentStart,
@@ -753,7 +754,7 @@ const GlobalDayViewModalV2 = ({
           if (!currentStart) {
             currentStart = slotTime;
           }
-          currentEnd = format(addMinutes(parse(slotTime, 'HH:mm', new Date()), config.interval), 'HH:mm');
+          currentEnd = getSlotEndTimeFormatted(timeSlots, slotIndex, config);
         } else if (currentStart) {
           schedules.push({
             start: currentStart,
@@ -1058,7 +1059,7 @@ const GlobalDayViewModalV2 = ({
       ['Semaine', globalStats.weekRange],
       ['Total heures', globalStats.totalHours],
       [''],
-      ['Jour', 'Date', 'Ouverture', 'Fermeture', 'Total heures', ...timeSlots.map(slot => `${slot} - ${format(addMinutes(parse(slot, 'HH:mm', new Date()), config.interval), 'HH:mm')}`)]
+      ['Jour', 'Date', 'Ouverture', 'Fermeture', 'Total heures', ...timeSlots.map((slot, idx) => `${slot} - ${getSlotEndTimeFormatted(timeSlots, idx, config)}`)]
     ];
 
     dayData.forEach(day => {

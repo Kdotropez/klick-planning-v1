@@ -1,5 +1,6 @@
 import { loadFromLocalStorage } from './localStorage';
 import { parse, differenceInMinutes, format, addDays, addMinutes, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
+import { getSlotDurationMinutes } from './slotDurationUtils';
 import { fr } from 'date-fns/locale';
 
 export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) => {
@@ -46,7 +47,6 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
     return 0;
   }
   
-  const interval = config.interval || 30;
   let totalMinutes = 0;
   let inShift = false;
   let shiftStartIndex = null;
@@ -82,14 +82,17 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   }
 
   if (inShift && shiftStartIndex !== null) {
+    let lastSel = shiftStartIndex;
+    for (let i = shiftStartIndex; i < Math.min(slots.length, config.timeSlots.length); i++) {
+      if (isSelectedSlot(slots[i])) lastSel = i;
+    }
     const startTime = config.timeSlots[shiftStartIndex];
-    // Fin de journée: inclure la DERNIÈRE tranche (ajouter l'intervalle à la dernière heure de début)
-    const lastIndex = Math.min(slots.length, config.timeSlots.length) - 1;
-    const lastStartTime = config.timeSlots[lastIndex];
+    const lastStartTime = config.timeSlots[lastSel];
     if (startTime && lastStartTime) {
       try {
         const start = parse(startTime, 'HH:mm', new Date());
-        const end = addMinutes(parse(lastStartTime, 'HH:mm', new Date()), interval);
+        const dur = getSlotDurationMinutes(config.timeSlots, lastSel, config);
+        const end = addMinutes(parse(lastStartTime, 'HH:mm', new Date()), dur);
         totalMinutes += differenceInMinutes(end, start);
       } catch (e) {
         console.warn(`calculateEmployeeDailyHours: Error parsing times for ${employeeId} on ${dayKey}`, { startTime, lastStartTime, error: e });
@@ -98,7 +101,7 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
   }
 
   const hours = totalMinutes / 60;
-  console.log(`calculateEmployeeDailyHours: Result for ${employeeId} on ${dayKey}:`, { slots, interval, hours });
+  console.log(`calculateEmployeeDailyHours: Result for ${employeeId} on ${dayKey}:`, { slots, hours });
   return hours;
 };
 

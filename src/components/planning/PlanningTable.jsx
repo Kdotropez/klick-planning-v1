@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { format, addDays, addMinutes, parse, parseISO } from 'date-fns';
+import { format, addDays, parse, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import '../../assets/styles.css';
 
@@ -54,12 +55,10 @@ const PlanningTable = ({
   // Détection d'appareil tactile
   const { isTouchDevice, isTablet } = useDeviceDetection();
 
-  const getEndTime = (startTime, interval) => {
-    if (!startTime) return '-';
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const date = new Date(2025, 0, 1, hours, minutes);
-    return format(addMinutes(date, interval), 'HH:mm');
-  };
+  const durationCfg = useMemo(
+    () => ({ interval: config?.interval || 30, endTime: config?.endTime }),
+    [config?.interval, config?.endTime]
+  );
 
   const handleMouseDown = (employeeId, slotIndex, dayIndex, event) => {
     if (event.type !== 'mousedown') return;
@@ -522,6 +521,11 @@ const PlanningTable = ({
     );
   }
   
+  /** Répartition en % pour tenir dans la largeur sans défilement horizontal */
+  const employeeColPct = 22;
+  const slotColPct =
+    validTimeSlots.length > 0 ? (100 - employeeColPct) / validTimeSlots.length : 0;
+
   const days = Array.from({ length: 7 }, (_, i) => ({
     name: format(addDays(parseISO(validWeek), i), 'EEEE', { locale: fr }),
     date: format(addDays(parseISO(validWeek), i), 'd MMMM', { locale: fr }),
@@ -594,6 +598,12 @@ const PlanningTable = ({
         }
       `}</style>
       <table className="planning-table">
+        <colgroup>
+          <col style={{ width: `${employeeColPct}%` }} />
+          {validTimeSlots.map((_, idx) => (
+            <col key={`colgroup-slot-${idx}`} style={{ width: `${slotColPct}%` }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th className="fixed-col header">DE</th>
@@ -609,7 +619,7 @@ const PlanningTable = ({
               <th key={slot.start || slot} className="scrollable-col header">
                 {index < validTimeSlots.length - 1
                   ? (typeof validTimeSlots[index + 1] === 'string' ? validTimeSlots[index + 1] : validTimeSlots[index + 1]?.start || '')
-                  : getEndTime(typeof slot === 'string' ? slot : slot.start, config?.interval || 30)}
+                  : getSlotEndTimeFormatted(validTimeSlots, index, durationCfg)}
               </th>
             ))}
           </tr>
@@ -729,16 +739,13 @@ const PlanningTable = ({
                 {validTimeSlots.map((_, slotIndex) => {
                   const isChecked = employeeSlots[slotIndex] === true;
                   const slotStyle = getSlotStyle(employeeId, currentDay, slotIndex);
-
                   return (
                     <td
                       key={slotIndex}
                       className={`scrollable-col ${isChecked ? `clicked-${employeeIndex % 7}` : ''} ${isTouchDevice ? 'touch-device' : ''} ${isTablet ? 'tablet-device' : ''}`}
                       style={{
                         ...slotStyle,
-                        // Styles conditionnels pour les appareils tactiles
                         ...(isTouchDevice && {
-                          minWidth: '44px',
                           minHeight: '44px',
                           padding: '8px 4px',
                           cursor: 'pointer'

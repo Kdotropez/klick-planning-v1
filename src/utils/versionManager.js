@@ -106,6 +106,18 @@ const VERSION_HIGHLIGHTS = {
     'Pilotage de la semaine: menu Employe pour filtrer toute l equipe ou une personne (KPI, jour par jour, absences, details modale).',
     'Impression du planning hebdo depuis le pilotage: une seule feuille si un employe est selectionne.',
     'Sous-titre et rappel de perimetre quand un employe est cible; retour automatique a Tous si l employe n est plus dans la boutique affichee.'
+  ],
+  '3.10.71': [
+    'Creneaux a durees variables: heures calculees selon la duree reelle de chaque colonne (ecart avec la suivante + fin journee endTime).',
+    'Marche ambulant: prereglage 5h-17h, quarts d heure sauf tranches d 1 h entre 8h et 13h; bouton dans la configuration des tranches.',
+    'Fusion config boutique: conservation des timeSlots explicites (grilles mixtes), sans regeneration uniforme automatique.',
+    'Recaps, exports, impressions, sauvegardes et vues globales alignes sur ces durees.'
+  ],
+  '3.10.72': [
+    'ShopConfig: prereglage marche ambulant (meme grille mixte que les tranches horaires), conservation mixedSlotProfile.',
+    'updateShopConfig et resync au chargement planning: grille canonique marche + migration des coches si ancienne grille uniforme (boutiques marche ambulant).',
+    'Tableau drag-and-drop: colonnes creneaux uniformes; colgroup en pourcentages pour largeur ecran sans scroll horizontal.',
+    'PlanningDisplay: overflow horizontal coupe, vertical conserve; conteneurs planning-content / left / right avec minWidth 0.'
   ]
 };
 

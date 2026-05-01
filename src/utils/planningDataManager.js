@@ -1,14 +1,21 @@
 import { format, startOfWeek, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { getSlotDurationMinutes, sumSelectedSlotsMinutes, migrateSelectionsToNewTimeSlots } from './slotDurationUtils';
+import { generateMarcheAmbulantTimeSlots, looksLikeUniformMarchePlanningGrid } from './timeSlots';
 // Remplace xlsx standard par xlsx-js-style pour le formatage des cellules
 import * as XLSX from 'xlsx-js-style';
 import * as XLSXCore from 'xlsx';
 
-// Fonctions utilitaires pour le calcul des heures
-const getWorkTimesFromSlots = (timeSlots, intervalMinutes, slots) => {
+// Fonctions utilitaires pour le calcul des heures (créneaux à durées variables possibles)
+const getWorkTimesFromSlots = (timeSlots, slots, shopConfig = {}) => {
   if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
     return { entry: null, pause: null, returnTime: null, exit: null, hours: 0 };
   }
+  const cfg = {
+    interval: shopConfig?.interval,
+    endTime: shopConfig?.endTime,
+    timeSlots,
+  };
   const selected = [];
   for (let i = 0; i < slots.length && i < timeSlots.length; i++) {
     if (slots[i]) selected.push(i);
@@ -20,46 +27,54 @@ const getWorkTimesFromSlots = (timeSlots, intervalMinutes, slots) => {
   const lastIndex = selected[selected.length - 1];
   const lastStart = timeSlots[lastIndex];
   const exitDate = new Date(`2000-01-01T${lastStart}:00`);
-  exitDate.setMinutes(exitDate.getMinutes() + (Number(intervalMinutes) || 30));
+  exitDate.setMinutes(exitDate.getMinutes() + getSlotDurationMinutes(timeSlots, lastIndex, cfg));
   const exit = format(exitDate, 'HH:mm');
 
-  // Pause / Retour: détecter un gap (>1 index)
   let pause = null;
   let returnTime = null;
   for (let i = 0; i < selected.length - 1; i++) {
     const cur = selected[i];
     const nxt = selected[i + 1];
     if (nxt - cur > 1) {
-      // Fin du créneau courant: end time of cur slot
       const curStart = timeSlots[cur];
       const curEndDate = new Date(`2000-01-01T${curStart}:00`);
-      curEndDate.setMinutes(curEndDate.getMinutes() + (Number(intervalMinutes) || 30));
+      curEndDate.setMinutes(curEndDate.getMinutes() + getSlotDurationMinutes(timeSlots, cur, cfg));
       pause = format(curEndDate, 'HH:mm');
       returnTime = timeSlots[nxt];
       break;
     }
   }
 
-  const hours = (selected.length * (Number(intervalMinutes) || 30)) / 60;
+  let totalMin = 0;
+  selected.forEach((idx) => {
+    totalMin += getSlotDurationMinutes(timeSlots, idx, cfg);
+  });
+  const hours = totalMin / 60;
   return { entry, pause, returnTime, exit, hours: Number(hours.toFixed(1)) };
 };
 
-// Fonction pour calculer les heures de nuit (T1 et T2) à partir des slots
-const calculateDayNightFromSlots = (timeSlots, intervalMinutes, slots) => {
+const calculateDayNightFromSlots = (timeSlots, slots, shopConfig = {}) => {
   if (!Array.isArray(slots) || !Array.isArray(timeSlots) || timeSlots.length === 0) {
     return { t1: 0, t2: 0 };
   }
+  const cfg = {
+    interval: shopConfig?.interval,
+    endTime: shopConfig?.endTime,
+    timeSlots,
+  };
   const makeDate = (timeStr) => new Date(`2000-01-01T${timeStr}:00`);
   const window21 = makeDate('21:00');
   const window22 = makeDate('22:00');
   const windowEnd = makeDate('23:59');
-  let minutesT1 = 0, minutesT2 = 0;
+  let minutesT1 = 0;
+  let minutesT2 = 0;
   for (let s = 0; s < Math.min(slots.length, timeSlots.length); s++) {
     if (!slots[s]) continue;
     const startStr = timeSlots[s];
     if (!startStr) continue;
     const slotStart = makeDate(startStr);
-    const slotEnd = new Date(slotStart.getTime() + (Number(intervalMinutes) || 30) * 60000);
+    const slotDur = getSlotDurationMinutes(timeSlots, s, cfg);
+    const slotEnd = new Date(slotStart.getTime() + slotDur * 60000);
     const overlapT1 = Math.max(0, Math.min(slotEnd.getTime(), window22.getTime()) - Math.max(slotStart.getTime(), window21.getTime()));
     const overlapT2 = Math.max(0, Math.min(slotEnd.getTime(), windowEnd.getTime()) - Math.max(slotStart.getTime(), window22.getTime()));
     minutesT1 += Math.floor(overlapT1 / 60000);
@@ -213,21 +228,104 @@ export const addShop = (planningData, shop) => {
 export const updateShopConfig = (planningData, shopId, config) => {
   return {
     ...planningData,
-    shops: planningData.shops.map(shop => 
-      shop.id === shopId 
-        ? { 
-            ...shop, 
-            config: { 
-              ...shop.config, 
-              ...config,
-              // Générer automatiquement les timeSlots si interval, startTime et endTime sont présents
-              timeSlots: (config.interval && config.startTime && config.endTime) 
-                ? generateTimeSlots(config.interval, config.startTime, config.endTime)
-                : (config.timeSlots || shop.config.timeSlots || [])
-            } 
-          }
-        : shop
-    )
+    shops: planningData.shops.map((shop) => {
+      if (shop.id !== shopId) return shop;
+      const merged = { ...shop.config, ...config };
+      let timeSlots;
+      let marcheExtras = {};
+      if (merged.mixedSlotProfile === 'marcheAmbulant') {
+        timeSlots = generateMarcheAmbulantTimeSlots();
+        marcheExtras = { startTime: '05:00', endTime: '17:00', interval: 15 };
+      } else if (Array.isArray(config.timeSlots) && config.timeSlots.length > 0) {
+        timeSlots = config.timeSlots;
+      } else if (config.interval && config.startTime && config.endTime) {
+        timeSlots = generateTimeSlots(config.interval, config.startTime, config.endTime);
+      } else if (Array.isArray(merged.timeSlots) && merged.timeSlots.length > 0) {
+        timeSlots = merged.timeSlots;
+      } else {
+        timeSlots = shop.config.timeSlots || [];
+      }
+      return {
+        ...shop,
+        config: {
+          ...merged,
+          ...marcheExtras,
+          timeSlots,
+        },
+      };
+    }),
+  };
+};
+
+const migratePlanningToNewSlots = (planning, oldSlots, oldCfg, newSlots, newCfg) => {
+  if (!planning || typeof planning !== 'object') return planning;
+  const next = {};
+  Object.keys(planning).forEach((empId) => {
+    const empPlan = planning[empId];
+    if (!empPlan || typeof empPlan !== 'object') {
+      next[empId] = empPlan;
+      return;
+    }
+    const empNext = {};
+    Object.keys(empPlan).forEach((dayKey) => {
+      const cell = empPlan[dayKey];
+      if (Array.isArray(cell)) {
+        empNext[dayKey] = migrateSelectionsToNewTimeSlots(oldSlots, cell, oldCfg, newSlots, newCfg);
+      } else {
+        empNext[dayKey] = cell;
+      }
+    });
+    next[empId] = empNext;
+  });
+  return next;
+};
+
+/**
+ * Passe la boutique sur la grille canonique marché ambulant et migre les coches (overlap temporel).
+ * Déclenché si profil mixte incohérent ou grille uniforme typique « MARCHE AMBULANT ».
+ */
+export const resyncShopMarcheAmbulantGrid = (planningData, shopId) => {
+  const shop = planningData.shops?.find((s) => s.id === shopId);
+  if (!shop) return planningData;
+
+  const marcheSlots = generateMarcheAmbulantTimeSlots();
+  const wrongMarcheProfile =
+    shop.config?.mixedSlotProfile === 'marcheAmbulant' &&
+    JSON.stringify(shop.config.timeSlots) !== JSON.stringify(marcheSlots);
+
+  const heuristicUniform = looksLikeUniformMarchePlanningGrid(shop.config, shop.name);
+
+  if (!wrongMarcheProfile && !heuristicUniform) return planningData;
+
+  const oldSlots = shop.config.timeSlots || [];
+  const oldCfg = shop.config || {};
+  const newCfg = {
+    ...shop.config,
+    mixedSlotProfile: 'marcheAmbulant',
+    timeSlots: marcheSlots,
+    startTime: '05:00',
+    endTime: '17:00',
+    interval: 15,
+  };
+
+  const newWeeks = {};
+  Object.keys(shop.weeks || {}).forEach((wk) => {
+    const wd = shop.weeks[wk];
+    if (!wd || typeof wd !== 'object') {
+      newWeeks[wk] = wd;
+      return;
+    }
+    newWeeks[wk] = {
+      ...wd,
+      planning: migratePlanningToNewSlots(wd.planning, oldSlots, oldCfg, marcheSlots, newCfg),
+    };
+  });
+
+  return {
+    ...planningData,
+    shops: planningData.shops.map((s) =>
+      s.id === shopId ? { ...s, config: newCfg, weeks: newWeeks } : s
+    ),
   };
 };
 
@@ -525,28 +623,27 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       try {
         const weekKey = format(weekStart, 'yyyy-MM-dd');
         const weekData = shop.weeks?.[weekKey]?.planning?.[employeeId] || {};
-        const intervalMinutes = Number(shop?.config?.interval) || 30;
-        let trueSlotsCount = 0;
-      
-      for (let i = 0; i < 7; i++) {
+        const timeSlots = Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [];
+        const cfg = shop.config || {};
+        let totalMinutes = 0;
+
+        for (let i = 0; i < 7; i++) {
           const day = new Date(weekStart);
-        day.setDate(day.getDate() + i);
-        const dayKey = format(day, 'yyyy-MM-dd');
-          // Filtrer: ignorer les jours hors du mois courant
+          day.setDate(day.getDate() + i);
+          const dayKey = format(day, 'yyyy-MM-dd');
           if (day < monthStart || day > monthEnd) continue;
           const daySlots = weekData?.[dayKey];
-          
-          // Traiter les statuts (maladie, congé, etc.)
+
           if (typeof daySlots === 'string') {
-            continue; // Pas d'heures pour les statuts
+            continue;
           }
-          
-          if (Array.isArray(daySlots)) {
-            trueSlotsCount += daySlots.filter(Boolean).length;
+
+          if (Array.isArray(daySlots) && timeSlots.length > 0) {
+            totalMinutes += sumSelectedSlotsMinutes(daySlots, timeSlots, cfg);
           }
         }
 
-        const hours = (trueSlotsCount * intervalMinutes) / 60;
+        const hours = totalMinutes / 60;
         return Number.isFinite(hours) ? Number(hours.toFixed(1)) : 0;
       } catch (e) {
         return 0;
@@ -559,8 +656,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
     // Heures de nuit: tranche 1 (21:00-22:00) et tranche 2 (>22:00)
     const calculateEmployeeWeeklyNightHours = (shop, weekStart, employeeId, monthStart, monthEnd) => {
-      const intervalMinutes = Number(shop?.config?.interval) || 30;
       const timeSlots = Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [];
+      const cfg = shop.config || {};
       if (timeSlots.length === 0) return { t1: 0, t2: 0 };
 
       let minutesT1 = 0; // 21:00-22:00
@@ -587,7 +684,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           const startStr = timeSlots[s];
           if (!startStr) continue;
           const slotStart = makeDate(startStr);
-          const slotEnd = new Date(slotStart.getTime() + intervalMinutes * 60000);
+          const slotDur = getSlotDurationMinutes(timeSlots, s, cfg);
+          const slotEnd = new Date(slotStart.getTime() + slotDur * 60000);
 
           // Overlap with [21:00,22:00)
           const overlapT1 = Math.max(0, Math.min(slotEnd.getTime(), window22.getTime()) - Math.max(slotStart.getTime(), window21.getTime()));
@@ -601,9 +699,6 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
       return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
     };
-
-// ... existing code ...
-
     // Traitement BOUTIQUE PAR BOUTIQUE sur le MOIS COURANT
     const { weeks: monthWeeks, monthStart, monthEnd } = getCurrentMonthWeeks();
     if (planningData.shops && Array.isArray(planningData.shops)) {
@@ -747,9 +842,6 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       sunday.setDate(monday.getDate() + 6);
       return `Semaine du ${format(monday, 'd MMMM', { locale: fr })} au ${format(sunday, 'd MMMM yyyy', { locale: fr })}`;
     };
-
-// ... existing code ...
-
     const findDayDataForEmployee = (employeeId, date) => {
       // Retourne { shopName, shopId, slots, interval, timeSlots, status }
       const dayKey = format(date, 'yyyy-MM-dd');
@@ -770,6 +862,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             shopId: shop.id,
             slots: null,
             interval: shop?.config?.interval || 30,
+            endTime: shop?.config?.endTime,
             timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
             status: slots
           };
@@ -787,6 +880,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             shopId: shop.id,
             slots,
             interval: shop?.config?.interval || 30,
+            endTime: shop?.config?.endTime,
             timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
             status: null
           };
@@ -854,8 +948,16 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
                 });
               } else if (Array.isArray(dd.timeSlots) && dd.timeSlots.length > 0) {
                 // C'est du travail avec des créneaux sélectionnés
-                const wt = getWorkTimesFromSlots(dd.timeSlots, dd.interval, dd.slots);
-                const dnh = calculateDayNightFromSlots(dd.timeSlots, dd.interval, dd.slots);
+                const wt = getWorkTimesFromSlots(dd.timeSlots, dd.slots, {
+                  interval: dd.interval,
+                  endTime: dd.endTime,
+                  timeSlots: dd.timeSlots,
+                });
+                const dnh = calculateDayNightFromSlots(dd.timeSlots, dd.slots, {
+                  interval: dd.interval,
+                  endTime: dd.endTime,
+                  timeSlots: dd.timeSlots,
+                });
                 const prev = shopTotals.get(dd.shopId) || 0;
                 shopTotals.set(dd.shopId, prev + wt.hours);
                 const prevNight = shopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
@@ -1006,11 +1108,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
                 } else if (Array.isArray(slots) && slots.some(Boolean)) {
                   // C'est du travail avec des créneaux
                   const timeSlots = shop.config?.timeSlots || [];
-                  const interval = shop.config?.interval || 30;
-                  const workTimes = getWorkTimesFromSlots(timeSlots, interval, slots);
-                  
-                  // Calculer les heures de nuit pour ce jour
-                  const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
+                  const workTimes = getWorkTimesFromSlots(timeSlots, slots, shop.config || {});
+                  const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, shop.config || {});
                   dayT1 = dayNightHours.t1;
                   dayT2 = dayNightHours.t2;
                   weekT1 += dayT1;
@@ -2401,8 +2500,7 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
             } else if (Array.isArray(slots) && slots.some(Boolean)) {
               // C'est du travail avec des créneaux
               const timeSlots = shop.config?.timeSlots || [];
-              const interval = shop.config?.interval || 30;
-              const workTimes = getWorkTimesFromSlots(timeSlots, interval, slots);
+              const workTimes = getWorkTimesFromSlots(timeSlots, slots, shop.config || {});
               dayHours = workTimes.hours;
               totalJour += dayHours;
               break;
@@ -2440,8 +2538,7 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
           
           if (slots && Array.isArray(slots) && slots.some(Boolean)) {
             const timeSlots = shop.config?.timeSlots || [];
-            const interval = shop.config?.interval || 30;
-            const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
+            const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, shop.config || {});
             dayT1 = dayNightHours.t1;
             totalT1 += dayT1;
             break;
@@ -2476,8 +2573,7 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
           
           if (slots && Array.isArray(slots) && slots.some(Boolean)) {
             const timeSlots = shop.config?.timeSlots || [];
-            const interval = shop.config?.interval || 30;
-            const dayNightHours = calculateDayNightFromSlots(timeSlots, interval, slots);
+            const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, shop.config || {});
             dayT2 = dayNightHours.t2;
             totalT2 += dayT2;
             break;

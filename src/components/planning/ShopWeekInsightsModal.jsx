@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   addDays,
-  addMinutes,
   format,
   parse,
   parseISO,
@@ -13,40 +12,11 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { buildSlotRangeLines, getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { isEmployeeOnLeave } from '../../utils/planningDataManager';
 import WeeklyPlanningPrint from '../dashboard/WeeklyPlanningPrint';
 
 const normSlot = (v) => v === true || v === 1 || v === '1' || v === 'true';
-
-const buildSlotRangeLines = (slots, timeSlots = [], interval = 30) => {
-  if (!Array.isArray(slots) || !timeSlots.length) return [];
-  const ranges = [];
-  let startIndex = null;
-  for (let i = 0; i < slots.length; i += 1) {
-    const selected = normSlot(slots[i]);
-    if (selected && startIndex === null) startIndex = i;
-    if (!selected && startIndex !== null) {
-      const start = timeSlots[startIndex];
-      const endBase = timeSlots[Math.max(0, i - 1)];
-      if (start && endBase) {
-        const [eh, em] = String(endBase).split(':').map((n) => Number.parseInt(n, 10) || 0);
-        const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
-        ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
-      }
-      startIndex = null;
-    }
-  }
-  if (startIndex !== null) {
-    const start = timeSlots[startIndex];
-    const last = timeSlots[Math.max(0, timeSlots.length - 1)];
-    if (start && last) {
-      const [eh, em] = String(last).split(':').map((n) => Number.parseInt(n, 10) || 0);
-      const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
-      ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
-    }
-  }
-  return ranges;
-};
 
 const describeCellForDay = (empId, dayKey, planning, config) => {
   const ep = planning?.[empId]?.[dayKey];
@@ -55,7 +25,10 @@ const describeCellForDay = (empId, dayKey, planning, config) => {
     return { type: 'status', text: ep };
   }
   if (Array.isArray(ep) && ep.some(normSlot)) {
-    const ranges = buildSlotRangeLines(ep, config.timeSlots || [], config.interval || 30);
+    const ranges = buildSlotRangeLines(ep, config.timeSlots || [], {
+      interval: config.interval || 30,
+      endTime: config.endTime,
+    });
     const h = calculateEmployeeDailyHours(empId, dayKey, { [empId]: planning[empId] }, config);
     return { type: 'slots', text: ranges.join(', ') || '—', h };
   }
@@ -161,7 +134,6 @@ const ShopWeekInsightsModal = ({
   }, [isOpen]);
 
   const timeSlots = config.timeSlots || [];
-  const interval = config.interval || 30;
   const days = config.days || [
     { name: 'Lundi', short: 'Lun' },
     { name: 'Mardi', short: 'Mar' },
@@ -248,7 +220,7 @@ const ShopWeekInsightsModal = ({
       for (let i = 0; i < slotData.length; i += 1) {
         if (slotData[i].count > 0 && !openT) openT = slotData[i].time;
         if (slotData[i].count > 0) {
-          closeT = format(addMinutes(parse(slotData[i].time, 'HH:mm', new Date()), interval), 'HH:mm');
+          closeT = getSlotEndTimeFormatted(timeSlots, i, config);
         }
       }
       const maxEmp = Math.max(0, ...slotData.map((s) => s.count));
@@ -264,7 +236,7 @@ const ShopWeekInsightsModal = ({
         hasWork: hours > 0.001
       };
     });
-  }, [isOpen, selectedWeek, days, timeSlots, planning, config, scopedVisibleIds, interval]);
+  }, [isOpen, selectedWeek, days, timeSlots, planning, config, scopedVisibleIds]);
 
   const absenceData = useMemo(() => {
     if (!isOpen || !planningData || !selectedWeek || !scopedVisibleIds.length) {

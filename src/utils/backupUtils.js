@@ -1,5 +1,6 @@
 import { saveToLocalStorage, loadFromLocalStorage } from './localStorage';
-import { format, addMinutes, parse } from 'date-fns';
+import { format, parse } from 'date-fns';
+import { getSlotEndTimeFormatted } from './slotDurationUtils';
 
 // Fonction d'export optimisée pour iPad
 export const exportAllDataIPad = async (setFeedback, planningData = null) => {
@@ -46,7 +47,7 @@ export const exportAllDataIPad = async (setFeedback, planningData = null) => {
               if (weekPlanning[employee]) {
                 Object.keys(weekPlanning[employee]).forEach(dayKey => {
                   const slots = weekPlanning[employee][dayKey];
-                  schedule[dayKey] = convertSlotsToTimeRanges(slots, config.timeSlots, config.interval);
+                  schedule[dayKey] = convertSlotsToTimeRanges(slots, config.timeSlots, config);
                 });
                 weekEmployees.push({ id: employee, schedule });
               }
@@ -212,7 +213,7 @@ export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig)
                     const slots = convertTimeRangesToSlots(
                       employee.schedule[dayKey],
                       weekData.timeSlots || data.config.timeSlots || [],
-                      data.config.interval || 30
+                      data.config || {}
                     );
                     if (slots.some(slot => slot)) {
                       weekPlanning[employee.id][cleanedDayKey] = slots;
@@ -243,12 +244,24 @@ export const importAllData = (setFeedback, setShops, setSelectedShop, setConfig)
   input.click();
 };
 
-const convertSlotsToTimeRanges = (slots, timeSlots, interval) => {
+const normalizeDurationConfig = (intervalOrConfig, timeSlots) => {
+  if (intervalOrConfig != null && typeof intervalOrConfig === 'object' && !Array.isArray(intervalOrConfig)) {
+    return {
+      interval: Number(intervalOrConfig.interval) || 30,
+      endTime: intervalOrConfig.endTime,
+      timeSlots,
+    };
+  }
+  return { interval: Number(intervalOrConfig) || 30, endTime: undefined, timeSlots };
+};
+
+const convertSlotsToTimeRanges = (slots, timeSlots, intervalOrConfig) => {
   if (!Array.isArray(slots) || !Array.isArray(timeSlots)) {
     console.warn('convertSlotsToTimeRanges: Invalid input', { slots, timeSlots });
     return [];
   }
 
+  const cfg = normalizeDurationConfig(intervalOrConfig, timeSlots);
   const ranges = [];
   let start = null;
   let pauseStart = null;
@@ -273,31 +286,42 @@ const convertSlotsToTimeRanges = (slots, timeSlots, interval) => {
       resume = null;
     } else if (slots[i] && i === slots.length - 1) {
       ranges.push(start || timeSlots[i]);
-      ranges.push(`${start || timeSlots[i]}-${getEndTime(timeSlots[i], interval)}`);
+      ranges.push(`${start || timeSlots[i]}-${getSlotEndTimeFormatted(timeSlots, i, cfg)}`);
     }
   }
 
   if (start && !pauseStart && !resume) {
     ranges.push(start);
-    ranges.push(`${start}-${getEndTime(timeSlots[slots.length - 1], interval)}`);
+    const lastIdx = Math.min(slots.length, timeSlots.length) - 1;
+    ranges.push(`${start}-${getSlotEndTimeFormatted(timeSlots, Math.max(0, lastIdx), cfg)}`);
   }
 
   console.log('Converted slots to time ranges:', { slots, timeSlots, ranges });
   return ranges;
 };
 
-const convertTimeRangesToSlots = (ranges, timeSlots, interval) => {
+const convertTimeRangesToSlots = (ranges, timeSlots, intervalOrConfig) => {
   if (!Array.isArray(ranges) || !Array.isArray(timeSlots)) {
     console.warn('convertTimeRangesToSlots: Invalid input', { ranges, timeSlots });
     return Array(timeSlots?.length || 0).fill(false);
   }
 
+  const cfg = normalizeDurationConfig(intervalOrConfig, timeSlots);
   const slots = Array(timeSlots.length).fill(false);
   ranges.forEach((range, index) => {
     if (typeof range === 'string' && range.includes('-')) {
       const [rangeStart, rangeEnd] = range.split('-');
       const startIndex = timeSlots.indexOf(rangeStart);
-      const endIndex = timeSlots.indexOf(rangeEnd) !== -1 ? timeSlots.indexOf(rangeEnd) : timeSlots.indexOf(getEndTime(rangeStart, interval));
+      let syntheticEnd = null;
+      if (startIndex >= 0) {
+        syntheticEnd = getSlotEndTimeFormatted(timeSlots, startIndex, cfg);
+      }
+      const endIndex =
+        timeSlots.indexOf(rangeEnd) !== -1
+          ? timeSlots.indexOf(rangeEnd)
+          : syntheticEnd
+            ? timeSlots.indexOf(syntheticEnd)
+            : -1;
       if (startIndex >= 0 && endIndex >= 0 && endIndex > startIndex) {
         for (let j = startIndex; j < endIndex; j++) {
           slots[j] = true;
@@ -313,11 +337,4 @@ const convertTimeRangesToSlots = (ranges, timeSlots, interval) => {
 
   console.log('Converted time ranges to slots:', { ranges, timeSlots, slots });
   return slots;
-};
-
-const getEndTime = (startTime, interval) => {
-  if (!startTime) return '-';
-  const [hours, minutes] = startTime.split(':').map(Number);
-  const date = new Date(2025, 0, 1, hours, minutes);
-  return format(addMinutes(date, interval), 'HH:mm');
 };

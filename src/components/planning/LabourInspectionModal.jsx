@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -44,36 +45,6 @@ const writeMetaMap = (metaMap) => {
 };
 
 const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
-
-const getRanges = (slots, timeSlots = [], interval = 30) => {
-  if (!Array.isArray(slots) || !Array.isArray(timeSlots) || !timeSlots.length) return [];
-  const ranges = [];
-  let startIdx = null;
-  for (let i = 0; i < slots.length; i += 1) {
-    const selected = normalizeSlot(slots[i]);
-    if (selected && startIdx === null) startIdx = i;
-    if (!selected && startIdx !== null) {
-      const start = timeSlots[startIdx];
-      const endBase = timeSlots[Math.max(0, i - 1)];
-      if (start && endBase) {
-        const [eh, em] = String(endBase).split(':').map((n) => Number.parseInt(n, 10) || 0);
-        const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
-        ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
-      }
-      startIdx = null;
-    }
-  }
-  if (startIdx !== null) {
-    const start = timeSlots[startIdx];
-    const endBase = timeSlots[Math.max(0, Math.min(timeSlots.length, slots.length) - 1)];
-    if (start && endBase) {
-      const [eh, em] = String(endBase).split(':').map((n) => Number.parseInt(n, 10) || 0);
-      const endDate = new Date(2000, 0, 1, eh, em + interval, 0);
-      ranges.push(`${start}-${format(endDate, 'HH:mm')}`);
-    }
-  }
-  return ranges;
-};
 
 const RAISON_SOCIALE_FIXE = 'Relais des coches boutique';
 const ACTIVITE_FIXE = 'Commerce de détail de boissons en magasin spécialisé - 4725Z';
@@ -244,7 +215,9 @@ const LabourInspectionModal = ({
       return arr.findIndex((x) => (x?.id || '') === id) === idx;
     });
     const interval = currentConfig?.interval || shop.config?.interval || 30;
+    const endTime = currentConfig?.endTime ?? shop.config?.endTime;
     const timeSlots = currentConfig?.timeSlots || shop.config?.timeSlots || [];
+    const slotDurationCfg = { interval, endTime };
 
     return employees.map((employee) => {
       const canonical = getCanonicalContractFields(planningData, employee);
@@ -286,7 +259,7 @@ const LabourInspectionModal = ({
             row.cells.push(dayValue);
           }
         } else if (Array.isArray(dayValue) && dayValue.some(normalizeSlot)) {
-          const ranges = getRanges(dayValue, timeSlots, interval);
+          const ranges = buildSlotRangeLines(dayValue, timeSlots, slotDurationCfg);
           row.cells.push(ranges.length ? ranges.join(', ') : 'Repos');
         } else {
           row.cells.push('Repos');

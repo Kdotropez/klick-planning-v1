@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, addDays, addMinutes, parse } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage'; // Correction de l'importation
 import '@/assets/styles.css';
 
@@ -114,11 +115,7 @@ const RecapModal = ({
     
     // Calculer l'heure de fin (dernier créneau + intervalle)
     const lastSlotIndex = selectedSlots[selectedSlots.length - 1].index;
-    const lastTime = timeSlots[lastSlotIndex];
-    const interval = config.interval || 30;
-    const lastTimeDate = new Date(`2000-01-01T${lastTime}:00`);
-    const endTimeDate = new Date(lastTimeDate.getTime() + interval * 60 * 1000);
-    const end = format(endTimeDate, 'HH:mm');
+    const end = getSlotEndTimeFormatted(timeSlots, lastSlotIndex, config);
     
     // Détecter les pauses (gaps dans les créneaux sélectionnés)
     let pause = null;
@@ -131,10 +128,7 @@ const RecapModal = ({
       // Si il y a un gap entre les créneaux sélectionnés
       if (nextIndex > currentIndex + 1) {
         // L'heure de pause est l'heure de fin du créneau actuel
-        const currentTime = timeSlots[currentIndex];
-        const currentTimeDate = new Date(`2000-01-01T${currentTime}:00`);
-        const pauseTimeDate = new Date(currentTimeDate.getTime() + interval * 60 * 1000);
-        pause = format(pauseTimeDate, 'HH:mm');
+        pause = getSlotEndTimeFormatted(timeSlots, currentIndex, config);
         
         // L'heure de retour est l'heure de début du prochain créneau
         resume = timeSlots[nextIndex];

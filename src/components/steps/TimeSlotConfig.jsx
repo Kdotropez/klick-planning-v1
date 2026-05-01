@@ -4,11 +4,12 @@ import Button from '../common/Button';
 import { saveToLocalStorage, loadFromLocalStorage } from '../../utils/localStorage';
 import { importAllData } from '../../utils/backupUtils';
 import { FaUpload } from 'react-icons/fa';
+import { generateMarcheAmbulantTimeSlots } from '../../utils/timeSlots';
 import '@/assets/styles.css';
 
 const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop }) => {
     const intervals = [15, 30, 60];
-    const startTimeOptions = ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', 'other'];
+    const startTimeOptions = ['05:00', '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', 'other'];
     const endTimeOptions = ['14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '23:59', '00:00', '01:00', '02:00', '03:00', 'other'];
 
     const validateTimeFormat = (time) => {
@@ -57,35 +58,55 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
     };
 
     const handleNext = () => {
-        if (!config.startTime || !config.endTime) {
-            setFeedback('Erreur: Veuillez sÈlectionner une heure de dÈbut et de fin.');
-            return;
+        let startTime;
+        let endTime;
+        let timeSlots;
+        const isMarche = config.mixedSlotProfile === 'marcheAmbulant';
+
+        if (isMarche) {
+            startTime = '05:00';
+            endTime = '17:00';
+            timeSlots = generateMarcheAmbulantTimeSlots();
+        } else {
+            if (!config.startTime || !config.endTime) {
+                setFeedback('Erreur: Veuillez sùlectionner une heure de dùbut et de fin.');
+                return;
+            }
+            if (!validateTimeFormat(config.startTime)) {
+                setFeedback('Erreur: Heure de dùbut invalide (HH:mm).');
+                return;
+            }
+            if (!validateTimeFormat(config.endTime)) {
+                setFeedback('Erreur: Heure de fin invalide (HH:mm).');
+                return;
+            }
+            startTime = config.startTime === 'other' ? config.startTimeCustom : config.startTime;
+            endTime = config.endTime === 'other' ? config.endTimeCustom : config.endTime;
+            if (!startTime || !endTime) {
+                setFeedback('Erreur: Veuillez spùcifier une heure personnalisùe pour l\'option "Autre".');
+                return;
+            }
+            timeSlots = generateTimeSlots(startTime, endTime, config.interval);
         }
-        if (!validateTimeFormat(config.startTime)) {
-            setFeedback('Erreur: Heure de dÈbut invalide (HH:mm).');
-            return;
-        }
-        if (!validateTimeFormat(config.endTime)) {
-            setFeedback('Erreur: Heure de fin invalide (HH:mm).');
-            return;
-        }
-        const startTime = config.startTime === 'other' ? config.startTimeCustom : config.startTime;
-        const endTime = config.endTime === 'other' ? config.endTimeCustom : config.endTime;
-        if (!startTime || !endTime) {
-            setFeedback('Erreur: Veuillez spÈcifier une heure personnalisÈe pour l\'option "Autre".');
-            return;
-        }
-        const timeSlots = generateTimeSlots(startTime, endTime, config.interval);
+
         if (timeSlots.length === 0) {
-            setFeedback('Erreur: Aucun crÈneau horaire dÈfini.');
+            setFeedback('Erreur: Aucun crùneau horaire dùfini.');
             return;
         }
-        const updatedConfig = { ...config, timeSlots, startTime, endTime };
+
+        const updatedConfig = {
+            ...config,
+            timeSlots,
+            startTime,
+            endTime,
+            interval: isMarche ? 15 : config.interval,
+            mixedSlotProfile: isMarche ? 'marcheAmbulant' : null,
+        };
         updateExistingPlannings(timeSlots);
         saveToLocalStorage(`timeSlotConfig_${selectedShop}`, updatedConfig);
         setConfig(updatedConfig);
         setStep(2);
-        setFeedback('SuccËs: Configuration des tranches enregistrÈe.');
+        setFeedback('Succùs: Configuration des tranches enregistrùe.');
     };
 
     const handleReset = () => {
@@ -95,12 +116,13 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
             startTime: '09:00', 
             endTime: '01:00', 
             startTimeCustom: '', 
-            endTimeCustom: '' 
+            endTimeCustom: '',
+            mixedSlotProfile: null,
         };
         updateExistingPlannings(defaultConfig.timeSlots);
         setConfig(defaultConfig);
         saveToLocalStorage(`timeSlotConfig_${selectedShop}`, defaultConfig);
-        setFeedback('SuccËs: Configuration rÈinitialisÈe.');
+        setFeedback('Succùs: Configuration rùinitialisùe.');
     };
 
     console.log('Rendering TimeSlotConfig with config:', config, 'selectedShop:', selectedShop);
@@ -114,6 +136,28 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                 <Button className="button-validate" onClick={() => importAllData(setFeedback, () => {}, () => {}, setConfig)}>
                     <FaUpload /> Importer
                 </Button>
+            </div>
+            <div style={{ marginBottom: '15px', maxWidth: '520px', textAlign: 'center', padding: '0 12px' }}>
+                <Button
+                    type="button"
+                    className="button-validate"
+                    onClick={() =>
+                        setConfig({
+                            ...config,
+                            mixedSlotProfile: 'marcheAmbulant',
+                            startTime: '05:00',
+                            endTime: '17:00',
+                            interval: 15,
+                        })
+                    }
+                >
+                    Prùrùglage marchù ambulant (5hù17h : quarts + 8hù13h par heure)
+                </Button>
+                {config.mixedSlotProfile === 'marcheAmbulant' && (
+                    <p style={{ fontSize: '13px', marginTop: '10px', color: '#333', lineHeight: 1.4 }}>
+                        Validez pour enregistrer cette grille. Modifier l&apos;intervalle ou les heures dùsactive le prùrùglage.
+                    </p>
+                )}
             </div>
             <div className="form-group" style={{ marginBottom: '15px', width: '100%', maxWidth: '400px' }}>
                 <label style={{ fontFamily: 'Roboto, sans-serif', fontSize: '16px', marginBottom: '5px', display: 'block', textAlign: 'center' }}>
@@ -139,7 +183,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                                 name="interval"
                                 value={int}
                                 checked={config.interval === int}
-                                onChange={(e) => setConfig({ ...config, interval: Number(e.target.value) })}
+                                onChange={(e) => setConfig({ ...config, interval: Number(e.target.value), mixedSlotProfile: null })}
                                 style={{ marginRight: '4px' }}
                             />
                             {int} min
@@ -149,7 +193,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
             </div>
             <div className="form-group" style={{ marginBottom: '15px', width: '100%', maxWidth: '400px' }}>
                 <label style={{ fontFamily: 'Roboto, sans-serif', fontSize: '16px', marginBottom: '5px', display: 'block', textAlign: 'center' }}>
-                    Heure de dÈbut
+                    Heure de dùbut
                 </label>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                     {startTimeOptions.map((time) => (
@@ -171,7 +215,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                                 name="startTime"
                                 value={time}
                                 checked={config.startTime === time}
-                                onChange={(e) => setConfig({ ...config, startTime: e.target.value })}
+                                onChange={(e) => setConfig({ ...config, startTime: e.target.value, mixedSlotProfile: null })}
                                 style={{ marginRight: '4px' }}
                             />
                             {time === 'other' ? 'Autre' : time}
@@ -182,7 +226,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                     <input
                         type="time"
                         value={config.startTimeCustom || ''}
-                        onChange={(e) => setConfig({ ...config, startTimeCustom: e.target.value, startTime: e.target.value })}
+                        onChange={(e) => setConfig({ ...config, startTimeCustom: e.target.value, startTime: e.target.value, mixedSlotProfile: null })}
                         style={{ padding: '10px', fontSize: '16px', width: '100%', marginTop: '10px' }}
                     />
                 )}
@@ -211,7 +255,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                                 name="endTime"
                                 value={time}
                                 checked={config.endTime === time}
-                                onChange={(e) => setConfig({ ...config, endTime: e.target.value })}
+                                onChange={(e) => setConfig({ ...config, endTime: e.target.value, mixedSlotProfile: null })}
                                 style={{ marginRight: '4px' }}
                             />
                             {time === 'other' ? 'Autre' : time}
@@ -222,7 +266,7 @@ const TimeSlotConfig = ({ config, setConfig, setStep, setFeedback, selectedShop 
                     <input
                         type="time"
                         value={config.endTimeCustom || ''}
-                        onChange={(e) => setConfig({ ...config, endTimeCustom: e.target.value, endTime: e.target.value })}
+                        onChange={(e) => setConfig({ ...config, endTimeCustom: e.target.value, endTime: e.target.value, mixedSlotProfile: null })}
                         style={{ padding: '10px', fontSize: '16px', width: '100%', marginTop: '10px' }}
                     />
                 )}
