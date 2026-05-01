@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getWeekPlanning } from '../../utils/planningDataManager';
 import '@/assets/styles.css';
@@ -134,7 +134,7 @@ const EmployeeMonthlyRecapModal = ({
         currentDay = addDays(currentDay, 1);
       }
     }
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   const calculateShopWeeklyHours = (week) => {
@@ -170,16 +170,16 @@ const EmployeeMonthlyRecapModal = ({
       }
     }
     
-    return weekHours.toFixed(1);
+    return weekHours;
   };
 
   const calculateShopMonthlyHours = () => {
     let totalHours = 0;
     const weeks = getMonthWeeks(selectedWeek);
-    weeks.forEach(week => {
-      totalHours += parseFloat(calculateShopWeeklyHours(week));
+    weeks.forEach((week) => {
+      totalHours += calculateShopWeeklyHours(week);
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Fonction pour obtenir les jours hors mois (fragmentés)
@@ -234,14 +234,17 @@ const EmployeeMonthlyRecapModal = ({
     console.log('EmployeeMonthlyRecapModal: Exporting to PDF');
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
-    const title = `Récapitulatif mensuel pour ${employeeName} (${calculateTotalHours()} H)`;
+    const title = `Récapitulatif mensuel pour ${employeeName} (${formatWorkedHoursForDisplay(calculateTotalHours())})`;
     doc.text(title, 10, 10);
     doc.text(`Mois de ${format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}`, 10, 20);
-    doc.text(`Vue multi-boutiques - Boutique principale: ${selectedShop}`, 10, 30);
-    
-    const columns = ['Semaine', 'Boutique', 'Heures'];
+    doc.text(`Vue multi-boutiques - Boutique principale: ${selectedShop}`, 10, 28);
+    doc.setFontSize(8);
+    doc.text('Heures par ligne : uniquement les jours du mois calendaire (semaines à cheval).', 10, 34);
+    doc.setFontSize(10);
+
+    const columns = ['Semaine', 'Boutique', 'Heures', 'Nb (h)'];
     const body = [];
-    
+
     const weeks = getMonthWeeks(selectedWeek);
     weeks.forEach(week => {
       const weekHours = calculateShopWeeklyHours(week);
@@ -249,19 +252,23 @@ const EmployeeMonthlyRecapModal = ({
       body.push([
         getWeekRange(week),
         weekShop,
-        parseFloat(weekHours) > 0 ? weekHours + ' H' : '-'
+        weekHours > 0 ? formatWorkedHoursForDisplay(weekHours) : '-',
+        formatWorkedHoursNbNotation(weekHours)
       ]);
     });
-    
+
+    const monthTotal = calculateTotalHours();
+    body.push(['Total mois', '', formatWorkedHoursForDisplay(monthTotal), formatWorkedHoursNbNotation(monthTotal)]);
+
     doc.autoTable({
       head: [columns],
       body: body,
-      startY: 40,
+      startY: 38,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [30, 136, 229] }
     });
     doc.save(`monthly_recap_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    console.log('EmployeeMonthlyRecapModal: Excel exported successfully');
+    console.log('EmployeeMonthlyRecapModal: PDF exported successfully');
   };
 
   const exportToExcel = () => {
@@ -275,10 +282,19 @@ const EmployeeMonthlyRecapModal = ({
       data.push({
         'Semaine': getWeekRange(week),
         'Boutique': weekShop,
-        'Heures': parseFloat(weekHours) > 0 ? weekHours + ' H' : '-'
+        'Heures': weekHours > 0 ? formatWorkedHoursForDisplay(weekHours) : '-',
+        'Nb (h)': formatWorkedHoursNbNotation(weekHours)
       });
     });
-    
+
+    const monthTotalExcel = calculateTotalHours();
+    data.push({
+      'Semaine': 'Total mois',
+      'Boutique': '',
+      'Heures': formatWorkedHoursForDisplay(monthTotalExcel),
+      'Nb (h)': formatWorkedHoursNbNotation(monthTotalExcel)
+    });
+
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Récapitulatif mensuel');
@@ -374,7 +390,7 @@ const EmployeeMonthlyRecapModal = ({
           ✕
         </button>
         <h3 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center' }}>
-          Récapitulatif mensuel pour {employeeName} ({totalHours} H)
+          Récapitulatif mensuel pour {employeeName} ({formatWorkedHoursForDisplay(totalHours)})
         </h3>
         <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '10px' }}>
           Mois de {format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}
@@ -413,6 +429,7 @@ const EmployeeMonthlyRecapModal = ({
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Semaine</th>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Boutique</th>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Heures</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Nb (h)</th>
                 </tr>
               </thead>
               <tbody>
@@ -432,13 +449,17 @@ const EmployeeMonthlyRecapModal = ({
                     <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.week}</td>
                     <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{data.shop}</td>
                     <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>
-                      {parseFloat(data.hours) > 0 ? data.hours + ' H' : '-'}
+                      {Number(data.hours) > 0 ? formatWorkedHoursForDisplay(data.hours) : '-'}
+                    </td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>
+                      {formatWorkedHoursNbNotation(data.hours)}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
                   <td colSpan="2" style={{ border: '1px solid #ddd', padding: '8px' }}>Total mois</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{calculateTotalHours()} H</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{formatWorkedHoursForDisplay(calculateTotalHours())}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{formatWorkedHoursNbNotation(calculateTotalHours())}</td>
                 </tr>
               </tbody>
             </table>
@@ -474,6 +495,7 @@ const EmployeeMonthlyRecapModal = ({
                     <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Date</th>
                     <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Boutique</th>
                     <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Heures</th>
+                    <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Nb (h)</th>
                     <th style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>Statut</th>
                   </tr>
                 </thead>
@@ -497,7 +519,10 @@ const EmployeeMonthlyRecapModal = ({
                       <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.dayDate}</td>
                       <td style={{ border: '1px solid #dee2e6', padding: '6px' }}>{day.shopName}</td>
                       <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>
-                        {day.hours.toFixed(1)} h
+                        {formatWorkedHoursForDisplay(day.hours)}
+                      </td>
+                      <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                        {formatWorkedHoursNbNotation(day.hours)}
                       </td>
                       <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center', fontSize: '10px' }}>
                         <span style={{ 
@@ -517,11 +542,14 @@ const EmployeeMonthlyRecapModal = ({
                       Total hors mois :
                     </td>
                     <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
-                      {daysOutsideMonth.reduce((total, day) => total + day.hours, 0).toFixed(1)} h
+                      {formatWorkedHoursForDisplay(daysOutsideMonth.reduce((total, day) => total + day.hours, 0))}
+                    </td>
+                    <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
+                      {formatWorkedHoursNbNotation(daysOutsideMonth.reduce((total, day) => total + day.hours, 0))}
                     </td>
                     <td style={{ border: '1px solid #dee2e6', padding: '6px', textAlign: 'center' }}>
                       <span style={{ fontSize: '10px', color: '#6c757d' }}>
-                        {daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h payées / {daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h fragmentées
+                        {formatWorkedHoursForDisplay(daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0))} payées / {formatWorkedHoursForDisplay(daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0))} fragmentées
                       </span>
                     </td>
                   </tr>

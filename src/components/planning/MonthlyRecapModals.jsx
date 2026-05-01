@@ -2,7 +2,7 @@ import React from 'react';
 import { format, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getWeekPlanning } from '../../utils/planningDataManager';
 import '@/assets/styles.css';
@@ -57,8 +57,8 @@ const MonthlyRecapModals = ({
       });
     }
     
-    console.log('MonthlyRecapModals: Total hours calculated:', totalHours.toFixed(1));
-    return totalHours.toFixed(1);
+    console.log('MonthlyRecapModals: Total hours calculated:', formatWorkedHoursForDisplay(totalHours));
+    return totalHours;
   };
 
   // Calculer les heures mensuelles pour un employé spécifique
@@ -91,8 +91,8 @@ const MonthlyRecapModals = ({
       totalHours += hours;
     }
     
-    console.log(`MonthlyRecapModals: Employee ${employee} hours:`, totalHours.toFixed(1));
-    return totalHours.toFixed(1);
+    console.log(`MonthlyRecapModals: Employee ${employee} hours:`, formatWorkedHoursForDisplay(totalHours));
+    return totalHours;
   };
 
   const shop = Array.isArray(shops) ? shops.find(s => s.id === selectedShop) || { name: 'Boutique' } : { name: 'Boutique' };
@@ -114,7 +114,7 @@ const MonthlyRecapModals = ({
         </button>
         
         <h3 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center' }}>
-          Récapitulatif mensuel pour {shop.name} ({totalHours} H)
+          Récapitulatif mensuel pour {shop.name} ({formatWorkedHoursForDisplay(totalHours)})
         </h3>
         
         <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '20px' }}>
@@ -138,7 +138,7 @@ const MonthlyRecapModals = ({
                 <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#f9f9f9' : '#ffffff' }}>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{employee}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                    {calculateEmployeeMonthlyHours(employee)} H
+                    {formatWorkedHoursForDisplay(calculateEmployeeMonthlyHours(employee))}
                   </td>
                 </tr>
               ))}

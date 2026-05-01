@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import '@/assets/styles.css';
 
@@ -40,6 +40,9 @@ const MonthlyRecapModals = ({
     return `Du ${format(weekStart, 'd MMMM', { locale: fr })} au ${format(weekEnd, 'd MMMM yyyy', { locale: fr })}`;
   };
 
+  const monthStartStr = format(startOfMonth(new Date(selectedWeek)), 'yyyy-MM-dd');
+  const monthEndStr = format(endOfMonth(new Date(selectedWeek)), 'yyyy-MM-dd');
+
   const calculateTotalHours = () => {
     let totalHours = 0;
     const weeks = getMonthWeeks(selectedWeek);
@@ -52,13 +55,14 @@ const MonthlyRecapModals = ({
           const weekPlanning = loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
           for (let i = 0; i < 7; i++) {
             const day = format(addDays(week, i), 'yyyy-MM-dd');
+            if (day < monthStartStr || day > monthEndStr) continue;
             const hours = calculateEmployeeDailyHours(employee, day, weekPlanning, config);
             totalHours += hours;
           }
         });
       });
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   const calculateEmployeeMonthlyHours = (employee) => {
@@ -71,12 +75,13 @@ const MonthlyRecapModals = ({
         const weekPlanning = loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
         for (let i = 0; i < 7; i++) {
           const day = format(addDays(week, i), 'yyyy-MM-dd');
+          if (day < monthStartStr || day > monthEndStr) continue;
           const hours = calculateEmployeeDailyHours(employee, day, weekPlanning, config);
           totalHours += hours;
         }
       });
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   const exportToPDF = () => {
@@ -84,10 +89,10 @@ const MonthlyRecapModals = ({
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
     const shop = Array.isArray(shops) ? shops.find(s => s.id === selectedShop) || { name: 'Boutique' } : { name: 'Boutique' };
-    const title = `Récapitulatif mensuel pour ${shop.name} (${calculateTotalHours()} H)`;
+    const title = `Récapitulatif mensuel pour ${shop.name} (${formatWorkedHoursForDisplay(calculateTotalHours())})`;
     doc.text(title, 10, 10);
     doc.text(`Mois de ${format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}`, 10, 20);
-    const columns = ['Semaine', 'Employé(e)', 'Heures effectives'];
+    const columns = ['Semaine', 'Employé(e)', 'Heures (mois)', 'Nb (mois)', 'Semaine 7 j. (réf.)', 'Nb (7 j.)'];
     const body = [];
     const weeks = getMonthWeeks(selectedWeek);
     const employees = loadFromLocalStorage(`employees_${selectedShop}`, []);
@@ -98,25 +103,36 @@ const MonthlyRecapModals = ({
       console.log(`MonthlyRecapModals: Checking employees for ${selectedShop} ${weekKey}`, JSON.stringify(selectedEmployeesForShop, null, 2));
       employees.forEach(employee => {
         const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, {});
-        let weekHours = 0;
+        let weekHoursMonth = 0;
+        let weekHoursFull = 0;
         for (let i = 0; i < 7; i++) {
           const day = format(addDays(week, i), 'yyyy-MM-dd');
           const hours = calculateEmployeeDailyHours(employee, day, weekPlanning, config);
-          weekHours += hours;
+          weekHoursFull += hours;
+          if (day >= monthStartStr && day <= monthEndStr) {
+            weekHoursMonth += hours;
+          }
         }
         body.push([
           index === 0 ? getWeekRange(week) : '',
           `    ${employee}`,
-          weekHours.toFixed(1) + ' H'
+          formatWorkedHoursForDisplay(weekHoursMonth),
+          formatWorkedHoursNbNotation(weekHoursMonth),
+          formatWorkedHoursForDisplay(weekHoursFull),
+          formatWorkedHoursNbNotation(weekHoursFull)
         ]);
       });
     });
 
     employees.forEach(employee => {
+      const empMonth = calculateEmployeeMonthlyHours(employee);
       body.push([
         `Total mois ${employee}`,
         '',
-        calculateEmployeeMonthlyHours(employee) + ' H'
+        formatWorkedHoursForDisplay(empMonth),
+        formatWorkedHoursNbNotation(empMonth),
+        '',
+        ''
       ]);
     });
 
@@ -129,9 +145,12 @@ const MonthlyRecapModals = ({
       bodyStyles: { textColor: [51, 51, 51] },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
-        0: { cellWidth: 60, halign: 'left' },
-        1: { cellWidth: 60 },
-        2: { cellWidth: 40 }
+        0: { cellWidth: 52, halign: 'left' },
+        1: { cellWidth: 44 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 34 },
+        5: { cellWidth: 22 }
       },
       didParseCell: (data) => {
         if (data.section === 'body' && data.row.index < body.length - employees.length) {
@@ -153,7 +172,7 @@ const MonthlyRecapModals = ({
 
   const exportToExcel = () => {
     console.log('MonthlyRecapModals: Exporting to Excel');
-    const columns = ['Semaine', 'Employé(e)', 'Heures effectives'];
+    const columns = ['Semaine', 'Employé(e)', 'Heures (mois)', 'Nb (mois)', 'Semaine 7 j. (réf.)', 'Nb (7 j.)'];
     const wsData = [columns];
     const weeks = getMonthWeeks(selectedWeek);
     const employees = loadFromLocalStorage(`employees_${selectedShop}`, []);
@@ -164,25 +183,36 @@ const MonthlyRecapModals = ({
       console.log(`MonthlyRecapModals: Checking employees for ${selectedShop} ${weekKey}`, JSON.stringify(selectedEmployeesForShop, null, 2));
       employees.forEach(employee => {
         const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, {});
-        let weekHours = 0;
+        let weekHoursMonth = 0;
+        let weekHoursFull = 0;
         for (let i = 0; i < 7; i++) {
           const day = format(addDays(week, i), 'yyyy-MM-dd');
           const hours = calculateEmployeeDailyHours(employee, day, weekPlanning, config);
-          weekHours += hours;
+          weekHoursFull += hours;
+          if (day >= monthStartStr && day <= monthEndStr) {
+            weekHoursMonth += hours;
+          }
         }
         wsData.push([
           index === 0 ? getWeekRange(week) : '',
           `    ${employee}`,
-          weekHours.toFixed(1) + ' H'
+          formatWorkedHoursForDisplay(weekHoursMonth),
+          formatWorkedHoursNbNotation(weekHoursMonth),
+          formatWorkedHoursForDisplay(weekHoursFull),
+          formatWorkedHoursNbNotation(weekHoursFull)
         ]);
       });
     });
 
     employees.forEach(employee => {
+      const empMonth = calculateEmployeeMonthlyHours(employee);
       wsData.push([
         `Total mois ${employee}`,
         '',
-        calculateEmployeeMonthlyHours(employee) + ' H'
+        formatWorkedHoursForDisplay(empMonth),
+        formatWorkedHoursNbNotation(empMonth),
+        '',
+        ''
       ]);
     });
 
@@ -299,10 +329,13 @@ const MonthlyRecapModals = ({
           ✕
         </button>
         <h3 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center' }}>
-          Récapitulatif mensuel pour {shop.name} ({totalHours} H)
+          Récapitulatif mensuel pour {shop.name} ({formatWorkedHoursForDisplay(totalHours)})
         </h3>
-        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '10px' }}>
+        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '6px' }}>
           Mois de {format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}
+        </p>
+        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '6px', fontSize: '12px', color: '#555' }}>
+          Les colonnes « Heures (mois) » et « Nb (mois) » ne comptent que les jours du mois calendaire ; « Semaine 7 j. » sert de référence lorsque la semaine à cheval sur deux mois.
         </p>
         {(() => {
           const weeks = getMonthWeeks(selectedWeek);
@@ -315,16 +348,21 @@ const MonthlyRecapModals = ({
             console.log(`MonthlyRecapModals: Checking employees for ${selectedShop} ${weekKey}`, JSON.stringify(selectedEmployeesForShop, null, 2));
             employees.forEach(employee => {
               const weekPlanning = loadFromLocalStorage(`planning_${selectedShop}_${weekKey}`, {});
-              let weekHours = 0;
+              let weekHoursMonth = 0;
+              let weekHoursFull = 0;
               for (let i = 0; i < 7; i++) {
                 const day = format(addDays(week, i), 'yyyy-MM-dd');
                 const hours = calculateEmployeeDailyHours(employee, day, weekPlanning, config);
-                weekHours += hours;
+                weekHoursFull += hours;
+                if (day >= monthStartStr && day <= monthEndStr) {
+                  weekHoursMonth += hours;
+                }
               }
               dayData.push({
                 week: getWeekRange(week),
                 employee,
-                hours: weekHours.toFixed(1),
+                hoursMonth: weekHoursMonth,
+                hoursFull: weekHoursFull,
                 weekIndex: index,
                 isWeekHeader: index === 0
               });
@@ -332,10 +370,12 @@ const MonthlyRecapModals = ({
           });
 
           employees.forEach(employee => {
+            const empMonth = calculateEmployeeMonthlyHours(employee);
             dayData.push({
               week: `Total mois ${employee}`,
               employee: '',
-              hours: calculateEmployeeMonthlyHours(employee),
+              hoursMonth: empMonth,
+              hoursFull: null,
               weekIndex: -1,
               isWeekHeader: false
             });
@@ -355,7 +395,10 @@ const MonthlyRecapModals = ({
                 <tr style={{ backgroundColor: '#f0f0f0' }}>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Semaine</th>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Employé(e)</th>
-                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Heures effectives</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Heures (mois)</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Nb (mois)</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Semaine 7 j.</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Nb (7 j.)</th>
                 </tr>
               </thead>
               <tbody>
@@ -379,7 +422,10 @@ const MonthlyRecapModals = ({
                     <td style={{ border: '1px solid #ddd', padding: '8px', paddingLeft: data.week.includes('Total mois') ? '8px' : '20px' }}>
                       {data.employee}
                     </td>
-                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.hours} H</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursForDisplay(Number(data.hoursMonth))}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursNbNotation(data.hoursMonth)}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.hoursFull != null ? formatWorkedHoursForDisplay(Number(data.hoursFull)) : ''}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.hoursFull != null ? formatWorkedHoursNbNotation(data.hoursFull) : ''}</td>
                   </tr>
                 ))}
               </tbody>

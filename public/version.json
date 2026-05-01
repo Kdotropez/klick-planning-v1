@@ -1,7 +1,17 @@
 {
-  "version": "3.10.74",
+  "version": "3.10.75",
   "lastUpdate": "2026-05-01",
   "changelog": [
+    {
+      "version": "3.10.75",
+      "date": "2026-05-01",
+      "changes": [
+        "Export horaires lisibles : périmètre mois calendaire en TXT/PDF (collectif, individuel, un fichier par employé), comme pour la semaine.",
+        "PDF mensuel employé : tenue sur une page A4, lignes de total par semaine dans le mois, colonne horaires plus étroite, libellés boutique regroupés sans répétition inutile.",
+        "Colonne Nb (h) et exports associés : notation heures.minutes après le point (ex. 9.30 pour 9 h 30) via formatWorkedHoursNbNotation ; décimal conservé pour calculs internes.",
+        "Infobulle du bouton Export horaires lisibles : précision semaine ou mois calendaire."
+      ]
+    },
     {
       "version": "3.10.74",
       "date": "2026-05-01",

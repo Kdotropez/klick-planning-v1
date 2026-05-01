@@ -5,7 +5,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 
 const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
@@ -290,7 +290,7 @@ const WeeklyWorkMatrixModal = ({
               dayHoursSum += h;
               const tranche = ranges.length ? ranges.join(', ') : '—';
               parts.push({
-                text: h > 0.001 ? `${name} : ${tranche} (${h.toFixed(1)} h)` : `${name} : ${tranche}`,
+                text: h > 0.001 ? `${name} : ${tranche} (${formatWorkedHoursForDisplay(h)})` : `${name} : ${tranche}`,
                 h
               });
             }
@@ -346,7 +346,7 @@ const WeeklyWorkMatrixModal = ({
       const body = shopRows.map((r) => [
         r.shopName,
         ...r.dayCells.map((c) => c.display.replace(/\n/g, ' | ')),
-        `${r.weekTotal.toFixed(1)} h`
+        formatWorkedHoursForDisplay(r.weekTotal)
       ]);
 
       doc.autoTable({
@@ -399,9 +399,9 @@ const WeeklyWorkMatrixModal = ({
       ...r.dayCells.map((c) => {
         const t = c.display.replace(/\n/g, ' | ');
         const h = typeof c.hoursH === 'number' ? c.hoursH : 0;
-        return h > 0.001 ? `${t}  (${h.toFixed(1)} h)` : t;
+        return h > 0.001 ? `${t}  (${formatWorkedHoursForDisplay(h)})` : t;
       }),
-      `${r.weekHours.toFixed(1)} h`
+      formatWorkedHoursForDisplay(r.weekHours)
     ]);
 
     doc.autoTable({
@@ -700,7 +700,7 @@ const WeeklyWorkMatrixModal = ({
                                   fontVariantNumeric: 'tabular-nums'
                                 }}
                               >
-                                {h.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h
+                                {formatWorkedHoursForDisplay(h)}
                               </div>
                             )}
                           </td>
@@ -719,11 +719,7 @@ const WeeklyWorkMatrixModal = ({
                           fontVariantNumeric: 'tabular-nums'
                         }}
                       >
-                        {row.weekHours.toLocaleString('fr-FR', {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1
-                        })}{' '}
-                        h
+                        {formatWorkedHoursForDisplay(row.weekHours)}
                       </td>
                     </tr>
                   ))}
@@ -834,11 +830,7 @@ const WeeklyWorkMatrixModal = ({
                           fontVariantNumeric: 'tabular-nums'
                         }}
                       >
-                        {row.weekTotal.toLocaleString('fr-FR', {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1
-                        })}{' '}
-                        h
+                        {formatWorkedHoursForDisplay(row.weekTotal)}
                       </td>
                     </tr>
                   ))}

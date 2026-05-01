@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { getWeekPlanning, determineEmployeeMainShop } from '../../utils/planningDataManager';
 import html2canvas from 'html2canvas';
@@ -672,7 +672,7 @@ const WeeklyPlanningPrint = ({
                            justifyContent: 'center',
                            borderRight: '1px solid #333'
                          }}>
-                           {totalEmployeeHours.toFixed(1)}h
+                           {formatWorkedHoursForDisplay(totalEmployeeHours)}
                          </div>
                          
                                                    {/* Partie heures supplémentaires (1/3) - Total heures supp. */}

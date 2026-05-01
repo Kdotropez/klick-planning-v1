@@ -11,7 +11,7 @@ import {
   endOfMonth
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { buildSlotRangeLines, getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { isEmployeeOnLeave } from '../../utils/planningDataManager';
 import WeeklyPlanningPrint from '../dashboard/WeeklyPlanningPrint';
@@ -416,9 +416,9 @@ const ShopWeekInsightsModal = ({
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {employeeWeekBreakdown.map((r) => (
                 <li key={r.id} style={{ marginBottom: 8 }}>
-                  <strong>{r.name}</strong> — {r.total.toFixed(1)} h sur la semaine
+                  <strong>{r.name}</strong> — {formatWorkedHoursForDisplay(r.total)} sur la semaine
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                    {r.perDay.map((p) => p.label + ` (${p.h.toFixed(1)} h)`).join(' · ')}
+                    {r.perDay.map((p) => p.label + ` (${formatWorkedHoursForDisplay(p.h)})`).join(' · ')}
                   </div>
                 </li>
               ))}
@@ -437,7 +437,7 @@ const ShopWeekInsightsModal = ({
           <ul style={{ margin: 0, paddingLeft: 20 }}>
             {open.map((x) => (
               <li key={x.d.toISOString()}>
-                {format(x.d, 'EEEE d MMM yyyy', { locale: fr })} — {x.h.toFixed(1)} h
+                {format(x.d, 'EEEE d MMM yyyy', { locale: fr })} — {formatWorkedHoursForDisplay(x.h)}
               </li>
             ))}
           </ul>
@@ -531,8 +531,8 @@ const ShopWeekInsightsModal = ({
           let detailLine = '—';
           if (desc?.type === 'status') detailLine = desc.text;
           else if (desc?.type === 'slots') {
-            detailLine = `${desc.text} — ${h.toFixed(1)} h`;
-          } else if (h > 0.001) detailLine = `${h.toFixed(1)} h`;
+            detailLine = `${desc.text} — ${formatWorkedHoursForDisplay(h)}`;
+          } else if (h > 0.001) detailLine = formatWorkedHoursForDisplay(h);
           rows.push({ name, detailLine, h });
         }
       });

@@ -1,5 +1,5 @@
 import { loadFromLocalStorage } from './localStorage';
-import { parse, differenceInMinutes, format, addDays, addMinutes, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
+import { parse, differenceInMinutes, format, addDays, addMinutes, startOfMonth, endOfMonth, isMonday } from 'date-fns';
 import { minutesBetweenHHmm, getSlotEndTimeFormatted } from './slotDurationUtils';
 import { fr } from 'date-fns/locale';
 
@@ -94,6 +94,32 @@ export function formatWorkedHoursForDisplay(hours) {
   return `${h} h ${String(m).padStart(2, '0')}`;
 }
 
+/** Heures décimales (2 décimales max) pour colonnes Excel / calculs numériques purs. */
+export function workedHoursNumericForExport(hours) {
+  if (hours == null || !Number.isFinite(hours) || hours <= 0) return 0;
+  return Math.round(hours * 100) / 100;
+}
+
+/**
+ * Format « Nb (h) » lisible : minutes après le point (ex. 9.30 = 9 h 30), pas des décimales d’heures (évite 9,5 pour une demi-heure).
+ */
+export function formatWorkedHoursNbNotation(hours) {
+  if (hours == null || !Number.isFinite(hours) || hours <= 0) return '0';
+  const totalMin = Math.round(hours * 60);
+  if (totalMin <= 0) return '0';
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (m === 0) return String(h);
+  return `${h}.${String(m).padStart(2, '0')}`;
+}
+
+/** Indique si une date yyyy-MM-dd tombe dans le mois calendaire de selectedWeekAnchor. */
+export function isCalendarDayKeyInMonth(dayKey, selectedWeekAnchor) {
+  const start = format(startOfMonth(new Date(selectedWeekAnchor)), 'yyyy-MM-dd');
+  const end = format(endOfMonth(new Date(selectedWeekAnchor)), 'yyyy-MM-dd');
+  return dayKey >= start && dayKey <= end;
+}
+
 export const getTimeSlotsWithBreaks = (employee, dayKey, weekPlanning, config) => {
   console.log(`getTimeSlotsWithBreaks for ${employee} on ${dayKey}`, { weekPlanning, config });
   
@@ -169,35 +195,46 @@ export const getTimeSlotsWithBreaks = (employee, dayKey, weekPlanning, config) =
 
 export const getEmployeeMonthlySummaryData = (employee, selectedWeek, shops, config, currentShopId = null) => {
   console.log(`getEmployeeMonthlySummaryData for ${employee}`, { selectedWeek, shops, currentShopId });
-  const start = startOfMonth(new Date(selectedWeek));
-  const end = endOfMonth(new Date(selectedWeek));
+  const monthAnchor = new Date(selectedWeek);
+  const monthStart = startOfMonth(monthAnchor);
+  const monthEnd = endOfMonth(monthAnchor);
+  const monthStartStr = format(monthStart, 'yyyy-MM-dd');
+  const monthEndStr = format(monthEnd, 'yyyy-MM-dd');
   let monthlyTotal = 0;
   const weeklySummaries = [];
 
-  // Si currentShopId est spécifié, ne calculer que pour cette boutique
-  const shopsToProcess = currentShopId ? shops.filter(shop => shop.id === currentShopId) : shops;
-  
-  shopsToProcess.forEach(shop => {
-    const storageKeys = Object.keys(localStorage).filter(key => key.startsWith(`planning_${shop.id}_`));
-    storageKeys.forEach(key => {
+  const shopsToProcess = currentShopId ? shops.filter((shop) => shop.id === currentShopId) : shops;
+
+  shopsToProcess.forEach((shop) => {
+    const storageKeys = Object.keys(localStorage).filter((key) => key.startsWith(`planning_${shop.id}_`));
+    storageKeys.forEach((key) => {
       const weekKey = key.replace(`planning_${shop.id}_`, '');
-      const weekStart = new Date(weekKey);
-      if (isWithinInterval(weekStart, { start, end }) && isMonday(weekStart)) {
-        const weekPlanning = loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
-        let weekTotal = 0;
-        for (let i = 0; i < 7; i++) {
-          const dayKey = format(addDays(weekStart, i), 'yyyy-MM-dd');
-          const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning, config);
-          weekTotal += hours;
+      const weekStart = new Date(`${weekKey}T12:00:00`);
+      if (!Number.isFinite(weekStart.getTime()) || !isMonday(weekStart)) return;
+
+      const weekEnd = addDays(weekStart, 6);
+      if (weekEnd < monthStart || weekStart > monthEnd) return;
+
+      const weekPlanning = loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
+      let weekTotalInMonth = 0;
+      let weekTotalFull = 0;
+      for (let i = 0; i < 7; i += 1) {
+        const dayKey = format(addDays(weekStart, i), 'yyyy-MM-dd');
+        const hours = calculateEmployeeDailyHours(employee, dayKey, weekPlanning, config);
+        weekTotalFull += hours;
+        if (dayKey >= monthStartStr && dayKey <= monthEndStr) {
+          weekTotalInMonth += hours;
         }
-        if (weekTotal > 0) {
-          weeklySummaries.push({
-            week: `Semaine du ${format(weekStart, 'd MMMM', { locale: fr })} au ${format(addDays(weekStart, 6), 'd MMMM yyyy', { locale: fr })}`,
-            shop: shop.name,
-            hours: weekTotal.toFixed(1)
-          });
-          monthlyTotal += weekTotal;
-        }
+      }
+      if (weekTotalInMonth > 0.001) {
+        weeklySummaries.push({
+          week: `Semaine du ${format(weekStart, 'd MMMM', { locale: fr })} au ${format(addDays(weekStart, 6), 'd MMMM yyyy', { locale: fr })}`,
+          shop: shop.name,
+          hours: formatWorkedHoursForDisplay(weekTotalInMonth),
+          hoursFullWeek:
+            weekTotalFull > weekTotalInMonth + 0.001 ? formatWorkedHoursForDisplay(weekTotalFull) : null
+        });
+        monthlyTotal += weekTotalInMonth;
       }
     });
   });

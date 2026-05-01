@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { getWeekPlanning } from '../../utils/planningDataManager';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getCAData, calculateMonthlyCA, getAllData, calculateCompleteStats } from '../../utils/excelImportUtils';
@@ -103,7 +103,7 @@ const ShopStatsPage = ({
       });
     }
     
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Fonction pour calculer les heures par employé
@@ -128,7 +128,7 @@ const ShopStatsPage = ({
       totalHours += hours;
     }
     
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Fonction pour obtenir les jours hors mois (fragmentés)
@@ -371,7 +371,7 @@ const ShopStatsPage = ({
 
   const calculateRevenuePerHour = () => {
     const revenue = getCurrentRevenue();
-    const hours = parseFloat(calculateShopMonthlyTotal());
+    const hours = calculateShopMonthlyTotal();
     return hours > 0 ? (revenue / hours).toFixed(2) : 0;
   };
 
@@ -458,7 +458,7 @@ const ShopStatsPage = ({
     const revenue = getCurrentRevenue();
     const shopEmployees = getShopEmployees();
     const employeeCount = selectedEmployees.length > 0 ? selectedEmployees.length : shopEmployees.length;
-    const totalHours = parseFloat(calculateShopMonthlyTotal());
+    const totalHours = calculateShopMonthlyTotal();
     
     if (employeeCount === 0 || totalHours === 0) return 0;
     
@@ -532,7 +532,7 @@ const ShopStatsPage = ({
 
           const calculateMarginPerHour = () => {
           const grossMargin = getCurrentMargin();
-          const totalHours = parseFloat(calculateShopMonthlyTotal());
+          const totalHours = calculateShopMonthlyTotal();
           return totalHours > 0 ? (grossMargin / totalHours).toFixed(2) : 0;
         };
 
@@ -563,7 +563,7 @@ const ShopStatsPage = ({
           const grossMargin = getCurrentMargin();
           const shopEmployees = getShopEmployees();
           const employeeCount = selectedEmployees.length > 0 ? selectedEmployees.length : shopEmployees.length;
-          const totalHours = parseFloat(calculateShopMonthlyTotal());
+          const totalHours = calculateShopMonthlyTotal();
           
           if (employeeCount === 0 || totalHours === 0) return 0;
           
@@ -1040,7 +1040,7 @@ const ShopStatsPage = ({
                 textAlign: 'center'
               }}>
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Total Heures</h3>
-                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{totalHours}h</div>
+                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{formatWorkedHoursForDisplay(totalHours)}</div>
                 <p style={{ margin: '10px 0 0 0', opacity: '0.9' }}>Mois complet</p>
               </div>
 
@@ -1065,7 +1065,7 @@ const ShopStatsPage = ({
               }}>
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Moyenne/Employé</h3>
                 <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-                  {shopEmployees.length > 0 ? (parseFloat(totalHours) / shopEmployees.length).toFixed(1) : '0'}h
+                  {shopEmployees.length > 0 ? formatWorkedHoursForDisplay(totalHours / shopEmployees.length) : formatWorkedHoursForDisplay(0)}
                 </div>
                 <p style={{ margin: '10px 0 0 0', opacity: '0.9' }}>Par personne</p>
               </div>
@@ -1103,7 +1103,7 @@ const ShopStatsPage = ({
                     <div style={{ fontSize: '12px', fontWeight: '600', color: '#333' }}>
                       {day.charAt(0).toUpperCase() + day.slice(1)}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#666' }}>{hours.toFixed(1)}h</div>
+                    <div style={{ fontSize: '11px', color: '#666' }}>{formatWorkedHoursForDisplay(hours)}</div>
                   </div>
                 ))}
               </div>
@@ -1141,7 +1141,7 @@ const ShopStatsPage = ({
                                                   <tbody>
                     {(selectedEmployees.length > 0 ? selectedEmployees : shopEmployees.map(emp => emp.id)).map((employeeId, index) => {
                       const hours = calculateEmployeeHours(employeeId);
-                      const percentage = parseFloat(totalHours) > 0 ? (parseFloat(hours) / parseFloat(totalHours) * 100) : 0;
+                      const percentage = totalHours > 0 ? (hours / totalHours * 100) : 0;
                      
                      return (
                        <tr key={index} style={{ 
@@ -1152,7 +1152,7 @@ const ShopStatsPage = ({
                            {getEmployeeName(employeeId)}
                          </td>
                          <td style={{ padding: '15px', textAlign: 'center', fontWeight: '600' }}>
-                           {hours}h
+                           {formatWorkedHoursForDisplay(hours)}
                          </td>
                          <td style={{ padding: '15px', textAlign: 'center' }}>
                            {percentage.toFixed(1)}%
@@ -1219,7 +1219,7 @@ const ShopStatsPage = ({
                           fontSize: '12px',
                           whiteSpace: 'nowrap'
                         }}>
-                          {hours.toFixed(1)}h
+                          {formatWorkedHoursForDisplay(hours)}
                         </div>
                       </div>
                       <div style={{ 
@@ -1300,7 +1300,7 @@ const ShopStatsPage = ({
                         </td>
                         <td style={{ padding: '12px' }}>{day.dayDate}</td>
                         <td style={{ padding: '12px', textAlign: 'center', fontWeight: '600' }}>
-                          {day.hours.toFixed(1)} h
+                          {formatWorkedHoursForDisplay(day.hours)}
                         </td>
                         <td style={{ padding: '12px', textAlign: 'center' }}>
                           <span style={{ 
@@ -1331,10 +1331,10 @@ const ShopStatsPage = ({
                     fontSize: '14px'
                   }}>
                     <span style={{ fontWeight: '600', color: '#333' }}>
-                      Total : {daysOutsideMonth.reduce((total, day) => total + day.hours, 0).toFixed(1)}h
+                      Total : {formatWorkedHoursForDisplay(daysOutsideMonth.reduce((total, day) => total + day.hours, 0))}
                     </span>
                     <span style={{ color: '#666' }}>
-                      {daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h payées / {daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0).toFixed(1)}h fragmentées
+                      {formatWorkedHoursForDisplay(daysOutsideMonth.filter(day => day.isBeforeMonth).reduce((total, day) => total + day.hours, 0))} payées / {formatWorkedHoursForDisplay(daysOutsideMonth.filter(day => !day.isBeforeMonth).reduce((total, day) => total + day.hours, 0))} fragmentées
                     </span>
                   </div>
                 </div>
@@ -1724,7 +1724,7 @@ const ShopStatsPage = ({
                      textAlign: 'center'
                    }}>
                      <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Heures totales</h3>
-                     <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{totalHours}h</div>
+                     <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{formatWorkedHoursForDisplay(totalHours)}</div>
                      <p style={{ margin: '10px 0 0 0', opacity: '0.9' }}>Temps de travail</p>
                    </div>
 
@@ -1930,7 +1930,7 @@ const ShopStatsPage = ({
                      <tbody>
                        {(selectedEmployees.length > 0 ? selectedEmployees : shopEmployees.map(emp => emp.id)).map((employeeId, index) => {
                          const hours = calculateEmployeeHours(employeeId);
-                         const employeeRevenue = parseFloat(hours) * parseFloat(calculateRevenuePerHour());
+                         const employeeRevenue = hours * parseFloat(calculateRevenuePerHour());
                          const revenuePerHour = parseFloat(calculateRevenuePerHour());
                          const totalRevenue = getCurrentRevenue();
                          const percentageOfTotal = totalRevenue > 0 ? (employeeRevenue / totalRevenue * 100) : 0;
@@ -1946,11 +1946,11 @@ const ShopStatsPage = ({
                          // Calculer les nouvelles métriques par employé
                          const employeeCount = selectedEmployees.length > 0 ? selectedEmployees.length : shopEmployees.length;
                          const revenuePerEmployeePerDay = employeeCount > 0 ? (totalRevenue / employeeCount / daysInMonth) : 0;
-                         const revenuePerEmployeePerHour = employeeCount > 0 && parseFloat(hours) > 0 ? (totalRevenue / employeeCount / parseFloat(hours)) : 0;
+                         const revenuePerEmployeePerHour = employeeCount > 0 && hours > 0 ? (totalRevenue / employeeCount / hours) : 0;
                          
                          // Calculer les métriques de marge par employé
                          const grossMargin = getCurrentMargin();
-                         const employeeMargin = parseFloat(hours) * parseFloat(calculateMarginPerHour());
+                         const employeeMargin = hours * parseFloat(calculateMarginPerHour());
                          const marginPerEmployee = employeeCount > 0 ? (grossMargin / employeeCount) : 0;
                          
                          return (
@@ -1962,7 +1962,7 @@ const ShopStatsPage = ({
                                {getEmployeeName(employeeId)}
                              </td>
                              <td style={{ padding: '15px', textAlign: 'center', fontWeight: '600' }}>
-                               {hours}h
+                               {formatWorkedHoursForDisplay(hours)}
                              </td>
                              <td style={{ padding: '15px', textAlign: 'center', fontWeight: '600', color: '#28a745' }}>
                                {employeeRevenue.toFixed(2)}€
@@ -2002,7 +2002,7 @@ const ShopStatsPage = ({
                        <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
                          <td style={{ padding: '15px', borderTop: '2px solid #dee2e6' }}>TOTAL</td>
                          <td style={{ padding: '15px', textAlign: 'center', borderTop: '2px solid #dee2e6' }}>
-                           {totalHours}h
+                           {formatWorkedHoursForDisplay(totalHours)}
                          </td>
                          <td style={{ padding: '15px', textAlign: 'center', borderTop: '2px solid #dee2e6', color: '#28a745' }}>
                            {getCurrentRevenue().toFixed(2)}€

@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import '@/assets/styles.css';
 
@@ -86,7 +86,7 @@ const EmployeeWeeklyRecapModal = ({
       const hours = calculateEmployeeDailyHours(selectedEmployeeForWeeklyRecap, day, employeePlanning, config);
       totalHours += hours;
     }
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Obtenir les noms des jours
@@ -211,21 +211,22 @@ const EmployeeWeeklyRecapModal = ({
     console.log('EmployeeWeeklyRecapModal: Exporting to PDF');
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
-    const title = `Récapitulatif hebdomadaire pour ${employeeName} (${calculateWeekHours()} H)`;
+    const title = `Récapitulatif hebdomadaire pour ${employeeName} (${formatWorkedHoursForDisplay(calculateWeekHours())})`;
     doc.text(title, 10, 10);
     doc.text(`Semaine du ${format(mondayOfWeek, 'd MMMM', { locale: fr })} au ${format(addDays(mondayOfWeek, 6), 'd MMMM yyyy', { locale: fr })}`, 10, 20);
     doc.text(`Vue multi-boutiques - Boutique principale: ${selectedShop}`, 10, 30);
     
-         const columns = ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives'];
+         const columns = ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives', 'Nb (h)'];
      const body = [];
-     
+
      for (let i = 0; i < 7; i++) {
        const dayName = getDayName(i);
        const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
        const status = getDayStatus(i);
        const isOff = !!status;
        const workHours = calculateWorkHours(i);
-       
+       const dayH = isOff ? 0 : workHours.hours;
+
        body.push([
          `${dayName} ${dayDate}`,
          getDayShop(i),
@@ -233,9 +234,21 @@ const EmployeeWeeklyRecapModal = ({
          isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
          isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-         isOff ? '0.0 h' : `${workHours.hours} h`
+         isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(workHours.hours),
+         formatWorkedHoursNbNotation(dayH)
        ]);
      }
+
+     body.push([
+       'Total semaine',
+       '',
+       '',
+       '',
+       '',
+       '',
+       formatWorkedHoursForDisplay(calculateWeekHours()),
+       formatWorkedHoursNbNotation(calculateWeekHours())
+     ]);
     
     doc.autoTable({
       head: [columns],
@@ -262,6 +275,7 @@ const EmployeeWeeklyRecapModal = ({
        // Déterminer si c'est une maladie
        const isSick = status && typeof status === 'string' && status.toLowerCase().includes('maladie');
        
+       const dayH = isOff ? 0 : workHours.hours;
        data.push({
          'Jour': `${dayName} ${dayDate}`,
          'Boutique': getDayShop(i),
@@ -269,10 +283,24 @@ const EmployeeWeeklyRecapModal = ({
          'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
          'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
          'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-         'Heures effectives': isOff ? '0.0 h' : `${workHours.hours} h`,
+         'Heures effectives': isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(workHours.hours),
+         'Nb (h)': formatWorkedHoursNbNotation(dayH),
          'Statut': isSick ? 'MALADIE' : (isOff ? 'CONGÉ' : 'TRAVAIL')
        });
      }
+
+     const weekTot = calculateWeekHours();
+     data.push({
+       'Jour': 'Total semaine',
+       'Boutique': '',
+       'ENTRÉE': '',
+       'PAUSE': '',
+       'RETOUR': '',
+       'SORTIE': '',
+       'Heures effectives': formatWorkedHoursForDisplay(weekTot),
+       'Nb (h)': formatWorkedHoursNbNotation(weekTot),
+       'Statut': ''
+     });
     
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -369,7 +397,7 @@ const EmployeeWeeklyRecapModal = ({
           ✕
         </button>
         <h3 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center' }}>
-          Récapitulatif hebdomadaire pour {employeeName} ({totalHours} H)
+          Récapitulatif hebdomadaire pour {employeeName} ({formatWorkedHoursForDisplay(totalHours)})
         </h3>
         <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '10px' }}>
           Semaine du {format(mondayOfWeek, 'd MMMM', { locale: fr })} au {format(addDays(mondayOfWeek, 6), 'd MMMM yyyy', { locale: fr })}
@@ -388,6 +416,7 @@ const EmployeeWeeklyRecapModal = ({
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>RETOUR</th>
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>SORTIE</th>
                <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Heures effectives</th>
+               <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Nb (h)</th>
              </tr>
            </thead>
            <tbody>
@@ -443,14 +472,18 @@ const EmployeeWeeklyRecapModal = ({
                      fontWeight: '600',
                      color: isOff ? '#FF9800' : '#333'
                    }}>
-                     {isOff ? '0.0 h' : `${workHours.hours} h`}
+                     {isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(workHours.hours)}
+                   </td>
+                   <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>
+                     {formatWorkedHoursNbNotation(isOff ? 0 : workHours.hours)}
                    </td>
                  </tr>
                );
              })}
              <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
                <td colSpan="6" style={{ border: '1px solid #ddd', padding: '8px' }}>Total semaine</td>
-               <td style={{ border: '1px solid #ddd', padding: '8px' }}>{totalHours} h</td>
+               <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursForDisplay(totalHours)}</td>
+               <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{formatWorkedHoursNbNotation(totalHours)}</td>
              </tr>
            </tbody>
          </table>

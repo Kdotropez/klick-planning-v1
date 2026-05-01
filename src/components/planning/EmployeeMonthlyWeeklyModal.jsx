@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import '@/assets/styles.css';
 
@@ -45,6 +45,9 @@ const EmployeeMonthlyWeeklyModal = ({
     return `Du ${format(weekStart, 'd MMMM', { locale: fr })} au ${format(weekEnd, 'd MMMM yyyy', { locale: fr })}`;
   };
 
+  const monthStartStr = format(startOfMonth(new Date(selectedWeek)), 'yyyy-MM-dd');
+  const monthEndStr = format(endOfMonth(new Date(selectedWeek)), 'yyyy-MM-dd');
+
   const calculateTotalHours = () => {
     let totalHours = 0;
     const weeks = getMonthWeeks(selectedWeek);
@@ -56,12 +59,13 @@ const EmployeeMonthlyWeeklyModal = ({
         const weekPlanning = loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
         for (let i = 0; i < 7; i++) {
           const day = format(addDays(week, i), 'yyyy-MM-dd');
+          if (day < monthStartStr || day > monthEndStr) continue;
           const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, weekPlanning, config);
           totalHours += hours;
         }
       });
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   const calculateShopWeeklyHours = (shopId, week) => {
@@ -72,29 +76,30 @@ const EmployeeMonthlyWeeklyModal = ({
     let weekHours = 0;
     for (let i = 0; i < 7; i++) {
       const day = format(addDays(week, i), 'yyyy-MM-dd');
+      if (day < monthStartStr || day > monthEndStr) continue;
       const hours = calculateEmployeeDailyHours(selectedEmployeeForMonthlyRecap, day, weekPlanning, config);
       weekHours += hours;
     }
-    return weekHours.toFixed(1);
+    return weekHours;
   };
 
   const calculateShopMonthlyHours = (shopId) => {
     let totalHours = 0;
     const weeks = getMonthWeeks(selectedWeek);
-    weeks.forEach(week => {
-      totalHours += parseFloat(calculateShopWeeklyHours(shopId, week));
+    weeks.forEach((week) => {
+      totalHours += calculateShopWeeklyHours(shopId, week);
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   const exportToPDF = () => {
     console.log('EmployeeMonthlyWeeklyModal: Exporting to PDF');
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
-    const title = `Récapitulatif mensuel pour ${selectedEmployeeForMonthlyRecap} (${calculateTotalHours()} H)`;
+    const title = `Récapitulatif mensuel pour ${selectedEmployeeForMonthlyRecap} (${formatWorkedHoursForDisplay(calculateTotalHours())})`;
     doc.text(title, 10, 10);
-    doc.text(`Mois de ${format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}`, 10, 20);
-    const columns = ['Semaine', 'CAVALAIRE', 'PORT GRIMAUD'];
+    doc.text(`Mois de ${format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })} — heures par ligne : jours du mois uniquement (semaines à cheval exclus)`, 10, 20);
+    const columns = ['Semaine', 'CAVALAIRE', 'Nb Cav.', 'PORT GRIMAUD', 'Nb PG'];
     const body = [];
     const weeks = getMonthWeeks(selectedWeek);
 
@@ -102,26 +107,30 @@ const EmployeeMonthlyWeeklyModal = ({
       const row = [getWeekRange(week)];
       const cavalaireHours = calculateShopWeeklyHours('CAVALAIRE', week);
       const portGrimaudHours = calculateShopWeeklyHours('PORT_GRIMAUD', week);
-      row.push(cavalaireHours > 0 ? cavalaireHours + ' H' : '');
-      row.push(portGrimaudHours > 0 ? portGrimaudHours + ' H' : '');
+      row.push(cavalaireHours > 0 ? formatWorkedHoursForDisplay(cavalaireHours) : '');
+      row.push(formatWorkedHoursNbNotation(cavalaireHours));
+      row.push(portGrimaudHours > 0 ? formatWorkedHoursForDisplay(portGrimaudHours) : '');
+      row.push(formatWorkedHoursNbNotation(portGrimaudHours));
       body.push(row);
     });
 
-    body.push(['Total mois CAVALAIRE', calculateShopMonthlyHours('CAVALAIRE') + ' H', '']);
-    body.push(['Total mois PORT GRIMAUD', '', calculateShopMonthlyHours('PORT_GRIMAUD') + ' H']);
+    body.push(['Total mois CAVALAIRE', formatWorkedHoursForDisplay(calculateShopMonthlyHours('CAVALAIRE')), formatWorkedHoursNbNotation(calculateShopMonthlyHours('CAVALAIRE')), '', '']);
+    body.push(['Total mois PORT GRIMAUD', '', '', formatWorkedHoursForDisplay(calculateShopMonthlyHours('PORT_GRIMAUD')), formatWorkedHoursNbNotation(calculateShopMonthlyHours('PORT_GRIMAUD'))]);
 
     doc.autoTable({
       head: [columns],
       body,
-      startY: 30,
+      startY: 26,
       styles: { font: 'Helvetica', fontSize: 10, cellPadding: 4 },
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
       bodyStyles: { textColor: [51, 51, 51] },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
-        0: { cellWidth: 60, halign: 'left' },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 40 }
+        0: { cellWidth: 52, halign: 'left' },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 22 }
       },
       didParseCell: (data) => {
         if (data.section === 'body' && data.row.index < weeks.length) {
@@ -142,7 +151,7 @@ const EmployeeMonthlyWeeklyModal = ({
 
   const exportToExcel = () => {
     console.log('EmployeeMonthlyWeeklyModal: Exporting to Excel');
-    const columns = ['Semaine', 'CAVALAIRE', 'PORT GRIMAUD'];
+    const columns = ['Semaine', 'CAVALAIRE', 'Nb Cav.', 'PORT GRIMAUD', 'Nb PG'];
     const wsData = [columns];
     const weeks = getMonthWeeks(selectedWeek);
 
@@ -150,13 +159,15 @@ const EmployeeMonthlyWeeklyModal = ({
       const row = [getWeekRange(week)];
       const cavalaireHours = calculateShopWeeklyHours('CAVALAIRE', week);
       const portGrimaudHours = calculateShopWeeklyHours('PORT_GRIMAUD', week);
-      row.push(cavalaireHours > 0 ? cavalaireHours + ' H' : '');
-      row.push(portGrimaudHours > 0 ? portGrimaudHours + ' H' : '');
+      row.push(cavalaireHours > 0 ? formatWorkedHoursForDisplay(cavalaireHours) : '');
+      row.push(formatWorkedHoursNbNotation(cavalaireHours));
+      row.push(portGrimaudHours > 0 ? formatWorkedHoursForDisplay(portGrimaudHours) : '');
+      row.push(formatWorkedHoursNbNotation(portGrimaudHours));
       wsData.push(row);
     });
 
-    wsData.push(['Total mois CAVALAIRE', calculateShopMonthlyHours('CAVALAIRE') + ' H', '']);
-    wsData.push(['Total mois PORT GRIMAUD', '', calculateShopMonthlyHours('PORT_GRIMAUD') + ' H']);
+    wsData.push(['Total mois CAVALAIRE', formatWorkedHoursForDisplay(calculateShopMonthlyHours('CAVALAIRE')), formatWorkedHoursNbNotation(calculateShopMonthlyHours('CAVALAIRE')), '', '']);
+    wsData.push(['Total mois PORT GRIMAUD', '', '', formatWorkedHoursForDisplay(calculateShopMonthlyHours('PORT_GRIMAUD')), formatWorkedHoursNbNotation(calculateShopMonthlyHours('PORT_GRIMAUD'))]);
 
     console.log('EmployeeMonthlyWeeklyModal: wsData for Excel export:', JSON.stringify(wsData, null, 2));
     try {
@@ -270,10 +281,13 @@ const EmployeeMonthlyWeeklyModal = ({
           ✕
         </button>
         <h3 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center' }}>
-          Récapitulatif mensuel pour {selectedEmployeeForMonthlyRecap} ({totalHours} H)
+          Récapitulatif mensuel pour {selectedEmployeeForMonthlyRecap} ({formatWorkedHoursForDisplay(totalHours)})
         </h3>
-        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '10px' }}>
+        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '6px' }}>
           Mois de {format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}
+        </p>
+        <p style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '6px', fontSize: '12px', color: '#555' }}>
+          Les heures par semaine ne comptent que les jours du mois affiché (semaines à cheval sur deux mois).
         </p>
         {(() => {
           const weeks = getMonthWeeks(selectedWeek);
@@ -303,7 +317,9 @@ const EmployeeMonthlyWeeklyModal = ({
                 <tr style={{ backgroundColor: '#f0f0f0' }}>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Semaine</th>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>CAVALAIRE</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Nb</th>
                   <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>PORT GRIMAUD</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '700' }}>Nb</th>
                 </tr>
               </thead>
               <tbody>
@@ -321,19 +337,25 @@ const EmployeeMonthlyWeeklyModal = ({
                     })()
                   }}>
                     <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.week}</td>
-                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.cavalaireHours > 0 ? data.cavalaireHours + ' H' : ''}</td>
-                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.portGrimaudHours > 0 ? data.portGrimaudHours + ' H' : ''}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.cavalaireHours > 0 ? formatWorkedHoursForDisplay(data.cavalaireHours) : ''}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursNbNotation(data.cavalaireHours)}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{data.portGrimaudHours > 0 ? formatWorkedHoursForDisplay(data.portGrimaudHours) : ''}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursNbNotation(data.portGrimaudHours)}</td>
                   </tr>
                 ))}
                 <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>Total mois CAVALAIRE</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{calculateShopMonthlyHours('CAVALAIRE')} H</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursForDisplay(calculateShopMonthlyHours('CAVALAIRE'))}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursNbNotation(calculateShopMonthlyHours('CAVALAIRE'))}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}></td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}></td>
                 </tr>
                 <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>Total mois PORT GRIMAUD</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}></td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{calculateShopMonthlyHours('PORT_GRIMAUD')} H</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}></td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursForDisplay(calculateShopMonthlyHours('PORT_GRIMAUD'))}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursNbNotation(calculateShopMonthlyHours('PORT_GRIMAUD'))}</td>
                 </tr>
               </tbody>
             </table>

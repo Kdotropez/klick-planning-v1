@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage'; // Correction de l'importation
 import '@/assets/styles.css';
@@ -66,7 +66,8 @@ const RecapModal = ({
         pause: '-', 
         resume: '-', 
         end: '-', 
-        hours: '0.0 h', 
+        hours: formatWorkedHoursForDisplay(0),
+        hoursValue: 0,
         shop: shopName || 'Plage',
         status: isSick ? 'MALADIE' : 'CONGÉ'
       };
@@ -77,7 +78,8 @@ const RecapModal = ({
         pause: '-', 
         resume: '-', 
         end: '-', 
-        hours: '0.0 h', 
+        hours: formatWorkedHoursForDisplay(0),
+        hoursValue: 0,
         shop: shopName || 'Plage',
         status: 'CONGÉ'
       };
@@ -102,7 +104,8 @@ const RecapModal = ({
         pause: '-', 
         resume: '-', 
         end: '-', 
-        hours: '0.0 h', 
+        hours: formatWorkedHoursForDisplay(0),
+        hoursValue: 0,
         shop: shopName || 'Plage',
         status: 'CONGÉ'
       };
@@ -143,7 +146,8 @@ const RecapModal = ({
       pause: pause ? `${pause} H` : '-',
       resume: resume ? `${resume} H` : '-',
       end: end ? `${end} H` : '-',
-      hours: `${hours.toFixed(1)} h`,
+      hours: formatWorkedHoursForDisplay(hours),
+      hoursValue: hours,
       shop: shopName,
       status: 'TRAVAIL'
     };
@@ -163,17 +167,17 @@ const RecapModal = ({
         dayIndex: index
       };
       selectedEmployees.forEach(employee => {
-        const { start, pause, resume, end, hours, shop } = formatTimeRange(employee, dayKey, config.timeSlots, selectedShop, selectedShop);
+        const tr = formatTimeRange(employee, dayKey, config.timeSlots, selectedShop, selectedShop);
         dayData.employees.push({
           employee,
-          start,
-          pause,
-          resume,
-          end,
-          hours,
-          shop
+          start: tr.start,
+          pause: tr.pause,
+          resume: tr.resume,
+          end: tr.end,
+          hours: tr.hours,
+          shop: tr.shop
         });
-        dayData.totalHours += parseFloat(hours);
+        dayData.totalHours += tr.hoursValue ?? 0;
       });
       recapData.push(dayData);
       totalWeekHours += dayData.totalHours;
@@ -189,15 +193,15 @@ const RecapModal = ({
       const dayKey = format(addDays(new Date(selectedWeek), index), 'yyyy-MM-dd');
       // Ne calculer que pour la boutique actuelle; toujours afficher la ligne (travail, congé ou maladie)
       const currentShop = shops.find(shop => shop.id === selectedShop);
-      const { start, pause, resume, end, hours, shop: shopName } = currentShop
+      const tr = currentShop
         ? formatTimeRange(employee, dayKey, config.timeSlots, currentShop.id, currentShop.name)
-        : { start: 'Congé ☀️', pause: '-', resume: '-', end: '-', hours: '0.0 h', shop: selectedShop };
+        : { start: 'Congé ☀️', pause: '-', resume: '-', end: '-', hours: formatWorkedHoursForDisplay(0), hoursValue: 0, shop: selectedShop };
       recapData.push({
         day: `${day.name} ${format(addDays(new Date(selectedWeek), index), 'dd/MM', { locale: fr })}`,
-        employees: [{ employee, start, pause, resume, end, hours, shop: shopName }],
+        employees: [{ employee, start: tr.start, pause: tr.pause, resume: tr.resume, end: tr.end, hours: tr.hours, shop: tr.shop }],
         dayIndex: index
       });
-      totalWeekHours += parseFloat(hours);
+      totalWeekHours += tr.hoursValue ?? 0;
     });
   } else {
     console.log('RecapModal: Generating data for employee day recap');
@@ -225,9 +229,9 @@ const RecapModal = ({
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
     const title = isWeekRecap
-      ? `Récapitulatif hebdomadaire - ${selectedShop} (${totalWeekHours.toFixed(1)} h)`
+      ? `Récapitulatif hebdomadaire - ${selectedShop} (${formatWorkedHoursForDisplay(totalWeekHours)})`
       : isEmployeeWeekRecap
-      ? `Récapitulatif de ${employee} ${totalWeekHours.toFixed(1)} h`
+      ? `Récapitulatif de ${employee} ${formatWorkedHoursForDisplay(totalWeekHours)}`
       : `Récapitulatif de ${employee}`;
     doc.text(title, 10, 10);
     const weekStart = format(new Date(selectedWeek), 'dd/MM', { locale: fr });
@@ -247,7 +251,7 @@ const RecapModal = ({
     });
     if (isWeekRecap || isEmployeeWeekRecap) {
       body.push({
-        row: ['Total semaine', '', '', '', '', '', `${totalWeekHours.toFixed(1)} h`],
+        row: ['Total semaine', '', '', '', '', '', formatWorkedHoursForDisplay(totalWeekHours)],
         backgroundColor: [245, 245, 245]
       });
     }
@@ -301,7 +305,7 @@ const RecapModal = ({
       )
     ];
     if (isWeekRecap || isEmployeeWeekRecap) {
-      wsData.push(['Total semaine', '', '', '', '', '', `${totalWeekHours.toFixed(1)} h`, '']);
+      wsData.push(['Total semaine', '', '', '', '', '', formatWorkedHoursForDisplay(totalWeekHours), '']);
     }
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     const wb = XLSX.utils.book_new();
@@ -362,9 +366,9 @@ const RecapModal = ({
       <div className="modal-content">
         <h2 style={{ fontFamily: 'Roboto, sans-serif', textAlign: 'center', marginBottom: '15px' }}>
           {isWeekRecap
-            ? `Récapitulatif hebdomadaire - ${selectedShop} (${totalWeekHours.toFixed(1)} h)`
+            ? `Récapitulatif hebdomadaire - ${selectedShop} (${formatWorkedHoursForDisplay(totalWeekHours)})`
             : isEmployeeWeekRecap
-            ? `Récapitulatif de ${employee} ${totalWeekHours.toFixed(1)} h`
+            ? `Récapitulatif de ${employee} ${formatWorkedHoursForDisplay(totalWeekHours)}`
             : `Récapitulatif de ${employee}`}
         </h2>
         {(isWeekRecap || isEmployeeWeekRecap) && (
@@ -407,7 +411,7 @@ const RecapModal = ({
               <tr className="total-row">
                 <td className="align-left">Total semaine</td>
                 <td colSpan="5"></td>
-                <td>{`${totalWeekHours.toFixed(1)} h`}</td>
+                <td>{formatWorkedHoursForDisplay(totalWeekHours)}</td>
               </tr>
             )}
           </tbody>

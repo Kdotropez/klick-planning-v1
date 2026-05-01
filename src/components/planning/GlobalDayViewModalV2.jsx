@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { format, addDays, parse, startOfWeek, endOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getSlotDurationMinutes, getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
+import { formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
@@ -89,7 +90,7 @@ const GlobalDayViewModalV2 = ({
         dateKey: dayKey,
         openTime: openTime || 'Fermé',
         closeTime: closeTime || 'Fermé',
-        totalHours: Math.round(totalHours * 10) / 10,
+        totalHours,
         slotData,
         maxEmployees: Math.max(...slotData.map(s => s.count)),
         totalSlots: slotData.filter(s => s.count > 0).length
@@ -113,7 +114,7 @@ const GlobalDayViewModalV2 = ({
     const avgEmployeesPerDay = dayData.reduce((sum, day) => sum + day.maxEmployees, 0) / Math.max(totalDays, 1);
     
     return {
-      totalHours: Math.round(totalHours * 10) / 10,
+      totalHours,
       totalDays,
       avgEmployeesPerDay: Math.round(avgEmployeesPerDay * 10) / 10,
       weekRange: `${format(startOfWeek(new Date(selectedWeek), { weekStartsOn: 1 }), 'dd/MM', { locale: fr })} - ${format(endOfWeek(new Date(selectedWeek), { weekStartsOn: 1 }), 'dd/MM', { locale: fr })}`
@@ -149,7 +150,7 @@ const GlobalDayViewModalV2 = ({
         <div className="stat-card">
           <FaClock className="stat-icon" />
           <div className="stat-content">
-            <h3>{globalStats.totalHours}h</h3>
+            <h3>{formatWorkedHoursForDisplay(globalStats.totalHours)}</h3>
             <p>Total semaine</p>
           </div>
         </div>
@@ -281,7 +282,7 @@ const GlobalDayViewModalV2 = ({
             {day.totalHours > 0 ? (
               <>
                 <div className="day-hours">
-                  <span className="hours-badge">{day.totalHours}h</span>
+                  <span className="hours-badge">{formatWorkedHoursForDisplay(day.totalHours)}</span>
                 </div>
                 <div className="day-schedule">
                   <div className="schedule-item">
@@ -334,7 +335,7 @@ const GlobalDayViewModalV2 = ({
                 <span className="day-name">{day.short}</span>
                 <span className="day-date">{format(day.date, 'dd/MM', { locale: fr })}</span>
                 {day.totalHours > 0 && (
-                  <span className="day-hours">{day.totalHours}h</span>
+                  <span className="day-hours">{formatWorkedHoursForDisplay(day.totalHours)}</span>
                 )}
               </div>
             </button>
@@ -350,7 +351,7 @@ const GlobalDayViewModalV2 = ({
             <div className="day-summary">
               <span>Ouverture: {selectedDay.openTime}</span>
               <span>Fermeture: {selectedDay.closeTime}</span>
-              <span>Total: {selectedDay.totalHours}h</span>
+              <span>Total: {formatWorkedHoursForDisplay(selectedDay.totalHours)}</span>
             </div>
           </div>
           
@@ -601,7 +602,7 @@ const GlobalDayViewModalV2 = ({
                                });
                              }
                            });
-                           return `${Math.round(totalEmployeeHours * 10) / 10}h`;
+                           return formatWorkedHoursForDisplay(totalEmployeeHours);
                          })()}</span>
                        </div>
                      </div>
@@ -1039,7 +1040,12 @@ const GlobalDayViewModalV2 = ({
       pdf.setFont('Helvetica', 'normal');
       pdf.text(`Semaine du ${globalStats.weekRange}`, pdfWidth / 2, 25, { align: 'center' });
       if (activeTab !== 'weekly') {
-        pdf.text(`Total: ${globalStats.totalHours}h sur ${globalStats.totalDays} jours`, pdfWidth / 2, 32, { align: 'center' });
+        pdf.text(
+          `Total: ${formatWorkedHoursForDisplay(globalStats.totalHours)} sur ${globalStats.totalDays} jours`,
+          pdfWidth / 2,
+          32,
+          { align: 'center' }
+        );
       }
 
       // Ajouter l'image du contenu
@@ -1057,7 +1063,7 @@ const GlobalDayViewModalV2 = ({
     const wsData = [
       ['Vue globale par jour', selectedShop],
       ['Semaine', globalStats.weekRange],
-      ['Total heures', globalStats.totalHours],
+      ['Total heures', formatWorkedHoursForDisplay(globalStats.totalHours)],
       [''],
       ['Jour', 'Date', 'Ouverture', 'Fermeture', 'Total heures', ...timeSlots.map((slot, idx) => `${slot} - ${getSlotEndTimeFormatted(timeSlots, idx, config)}`)]
     ];
@@ -1068,7 +1074,7 @@ const GlobalDayViewModalV2 = ({
         format(day.date, 'dd/MM/yyyy', { locale: fr }),
         day.openTime,
         day.closeTime,
-        day.totalHours,
+        formatWorkedHoursForDisplay(day.totalHours),
         ...day.slotData.map(slot => `${getEmployeeIcon(slot.count)} ${slot.count}`)
       ]);
     });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { format, addDays } from 'date-fns';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 
 const RecapButtonsModule = ({
   employeeId,
@@ -21,19 +21,19 @@ const RecapButtonsModule = ({
   
   // Calcul des heures hebdomadaires
   const calculateWeeklyHours = () => {
-    if (!selectedWeek || !selectedShop || !planning) return '0.0';
+    if (!selectedWeek || !selectedShop || !planning) return 0;
     let totalHours = 0;
     for (let i = 0; i < 7; i++) {
       const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
       const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
       totalHours += hours;
     }
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calcul des heures mensuelles
   const calculateMonthlyHours = () => {
-    if (!selectedWeek || !planningData) return '0.0';
+    if (!selectedWeek || !planningData) return 0;
     
     const currentDate = new Date(selectedWeek);
     const year = currentDate.getFullYear();
@@ -62,12 +62,12 @@ const RecapButtonsModule = ({
       }
     }
     
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calcul des heures mensuelles avec 2 décimales
   const calculateMonthlyHoursDetailed = () => {
-    if (!selectedWeek || !planningData) return '0.00';
+    if (!selectedWeek || !planningData) return 0;
     
     const currentDate = new Date(selectedWeek);
     const year = currentDate.getFullYear();
@@ -96,12 +96,12 @@ const RecapButtonsModule = ({
       }
     }
     
-    return totalHours.toFixed(2);
+    return totalHours;
   };
 
   // Calcul des heures hebdomadaires par boutique
   const calculateWeeklyHoursByShop = (shop) => {
-    if (!selectedWeek || !planningData) return '0.0';
+    if (!selectedWeek || !planningData) return 0;
     let totalHours = 0;
     for (let i = 0; i < 7; i++) {
       const dayKey = format(addDays(new Date(selectedWeek), i), 'yyyy-MM-dd');
@@ -113,12 +113,12 @@ const RecapButtonsModule = ({
         }
       }
     }
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calcul des heures mensuelles par boutique
   const calculateMonthlyHoursByShop = (shop) => {
-    if (!selectedWeek || !planningData) return '0.0';
+    if (!selectedWeek || !planningData) return 0;
     const currentDate = new Date(selectedWeek);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -140,7 +140,7 @@ const RecapButtonsModule = ({
         });
       }
     }
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Vérifier si l'employé a des données dans au moins une boutique
@@ -193,7 +193,7 @@ const RecapButtonsModule = ({
         }}
         title="Récapitulatif hebdomadaire"
       >
-        📊 Semaine: {calculateWeeklyHours()}h
+        📊 Semaine: {formatWorkedHoursForDisplay(calculateWeeklyHours())}
       </button>
 
       {/* Section Semaines par boutique - Toujours 2 boutons */}
@@ -243,7 +243,7 @@ const RecapButtonsModule = ({
             }}
             title={`Semaine - ${firstShop?.name || 'Boutique 1'}`}
           >
-            📊 {firstShop?.name || 'Boutique 1'}: {calculateWeeklyHoursByShop(firstShop)}h
+            📊 {firstShop?.name || 'Boutique 1'}: {formatWorkedHoursForDisplay(calculateWeeklyHoursByShop(firstShop))}
           </button>
         ) : (
           <button
@@ -302,7 +302,7 @@ const RecapButtonsModule = ({
             }}
             title={`Semaine - ${secondShop?.name || 'Boutique 2'}`}
           >
-            📊 {secondShop?.name || 'Boutique 2'}: {calculateWeeklyHoursByShop(secondShop)}h
+            📊 {secondShop?.name || 'Boutique 2'}: {formatWorkedHoursForDisplay(calculateWeeklyHoursByShop(secondShop))}
           </button>
         ) : (
           <button
@@ -374,7 +374,7 @@ const RecapButtonsModule = ({
             }}
             title={`Mois - ${firstShop?.name || 'Boutique 1'}`}
           >
-            📈 {firstShop?.name || 'Boutique 1'}: {calculateMonthlyHoursByShop(firstShop)}h
+            📈 {firstShop?.name || 'Boutique 1'}: {formatWorkedHoursForDisplay(calculateMonthlyHoursByShop(firstShop))}
           </button>
         ) : (
           <button
@@ -433,7 +433,7 @@ const RecapButtonsModule = ({
             }}
             title={`Mois - ${secondShop?.name || 'Boutique 2'}`}
           >
-            📈 {secondShop?.name || 'Boutique 2'}: {calculateMonthlyHoursByShop(secondShop)}h
+            📈 {secondShop?.name || 'Boutique 2'}: {formatWorkedHoursForDisplay(calculateMonthlyHoursByShop(secondShop))}
           </button>
         ) : (
           <button
@@ -493,7 +493,7 @@ const RecapButtonsModule = ({
         }}
         title="Récapitulatif mensuel multi-boutiques"
       >
-        📈 Mois: {calculateMonthlyHours()}h
+        📈 Mois: {formatWorkedHoursForDisplay(calculateMonthlyHours())}
       </button>
       
       {/* Bouton Mois: XX.00h - Couleur bleue */}
@@ -531,7 +531,7 @@ const RecapButtonsModule = ({
         }}
         title="Récapitulatif mensuel détaillé"
       >
-        📋 Mois: {calculateMonthlyHoursDetailed()}h
+        📋 Mois: {formatWorkedHoursForDisplay(calculateMonthlyHoursDetailed())}
       </button>
       
       {/* Bouton Detail/mois/boutique - Couleur bleue - Vue mono-boutique */}

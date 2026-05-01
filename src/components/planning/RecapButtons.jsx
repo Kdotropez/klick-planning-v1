@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
-import { calculateEmployeeDailyHours } from '../../utils/planningUtils';
+import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getAllEmployees, hideEmployee, showEmployee, isEmployeeHidden } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
@@ -104,7 +104,7 @@ const RecapButtons = ({
     // Utiliser le jour actuellement sélectionné dans l'interface
     const dayKey = format(addDays(new Date(currentWeek), currentDay || 0), 'yyyy-MM-dd');
     const hours = calculateEmployeeDailyHours(employee, dayKey, planning, config);
-    return hours.toFixed(1);
+    return hours;
   };
 
   // Calculer les heures hebdomadaires réelles pour un employé
@@ -116,7 +116,7 @@ const RecapButtons = ({
       const hours = calculateEmployeeDailyHours(employee, dayKey, planning, config);
       totalHours += hours;
     }
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calculer les heures mensuelles réelles pour un employé
@@ -169,7 +169,7 @@ const RecapButtons = ({
       }
     });
     
-    return totalMonthHours.toFixed(1);
+    return totalMonthHours;
   };
 
   // Calculer les heures d'un employé dans une boutique spécifique
@@ -207,8 +207,8 @@ const RecapButtons = ({
       totalHours += hours;
     }
     
-    console.log(`Total heures calculé pour ${employee} dans ${shopId}: ${totalHours.toFixed(1)}`);
-    return totalHours.toFixed(1);
+    console.log(`Total heures calculé pour ${employee} dans ${shopId}: ${formatWorkedHoursForDisplay(totalHours)}`);
+    return totalHours;
   };
 
   // Calculer le total des heures d'un employé dans toutes ses boutiques
@@ -226,13 +226,13 @@ const RecapButtons = ({
     
     let totalHours = 0;
     employeeShops.forEach(shop => {
-      const shopHours = parseFloat(calculateEmployeeShopHours(employee, shop.id));
+      const shopHours = calculateEmployeeShopHours(employee, shop.id);
       console.log(`Heures dans ${shop.name}: ${shopHours}`);
       totalHours += shopHours;
     });
     
-    console.log(`Total multi-boutiques pour ${employee}: ${totalHours.toFixed(1)}`);
-    return totalHours.toFixed(1);
+    console.log(`Total multi-boutiques pour ${employee}: ${formatWorkedHoursForDisplay(totalHours)}`);
+    return totalHours;
   };
 
     // Obtenir les boutiques où un employé travaille ET a des données
@@ -291,7 +291,7 @@ const RecapButtons = ({
         totalHours += hours;
       }
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calculer les heures mensuelles pour la boutique
@@ -307,9 +307,9 @@ const RecapButtons = ({
     if (!selectedEmployees || selectedEmployees.length === 0) return 0;
     let totalHours = 0;
     selectedEmployees.forEach(employeeId => {
-      totalHours += parseFloat(calculateEmployeeWeekHours(employeeId));
+      totalHours += calculateEmployeeWeekHours(employeeId);
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calculer le total des heures pour tous les employés de la boutique
@@ -317,9 +317,9 @@ const RecapButtons = ({
     if (!currentShopEmployees || currentShopEmployees.length === 0 || !planning) return 0;
     let totalHours = 0;
     currentShopEmployees.forEach(employee => {
-      totalHours += parseFloat(calculateEmployeeWeekHours(employee.id));
+      totalHours += calculateEmployeeWeekHours(employee.id);
     });
-    return totalHours.toFixed(1);
+    return totalHours;
   };
 
   // Calculer le nombre d'employés sélectionnés
@@ -399,7 +399,7 @@ const RecapButtons = ({
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
             >
-              JOUR: {calculateEmployeeDayHours(employeeId)}h
+              JOUR: {formatWorkedHoursForDisplay(calculateEmployeeDayHours(employeeId))}
             </Button>
                       <Button
               className="button-recap"
@@ -423,7 +423,7 @@ const RecapButtons = ({
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
             >
-              SEMAINE: {calculateEmployeeWeekHours(employeeId)}h
+              SEMAINE: {formatWorkedHoursForDisplay(calculateEmployeeWeekHours(employeeId))}
             </Button>
           {showCalendarTotals && (
             <Button
@@ -445,7 +445,7 @@ const RecapButtons = ({
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
             >
-              SEMAINE CAL: {calculateEmployeeWeekHours(employeeId)}h
+              SEMAINE CAL: {formatWorkedHoursForDisplay(calculateEmployeeWeekHours(employeeId))}
             </Button>
           )}
                      {(() => {
@@ -489,19 +489,22 @@ const RecapButtons = ({
                   onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                   onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
                 >
-                  MOIS: {calculateEmployeeMonthHours(employeeId)}h
+                  MOIS: {formatWorkedHoursForDisplay(calculateEmployeeMonthHours(employeeId))}
                 </Button>
               );
             } else {
               // Employé dans plusieurs boutiques - afficher une ligne par boutique
               return (
                 <div style={{ width: '100%' }}>
-                  {employeeShops.map((shop, shopIndex) => (
+                  {employeeShops.map((shopName, shopIndex) => {
+                    const shopMeta = planningData?.shops?.find((s) => (s.name || s.id) === shopName);
+                    const shopIdForHours = shopMeta?.id;
+                    return (
                     <Button
-                      key={shop.id}
+                      key={shopIdForHours || shopIndex}
                       className="button-recap"
                       onClick={() => {
-                        console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shop.name, 'Heures:', shop.hours);
+                        console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shopName, 'Heures:', shopIdForHours ? calculateEmployeeShopHours(employeeId, shopIdForHours) : 0);
                         setSelectedEmployeeForMonthlyRecap(employeeId);
                         setShowEmployeeMonthlyRecap(true);
                       }}
@@ -519,9 +522,9 @@ const RecapButtons = ({
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
                     >
-                      {shop.name}: {shop.hours}h
+                      {shopName}: {formatWorkedHoursForDisplay(shopIdForHours ? calculateEmployeeShopHours(employeeId, shopIdForHours) : 0)}
                     </Button>
-                  ))}
+                  );})}
                   {/* Bouton total global séparé */}
                   <Button
                     className="button-recap"
@@ -544,7 +547,7 @@ const RecapButtons = ({
                     onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
                     onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
                   >
-                    TOTAL GLOBAL: {calculateEmployeeTotalMultiShopHours(employeeId)}h
+                    TOTAL GLOBAL: {formatWorkedHoursForDisplay(calculateEmployeeTotalMultiShopHours(employeeId))}
                   </Button>
                 </div>
               );
@@ -570,7 +573,7 @@ const RecapButtons = ({
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
             >
-              MOIS CAL: {calculateEmployeeMonthHours(employeeId)}h
+              MOIS CAL: {formatWorkedHoursForDisplay(calculateEmployeeMonthHours(employeeId))}
             </Button>
           )}
           <Button
@@ -675,7 +678,7 @@ const RecapButtons = ({
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
         >
-          SEMAINE: {calculateShopWeekHours()}h ({getSelectedEmployeesCount()} emp)
+          SEMAINE: {formatWorkedHoursForDisplay(calculateShopWeekHours())} ({getSelectedEmployeesCount()} emp)
         </Button>
         {showCalendarTotals && (
           <Button
@@ -697,7 +700,7 @@ const RecapButtons = ({
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
           >
-            SEMAINE CAL: {calculateShopWeekHours()}h ({getSelectedEmployeesCount()} emp)
+            SEMAINE CAL: {formatWorkedHoursForDisplay(calculateShopWeekHours())} ({getSelectedEmployeesCount()} emp)
           </Button>
         )}
         {/* Garder uniquement le bouton MOIS GLOBAL */}
@@ -720,7 +723,7 @@ const RecapButtons = ({
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7b1fa2'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#9c27b0'}
         >
-          MOIS GLOBAL: {calculateGlobalMonthHours()}h
+          MOIS GLOBAL: {formatWorkedHoursForDisplay(calculateGlobalMonthHours())}
         </Button>
         <Button
           className="button-recap"
@@ -762,7 +765,7 @@ const RecapButtons = ({
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#388e3c'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#4caf50'}
         >
-          TOTAL SÉLECTIONNÉS: {calculateTotalSelectedEmployeesHours()}h ({getSelectedEmployeesCount()} emp)
+          TOTAL SÉLECTIONNÉS: {formatWorkedHoursForDisplay(calculateTotalSelectedEmployeesHours())} ({getSelectedEmployeesCount()} emp)
         </Button>
         <Button
           className="button-recap"
@@ -783,7 +786,7 @@ const RecapButtons = ({
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f57c00'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ff9800'}
         >
-          TOTAL BOUTIQUE: {calculateTotalShopEmployeesHours()}h ({getTotalShopEmployeesCount()} emp)
+          TOTAL BOUTIQUE: {formatWorkedHoursForDisplay(calculateTotalShopEmployeesHours())} ({getTotalShopEmployeesCount()} emp)
         </Button>
       </div>
     </div>
