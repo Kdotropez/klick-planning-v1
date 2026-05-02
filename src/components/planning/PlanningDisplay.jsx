@@ -2100,7 +2100,10 @@ const PlanningDisplay = ({
       const buildEmployeeMonthRows = (employeeId) =>
         monthDaysFlat.map((dayDate) => collectDayEntriesForEmployee(employeeId, dayDate));
 
-      /** Une ligne par boutique dans la journée ; sans répéter le nom si une seule boutique = celle affichée. */
+      /**
+       * Export mensuel lisible : toujours préfixer par le nom de boutique (employés multi-boutiques).
+       * Le périmètre boutique ne doit pas figurer dans l’en-tête PDF/TXT — il est dans cette colonne.
+       */
       const formatMonthReadableDayDetail = (entries) => {
         if (!entries?.length) return 'Repos';
         const byShopId = new Map();
@@ -2111,18 +2114,7 @@ const PlanningDisplay = ({
           }
           byShopId.get(id).vals.push(String(e.value ?? ''));
         });
-        const groups = [...byShopId.entries()].map(([id, data]) => ({
-          id,
-          shopName: data.shopName,
-          vals: data.vals,
-        }));
-        if (
-          selectedShop != null &&
-          groups.length === 1 &&
-          groups[0].id === String(selectedShop)
-        ) {
-          return groups[0].vals.join(', ');
-        }
+        const groups = [...byShopId.values()];
         return groups.map((g) => `${g.shopName}: ${g.vals.join(', ')}`).join(' · ');
       };
 
@@ -2156,15 +2148,20 @@ const PlanningDisplay = ({
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.text('Planning mensuel employe', pageWidth / 2, 11, { align: 'center' });
+        doc.text('Planning mensuel employe', pageWidth / 2, 10, { align: 'center' });
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${toPdfSafeText(monthLabel)} | ${toPdfSafeText(employeeName)}`, pageWidth / 2, 16, {
+        const monthHeaderParts = [
+          `Employe: ${toPdfSafeText(employeeName)}`,
+          `Mois: ${toPdfSafeText(monthLabel)}`,
+        ];
+        const monthHeaderWrapped = doc.splitTextToSize(monthHeaderParts.join(' | '), pageWidth - marginX * 2);
+        doc.text(monthHeaderWrapped, pageWidth / 2, 15, { align: 'center' });
+        let yAfterHeader = 15 + monthHeaderWrapped.length * 3.8;
+        doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, pageWidth / 2, yAfterHeader, {
           align: 'center',
         });
-        doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, pageWidth / 2, 20, {
-          align: 'center',
-        });
+        const tableStartY = yAfterHeader + 5;
 
         const monthRows = buildEmployeeMonthRows(employeeId);
         const body = [];
@@ -2219,7 +2216,7 @@ const PlanningDisplay = ({
         pushWeekSubtotalRow();
 
         doc.autoTable({
-          startY: 23,
+          startY: tableStartY,
           margin: { left: marginX, right: marginX, bottom: 38 },
           pageBreak: 'avoid',
           rowPageBreak: 'auto',
@@ -2246,7 +2243,7 @@ const PlanningDisplay = ({
         const monthShopPdf =
           selectedShop != null ? sumEmployeeHoursForShopMonth(employeeId, selectedShop) : 0;
         const { rows: monthlyRowsPdf, monthGrand: monthGrandPdf } = getEmployeeMonthlyHoursByShop(employeeId);
-        let yStart = (doc.lastAutoTable?.finalY ?? 23) + 3;
+        let yStart = (doc.lastAutoTable?.finalY ?? tableStartY) + 3;
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
@@ -2301,15 +2298,25 @@ const PlanningDisplay = ({
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageH = doc.internal.pageSize.getHeight();
         const employeeName = employeeMap.get(employeeId) || employeeId;
+        const marginPdf = 14;
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(15);
-        doc.text('Planning hebdomadaire employe', pageWidth / 2, 14, { align: 'center' });
-        doc.setFontSize(11);
+        doc.setFontSize(14);
+        doc.text('Planning hebdomadaire employe', pageWidth / 2, 12, { align: 'center' });
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Semaine: ${weekLabel}`, pageWidth / 2, 21, { align: 'center' });
-        doc.text(`Employe: ${employeeName}`, 14, 29);
-        doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, 14, 35);
+        doc.text(`Semaine: ${weekLabel}`, pageWidth / 2, 19, { align: 'center' });
+        const weekHeaderParts = [
+          `Employe: ${toPdfSafeText(employeeName)}`,
+          `Mois: ${toPdfSafeText(monthLabel)}`,
+        ];
+        const weekHeaderWrapped = doc.splitTextToSize(weekHeaderParts.join(' | '), pageWidth - marginPdf * 2);
+        doc.text(weekHeaderWrapped, pageWidth / 2, 25, { align: 'center' });
+        const yGen = 25 + weekHeaderWrapped.length * 4;
+        doc.text(`Genere le: ${new Date().toLocaleString('fr-FR')}`, pageWidth / 2, yGen, {
+          align: 'center',
+        });
+        const tableStartWeekY = yGen + 6;
 
         const body = [];
         buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }, dayIdx) => {
@@ -2331,13 +2338,13 @@ const PlanningDisplay = ({
               entryIdx === 0 ? toPdfSafeText(dayLabel) : '',
               toPdfSafeText(entry.shopName || '-'),
               toPdfSafeText(entry.value),
-              nbCellForRow(entryIdx)
+              nbCellForRow(entryIdx),
             ]);
           });
         });
 
         doc.autoTable({
-          startY: 40,
+          startY: tableStartWeekY,
           head: [['Jour', 'Boutique', 'Horaires / Statut', 'Nb (h)']],
           body,
           styles: { fontSize: 9, cellPadding: 2.2, lineColor: [230, 230, 230], lineWidth: 0.1 },
@@ -2354,7 +2361,7 @@ const PlanningDisplay = ({
         const weekTotalPdf = sumEmployeeHoursForExportedWeek(employeeId);
         const weekTotalAtSelectedShop = sumEmployeeHoursForShopWeek(employeeId, selectedShop);
         const { rows: monthlyRowsPdf, monthGrand: monthGrandPdf } = getEmployeeMonthlyHoursByShop(employeeId);
-        let yStart = (doc.lastAutoTable?.finalY ?? 40) + 8;
+        let yStart = (doc.lastAutoTable?.finalY ?? tableStartWeekY) + 8;
         if (yStart > pageH - 40) {
           doc.addPage();
           yStart = 18;
