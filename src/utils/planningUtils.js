@@ -4,6 +4,55 @@ import { minutesBetweenHHmm, getSlotEndTimeFormatted } from './slotDurationUtils
 import { fr } from 'date-fns/locale';
 
 /**
+ * Objet planning de la semaine pour un employé : week.planning[empId] → { [yyyy-MM-dd]: slots }.
+ * Tolère id nombre vs chaîne (clés JSON souvent en string).
+ */
+export function resolveEmployeePlanningSlice(planningByEmployeeId, employeeRef) {
+  if (!planningByEmployeeId || typeof planningByEmployeeId !== 'object') return null;
+
+  const candidates = [];
+  if (typeof employeeRef === 'object' && employeeRef !== null) {
+    if (employeeRef.id != null && employeeRef.id !== '') candidates.push(employeeRef.id);
+    if (employeeRef.name != null && employeeRef.name !== '') candidates.push(employeeRef.name);
+    if (Array.isArray(employeeRef.__excelAliases)) {
+      employeeRef.__excelAliases.forEach((alias) => {
+        if (alias != null && alias !== '') candidates.push(alias);
+      });
+    }
+  } else if (employeeRef != null && employeeRef !== '') {
+    candidates.push(employeeRef);
+  }
+
+  const normKey = (x) => String(x).trim().toLowerCase();
+
+  for (const id of candidates) {
+    if (id != null && id !== '' && Object.prototype.hasOwnProperty.call(planningByEmployeeId, id)) {
+      return planningByEmployeeId[id];
+    }
+    const sk = typeof id === 'string' ? id.trim() : String(id);
+    if (sk !== '' && Object.prototype.hasOwnProperty.call(planningByEmployeeId, sk)) {
+      return planningByEmployeeId[sk];
+    }
+    const num = Number(sk);
+    if (!Number.isNaN(num) && Object.prototype.hasOwnProperty.call(planningByEmployeeId, num)) {
+      return planningByEmployeeId[num];
+    }
+  }
+
+  /** Dernier recours : clés JSON vs annuaire (casse, espaces) — ex. "TITOUNE" vs "Titoune". */
+  const keys = Object.keys(planningByEmployeeId);
+  for (const id of candidates) {
+    if (id == null || id === '') continue;
+    const target = normKey(id);
+    if (!target) continue;
+    const hit = keys.find((k) => normKey(k) === target);
+    if (hit !== undefined) return planningByEmployeeId[hit];
+  }
+
+  return null;
+}
+
+/**
  * Heures travaillées sur un jour — même convention pour toutes les boutiques :
  * début = ligne du haut (DE) du premier créneau coché du bloc ;
  * fin = ligne du bas (À) du dernier créneau coché (= borne de fin du créneau, durées variables prises en compte).
@@ -23,7 +72,7 @@ export const calculateEmployeeDailyHours = (employee, dayKey, planning, config) 
     return 0;
   }
 
-  const employeeData = planning[employeeId];
+  const employeeData = resolveEmployeePlanningSlice(planning, employee);
   if (!employeeData || !employeeData[dayKey]) {
     return 0;
   }

@@ -6,6 +6,7 @@ import {
   calculateEmployeeDailyHours,
   formatWorkedHoursNbNotation,
   workedHoursNumericForExport,
+  resolveEmployeePlanningSlice,
 } from './planningUtils';
 // Remplace xlsx standard par xlsx-js-style pour le formatage des cellules
 import * as XLSX from 'xlsx-js-style';
@@ -627,11 +628,199 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     const monthStartStr = format(monthStart, 'yyyy-MM-dd');
     const monthEndStr = format(monthEnd, 'yyyy-MM-dd');
 
+    const normalizeEmployeeKey = (value) =>
+      value == null ? '' : String(value).trim().toLowerCase();
+
+    const employeeIdKey = (id) => {
+      const value = id == null ? '' : String(id).trim();
+      return value === '' ? null : value;
+    };
+
+    const addToSet = (set, value) => {
+      const key = employeeIdKey(value);
+      if (key) set.add(key);
+    };
+
+    const hasMeaningfulName = (value) => {
+      const text = employeeIdKey(value);
+      return !!text && Number.isNaN(Number(text));
+    };
+
+    /** Employé masqué / inactif dans au moins une boutique → exclu de tout l’export Excel. */
+    const isEmployeeExcludedFromExcelExport = (empOrKey) => {
+      const keys = new Set();
+      if (typeof empOrKey === 'object' && empOrKey !== null) {
+        addToSet(keys, empOrKey.id);
+        addToSet(keys, empOrKey.name);
+        (empOrKey.__excelAliases || []).forEach((alias) => addToSet(keys, alias));
+      } else {
+        addToSet(keys, empOrKey);
+      }
+      if (keys.size === 0) return false;
+
+      const normalizedKeys = new Set(Array.from(keys).map(normalizeEmployeeKey));
+      for (const shop of planningData.shops || []) {
+        for (const em of shop.employees || []) {
+          if (!em?.hiddenFrom) continue;
+          const hiddenKeys = [em.id, em.name].map(normalizeEmployeeKey).filter(Boolean);
+          if (hiddenKeys.some((key) => normalizedKeys.has(key))) return true;
+        }
+      }
+      return false;
+    };
+
     /** Cellule Excel affichée en Nb (h) type 9.30 (vide si 0). */
     const hoursExcelCell = (h) => (h > 0 ? formatWorkedHoursNbNotation(h) : '');
 
+    /** Tolère number/string dans canWorkIn vs shop.id ; si canWorkIn vide, employé listé dans la boutique = inclus. */
+    const isEmployeeAssignedToShopExport = (emp, shopId) => {
+      if (!emp || shopId == null) return false;
+      const list = Array.isArray(emp.canWorkIn) ? emp.canWorkIn : [];
+      if (list.length === 0) return true;
+      const sid = String(shopId);
+      return list.some((x) => String(x) === sid);
+    };
+
+    const employeeHasShopMembership = (emp, shopId) => {
+      if (!emp || shopId == null) return false;
+      const sid = String(shopId);
+      const explicit = Array.isArray(emp.canWorkIn) && emp.canWorkIn.some((id) => String(id) === sid);
+      const listed = Array.isArray(emp.__excelShopIds) && emp.__excelShopIds.some((id) => String(id) === sid);
+      return explicit || listed;
+    };
+
+    /** Tous les employés connus, dédupliqués par nom/id/clé planning. */
+    const collectAllEmployeesForExcelExport = () => {
+      const m = new Map();
+      const aliasIndex = new Map();
+
+      const addAlias = (emp, alias) => {
+        const key = employeeIdKey(alias);
+        if (!key) return;
+        emp.__excelAliases.add(key);
+        aliasIndex.set(normalizeEmployeeKey(key), emp.__excelKey);
+      };
+
+      const mergeEmployee = (rawEmp, shopId = null, rawPlanningKey = null) => {
+        if (!rawEmp && rawPlanningKey == null) return null;
+
+        const rawName = employeeIdKey(rawEmp?.name);
+        const rawId = employeeIdKey(rawEmp?.id);
+        const planningKey = employeeIdKey(rawPlanningKey);
+        const displayName =
+          (hasMeaningfulName(rawName) && rawName) ||
+          (hasMeaningfulName(planningKey) && planningKey) ||
+          rawName ||
+          rawId ||
+          planningKey;
+
+        if (!displayName) return null;
+
+        const candidateAliases = [rawId, rawName, planningKey].filter(Boolean);
+        let canonicalKey = null;
+        for (const alias of candidateAliases) {
+          const hit = aliasIndex.get(normalizeEmployeeKey(alias));
+          if (hit) {
+            canonicalKey = hit;
+            break;
+          }
+        }
+        if (!canonicalKey) {
+          canonicalKey = `emp:${normalizeEmployeeKey(displayName)}`;
+        }
+
+        let emp = m.get(canonicalKey);
+        if (!emp) {
+          emp = {
+            ...(rawEmp || {}),
+            id: rawId || planningKey || displayName,
+            name: displayName,
+            canWorkIn: Array.isArray(rawEmp?.canWorkIn) ? [...rawEmp.canWorkIn] : [],
+            __excelAliases: new Set(),
+            __excelShopIds: new Set(),
+            __excelKey: canonicalKey,
+          };
+          m.set(canonicalKey, emp);
+        } else if (rawEmp) {
+          if (!hasMeaningfulName(emp.name) && hasMeaningfulName(rawEmp.name)) emp.name = employeeIdKey(rawEmp.name);
+          if (!emp.id && rawId) emp.id = rawId;
+          emp.canWorkIn = [
+            ...new Set([
+              ...(Array.isArray(emp.canWorkIn) ? emp.canWorkIn : []),
+              ...(Array.isArray(rawEmp.canWorkIn) ? rawEmp.canWorkIn : []),
+            ]),
+          ];
+        }
+
+        if (shopId != null) emp.__excelShopIds.add(String(shopId));
+        candidateAliases.forEach((alias) => addAlias(emp, alias));
+        return emp;
+      };
+
+      (planningData.shops || []).forEach((shop) => {
+        (shop.employees || []).forEach((emp) => {
+          if (isEmployeeExcludedFromExcelExport(emp)) return;
+          mergeEmployee(emp, shop.id);
+        });
+      });
+
+      (planningData.shops || []).forEach((shop) => {
+        Object.values(shop.weeks || {}).forEach((weekData) => {
+          const pl = weekData?.planning;
+          if (!pl || typeof pl !== 'object') return;
+          Object.keys(pl).forEach((rawId) => {
+            const key = employeeIdKey(rawId);
+            if (!key || isEmployeeExcludedFromExcelExport(key)) return;
+            const existing = aliasIndex.get(normalizeEmployeeKey(key));
+            if (existing) {
+              const emp = m.get(existing);
+              if (emp) {
+                addAlias(emp, key);
+                emp.__excelShopIds.add(String(shop.id));
+              }
+              return;
+            }
+
+            let meta = null;
+            for (const sh of planningData.shops || []) {
+              meta = (sh.employees || []).find((em) => {
+                if (!em) return false;
+                return [em.id, em.name].some((value) => normalizeEmployeeKey(value) === normalizeEmployeeKey(key));
+              });
+              if (meta) break;
+            }
+            if (meta && isEmployeeExcludedFromExcelExport(meta)) return;
+
+            // Évite les feuilles sans nom exploitable à partir d'anciennes clés numériques orphelines.
+            if (!meta && !hasMeaningfulName(key)) return;
+            mergeEmployee(meta || { id: key, name: key }, shop.id, key);
+          });
+        });
+      });
+
+      const result = new Map();
+      m.forEach((emp, key) => {
+        if (isEmployeeExcludedFromExcelExport(emp)) return;
+        result.set(key, {
+          ...emp,
+          __excelAliases: Array.from(emp.__excelAliases || []),
+          __excelShopIds: Array.from(emp.__excelShopIds || []),
+        });
+      });
+      return result;
+    };
+
+    /** planning[employeeId] avec tolérance number/string sur la clé. */
+    const resolveEmpPlanningFromWeek = (week, employeeRef) =>
+      resolveEmployeePlanningSlice(week?.planning, employeeRef);
+
+    const allEmployeesMapForExport = collectAllEmployeesForExcelExport();
+    const allEmployeesForExcelExport = Array.from(allEmployeesMapForExport.values());
+    const getEmployeesForShopExport = (shop) =>
+      allEmployeesForExcelExport.filter((emp) => employeeHasShopMembership(emp, shop?.id));
+
     // Calcule les heures hebdo pour UN employé dans UNE boutique en s'appuyant sur les créneaux booléens
-    const calculateEmployeeWeeklyHours = (shop, weekStart, employeeId) => {
+    const calculateEmployeeWeeklyHours = (shop, weekStart, employeeRef) => {
       try {
         const weekKey = format(weekStart, 'yyyy-MM-dd');
         const weekPlanning = shop.weeks?.[weekKey]?.planning || {};
@@ -644,7 +833,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           day.setDate(day.getDate() + i);
           const dayKey = format(day, 'yyyy-MM-dd');
           if (dayKey < monthStartStr || dayKey > monthEndStr) continue;
-          totalHours += calculateEmployeeDailyHours(employeeId, dayKey, weekPlanning, cfg);
+          totalHours += calculateEmployeeDailyHours(employeeRef, dayKey, weekPlanning, cfg);
         }
         return workedHoursNumericForExport(totalHours);
       } catch (e) {
@@ -652,7 +841,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       }
     };
 
-    const calculateEmployeeMonthlyHours = (shop, employeeId) => {
+    const calculateEmployeeMonthlyHours = (shop, employeeRef) => {
       const cfg = shop.config || {};
       if (!Array.isArray(cfg.timeSlots) || cfg.timeSlots.length === 0) return 0;
       let totalHours = 0;
@@ -664,14 +853,14 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           day.setDate(day.getDate() + i);
           const dayKey = format(day, 'yyyy-MM-dd');
           if (dayKey < monthStartStr || dayKey > monthEndStr) continue;
-          totalHours += calculateEmployeeDailyHours(employeeId, dayKey, weekPlanning, cfg);
+          totalHours += calculateEmployeeDailyHours(employeeRef, dayKey, weekPlanning, cfg);
         }
       });
       return workedHoursNumericForExport(totalHours);
     };
 
     // Heures de nuit: tranche 1 (21:00-22:00) et tranche 2 (>22:00)
-    const calculateEmployeeWeeklyNightHours = (shop, weekStart, employeeId) => {
+    const calculateEmployeeWeeklyNightHours = (shop, weekStart, employeeRef) => {
       const timeSlots = Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [];
       const cfg = shop.config || {};
       if (timeSlots.length === 0) return { t1: 0, t2: 0 };
@@ -680,7 +869,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       let minutesT2 = 0; // > 22:00
 
       const weekKey = format(weekStart, 'yyyy-MM-dd');
-      const empWeek = shop.weeks?.[weekKey]?.planning?.[employeeId] || {};
+      const empWeek =
+        resolveEmployeePlanningSlice(shop.weeks?.[weekKey]?.planning || {}, employeeRef) || {};
 
       const makeDate = (timeStr) => new Date(`2000-01-01T${timeStr}:00`);
       const window21 = makeDate('21:00');
@@ -724,9 +914,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         excelData.push([]);
         
         // N'inclure que les employés affectés à cette boutique
-        const employeesInShop = Array.isArray(shop.employees)
-          ? shop.employees.filter(emp => Array.isArray(emp?.canWorkIn) && emp.canWorkIn.includes(shop.id))
-          : [];
+        const employeesInShop = getEmployeesForShopExport(shop);
         const employeeNames = employeesInShop.map(e => e.name || e.id);
 
         // En-têtes: Semaine | Employé1 | Employé2 | ... | Total semaine | Total T1 | Total T2
@@ -739,8 +927,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           let weekT1 = 0;
           let weekT2 = 0;
           employeesInShop.forEach(emp => {
-            const hours = calculateEmployeeWeeklyHours(shop, weekStart, emp.id);
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+            const hours = calculateEmployeeWeeklyHours(shop, weekStart, emp);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             weekTotal += hours;
             weekT1 += nh.t1;
             weekT2 += nh.t2;
@@ -760,14 +948,14 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         let grandT1 = 0;
         let grandT2 = 0;
         employeesInShop.forEach(emp => {
-          const total = calculateEmployeeMonthlyHours(shop, emp.id);
+          const total = calculateEmployeeMonthlyHours(shop, emp);
           grandTotal += total;
           totalsRow.push(hoursExcelCell(total));
         });
         // Cumuls T1/T2 pour le mois (par boutique)
         monthWeeks.forEach(weekStart => {
           employeesInShop.forEach(emp => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             grandT1 += nh.t1;
             grandT2 += nh.t2;
           });
@@ -799,10 +987,10 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         let weekT1 = 0;
         let weekT2 = 0;
         shops.forEach((shop, idx) => {
-          const employeesInShop = Array.isArray(shop.employees) ? shop.employees : [];
-          const shopWeekTotal = employeesInShop.reduce((sum, emp) => sum + calculateEmployeeWeeklyHours(shop, weekStart, emp.id), 0);
+          const employeesInShop = getEmployeesForShopExport(shop);
+          const shopWeekTotal = employeesInShop.reduce((sum, emp) => sum + calculateEmployeeWeeklyHours(shop, weekStart, emp), 0);
           const shopWeekNight = employeesInShop.reduce((acc, emp) => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             acc.t1 += nh.t1; acc.t2 += nh.t2; return acc;
           }, { t1: 0, t2: 0 });
           monthlyTotalsPerShop[idx] += shopWeekTotal;
@@ -825,8 +1013,8 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       let totalMonthT1 = 0, totalMonthT2 = 0;
       monthWeeks.forEach(weekStart => {
         shops.forEach(shop => {
-          (shop.employees || []).forEach(emp => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+          getEmployeesForShopExport(shop).forEach(emp => {
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             totalMonthT1 += nh.t1; totalMonthT2 += nh.t2;
           });
         });
@@ -872,70 +1060,113 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       sunday.setDate(monday.getDate() + 6);
       return `Semaine du ${format(monday, 'd MMMM', { locale: fr })} au ${format(sunday, 'd MMMM yyyy', { locale: fr })}`;
     };
-    const findDayDataForEmployee = (employeeId, date) => {
+    const findDayDataForEmployee = (employeeRef, date) => {
       // Retourne { shopName, shopId, slots, interval, timeSlots, status }
       const dayKey = format(date, 'yyyy-MM-dd');
-      const monday = getMonday(date);
-      const weekKey = format(monday, 'yyyy-MM-dd');
+      const weekKey = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
       if (!Array.isArray(planningData.shops)) return null;
-      
-      // Chercher d'abord les statuts (maladie, congé, etc.)
-      for (const shop of planningData.shops) {
+
+      const isWorkedSlot = (v) =>
+        v === true || v === 1 || v === '1' || v === 'true';
+
+      /** Priorité : travail (créneaux cochés) sur au moins une boutique ; sinon premier statut texte (multi-boutiques). */
+      let statusCandidate = null;
+
+      const shopsForEmployeeDay =
+        typeof employeeRef === 'object' && employeeRef !== null
+          ? [...planningData.shops].sort((sa, sb) => {
+              const aOk = isEmployeeAssignedToShopExport(employeeRef, sa.id) ? 1 : 0;
+              const bOk = isEmployeeAssignedToShopExport(employeeRef, sb.id) ? 1 : 0;
+              return bOk - aOk;
+            })
+          : planningData.shops;
+
+      for (const shop of shopsForEmployeeDay) {
         const week = shop.weeks?.[weekKey];
-        const empPlanning = week?.planning?.[employeeId];
-        const slots = empPlanning?.[dayKey];
-        
-        if (typeof slots === 'string') {
-          // C'est un statut (maladie, congé, etc.)
-          return {
-            shopName: shop.name || shop.id,
-            shopId: shop.id,
-            slots: null,
-            interval: shop?.config?.interval || 30,
-            endTime: shop?.config?.endTime,
-            timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
-            status: slots
-          };
+        const employeePlanning = resolveEmpPlanningFromWeek(week, employeeRef);
+        const slots = employeePlanning?.[dayKey];
+        if (slots === undefined || slots === null) continue;
+
+        if (typeof slots === 'string' && slots.trim() !== '') {
+          if (statusCandidate === null) {
+            statusCandidate = {
+              shopName: shop.name || shop.id,
+              shopId: shop.id,
+              slots: null,
+              interval: shop?.config?.interval || 30,
+              endTime: shop?.config?.endTime,
+              timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
+              status: slots,
+            };
+          }
+          continue;
+        }
+
+        if (Array.isArray(slots)) {
+          const hasLegacyMaladie = slots.some(
+            (v) => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')),
+          );
+          const hasLegacyConge = slots.some(
+            (v) =>
+              v === 'C' ||
+              (typeof v === 'string' &&
+                (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge'))),
+          );
+          if (hasLegacyMaladie) {
+            if (statusCandidate === null) {
+              statusCandidate = {
+                shopName: shop.name || shop.id,
+                shopId: shop.id,
+                slots: null,
+                interval: shop?.config?.interval || 30,
+                endTime: shop?.config?.endTime,
+                timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
+                status: 'Maladie 🤒',
+              };
+            }
+            continue;
+          }
+          if (hasLegacyConge) {
+            if (statusCandidate === null) {
+              statusCandidate = {
+                shopName: shop.name || shop.id,
+                shopId: shop.id,
+                slots: null,
+                interval: shop?.config?.interval || 30,
+                endTime: shop?.config?.endTime,
+                timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
+                status: 'Congé ☀️',
+              };
+            }
+            continue;
+          }
+
+          if (slots.some(isWorkedSlot)) {
+            return {
+              shopName: shop.name || shop.id,
+              shopId: shop.id,
+              slots,
+              interval: shop?.config?.interval || 30,
+              endTime: shop?.config?.endTime,
+              timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
+              status: null,
+            };
+          }
         }
       }
-      
-      // Chercher ensuite les créneaux sélectionnés
-      for (const shop of planningData.shops) {
-        const week = shop.weeks?.[weekKey];
-        const empPlanning = week?.planning?.[employeeId];
-        const slots = empPlanning?.[dayKey];
-        if (Array.isArray(slots) && slots.some(Boolean)) {
-          return {
-            shopName: shop.name || shop.id,
-            shopId: shop.id,
-            slots,
-            interval: shop?.config?.interval || 30,
-            endTime: shop?.config?.endTime,
-            timeSlots: Array.isArray(shop?.config?.timeSlots) ? shop.config.timeSlots : [],
-            status: null
-          };
-        }
-      }
-      return null;
+
+      return statusCandidate;
     };
 
     const buildEmployeeSheets = () => {
       const sheets = [];
-      // Dédupliquer les employés à partir de toutes les boutiques
-      const allEmployeesMap = new Map();
-      (planningData.shops || []).forEach(shop => {
-        (shop.employees || []).forEach(emp => {
-          if (emp && emp.id && !allEmployeesMap.has(emp.id)) {
-            allEmployeesMap.set(emp.id, emp);
-          }
-        });
-      });
-
-      const allEmployees = Array.from(allEmployeesMap.values());
+      const usedSheetNames = new Set();
+      const allEmployees = allEmployeesForExcelExport;
       const monthDays = getCurrentMonthDays();
 
       allEmployees.forEach(emp => {
-        const empName = emp.name || emp.id;
+        const empName = employeeIdKey(emp.name) || employeeIdKey(emp.id);
+        if (!empName) return;
         const data = [];
         const shopTotals = new Map(); // shopId -> hours
         const shopNightTotals = new Map(); // shopId -> {t1,t2}
@@ -958,7 +1189,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             const dayKeyLoop = format(day, 'yyyy-MM-dd');
             if (dayKeyLoop < monthStartStr || dayKeyLoop > monthEndStr) continue;
 
-            const dd = findDayDataForEmployee(emp.id, day);
+            const dd = findDayDataForEmployee(emp, day);
             const dayLabel = `${format(day, 'EEEE', { locale: fr })} ${format(day, 'dd/MM', { locale: fr })}`;
             
             if (dd) {
@@ -976,30 +1207,39 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
                   'T1': hoursExcelCell(0),
                   'T2': hoursExcelCell(0)
                 });
-              } else if (Array.isArray(dd.timeSlots) && dd.timeSlots.length > 0) {
-                // C'est du travail avec des créneaux sélectionnés
-                const wt = getWorkTimesFromSlots(dd.timeSlots, dd.slots, {
+              } else if (
+                Array.isArray(dd.slots) &&
+                dd.slots.some(
+                  (v) => v === true || v === 1 || v === '1' || v === 'true',
+                )
+              ) {
+                // Travail avec créneaux (même si timeSlots boutique vide — évite lignes manquantes)
+                const ts = Array.isArray(dd.timeSlots) ? dd.timeSlots : [];
+                const wt = getWorkTimesFromSlots(ts, dd.slots, {
                   interval: dd.interval,
                   endTime: dd.endTime,
-                  timeSlots: dd.timeSlots,
+                  timeSlots: ts,
                 });
-                const dnh = calculateDayNightFromSlots(dd.timeSlots, dd.slots, {
+                const dnh = calculateDayNightFromSlots(ts, dd.slots, {
                   interval: dd.interval,
                   endTime: dd.endTime,
-                  timeSlots: dd.timeSlots,
+                  timeSlots: ts,
                 });
-                const shopObj = (planningData.shops || []).find((s) => s.id === dd.shopId);
-                const weekKeyEmp = format(getMonday(day), 'yyyy-MM-dd');
+                const shopObj = (planningData.shops || []).find(
+                  (s) => String(s.id) === String(dd.shopId),
+                );
+                const weekKeyEmp = format(startOfWeek(day, { weekStartsOn: 1 }), 'yyyy-MM-dd');
                 const weekPlanningEmp = shopObj?.weeks?.[weekKeyEmp]?.planning || {};
                 const cfgEmp = shopObj?.config || {};
-                const dayHoursRaw = calculateEmployeeDailyHours(emp.id, dayKeyLoop, weekPlanningEmp, cfgEmp);
-                const prev = shopTotals.get(dd.shopId) || 0;
-                shopTotals.set(dd.shopId, prev + dayHoursRaw);
-                const prevNight = shopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
-                shopNightTotals.set(dd.shopId, { t1: prevNight.t1 + dnh.t1, t2: prevNight.t2 + dnh.t2 });
-                weekShopTotals.set(dd.shopId, (weekShopTotals.get(dd.shopId) || 0) + dayHoursRaw);
-                const wsnPrev = weekShopNightTotals.get(dd.shopId) || { t1: 0, t2: 0 };
-                weekShopNightTotals.set(dd.shopId, { t1: wsnPrev.t1 + dnh.t1, t2: wsnPrev.t2 + dnh.t2 });
+                const dayHoursRaw = calculateEmployeeDailyHours(emp, dayKeyLoop, weekPlanningEmp, cfgEmp);
+                const shopTotalKey = dd.shopId != null ? String(dd.shopId) : '';
+                const prev = shopTotals.get(shopTotalKey) || 0;
+                shopTotals.set(shopTotalKey, prev + dayHoursRaw);
+                const prevNight = shopNightTotals.get(shopTotalKey) || { t1: 0, t2: 0 };
+                shopNightTotals.set(shopTotalKey, { t1: prevNight.t1 + dnh.t1, t2: prevNight.t2 + dnh.t2 });
+                weekShopTotals.set(shopTotalKey, (weekShopTotals.get(shopTotalKey) || 0) + dayHoursRaw);
+                const wsnPrev = weekShopNightTotals.get(shopTotalKey) || { t1: 0, t2: 0 };
+                weekShopNightTotals.set(shopTotalKey, { t1: wsnPrev.t1 + dnh.t1, t2: wsnPrev.t2 + dnh.t2 });
                 weekHoursTotal += dayHoursRaw;
                 weekT1Total += dnh.t1; weekT2Total += dnh.t2;
                 data.push({
@@ -1012,6 +1252,18 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
                   'Heures': hoursExcelCell(dayHoursRaw),
                   'T1': hoursExcelCell(dnh.t1),
                   'T2': hoursExcelCell(dnh.t2)
+                });
+              } else {
+                data.push({
+                  'Jour': dayLabel,
+                  'BOUTIQUE': dd.shopName || '-',
+                  'ENTRÉE': 'Congé ☀️',
+                  'PAUSE': '-',
+                  'RETOUR': '-',
+                  'SORTIE': '-',
+                  'Heures': hoursExcelCell(0),
+                  'T1': hoursExcelCell(0),
+                  'T2': hoursExcelCell(0),
                 });
               }
             } else {
@@ -1033,7 +1285,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           // Sous-totaux de la semaine par boutique
           if (weekShopTotals.size > 0) {
             weekShopTotals.forEach((hours, shopId) => {
-              const shopName = (planningData.shops || []).find(s => s.id === shopId)?.name || shopId;
+              const shopName = (planningData.shops || []).find((s) => String(s.id) === String(shopId))?.name || shopId;
               const nh = weekShopNightTotals.get(shopId) || { t1: 0, t2: 0 };
               data.push({ 'Jour': 'Total semaine', 'BOUTIQUE': shopName, 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': hoursExcelCell(hours), 'T1': hoursExcelCell(nh.t1), 'T2': hoursExcelCell(nh.t2) });
             });
@@ -1052,7 +1304,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         // Totaux par boutique
         if (shopTotals.size > 0) {
           shopTotals.forEach((hours, shopId) => {
-            const shopName = (planningData.shops || []).find(s => s.id === shopId)?.name || shopId;
+            const shopName = (planningData.shops || []).find((s) => String(s.id) === String(shopId))?.name || shopId;
             const nh = shopNightTotals.get(shopId) || { t1: 0, t2: 0 };
             data.push({ 'Jour': `TOTAL ${shopName}`, 'BOUTIQUE': '', 'ENTRÉE': '', 'PAUSE': '', 'RETOUR': '', 'SORTIE': '', 'Heures': hoursExcelCell(hours), 'T1': hoursExcelCell(nh.t1), 'T2': hoursExcelCell(nh.t2) });
           });
@@ -1062,10 +1314,18 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         }
 
         const ws = XLSX.utils.json_to_sheet(data);
-        // Limiter le nom de feuille à 31 caractères
         let sheetName = `Employé - ${empName}`;
         if (sheetName.length > 31) sheetName = sheetName.slice(0, 31);
-        sheets.push({ name: sheetName, ws });
+        let finalName = sheetName;
+        let dup = 2;
+        while (usedSheetNames.has(finalName)) {
+          const suf = ` (${dup})`;
+          finalName = (`Employé - ${empName}`).slice(0, Math.max(1, 31 - suf.length)) + suf;
+          finalName = finalName.slice(0, 31);
+          dup += 1;
+        }
+        usedSheetNames.add(finalName);
+        sheets.push({ name: finalName, ws });
       });
 
       return sheets;
@@ -1082,16 +1342,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         return rows;
       }
 
-      // Récupérer tous les employés uniques
-      const allEmployeesMap = new Map();
-      (planningData.shops || []).forEach(shop => {
-        (shop.employees || []).forEach(emp => {
-          if (emp && emp.id && !allEmployeesMap.has(emp.id)) {
-            allEmployeesMap.set(emp.id, emp);
-          }
-        });
-      });
-      const allEmployees = Array.from(allEmployeesMap.values());
+      const allEmployees = allEmployeesForExcelExport;
       console.log(`🔍 ${allEmployees.length} employés trouvés pour le rapport hebdomadaire`);
 
       // Pour chaque semaine du mois
@@ -1114,7 +1365,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
         // Pour chaque employé
         allEmployees.forEach(emp => {
-          const row = [emp.name || emp.id];
+          const row = [employeeIdKey(emp.name) || employeeIdKey(emp.id)];
           let weekTotal = 0;
           let weekT1 = 0;
           let weekT2 = 0;
@@ -1130,40 +1381,70 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
               continue;
             }
 
-            // Chercher les données de l'employé pour ce jour
+            // Chercher les données de l'employé pour ce jour (priorité créneaux sur toute boutique, puis statut texte)
             let dayData = null;
             let dayT1 = 0;
             let dayT2 = 0;
-            
-            for (const shop of planningData.shops) {
-              const week = shop.weeks?.[format(weekStart, 'yyyy-MM-dd')];
-              const empPlanning = week?.planning?.[emp.id];
-              const slots = empPlanning?.[dayKey];
-              
-              if (slots) {
-                if (typeof slots === 'string') {
-                  // C'est un statut (maladie, congé, etc.)
-                  dayData = slots;
-                  break;
-                } else if (Array.isArray(slots) && slots.some(Boolean)) {
-                  // C'est du travail avec des créneaux
-                  const timeSlots = shop.config?.timeSlots || [];
-                  const cfgShop = shop.config || {};
-                  const wp = shop.weeks?.[format(weekStart, 'yyyy-MM-dd')]?.planning || {};
-                  const dayHoursRow = calculateEmployeeDailyHours(emp.id, dayKey, wp, cfgShop);
-                  const workTimes = getWorkTimesFromSlots(timeSlots, slots, cfgShop);
-                  const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, cfgShop);
-                  dayT1 = dayNightHours.t1;
-                  dayT2 = dayNightHours.t2;
-                  weekT1 += dayT1;
-                  weekT2 += dayT2;
+            let statusFallback = null;
+            const weekKeyRow = format(weekStart, 'yyyy-MM-dd');
+            const slotWorked = (v) =>
+              v === true || v === 1 || v === '1' || v === 'true';
 
-                  dayData = `${workTimes.entry || '-'} - ${workTimes.exit || '-'} (${formatWorkedHoursNbNotation(dayHoursRow)})`;
-                  weekTotal += dayHoursRow;
-                  break;
-                }
+            const shopsOrderedForEmp = [...planningData.shops].sort((sa, sb) => {
+              const aOk = isEmployeeAssignedToShopExport(emp, sa.id) ? 1 : 0;
+              const bOk = isEmployeeAssignedToShopExport(emp, sb.id) ? 1 : 0;
+              return bOk - aOk;
+            });
+
+            for (const shop of shopsOrderedForEmp) {
+              const week = shop.weeks?.[weekKeyRow];
+              const empPlanning = resolveEmpPlanningFromWeek(week, emp);
+              const slots = empPlanning?.[dayKey];
+              if (slots === undefined || slots === null) continue;
+
+              if (typeof slots === 'string' && slots.trim() !== '' && statusFallback === null) {
+                statusFallback = slots;
+                continue;
+              }
+
+              if (!Array.isArray(slots)) continue;
+
+              const hasLegacyMaladie = slots.some(
+                (v) => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')),
+              );
+              const hasLegacyConge = slots.some(
+                (v) =>
+                  v === 'C' ||
+                  (typeof v === 'string' &&
+                    (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge'))),
+              );
+              if (hasLegacyMaladie) {
+                if (statusFallback === null) statusFallback = 'Maladie 🤒';
+                continue;
+              }
+              if (hasLegacyConge) {
+                if (statusFallback === null) statusFallback = 'Congé ☀️';
+                continue;
+              }
+
+              if (slots.some(slotWorked)) {
+                const timeSlots = shop.config?.timeSlots || [];
+                const cfgShop = shop.config || {};
+                const wp = week?.planning || {};
+                const dayHoursRow = calculateEmployeeDailyHours(emp, dayKey, wp, cfgShop);
+                const workTimes = getWorkTimesFromSlots(timeSlots, slots, cfgShop);
+                const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, cfgShop);
+                dayT1 = dayNightHours.t1;
+                dayT2 = dayNightHours.t2;
+                weekT1 += dayT1;
+                weekT2 += dayT2;
+                dayData = `${workTimes.entry || '-'} - ${workTimes.exit || '-'} (${formatWorkedHoursNbNotation(dayHoursRow)})`;
+                weekTotal += dayHoursRow;
+                break;
               }
             }
+
+            if (dayData === null && statusFallback !== null) dayData = statusFallback;
             
             row.push(dayData || 'Congé ☀️');
             row.push(hoursExcelCell(dayT1), hoursExcelCell(dayT2));
@@ -1204,20 +1485,19 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         rows.push([]);
 
         // N'inclure que les employés affectés et ayant des heures de nuit > 0 sur le mois courant
-        const assigned = Array.isArray(shop.employees)
-          ? shop.employees.filter(emp => Array.isArray(emp?.canWorkIn) && emp.canWorkIn.includes(shop.id))
-          : [];
+        const assigned = getEmployeesForShopExport(shop);
         const employeesInShop = assigned.filter(emp => {
           let hasNight = false;
           for (const weekStart of monthWeeks) {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             if ((nh.t1 || 0) + (nh.t2 || 0) > 0) { hasNight = true; break; }
           }
           return hasNight;
         });
         const header = ['Semaine'];
         employeesInShop.forEach(emp => {
-          header.push(`${emp.name || emp.id} T1`, `${emp.name || emp.id} T2`);
+          const empName = employeeIdKey(emp.name) || employeeIdKey(emp.id);
+          header.push(`${empName} T1`, `${empName} T2`);
         });
         header.push('Total semaine T1', 'Total semaine T2');
         rows.push(header);
@@ -1226,7 +1506,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           const row = [getWeekRange(weekStart)];
           let weekT1 = 0, weekT2 = 0;
           employeesInShop.forEach(emp => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             row.push(hoursExcelCell(nh.t1), hoursExcelCell(nh.t2));
             weekT1 += nh.t1; weekT2 += nh.t2;
           });
@@ -1240,7 +1520,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         employeesInShop.forEach(emp => {
           let empT1 = 0, empT2 = 0;
           monthWeeks.forEach(weekStart => {
-            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp.id);
+            const nh = calculateEmployeeWeeklyNightHours(shop, weekStart, emp);
             empT1 += nh.t1; empT2 += nh.t2;
           });
           totalRow.push(hoursExcelCell(empT1), hoursExcelCell(empT2));
@@ -1515,7 +1795,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     try { XLSX.utils.book_append_sheet(wb, wsWeeklyDetailed, 'Rapport Hebdomadaire'); } catch (e) { console.warn('Ajout feuille Rapport Hebdomadaire ignoré:', e); }
     
     // Construire la feuille "Vue Mensuelle Horizontale"
-    const monthlyHorizontalData = buildMonthlyHorizontalSheet(planningData, monthStart, monthEnd);
+    const monthlyHorizontalData = buildMonthlyHorizontalSheet(planningData, monthStart, monthEnd, allEmployeesForExcelExport);
     const wsMonthlyHorizontal = XLSX.utils.aoa_to_sheet(monthlyHorizontalData);
     
     // Ajouter la feuille "Vue Mensuelle Horizontale" au workbook principal
@@ -2466,14 +2746,16 @@ export const getWeekPlanning = (planningData, shopId, weekKey) => {
 };
 
 // Fonction pour construire la feuille "Vue Mensuelle Horizontale"
-const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
+const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd, exportEmployees = null) => {
   try {
     console.log('🔍 buildMonthlyHorizontalSheet - Début construction');
     console.log('🔍 buildMonthlyHorizontalSheet - planningData:', planningData);
     console.log('🔍 buildMonthlyHorizontalSheet - monthStart:', monthStart);
     console.log('🔍 buildMonthlyHorizontalSheet - monthEnd:', monthEnd);
     
-    const allEmployees = getAllEmployees(planningData);
+    const allEmployees = Array.isArray(exportEmployees)
+      ? exportEmployees
+      : getAllEmployees(planningData, monthStart);
     console.log('🔍 buildMonthlyHorizontalSheet - allEmployees:', allEmployees);
     
     const monthDays = [];
@@ -2488,13 +2770,26 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
     console.log('🔍 buildMonthlyHorizontalSheet - Jours du mois:', monthDays.length);
     console.log('🔍 buildMonthlyHorizontalSheet - Premier jour:', monthDays[0]);
     console.log('🔍 buildMonthlyHorizontalSheet - Dernier jour:', monthDays[monthDays.length - 1]);
-    
+
     const rows = [];
     
     // Pour chaque employé
     allEmployees.forEach(emp => {
       const empName = emp.name || emp.id;
       console.log(`🔍 buildMonthlyHorizontalSheet - Traitement employé: ${empName}`);
+
+      const isEmpShopExport = (e, shopId) => {
+        if (!e || shopId == null) return false;
+        const list = Array.isArray(e.canWorkIn) ? e.canWorkIn : [];
+        if (list.length === 0) return true;
+        return list.some((x) => String(x) === String(shopId));
+      };
+      const shopsRanked = [...(planningData.shops || [])].sort((sa, sb) => {
+        const aOk = isEmpShopExport(emp, sa.id) ? 1 : 0;
+        const bOk = isEmpShopExport(emp, sb.id) ? 1 : 0;
+        return bOk - aOk;
+      });
+      const slotWorked = (v) => v === true || v === 1 || v === '1' || v === 'true';
       
       // Titre de l'employé (ligne vide + nom)
       rows.push([]);
@@ -2524,29 +2819,46 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
         let dayHours = 0;
         let dayData = null;
         
-        // Chercher les données de l'employé pour ce jour
-        for (const shop of planningData.shops) {
-          // Utiliser la fonction getWeekKeyFromDate correctement
+        let statusFallback = null;
+        // Chercher les données : priorité créneaux sur une boutique, sinon premier statut texte
+        for (const shop of shopsRanked) {
           const weekKey = getWeekKeyFromDate(dayKey);
           const week = shop.weeks?.[weekKey];
-          const empPlanning = week?.planning?.[emp.id];
+          const empPlanning = resolveEmployeePlanningSlice(week?.planning, emp);
           const slots = empPlanning?.[dayKey];
-          
-          if (slots) {
-            if (typeof slots === 'string') {
-              // C'est un statut (maladie, congé, etc.)
-              dayData = slots;
-              break;
-            } else if (Array.isArray(slots) && slots.some(Boolean)) {
-              // C'est du travail avec des créneaux
-              const timeSlots = shop.config?.timeSlots || [];
-              const workTimes = getWorkTimesFromSlots(timeSlots, slots, shop.config || {});
-              dayHours = workTimes.hours;
-              totalJour += dayHours;
-              break;
-            }
+          if (slots === undefined || slots === null) continue;
+
+          if (typeof slots === 'string' && slots.trim() !== '' && statusFallback === null) {
+            statusFallback = slots;
+            continue;
+          }
+
+          if (!Array.isArray(slots)) continue;
+
+          const hasLegacyMaladie = slots.some(
+            (v) => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')),
+          );
+          const hasLegacyConge = slots.some(
+            (v) =>
+              v === 'C' ||
+              (typeof v === 'string' &&
+                (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge'))),
+          );
+          if (hasLegacyMaladie || hasLegacyConge) {
+            if (statusFallback === null) statusFallback = hasLegacyMaladie ? 'Maladie 🤒' : 'Congé ☀️';
+            continue;
+          }
+
+          if (slots.some(slotWorked)) {
+            const timeSlots = shop.config?.timeSlots || [];
+            const workTimes = getWorkTimesFromSlots(timeSlots, slots, shop.config || {});
+            dayHours = workTimes.hours;
+            totalJour += dayHours;
+            break;
           }
         }
+
+        if (dayData === null && statusFallback !== null) dayData = statusFallback;
         
         if (dayData) {
           jourRow.push(dayData);
@@ -2570,13 +2882,13 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
         let dayT1 = 0;
         
         // Chercher les données de l'employé pour ce jour
-        for (const shop of planningData.shops) {
+        for (const shop of shopsRanked) {
           const weekKey = getWeekKeyFromDate(dayKey);
           const week = shop.weeks?.[weekKey];
-          const empPlanning = week?.planning?.[emp.id];
+          const empPlanning = resolveEmployeePlanningSlice(week?.planning, emp);
           const slots = empPlanning?.[dayKey];
           
-          if (slots && Array.isArray(slots) && slots.some(Boolean)) {
+          if (slots && Array.isArray(slots) && slots.some(slotWorked)) {
             const timeSlots = shop.config?.timeSlots || [];
             const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, shop.config || {});
             dayT1 = dayNightHours.t1;
@@ -2605,13 +2917,13 @@ const buildMonthlyHorizontalSheet = (planningData, monthStart, monthEnd) => {
         let dayT2 = 0;
         
         // Chercher les données de l'employé pour ce jour
-        for (const shop of planningData.shops) {
+        for (const shop of shopsRanked) {
           const weekKey = getWeekKeyFromDate(dayKey);
           const week = shop.weeks?.[weekKey];
-          const empPlanning = week?.planning?.[emp.id];
+          const empPlanning = resolveEmployeePlanningSlice(week?.planning, emp);
           const slots = empPlanning?.[dayKey];
           
-          if (slots && Array.isArray(slots) && slots.some(Boolean)) {
+          if (slots && Array.isArray(slots) && slots.some(slotWorked)) {
             const timeSlots = shop.config?.timeSlots || [];
             const dayNightHours = calculateDayNightFromSlots(timeSlots, slots, shop.config || {});
             dayT2 = dayNightHours.t2;
