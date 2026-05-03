@@ -329,6 +329,7 @@ const LabourInspectionModal = ({
   const [meta, setMeta] = useState(defaultMeta(''));
   const [contractDataByEmployee, setContractDataByEmployee] = useState({});
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState(null);
+  const [showMentionFields, setShowMentionFields] = useState(false);
   const metaHydrationKeyRef = useRef('');
 
   const shop = useMemo(
@@ -476,6 +477,7 @@ const LabourInspectionModal = ({
     if (!isOpen) {
       metaHydrationKeyRef.current = '';
       setSelectedEmployeeIds(null);
+      setShowMentionFields(false);
     }
   }, [isOpen]);
 
@@ -776,47 +778,53 @@ const LabourInspectionModal = ({
           }}
         >
           <div style={{ fontWeight: 700, marginBottom: '6px' }}>Entreprise (champs imposés, identiques partout)</div>
-          <div>
-            <b>Raison sociale :</b> {RAISON_SOCIALE_FIXE}
-          </div>
-          <div>
-            <b>SIRET :</b> {getSiretForShop(shop, selectedShop)}
-          </div>
-          <div>
-            <b>Activité (NAF/APE) :</b> {ACTIVITE_FIXE}
-          </div>
+          <div><b>Raison sociale :</b> {RAISON_SOCIALE_FIXE}</div>
+          <div><b>SIRET :</b> {getSiretForShop(shop, selectedShop)}</div>
+          <div><b>Activité (NAF/APE) :</b> {ACTIVITE_FIXE}</div>
+          <div><b>Boutique :</b> {meta.boutiqueAffichee || shop?.name || selectedShop} · <b>Convention :</b> {meta.conventionCollective || '-'}</div>
         </div>
 
-        <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', borderBottom: '1px solid #e0e0e0', maxHeight: '52vh', overflow: 'auto' }}>
-          {field('adresseEtablissement', 'Adresse etablissement')}
-          {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)', { multiline: true, fullWidth: true })}
-          {field('responsable', 'Responsable')}
-          {field('boutiqueAffichee', 'Boutique affichee')}
-          {field('inspecteurTravail', 'Inspection du travail (nom/contact)', { multiline: true, fullWidth: true })}
-          {field('medecineTravail', 'Medecine du travail (contact)', { multiline: true, fullWidth: true })}
-          {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)', { multiline: true, fullWidth: true })}
-          {field('horairesCollectifs', 'Horaires collectifs de reference', { multiline: true, fullWidth: true })}
-          {field('pauseCollective', 'Pause/coupure collective', { multiline: true, fullWidth: true })}
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
-            <span style={{ fontWeight: 700 }}>Date d affichage / publication (mémorisé)</span>
-            <input
-              type="date"
-              value={toDateInputValue(meta.datePublication)}
-              onChange={(event) => setMeta((prev) => ({ ...prev, datePublication: event.target.value }))}
-              style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
-            />
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
-            <span style={{ fontWeight: 700 }}>Heure d édition (mémorisée)</span>
-            <input
-              type="time"
-              value={meta.heureEdition || ''}
-              onChange={(event) => setMeta((prev) => ({ ...prev, heureEdition: event.target.value }))}
-              style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
-            />
-          </label>
-          {field('dateSignature', 'Date et signature employeur')}
+        <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
+          <button type="button" onClick={() => setShowMentionFields((prev) => !prev)}>
+            {showMentionFields ? 'Masquer les renseignements' : 'Afficher / modifier les renseignements'}
+          </button>
+          <span style={{ fontSize: '12px', color: '#546e7a' }}>
+            Les renseignements longs sont repliés pour laisser visible le tableau des horaires.
+          </span>
         </div>
+
+        {showMentionFields && (
+          <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', borderBottom: '1px solid #e0e0e0', maxHeight: '42vh', overflow: 'auto' }}>
+            {field('adresseEtablissement', 'Adresse etablissement')}
+            {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)', { multiline: true, fullWidth: true })}
+            {field('responsable', 'Responsable')}
+            {field('boutiqueAffichee', 'Boutique affichee')}
+            {field('inspecteurTravail', 'Inspection du travail (nom/contact)', { multiline: true, fullWidth: true })}
+            {field('medecineTravail', 'Medecine du travail (contact)', { multiline: true, fullWidth: true })}
+            {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)', { multiline: true, fullWidth: true })}
+            {field('horairesCollectifs', 'Horaires collectifs de reference', { multiline: true, fullWidth: true })}
+            {field('pauseCollective', 'Pause/coupure collective', { multiline: true, fullWidth: true })}
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+              <span style={{ fontWeight: 700 }}>Date d affichage / publication (mémorisé)</span>
+              <input
+                type="date"
+                value={toDateInputValue(meta.datePublication)}
+                onChange={(event) => setMeta((prev) => ({ ...prev, datePublication: event.target.value }))}
+                style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+              <span style={{ fontWeight: 700 }}>Heure d édition (mémorisée)</span>
+              <input
+                type="time"
+                value={meta.heureEdition || ''}
+                onChange={(event) => setMeta((prev) => ({ ...prev, heureEdition: event.target.value }))}
+                style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
+              />
+            </label>
+            {field('dateSignature', 'Date et signature employeur')}
+          </div>
+        )}
 
         <div style={{ padding: '8px 14px', display: 'flex', gap: '8px', borderBottom: '1px solid #e0e0e0' }}>
           <button type="button" onClick={saveMeta}>💾 Enregistrer mentions</button>
