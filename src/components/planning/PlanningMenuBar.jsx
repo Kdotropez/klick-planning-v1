@@ -233,9 +233,9 @@ const PlanningMenuBar = ({
             }}
             onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0d47a1')}
             onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1565c0')}
-            title="Récapitulatif « qui travaille où » : choisir la semaine affichée, puis dans la fenêtre « Toutes les boutiques » ou une boutique précise (PDF inclus)."
+            title="Planning semaine par boutique : employés présents, horaires, congés, impression directe et PDF."
           >
-            📋 Récap. semaine (qui / où)
+            📋 Planning boutiques semaine
           </Button>
 
           <Button

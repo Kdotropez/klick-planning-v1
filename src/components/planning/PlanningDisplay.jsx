@@ -43,6 +43,7 @@ const normalizeWeekKey = (dateString) => {
     : new Date();
   return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 };
+const SUPERVISOR_WEEK_UNLOCK_CODE = ['2', '1', '1', '1'].join('');
 
 const PlanningDisplay = ({ 
   planningData, 
@@ -227,8 +228,8 @@ const PlanningDisplay = ({
     return saveWeekPlanning(planningData, shop, week, planning, employees);
   }, [readOnly]);
   
-  // État pour afficher/masquer le récapitulatif employé
-  const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
+  // Cartes employés masquées par défaut; le bouton "Afficher" les ouvre à la demande.
+  const [showEmployeeRecap, setShowEmployeeRecap] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
 
   const [showCalendarTotals, setShowCalendarTotals] = useState(false);
@@ -267,6 +268,8 @@ const PlanningDisplay = ({
   // État pour le verrouillage automatique
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
   const [lastModifiedDay, setLastModifiedDay] = useState(null);
+  const [sessionEditableWeeks, setSessionEditableWeeks] = useState(() => new Set());
+  const [latestVisitedWeek, setLatestVisitedWeek] = useState(validWeek);
   
   // État pour forcer le rafraîchissement
   const [forceRefresh, setForceRefresh] = useState(0);
@@ -294,6 +297,45 @@ const PlanningDisplay = ({
       setSelectedWeek(validWeek);
     }
   }, [selectedWeek, validWeek, setSelectedWeek]);
+
+  useEffect(() => {
+    setLatestVisitedWeek((previousWeek) => (validWeek > previousWeek ? validWeek : previousWeek));
+  }, [validWeek]);
+
+  const todayKey = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+  const weekEndKey = useMemo(() => format(addDays(parseISO(validWeek), 6), 'yyyy-MM-dd'), [validWeek]);
+  const isHistoricalWeek = validWeek < todayKey;
+  const isBeforeLatestVisitedWeek = validWeek < latestVisitedWeek;
+  const isWeekFullyHistorical = weekEndKey < todayKey || isBeforeLatestVisitedWeek;
+  const isHistoricalWeekEditable = sessionEditableWeeks.has(validWeek);
+  const isWeekEditingLocked = isHistoricalWeek && !isHistoricalWeekEditable;
+  const isWeekFullyLocked = isWeekFullyHistorical && !isHistoricalWeekEditable;
+  const isPlanningDateLocked = useCallback((dayIndex) => {
+    const dayKey = format(addDays(parseISO(validWeek), dayIndex), 'yyyy-MM-dd');
+    return (isBeforeLatestVisitedWeek || dayKey < todayKey) && !sessionEditableWeeks.has(validWeek);
+  }, [isBeforeLatestVisitedWeek, sessionEditableWeeks, todayKey, validWeek]);
+  const requestHistoricalWeekUnlock = useCallback(() => {
+    const code = window.prompt('Code superviseur requis pour modifier les dates antérieures :');
+    if (code?.trim() !== SUPERVISOR_WEEK_UNLOCK_CODE) {
+      setLocalFeedback('🔒 Code incorrect : les dates antérieures restent verrouillées.');
+      return;
+    }
+    setSessionEditableWeeks((prev) => {
+      const next = new Set(prev);
+      next.add(validWeek);
+      return next;
+    });
+    setLocalFeedback('🔓 Dates antérieures modifiables pour cette session uniquement.');
+  }, [validWeek]);
+
+  const relockHistoricalWeek = useCallback(() => {
+    setSessionEditableWeeks((prev) => {
+      const next = new Set(prev);
+      next.delete(validWeek);
+      return next;
+    });
+    setLocalFeedback('🔒 Dates antérieures reverrouillées pour cette session.');
+  }, [validWeek]);
 
   // Marché ambulant : corrige grille uniforme persistée + migre les coches (une fois au changement de boutique)
   useEffect(() => {
@@ -1048,7 +1090,11 @@ const PlanningDisplay = ({
   ]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
-          if (readOnly) {
+    if (isPlanningDateLocked(dayIndex)) {
+      setLocalFeedback('🔒 Date antérieure verrouillée. Code superviseur requis pour la modifier pendant cette session.');
+      return;
+    }
+    if (readOnly) {
       return;
     }
     // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
@@ -1175,7 +1221,7 @@ const PlanningDisplay = ({
       
       return updatedPlanning;
     });
-  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, validWeek, localSelectedEmployees, readOnly]);
+  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, validWeek, localSelectedEmployees, readOnly, isPlanningDateLocked]);
 
   // Fonction pour marquer un créneau comme validé
   const markAsValidated = useCallback((employee, dayKey, slotIndex) => {
@@ -1494,7 +1540,7 @@ const PlanningDisplay = ({
 
   const changeWeek = (direction) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (!readOnly && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
+    if (!readOnly && !isWeekFullyLocked && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
         // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
         const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
@@ -1548,7 +1594,7 @@ const PlanningDisplay = ({
 
   const changeToSpecificWeek = (weekDate) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (!readOnly && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
+    if (!readOnly && !isWeekFullyLocked && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
         setPlanningData((prev) =>
           saveWeekPlanning(prev, selectedShop, validWeek, planning, localSelectedEmployees)
@@ -1568,7 +1614,7 @@ const PlanningDisplay = ({
   const changeShop = (newShop) => {
     try {
       // Sauvegarder le planning actuel avant de changer de boutique
-      if (selectedShop && validWeek && Object.keys(planning).length > 0) {
+      if (!isWeekFullyLocked && selectedShop && validWeek && Object.keys(planning).length > 0) {
         console.log('Sauvegarde avant changement de boutique:', { selectedShop, selectedWeek: validWeek, planning, localSelectedEmployees });
         
         // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
@@ -1617,6 +1663,10 @@ const PlanningDisplay = ({
   };
 
   const handleEmployeeToggle = (employee) => {
+    if (isWeekFullyLocked) {
+      setLocalFeedback('🔒 Semaine entièrement antérieure verrouillée. Code superviseur requis pour modifier les employés.');
+      return;
+    }
     setLocalSelectedEmployees(prev => {
       const isSelected = prev.includes(employee);
       if (isSelected) {
@@ -1628,6 +1678,10 @@ const PlanningDisplay = ({
   };
 
   const handleReset = (resetType, employeeName = null) => {
+    if (isWeekEditingLocked) {
+      setFeedback('🔒 Des dates antérieures sont verrouillées. Code superviseur requis pour réinitialiser cette semaine.');
+      return;
+    }
     try {
     if (resetType === 'all') {
         // Effacer tous les clics de la semaine
@@ -4708,6 +4762,52 @@ const PlanningDisplay = ({
 
         </div>
 
+        {isHistoricalWeek && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: '12px 14px',
+              borderRadius: '10px',
+              border: isWeekEditingLocked ? '2px solid #f59e0b' : '2px solid #22c55e',
+              background: isWeekEditingLocked ? '#fffbeb' : '#ecfdf5',
+              color: isWeekEditingLocked ? '#92400e' : '#166534',
+              fontWeight: 700,
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              {isWeekEditingLocked
+                ? isBeforeLatestVisitedWeek
+                  ? '🔒 Semaine verrouillée : une semaine suivante a déjà été ouverte.'
+                  : isWeekFullyHistorical
+                  ? '🔒 Semaine verrouillée : toutes les dates sont antérieures à aujourd’hui.'
+                  : '🔒 Dates passées verrouillées : aujourd’hui et les jours futurs restent modifiables.'
+                : '🔓 Dates antérieures modifiables pour cette session uniquement.'}
+              <div style={{ fontSize: '12px', fontWeight: 500, marginTop: '3px' }}>
+                Semaine affichée : {validWeek}. Les semaines précédentes et les dates passées sont protégées.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={isWeekEditingLocked ? requestHistoricalWeekUnlock : relockHistoricalWeek}
+              style={{
+                background: isWeekEditingLocked ? '#d97706' : '#15803d',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '9px 14px',
+                cursor: 'pointer',
+                fontWeight: 800
+              }}
+            >
+              {isWeekEditingLocked ? 'Déverrouiller avec code superviseur' : 'Reverrouiller les dates passées'}
+            </button>
+          </div>
+        )}
+
         <div className="planning-right" style={{
           width: '100%',
           maxWidth: '100%',
@@ -4729,7 +4829,11 @@ const PlanningDisplay = ({
             planningData={planningData}
             selectedShop={selectedShop}
             onSetDayStatus={(employeeId, dayIndex, status) => {
-                  if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
+              if (isPlanningDateLocked(dayIndex)) {
+                setLocalFeedback('🔒 Date antérieure verrouillée. Code superviseur requis pour la modifier pendant cette session.');
+                return;
+              }
+              if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
               const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
               setPlanning(prev => {
                 const updated = { ...prev };
@@ -4749,7 +4853,7 @@ const PlanningDisplay = ({
                     let d = saveWeekPlanning(
                       currentPlanning,
                       selectedShop,
-                      selectedWeek,
+                      validWeek,
                       updated,
                       localSelectedEmployees
                     );
@@ -4777,9 +4881,9 @@ const PlanningDisplay = ({
                           d = saveWeekPlanning(
                             d,
                             shopId,
-                            selectedWeek,
-                            { ...(shop.weeks?.[selectedWeek]?.planning || {}), ...patch },
-                            shop.weeks?.[selectedWeek]?.selectedEmployees || []
+                            validWeek,
+                            { ...(shop.weeks?.[validWeek]?.planning || {}), ...patch },
+                            shop.weeks?.[validWeek]?.selectedEmployees || []
                           );
                         });
                       }
@@ -4797,7 +4901,11 @@ const PlanningDisplay = ({
               });
             }}
             config={config}
-            lockedEmployees={validationState.lockedEmployees}
+            lockedEmployees={
+              isWeekFullyLocked
+                ? currentShopEmployees.map((emp) => emp.id).filter(Boolean)
+                : validationState.lockedEmployees
+            }
             currentDay={currentDay}
             selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
             showCalendarTotals={showCalendarTotals}

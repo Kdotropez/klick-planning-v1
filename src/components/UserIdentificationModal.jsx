@@ -229,7 +229,7 @@ const UserIdentificationModal = ({
                       cursor: (isLoading || isSyncingCodes) ? 'not-allowed' : 'pointer',
                       fontWeight: '700'
                     }}
-                    title="Demande le code admin 2111 puis le code sécurité du jour"
+                    title="Demande le code admin puis le code sécurité du jour"
                   >
                     🔓 Déverrouillage d'urgence
                   </button>

@@ -262,15 +262,15 @@ export const forceRelease = async (userId) => {
 
 // Fonction de déverrouillage d'urgence avec code de sécurité
 export const emergencyUnlock = async (userId, securityCode) => {
-  console.log('🚨 emergencyUnlock appelé (verrou global):', { userId, securityCode, useSupabase });
+  console.log('🚨 emergencyUnlock appelé (verrou global):', { userId, hasSecurityCode: Boolean(securityCode), useSupabase });
   
   const adminOverrideCode = '2111';
   
-  console.log('🔐 Code override admin attendu:', adminOverrideCode, 'Code fourni:', securityCode);
+  console.log('🔐 Vérification du code override admin');
   
   if (securityCode !== adminOverrideCode) {
     console.log('❌ Code de sécurité incorrect');
-    return { ok: false, error: 'Code admin incorrect (attendu: 2111)' };
+    return { ok: false, error: 'Code admin incorrect' };
   }
   
   console.log('✅ Code de sécurité valide, déverrouillage d\'urgence...');

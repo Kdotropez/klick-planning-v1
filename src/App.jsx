@@ -696,7 +696,8 @@ const App = () => {
     if (preferredShopId) {
       setSelectedShop(preferredShopId);
     }
-    setMode('main-startup');
+    setSelectedWeek(getCurrentWeekKey());
+    setMode(planningData?.shops?.length > 0 ? 'planning' : 'main-startup');
     setFeedback(`👋 Bienvenue ${user.name} !`);
     addAuditLog({
       action: 'Connexion',
@@ -766,8 +767,8 @@ const App = () => {
     if (planningData && planningData.shops && planningData.shops.length > 0) {
       setSelectedShop(resolvePreferredShopId(currentUser, planningData));
       setSelectedWeek(getCurrentWeekKey());
-      setMode('week-selection');
-      setFeedback('✅ Continuation avec les données locales');
+      setMode('planning');
+      setFeedback('✅ Ouverture du planning sur la semaine actuelle');
     } else {
       setFeedback('❌ Aucune donnée locale disponible');
     }
@@ -880,10 +881,10 @@ const App = () => {
       setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
       setSelectedWeek(getCurrentWeekKey());
       
-      // Aller à la sélection de semaine
-      setMode('week-selection');
+      // Aller directement au planning de la semaine actuelle
+      setMode('planning');
       {
-        const message = '✅ Planning restauré depuis Supabase avec nettoyage complet ! Sélectionnez une semaine.';
+        const message = '✅ Planning restauré depuis Supabase avec nettoyage complet ! Ouverture sur la semaine actuelle.';
         setFeedback(message);
         if (showStartupAlert) alert('✅ Restauration Supabase réussie.');
         addAuditLog({
@@ -970,7 +971,7 @@ const App = () => {
 
       setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
       setSelectedWeek(getCurrentWeekKey());
-      setMode('week-selection');
+      setMode('planning');
 
       const restoredAt = chosen.updatedAt ? new Date(chosen.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
       setFeedback(`✅ Historique restauré (${restoredAt}).`);

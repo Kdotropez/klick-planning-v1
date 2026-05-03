@@ -137,6 +137,72 @@ const VERSION_HIGHLIGHTS = {
     'Planning: correction de l ouverture initiale des horaires drag & drop quand la semaine courante etait initialisee avec la date du jour au lieu du lundi.',
     'Planning: normalisation systematique de la cle semaine au lundi pour charger, afficher et sauvegarder les semaines existantes.',
     'Selection semaine: reprise automatique d une ancienne date non-lundi vers la semaine canonique correspondante.'
+  ],
+  '3.10.78': [
+    'Planning boutiques semaine: presentation par boutique par defaut pour voir qui travaille, quel jour et sur quels horaires.',
+    'Conges et maladies mis en evidence dans les cases du tableau, avec cartes de synthese en haut de fenetre.',
+    'Ajout de l impression directe du tableau semaine en plus de l export PDF, avec une mise en page paysage lisible.'
+  ],
+  '3.10.79': [
+    'Planning boutiques semaine: ajout d un choix Semaine / Mois dans la fenetre de recapitulatif.',
+    'Vue globale multi-boutiques par employe: chaque case indique la boutique et les horaires travailles.',
+    'Vue Mois global: lecture mensuelle multi-boutiques avec impression et PDF, en complement de la vue semaine.'
+  ],
+  '3.10.80': [
+    'Planning boutiques semaine: refonte du PDF par boutique pour une lecture plus proche de l apercu ecran.',
+    'PDF par boutique: separation claire entre employes presents, conges/maladies et total du jour.',
+    'Ajout d un en-tete, de cartes de synthese et de sections boutique pour eviter le tableau compact trop melange.'
+  ],
+  '3.10.81': [
+    'Planning: verrouillage automatique de toutes les dates anterieures au jour actuel.',
+    'Deverrouillage ponctuel par code superviseur pour rendre les dates anterieures modifiables pendant la session.',
+    'Ajout d un bouton de reverrouillage de session et blocage des actions de modification sur les dates verrouillees.',
+    'Planning global multi-boutiques: PDF par employe rehabille avec en-tete, cartes de synthese et tableau plus proche de l apercu ecran.'
+  ],
+  '3.10.82': [
+    'Planning global multi-boutiques: l export PDF capture desormais le rendu ecran reel de la fenetre.',
+    'PDF: conservation des cartes de synthese, couleurs, tableaux et presentation visuelle de l apercu.',
+    'PDF: decoupage automatique sur plusieurs pages A4 paysage quand le tableau depasse une page.'
+  ],
+  '3.10.83': [
+    'Planning: retablissement du verrouillage complet d une semaine des qu une semaine suivante a ete ouverte.',
+    'Planning: conservation du verrouillage par date pour tous les jours anterieurs au jour actuel.',
+    'Deverrouillage superviseur maintenu pour rendre une semaine passee modifiable uniquement pendant la session.'
+  ],
+  '3.10.84': [
+    'Planning global multi-boutiques: adaptation du PDF capture pour tenir sur une seule feuille A4 paysage.',
+    'PDF: reduction proportionnelle du rendu ecran avec centrage sur la page.',
+    'PDF: suppression du decoupage automatique multi-pages pour respecter la contrainte d une feuille A4.'
+  ],
+  '3.10.85': [
+    'Planning global multi-boutiques: capture PDF elargie a toute la largeur reelle du tableau.',
+    'PDF A4: inclusion des colonnes hors ecran avant reduction proportionnelle sur une seule feuille.',
+    'PDF: expansion des zones defilantes pendant la capture pour eviter un export tronque.'
+  ],
+  '3.10.86': [
+    'Planning global multi-boutiques: fenetre de planning semaine redimensionnable a l ecran.',
+    'Ajout de tailles minimale et maximale pour agrandir la vue sans sortir de l ecran.',
+    'Indication visuelle dans l en-tete pour rappeler que la fenetre se redimensionne par le coin inferieur droit.'
+  ],
+  '3.10.87': [
+    'Planning global multi-boutiques: remplacement du redimensionnement natif par une poignee dediee.',
+    'Fenetre planning: redimensionnement stable en largeur et hauteur sans disparition hors ecran.',
+    'Fenetre planning: prevention de la fermeture accidentelle pendant le redimensionnement.'
+  ],
+  '3.10.88': [
+    'Planning global multi-boutiques: le redimensionnement augmente desormais surtout la zone visible du tableau.',
+    'Fenetre planning: en-tete, filtres, cartes et pied restent fixes pour donner l espace gagne au contenu.',
+    'Vue planning: ajout de contraintes flex pour afficher davantage de lignes quand la fenetre est agrandie.'
+  ],
+  '3.10.89': [
+    'Demarrage: apres identification, ouverture directe du planning sur la semaine actuelle quand des donnees existent.',
+    'Restauration locale ou Supabase: arrivee directe sur le planning de la semaine actuelle.',
+    'Le menu semaine reste accessible uniquement via le retour volontaire a la selection de semaine.'
+  ],
+  '3.10.90': [
+    'Planning: les cartes/recapitulatifs employes sont desormais masques par defaut a l ouverture.',
+    'Le bouton Afficher permet de faire apparaitre les cartes employes a la demande.',
+    'Aucun changement sur le statut reel des employes: le masquage concerne uniquement l affichage des cartes.'
   ]
 };
 

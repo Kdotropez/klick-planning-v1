@@ -1,7 +1,125 @@
 {
-  "version": "3.10.77",
+  "version": "3.10.90",
   "lastUpdate": "2026-05-03",
   "changelog": [
+    {
+      "version": "3.10.90",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning : les cartes/récapitulatifs employés sont désormais masqués par défaut à l'ouverture.",
+        "Le bouton Afficher permet de faire apparaître les cartes employés à la demande.",
+        "Aucun changement sur le statut réel des employés : le masquage concerne uniquement l'affichage des cartes."
+      ]
+    },
+    {
+      "version": "3.10.89",
+      "date": "2026-05-03",
+      "changes": [
+        "Démarrage : après identification, ouverture directe du planning sur la semaine actuelle quand des données existent.",
+        "Restauration locale ou Supabase : arrivée directe sur le planning de la semaine actuelle.",
+        "Le menu semaine reste accessible uniquement via le retour volontaire à la sélection de semaine."
+      ]
+    },
+    {
+      "version": "3.10.88",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : le redimensionnement augmente désormais surtout la zone visible du tableau.",
+        "Fenêtre planning : en-tête, filtres, cartes et pied restent fixes pour donner l'espace gagné au contenu.",
+        "Vue planning : ajout de contraintes flex pour afficher davantage de lignes quand la fenêtre est agrandie."
+      ]
+    },
+    {
+      "version": "3.10.87",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : remplacement du redimensionnement natif par une poignée dédiée.",
+        "Fenêtre planning : redimensionnement stable en largeur et hauteur sans disparition hors écran.",
+        "Fenêtre planning : prévention de la fermeture accidentelle pendant le redimensionnement."
+      ]
+    },
+    {
+      "version": "3.10.86",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : fenêtre de planning semaine redimensionnable à l'écran.",
+        "Ajout de tailles minimale et maximale pour agrandir la vue sans sortir de l'écran.",
+        "Indication visuelle dans l'en-tête pour rappeler que la fenêtre se redimensionne par le coin inférieur droit."
+      ]
+    },
+    {
+      "version": "3.10.85",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : capture PDF élargie à toute la largeur réelle du tableau.",
+        "PDF A4 : inclusion des colonnes hors écran avant réduction proportionnelle sur une seule feuille.",
+        "PDF : expansion des zones défilantes pendant la capture pour éviter un export tronqué."
+      ]
+    },
+    {
+      "version": "3.10.84",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : adaptation du PDF capturé pour tenir sur une seule feuille A4 paysage.",
+        "PDF : réduction proportionnelle du rendu écran avec centrage sur la page.",
+        "PDF : suppression du découpage automatique multi-pages pour respecter la contrainte d'une feuille A4."
+      ]
+    },
+    {
+      "version": "3.10.83",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning : rétablissement du verrouillage complet d'une semaine dès qu'une semaine suivante a été ouverte.",
+        "Planning : conservation du verrouillage par date pour tous les jours antérieurs au jour actuel.",
+        "Déverrouillage superviseur maintenu pour rendre une semaine passée modifiable uniquement pendant la session."
+      ]
+    },
+    {
+      "version": "3.10.82",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : l'export PDF capture désormais le rendu écran réel de la fenêtre.",
+        "PDF : conservation des cartes de synthèse, couleurs, tableaux et présentation visuelle de l'aperçu.",
+        "PDF : découpage automatique sur plusieurs pages A4 paysage quand le tableau dépasse une page."
+      ]
+    },
+    {
+      "version": "3.10.81",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning : verrouillage automatique de toutes les dates antérieures au jour actuel.",
+        "Déverrouillage ponctuel par code superviseur pour rendre les dates antérieures modifiables pendant la session.",
+        "Ajout d'un bouton de reverrouillage de session et blocage des actions de modification sur les dates verrouillées.",
+        "Planning global multi-boutiques : PDF par employé réhabillé avec en-tête, cartes de synthèse et tableau plus proche de l'aperçu écran."
+      ]
+    },
+    {
+      "version": "3.10.80",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning boutiques semaine : refonte du PDF par boutique pour une lecture plus proche de l'aperçu écran.",
+        "PDF par boutique : séparation claire entre employés présents, congés/maladies et total du jour.",
+        "Ajout d'un en-tête, de cartes de synthèse et de sections boutique pour éviter le tableau compact trop mélangé."
+      ]
+    },
+    {
+      "version": "3.10.79",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning boutiques semaine : ajout d'un choix Semaine / Mois dans la fenêtre de récapitulatif.",
+        "Vue globale multi-boutiques par employé : chaque case indique le jour, la boutique et les horaires travaillés.",
+        "Vue Mois global : lecture mensuelle multi-boutiques avec impression et PDF, en complément de la vue semaine."
+      ]
+    },
+    {
+      "version": "3.10.78",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning boutiques semaine : nouvelle présentation par boutique par défaut pour voir en un coup d'œil qui travaille, quel jour et sur quels horaires.",
+        "Mise en évidence des congés et maladies dans les cases du tableau, avec cartes de synthèse en haut de fenêtre.",
+        "Ajout de l'impression directe du tableau semaine en plus de l'export PDF, avec une mise en page paysage lisible."
+      ]
+    },
     {
       "version": "3.10.77",
       "date": "2026-05-03",
