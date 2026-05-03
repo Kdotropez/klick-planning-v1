@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
+import { buildSlotRangeLines, sumSelectedSlotsMinutes } from '../../utils/slotDurationUtils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -46,6 +46,9 @@ const writeMetaMap = (metaMap) => {
 
 const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
+const REPOS_LABEL = 'Repos';
+const EXTERIEUR_LABEL = 'Extérieur';
+
 const RAISON_SOCIALE_FIXE = 'Relais des coches boutique';
 const ACTIVITE_FIXE = 'Commerce de détail de boissons en magasin spécialisé - 4725Z';
 const SIRET_DEFAUT = '81853491900019';
@@ -65,6 +68,101 @@ const isCannesShop = (shop, selectedShopId) => {
 
 const getSiretForShop = (shop, selectedShopId) =>
   isCannesShop(shop, selectedShopId) ? SIRET_CANNES : SIRET_DEFAUT;
+
+const normalizeShopId = (shop, selectedShopId) =>
+  String(selectedShopId || shop?.id || shop?.name || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const VAR_INSPECTION_CONTACT =
+  'DDETS du Var - Inspection du travail - 177 boulevard Docteur Charles Barnier, 83070 Toulon Cedex - 04 94 09 64 00 - ddets-uc3@var.gouv.fr (section à confirmer selon adresse)';
+
+const ALPES_MARITIMES_INSPECTION_CONTACT =
+  "DDETS des Alpes-Maritimes - Inspection du travail - Immeuble Porte de l'Arenas, 455 promenade des Anglais, CS 43311, 06206 Nice Cedex 3 - 04 93 72 76 00";
+
+const COMMON_CONVENTION =
+  'Convention collective nationale des commerces de gros - IDCC 2216';
+
+const PREVIOUS_DEFAULT_CONVENTIONS = [
+  'Convention collective nationale des vins, cidres, jus de fruits, sirops, spiritueux et liqueurs de France - IDCC 493 / Brochure 3029 (à confirmer avec le bulletin de paie)',
+  'Convention collective nationale des métiers du commerce de détail alimentaire spécialisé - IDCC 3237 (à confirmer avec le bulletin de paie)'
+];
+
+const COMMON_SECOURS =
+  'Urgence européenne : 112 - SAMU : 15 - Pompiers : 18 - Police/Gendarmerie : 17 - SMS urgence : 114. En cas d accident : protéger, alerter, secourir.';
+
+const SHOP_INSPECTION_DEFAULTS = {
+  PORT_GRIMAUD: {
+    adresseEtablissement: '14 Place du Marché, Port Grimaud, 83310 Grimaud',
+    medecineTravail:
+      'Odalia Santé (ex AIST 83) - Centre de Cogolin, 64 rue Carnot, 83310 Cogolin - www.odaliasante.fr'
+  },
+  CAVALAIRE: {
+    adresseEtablissement: '',
+    medecineTravail:
+      'Odalia Santé (ex AIST 83) - Centre de Cavalaire, Résidence Le Turquoise, 25 rue Alphonse Daudet, 83240 Cavalaire-sur-Mer - www.odaliasante.fr'
+  },
+  SAINT_TROPEZ: {
+    adresseEtablissement: '9 rue Général Allard, 83990 Saint-Tropez',
+    medecineTravail:
+      'Odalia Santé (ex AIST 83) - Centre de Saint-Tropez, Espace des Lices, 7 boulevard Louis Blanc, 83990 Saint-Tropez - www.odaliasante.fr'
+  },
+  SAINTE_MAXIME: {
+    adresseEtablissement: '98 avenue Charles de Gaulle, 83120 Sainte-Maxime',
+    medecineTravail:
+      'Odalia Santé (ex AIST 83) - Centre de Sainte-Maxime, 185 route du Plan de la Tour, Immeuble Le Mathias 1, 83120 Sainte-Maxime - www.odaliasante.fr'
+  },
+  CANNES: {
+    adresseEtablissement: '',
+    inspecteurTravail: ALPES_MARITIMES_INSPECTION_CONTACT,
+    medecineTravail:
+      'AMETRA06 - Service de prévention et de santé au travail - Centre Cannes Maria, 4 place du Commandant Maria, 06400 Cannes - 04 97 06 93 06'
+  }
+};
+
+export const getDefaultInspectionMetaForShop = (shop, selectedShopId, referenceDate = new Date()) => {
+  const shopId = normalizeShopId(shop, selectedShopId);
+  const shopDefaults = SHOP_INSPECTION_DEFAULTS[shopId] || {};
+  const shopName = shop?.name || selectedShopId || '';
+
+  return {
+    raisonSociale: RAISON_SOCIALE_FIXE,
+    adresseEtablissement: shopDefaults.adresseEtablissement || '',
+    siret: getSiretForShop(shop, selectedShopId),
+    activite: ACTIVITE_FIXE,
+    conventionCollective: COMMON_CONVENTION,
+    responsable: 'Angélique',
+    inspecteurTravail: shopDefaults.inspecteurTravail || VAR_INSPECTION_CONTACT,
+    medecineTravail: shopDefaults.medecineTravail || '',
+    secoursUrgence: COMMON_SECOURS,
+    horairesCollectifs: 'Horaires individualisés selon planning hebdomadaire affiché ci-dessous',
+    pauseCollective: 'Pause/coupure selon planning affiché. Pause minimale de 20 minutes dès 6 heures de travail effectif.',
+    datePublication: format(referenceDate, 'yyyy-MM-dd'),
+    heureEdition: format(referenceDate, 'HH:mm'),
+    dateSignature: '',
+    boutiqueAffichee: shopName
+  };
+};
+
+export const mergeInspectionMetaDefaults = (defaults, savedMeta = {}) => {
+  const merged = { ...defaults };
+  Object.keys(savedMeta || {}).forEach((key) => {
+    if (key === 'selectedEmployeeIds') {
+      merged[key] = savedMeta[key];
+      return;
+    }
+    if (key === 'conventionCollective' && PREVIOUS_DEFAULT_CONVENTIONS.includes(savedMeta[key])) {
+      return;
+    }
+    if (savedMeta[key] !== undefined && savedMeta[key] !== null && savedMeta[key] !== '') {
+      merged[key] = savedMeta[key];
+    }
+  });
+  return merged;
+};
 
 const CONTRAT_TYPES = [
   { id: 'cdi_35', label: 'CDI — 35 h / semaine', hours: 35 },
@@ -175,6 +273,46 @@ const getCanonicalContractFields = (planningData, employee) => {
   };
 };
 
+const getShopPlanningForDay = (shop, selectedWeek, employeeId, dayKey) =>
+  shop?.weeks?.[selectedWeek]?.planning?.[employeeId]?.[dayKey];
+
+const hasWorkedSlots = (dayValue) => Array.isArray(dayValue) && dayValue.some(normalizeSlot);
+
+const formatMinutesAsHours = (minutes) => {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (mins === 0) return `${hours} h`;
+  return `${hours} h ${String(mins).padStart(2, '0')}`;
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const worksInAnotherShop = (planningData, selectedShop, selectedWeek, employeeId, dayKey) => {
+  if (!planningData?.shops || !selectedWeek || !employeeId || !dayKey) return false;
+  return planningData.shops.some((otherShop) => {
+    if (!otherShop || otherShop.id === selectedShop) return false;
+    const otherDayValue = getShopPlanningForDay(otherShop, selectedWeek, employeeId, dayKey);
+    return hasWorkedSlots(otherDayValue);
+  });
+};
+
+const dedupeEmployees = (employees) => {
+  const seen = new Set();
+  return (employees || []).filter((emp, idx) => {
+    const id = emp?.id || `fallback_${idx}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+};
+
 const LabourInspectionModal = ({
   isOpen,
   onClose,
@@ -190,6 +328,8 @@ const LabourInspectionModal = ({
 }) => {
   const [meta, setMeta] = useState(defaultMeta(''));
   const [contractDataByEmployee, setContractDataByEmployee] = useState({});
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState(null);
+  const metaHydrationKeyRef = useRef('');
 
   const shop = useMemo(
     () => planningData?.shops?.find((entry) => entry.id === selectedShop) || null,
@@ -202,18 +342,22 @@ const LabourInspectionModal = ({
     return Array.from({ length: 7 }, (_, idx) => addDays(base, idx));
   }, [selectedWeek]);
 
+  const employeeChoices = useMemo(() => {
+    const sourceEmployees = Array.isArray(activeEmployees) && activeEmployees.length
+      ? activeEmployees
+      : (shop?.employees || []);
+    return dedupeEmployees(sourceEmployees);
+  }, [activeEmployees, shop]);
+
   const scheduleRows = useMemo(() => {
     if (!shop || !selectedWeek) return [];
     const week = shop.weeks?.[selectedWeek];
     const persistedPlanning = week?.planning || {};
     const planning = currentPlanning && Object.keys(currentPlanning).length ? currentPlanning : persistedPlanning;
-    const sourceEmployees = Array.isArray(activeEmployees) && activeEmployees.length
-      ? activeEmployees
-      : (shop.employees || []);
-    const employees = sourceEmployees.filter((emp, idx, arr) => {
-      const id = emp?.id || `fallback_${idx}`;
-      return arr.findIndex((x) => (x?.id || '') === id) === idx;
-    });
+    const selectedSet = Array.isArray(selectedEmployeeIds) ? new Set(selectedEmployeeIds) : null;
+    const employees = selectedSet
+      ? employeeChoices.filter((employee) => selectedSet.has(employee.id))
+      : employeeChoices;
     const interval = currentConfig?.interval || shop.config?.interval || 30;
     const endTime = currentConfig?.endTime ?? shop.config?.endTime;
     const timeSlots = currentConfig?.timeSlots || shop.config?.timeSlots || [];
@@ -245,41 +389,56 @@ const LabourInspectionModal = ({
         typeContrat: typeContrat || '',
         contractHours,
         contractDuration: formatContractDuration(entryDate),
+        weeklyMinutes: 0,
+        weeklyHoursLabel: '0 h',
         cells: []
       };
       weekDays.forEach((dayDate) => {
         const dayKey = format(dayDate, 'yyyy-MM-dd');
         const dayValue = planning?.[employee.id]?.[dayKey];
+        const hasExternalWork = worksInAnotherShop(planningData, selectedShop, selectedWeek, employee.id, dayKey);
         if (typeof dayValue === 'string') {
-          if (/cong[eé]/i.test(dayValue)) {
-            row.cells.push('Congé');
-          } else if (/maladie/i.test(dayValue)) {
+          if (/maladie/i.test(dayValue)) {
             row.cells.push('Maladie');
+          } else if (hasExternalWork) {
+            row.cells.push(EXTERIEUR_LABEL);
+          } else if (/cong[eé]/i.test(dayValue)) {
+            row.cells.push(REPOS_LABEL);
           } else {
             row.cells.push(dayValue);
           }
-        } else if (Array.isArray(dayValue) && dayValue.some(normalizeSlot)) {
+        } else if (hasWorkedSlots(dayValue)) {
           const ranges = buildSlotRangeLines(dayValue, timeSlots, slotDurationCfg);
-          row.cells.push(ranges.length ? ranges.join(', ') : 'Repos');
+          row.weeklyMinutes += sumSelectedSlotsMinutes(dayValue, timeSlots, slotDurationCfg);
+          row.cells.push(ranges.length ? ranges.join(', ') : REPOS_LABEL);
+        } else if (hasExternalWork) {
+          row.cells.push(EXTERIEUR_LABEL);
         } else {
-          row.cells.push('Repos');
+          row.cells.push(REPOS_LABEL);
         }
       });
+      row.weeklyHoursLabel = formatMinutesAsHours(row.weeklyMinutes);
       return row;
     });
   }, [
     shop,
+    selectedShop,
     selectedWeek,
     weekDays,
     currentPlanning,
     currentConfig,
-    activeEmployees,
+    employeeChoices,
+    selectedEmployeeIds,
     contractDataByEmployee,
     planningData
   ]);
 
   useEffect(() => {
     if (!isOpen || !selectedShop) return;
+    const employeeKey = employeeChoices.map((employee) => employee.id).filter(Boolean).join('|');
+    const hydrationKey = `${selectedShop}:${shop?.name || ''}:${employeeKey}`;
+    if (metaHydrationKeyRef.current === hydrationKey) return;
+    metaHydrationKeyRef.current = hydrationKey;
     const dataMeta = savedMetaByShop?.[selectedShop] || null;
     const shopKeys = buildShopKeys(selectedShop, shop);
     const metaMap = readMetaMap();
@@ -300,18 +459,25 @@ const LabourInspectionModal = ({
         parsed = oldRaw ? JSON.parse(oldRaw) : null;
       }
 
-      setMeta({
-        ...defaultMeta(shop?.name || selectedShop),
-        ...(parsed || {}),
-        raisonSociale: RAISON_SOCIALE_FIXE,
-        siret: getSiretForShop(shop, selectedShop),
-        activite: ACTIVITE_FIXE,
-        boutiqueAffichee: shop?.name || selectedShop
-      });
+      const defaults = getDefaultInspectionMetaForShop(shop, selectedShop);
+      setMeta(mergeInspectionMetaDefaults(defaults, parsed || {}));
+      setSelectedEmployeeIds(
+        Array.isArray(parsed?.selectedEmployeeIds)
+          ? parsed.selectedEmployeeIds
+          : employeeChoices.map((employee) => employee.id).filter(Boolean)
+      );
     } catch {
-      setMeta(defaultMeta(shop?.name || selectedShop));
+      setMeta(getDefaultInspectionMetaForShop(shop, selectedShop));
+      setSelectedEmployeeIds(employeeChoices.map((employee) => employee.id).filter(Boolean));
     }
-  }, [isOpen, selectedShop, shop, savedMetaByShop]);
+  }, [isOpen, selectedShop, shop, savedMetaByShop, employeeChoices]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      metaHydrationKeyRef.current = '';
+      setSelectedEmployeeIds(null);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -340,6 +506,7 @@ const LabourInspectionModal = ({
       const metaMap = readMetaMap();
       const payload = {
         ...meta,
+        selectedEmployeeIds: Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : [],
         raisonSociale: RAISON_SOCIALE_FIXE,
         siret: getSiretForShop(shop, selectedShop),
         activite: ACTIVITE_FIXE,
@@ -357,7 +524,7 @@ const LabourInspectionModal = ({
       if (typeof onSaveEmployeeContractData === 'function') {
         onSaveEmployeeContractData(selectedShop, contractDataByEmployee);
       }
-      alert('✅ Mentions enregistrees pour cette boutique.');
+      alert('✅ Mentions et employés sélectionnés enregistrés pour cette boutique.');
     } catch (error) {
       console.error('Erreur sauvegarde mentions inspection:', error);
       alert('❌ Impossible d enregistrer les mentions.');
@@ -367,48 +534,64 @@ const LabourInspectionModal = ({
   const labelTypeContrat = (id) => CONTRAT_TYPES.find((t) => t.id === id)?.label || id || '—';
 
   const printSheet = () => {
+    const metaRows = [
+      ['Boutique', meta.boutiqueAffichee || '-'],
+      ['Raison sociale', RAISON_SOCIALE_FIXE],
+      ['Adresse établissement', meta.adresseEtablissement || '-'],
+      ['SIRET', getSiretForShop(shop, selectedShop)],
+      ['Activité (NAF/APE)', ACTIVITE_FIXE],
+      ['Convention collective', meta.conventionCollective || '-'],
+      ['Responsable', meta.responsable || '-'],
+      ['Semaine affichée', selectedWeek || '-'],
+      ['Horaires collectifs de référence', meta.horairesCollectifs || '-'],
+      ['Pause / coupure collective', meta.pauseCollective || '-'],
+      ['Date d affichage / publication', meta.datePublication || '-'],
+      ['Heure d édition', meta.heureEdition || '-'],
+      ['Inspection du travail', meta.inspecteurTravail || '-'],
+      ['Médecine du travail', meta.medecineTravail || '-'],
+      ['Secours urgence', meta.secoursUrgence || '-'],
+      ['Date/signature employeur', meta.dateSignature || '-']
+    ];
     const rowsHtml = scheduleRows
       .map((row) => {
-        const dayCells = row.cells.map((cell) => `<td>${cell}</td>`).join('');
+        const dayCells = row.cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('');
         const duration = formatContractDuration(row.entryDate);
-        return `<tr><td><b>${row.employeeName}</b></td><td>${row.entryDate || '-'}</td><td>${labelTypeContrat(row.typeContrat)}</td><td>${row.contractHours || '-'}</td><td>${duration}</td>${dayCells}</tr>`;
+        return `<tr><td><b>${escapeHtml(row.employeeName)}</b></td><td>${escapeHtml(row.entryDate || '-')}</td><td>${escapeHtml(labelTypeContrat(row.typeContrat))}</td><td>${escapeHtml(row.contractHours || '-')}</td><td>${escapeHtml(duration)}</td><td class="hours">${escapeHtml(row.weeklyHoursLabel)}</td>${dayCells}</tr>`;
       })
       .join('');
     const dayHeaders = weekDays
-      .map((dayDate) => `<th>${format(dayDate, 'EEE dd/MM', { locale: fr })}</th>`)
+      .map((dayDate) => `<th>${escapeHtml(format(dayDate, 'EEE dd/MM', { locale: fr }))}</th>`)
+      .join('');
+    const metaRowsHtml = metaRows
+      .map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
       .join('');
     const html = `
       <html><head><title>Affichage inspection travail</title>
       <style>
-      body{font-family:Arial,sans-serif;padding:18px;color:#111;}
-      h1,h2{margin:0 0 10px 0;}
-      .meta{margin:6px 0;}
-      table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px;}
-      th,td{border:1px solid #333;padding:6px;vertical-align:top;}
-      th{background:#f1f3f5}
+      @page{size:A4 landscape;margin:10mm;}
+      *{box-sizing:border-box;}
+      body{font-family:Arial,sans-serif;padding:0;color:#111;font-size:11px;}
+      h1{margin:0 0 6px 0;font-size:18px;color:#0f4c81;}
+      .subtitle{margin:0 0 10px 0;color:#455a64;}
+      table{width:100%;border-collapse:collapse;}
+      .meta-table{margin:8px 0 12px 0;font-size:10px;}
+      .meta-table th{width:22%;text-align:left;background:#eaf2f8;color:#123;border:1px solid #b0bec5;padding:4px 6px;}
+      .meta-table td{border:1px solid #b0bec5;padding:4px 6px;}
+      .schedule{font-size:9px;table-layout:fixed;}
+      .schedule th{background:#0f4c81;color:#fff;border:1px solid #345;padding:5px 4px;}
+      .schedule td{border:1px solid #9e9e9e;padding:5px 4px;vertical-align:top;word-break:break-word;}
+      .schedule tbody tr:nth-child(even){background:#f7fafc;}
+      .hours{font-weight:bold;text-align:center;white-space:nowrap;}
+      .footer{margin-top:10px;font-size:10px;color:#455a64;}
       </style></head><body>
       <h1>Affichage des horaires - Inspection du travail</h1>
-      <div class="meta"><b>Boutique:</b> ${meta.boutiqueAffichee || '-'}</div>
-      <div class="meta"><b>Raison sociale:</b> ${RAISON_SOCIALE_FIXE}</div>
-      <div class="meta"><b>Adresse etablissement:</b> ${meta.adresseEtablissement || '-'}</div>
-      <div class="meta"><b>SIRET:</b> ${getSiretForShop(shop, selectedShop)}</div>
-      <div class="meta"><b>Activite (NAF/APE):</b> ${ACTIVITE_FIXE}</div>
-      <div class="meta"><b>Convention collective:</b> ${meta.conventionCollective || '-'}</div>
-      <div class="meta"><b>Responsable:</b> ${meta.responsable || '-'}</div>
-      <div class="meta"><b>Semaine affichee:</b> ${selectedWeek || '-'}</div>
-      <div class="meta"><b>Horaires collectifs de reference:</b> ${meta.horairesCollectifs || '-'}</div>
-      <div class="meta"><b>Pause / coupure collective:</b> ${meta.pauseCollective || '-'}</div>
-      <div class="meta"><b>Date d affichage / publication:</b> ${meta.datePublication || '-'}</div>
-      <div class="meta"><b>Heure d edition (affichage):</b> ${meta.heureEdition || '-'}</div>
-      <div class="meta"><b>Inspection du travail:</b> ${meta.inspecteurTravail || '-'}</div>
-      <div class="meta"><b>Medecine du travail:</b> ${meta.medecineTravail || '-'}</div>
-      <div class="meta"><b>Secours urgence:</b> ${meta.secoursUrgence || '-'}</div>
-      <div class="meta"><b>Date/signature employeur:</b> ${meta.dateSignature || '-'}</div>
-      <div class="meta"><i>Document d affichage collectif date et signe par l employeur.</i></div>
-      <table>
-      <thead><tr><th>Employe</th><th>Date entree</th><th>Type de contrat</th><th>Heures contrat</th><th>Duree contrat</th>${dayHeaders}</tr></thead>
+      <p class="subtitle">Document d affichage collectif date et signe par l employeur.</p>
+      <table class="meta-table"><tbody>${metaRowsHtml}</tbody></table>
+      <table class="schedule">
+      <thead><tr><th>Employe</th><th>Date entree</th><th>Type contrat</th><th>H contrat</th><th>Duree contrat</th><th>Heures semaine</th>${dayHeaders}</tr></thead>
       <tbody>${rowsHtml}</tbody>
       </table>
+      <div class="footer">Repos = non planifie dans cette boutique. Exterieur = horaires planifies dans une autre boutique le meme jour.</div>
       </body></html>`;
     const w = window.open('', '_blank');
     if (!w) return;
@@ -421,52 +604,128 @@ const LabourInspectionModal = ({
   const exportPdf = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
+    doc.setFontSize(15);
+    doc.setTextColor(15, 76, 129);
     doc.text('Affichage des horaires - Inspection du travail', 14, 12);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`Boutique: ${meta.boutiqueAffichee || '-'}`, 14, 18);
-    doc.text(`Raison sociale: ${RAISON_SOCIALE_FIXE}`, 14, 23);
-    doc.text(`Adresse: ${meta.adresseEtablissement || '-'}`, 14, 28);
-    doc.text(`SIRET: ${getSiretForShop(shop, selectedShop)} | Activite: ${ACTIVITE_FIXE}`, 14, 33);
-    doc.text(`Convention: ${meta.conventionCollective || '-'} | Responsable: ${meta.responsable || '-'}`, 14, 38);
-    doc.text(`Horaires collectifs: ${meta.horairesCollectifs || '-'} | Pause: ${meta.pauseCollective || '-'}`, 14, 43);
-    doc.text(`Date affichage: ${meta.datePublication || '-'} | Heure edition: ${meta.heureEdition || '-'} | Signatures: ${meta.dateSignature || '-'}`, 14, 48);
-    doc.text(`Inspection: ${meta.inspecteurTravail || '-'} | Medecine: ${meta.medecineTravail || '-'}`, 14, 53);
-    doc.text(`Secours: ${meta.secoursUrgence || '-'} | Semaine: ${selectedWeek || '-'}`, 14, 58);
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(8);
+    doc.text('Document d affichage collectif date et signe par l employeur.', 14, 17);
 
-    const head = [['Employe', 'Date entree', 'Type contrat', 'Heures contrat', 'Duree contrat', ...weekDays.map((dayDate) => format(dayDate, 'EEE dd/MM', { locale: fr }))]];
+    const metaBody = [
+      ['Boutique', meta.boutiqueAffichee || '-', 'Semaine', selectedWeek || '-'],
+      ['Raison sociale', RAISON_SOCIALE_FIXE, 'SIRET', getSiretForShop(shop, selectedShop)],
+      ['Adresse', meta.adresseEtablissement || '-', 'Activite', ACTIVITE_FIXE],
+      ['Convention', meta.conventionCollective || '-', 'Responsable', meta.responsable || '-'],
+      ['Horaires collectifs', meta.horairesCollectifs || '-', 'Pause / coupure', meta.pauseCollective || '-'],
+      ['Date affichage', meta.datePublication || '-', 'Heure edition', meta.heureEdition || '-'],
+      ['Inspection du travail', meta.inspecteurTravail || '-', 'Medecine du travail', meta.medecineTravail || '-'],
+      ['Secours urgence', meta.secoursUrgence || '-', 'Signature employeur', meta.dateSignature || '-']
+    ];
+
+    doc.autoTable({
+      startY: 21,
+      body: metaBody,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1.2, overflow: 'linebreak', valign: 'top' },
+      columnStyles: {
+        0: { fontStyle: 'bold', fillColor: [234, 242, 248], cellWidth: 32 },
+        1: { cellWidth: 88 },
+        2: { fontStyle: 'bold', fillColor: [234, 242, 248], cellWidth: 30 },
+        3: { cellWidth: 119 }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    const head = [['Employe', 'Date entree', 'Type contrat', 'H contrat', 'Duree contrat', 'Heures semaine', ...weekDays.map((dayDate) => format(dayDate, 'EEE dd/MM', { locale: fr }))]];
     const body = scheduleRows.map((row) => [
       row.employeeName,
       row.entryDate || '-',
       labelTypeContrat(row.typeContrat),
       row.contractHours || '-',
       row.contractDuration,
+      row.weeklyHoursLabel,
       ...row.cells
     ]);
 
     doc.autoTable({
-      startY: 63,
+      startY: (doc.lastAutoTable?.finalY || 60) + 5,
       head,
       body,
-      styles: { fontSize: 8, cellPadding: 1.6 },
-      headStyles: { fillColor: [33, 37, 41], textColor: [255, 255, 255] }
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1.2, overflow: 'linebreak', valign: 'top' },
+      headStyles: { fillColor: [15, 76, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [247, 250, 252] },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 24 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }
+      },
+      margin: { left: 8, right: 8 },
+      didDrawPage: () => {
+        const pageHeight = doc.internal.pageSize.height;
+        doc.setFontSize(7);
+        doc.setTextColor(90, 90, 90);
+        doc.text('Repos = non planifie dans cette boutique. Exterieur = horaires planifies dans une autre boutique le meme jour.', 8, pageHeight - 6);
+      }
     });
 
     doc.save(`inspection_travail_${selectedShop}_${selectedWeek}.pdf`);
   };
 
-  const field = (key, label) => (
+  const field = (key, label, options = {}) => {
+    const multiline = options.multiline || String(meta[key] || '').length > 45;
+    return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
       <span style={{ fontWeight: 700 }}>{label}</span>
-      <input
-        type="text"
-        value={meta[key] || ''}
-        onChange={(event) => setMeta((prev) => ({ ...prev, [key]: event.target.value }))}
-        style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
-      />
+      {multiline ? (
+        <textarea
+          value={meta[key] || ''}
+          rows={options.rows || 2}
+          onChange={(event) => setMeta((prev) => ({ ...prev, [key]: event.target.value }))}
+          style={{
+            border: '1px solid #cfd8dc',
+            borderRadius: '6px',
+            padding: '8px 10px',
+            resize: 'vertical',
+            minHeight: options.minHeight || '58px',
+            lineHeight: 1.35
+          }}
+        />
+      ) : (
+        <input
+          type="text"
+          value={meta[key] || ''}
+          onChange={(event) => setMeta((prev) => ({ ...prev, [key]: event.target.value }))}
+          style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
+        />
+      )}
     </label>
-  );
+    );
+  };
+
+  const allEmployeeIds = employeeChoices.map((employee) => employee.id).filter(Boolean);
+  const checkedEmployeeIds = Array.isArray(selectedEmployeeIds) ? selectedEmployeeIds : allEmployeeIds;
+  const checkedEmployeeSet = new Set(checkedEmployeeIds);
+  const allEmployeesChecked = allEmployeeIds.length > 0 && allEmployeeIds.every((id) => checkedEmployeeSet.has(id));
+
+  const toggleEmployeeSelection = (employeeId) => {
+    setSelectedEmployeeIds((prev) => {
+      const current = new Set(Array.isArray(prev) ? prev : allEmployeeIds);
+      if (current.has(employeeId)) {
+        current.delete(employeeId);
+      } else {
+        current.add(employeeId);
+      }
+      return allEmployeeIds.filter((id) => current.has(id));
+    });
+  };
+
+  const selectAllEmployees = () => setSelectedEmployeeIds(allEmployeeIds);
+  const clearAllEmployees = () => setSelectedEmployeeIds([]);
 
   return (
     <div
@@ -519,16 +778,16 @@ const LabourInspectionModal = ({
           </div>
         </div>
 
-        <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', borderBottom: '1px solid #e0e0e0' }}>
+        <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px', borderBottom: '1px solid #e0e0e0', maxHeight: '260px', overflow: 'auto' }}>
           {field('adresseEtablissement', 'Adresse etablissement')}
-          {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)')}
+          {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)', { multiline: true })}
           {field('responsable', 'Responsable')}
           {field('boutiqueAffichee', 'Boutique affichee')}
-          {field('inspecteurTravail', 'Inspection du travail (nom/contact)')}
-          {field('medecineTravail', 'Medecine du travail (contact)')}
-          {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)')}
-          {field('horairesCollectifs', 'Horaires collectifs de reference')}
-          {field('pauseCollective', 'Pause/coupure collective')}
+          {field('inspecteurTravail', 'Inspection du travail (nom/contact)', { multiline: true })}
+          {field('medecineTravail', 'Medecine du travail (contact)', { multiline: true })}
+          {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)', { multiline: true })}
+          {field('horairesCollectifs', 'Horaires collectifs de reference', { multiline: true })}
+          {field('pauseCollective', 'Pause/coupure collective', { multiline: true })}
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
             <span style={{ fontWeight: 700 }}>Date d affichage / publication (mémorisé)</span>
             <input
@@ -557,6 +816,50 @@ const LabourInspectionModal = ({
           <button type="button" onClick={onClose}>Fermer</button>
         </div>
 
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '8px' }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>Employés à faire figurer sur l’affichage de cette boutique</div>
+              <div style={{ fontSize: '12px', color: '#546e7a' }}>
+                Coche uniquement les employés à imprimer/exporter pour {shop?.name || selectedShop}. Cette sélection est mémorisée par boutique avec le bouton Enregistrer.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <button type="button" onClick={selectAllEmployees} disabled={allEmployeesChecked}>Tout cocher</button>
+              <button type="button" onClick={clearAllEmployees} disabled={checkedEmployeeIds.length === 0}>Tout décocher</button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {employeeChoices.map((employee) => (
+              <label
+                key={employee.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: '1px solid #cfd8dc',
+                  borderRadius: '999px',
+                  padding: '6px 10px',
+                  background: checkedEmployeeSet.has(employee.id) ? '#e0f2fe' : '#fff',
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checkedEmployeeSet.has(employee.id)}
+                  onChange={() => toggleEmployeeSelection(employee.id)}
+                />
+                <span>{employee.name || employee.id}</span>
+              </label>
+            ))}
+            {employeeChoices.length === 0 && (
+              <span style={{ color: '#78909c', fontSize: '13px' }}>Aucun employé disponible pour cette boutique.</span>
+            )}
+          </div>
+        </div>
+
         <div style={{ padding: '10px 14px', overflow: 'auto', flex: 1 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
             <thead style={{ position: 'sticky', top: 0, background: '#eceff1' }}>
@@ -566,6 +869,7 @@ const LabourInspectionModal = ({
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Type de contrat</th>
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Heures contrat</th>
                 <th style={{ border: '1px solid #cfd8dc', padding: '8px' }}>Duree contrat</th>
+                <th style={{ border: '1px solid #cfd8dc', padding: '8px', background: '#dbeafe' }}>Heures semaine</th>
                 {weekDays.map((dayDate) => (
                   <th key={format(dayDate, 'yyyy-MM-dd')} style={{ border: '1px solid #cfd8dc', padding: '8px' }}>
                     {format(dayDate, 'EEEE dd/MM', { locale: fr })}
@@ -640,6 +944,7 @@ const LabourInspectionModal = ({
                     )}
                   </td>
                   <td style={{ border: '1px solid #eceff1', padding: '8px', fontWeight: 600 }}>{row.contractDuration}</td>
+                  <td style={{ border: '1px solid #eceff1', padding: '8px', fontWeight: 700, textAlign: 'center', background: '#eff6ff', whiteSpace: 'nowrap' }}>{row.weeklyHoursLabel}</td>
                   {row.cells.map((cell, idx) => (
                     <td key={`${row.employeeId}_${idx}`} style={{ border: '1px solid #eceff1', padding: '8px' }}>
                       {cell}
