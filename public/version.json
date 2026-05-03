@@ -1,7 +1,16 @@
 {
-  "version": "3.10.76",
+  "version": "3.10.77",
   "lastUpdate": "2026-05-03",
   "changelog": [
+    {
+      "version": "3.10.77",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning : correction de l'ouverture initiale des horaires drag & drop quand la semaine courante était initialisée avec la date du jour au lieu du lundi.",
+        "Planning : normalisation systématique de la clé semaine au lundi pour charger, afficher et sauvegarder les semaines existantes.",
+        "Sélection semaine : reprise automatique d'une ancienne date non-lundi vers la semaine canonique correspondante."
+      ]
+    },
     {
       "version": "3.10.76",
       "date": "2026-05-03",

@@ -37,6 +37,13 @@ import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase
 import { addAuditLog } from '@/utils/auditLog';
 import '@/assets/styles.css';
 
+const normalizeWeekKey = (dateString) => {
+  const parsed = dateString && !isNaN(parseISO(dateString).getTime())
+    ? parseISO(dateString)
+    : new Date();
+  return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+};
+
 const PlanningDisplay = ({ 
   planningData, 
   setPlanningData,
@@ -195,7 +202,8 @@ const PlanningDisplay = ({
   const currentUserId = currentUserIdRef.current;
   
   // Identifiant de ressource pour le verrou (boutique + semaine)
-  const resourceId = `${selectedShop?.id || 'unknown'}:${selectedWeek || format(new Date(), 'yyyy-MM-dd')}`;
+  const validWeek = normalizeWeekKey(selectedWeek);
+  const resourceId = `${selectedShop || 'unknown'}:${validWeek}`;
   
   // Hook de gestion du verrou
   const { status, isOwner, readOnly, lockInfo, release, emergency } = usePlanningLock(resourceId, currentUserId);
@@ -280,8 +288,12 @@ const PlanningDisplay = ({
   // Détection automatique de l'appareil
   const deviceInfo = useDeviceDetection();
 
-  // Définir validWeek tout au début pour éviter les erreurs d'initialisation
-  const validWeek = selectedWeek && !isNaN(parseISO(selectedWeek).getTime()) ? selectedWeek : format(new Date(), 'yyyy-MM-dd');
+  // Toutes les semaines sont stockées sous la clé du lundi.
+  useEffect(() => {
+    if (selectedWeek && selectedWeek !== validWeek) {
+      setSelectedWeek(validWeek);
+    }
+  }, [selectedWeek, validWeek, setSelectedWeek]);
 
   // Marché ambulant : corrige grille uniforme persistée + migre les coches (une fois au changement de boutique)
   useEffect(() => {
@@ -301,7 +313,7 @@ const PlanningDisplay = ({
   // Fonction pour calculer le total des heures de la boutique pour le mois
   const calculateShopMonthlyTotal = () => {
     let totalHours = 0;
-    const currentDate = parseISO(selectedWeek);
+    const currentDate = parseISO(validWeek);
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
@@ -530,7 +542,7 @@ const PlanningDisplay = ({
   }, [planningData, selectedShop, selectedWeek, isEmployeeAssignedToCurrentShop]);
 
   // Récupérer le planning de la semaine actuelle
-  const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
+  const weekData = selectedShop && validWeek ? getWeekPlanning(planningData, selectedShop, validWeek) : { planning: {}, selectedEmployees: [] };
   const [planning, setPlanning] = useState(weekData.planning || {});
   const initialPlanningSyncKeyRef = useRef('');
 
@@ -593,9 +605,9 @@ const PlanningDisplay = ({
     console.log('🔍 handleDayChange appelé:', { currentDay, newDay, lastModifiedDay });
     
     // Sauvegarde silencieuse du planning actuel avant le changement de jour
-    if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
+    if (selectedShop && validWeek && Object.keys(planning).length > 0) {
       try {
-        setPlanningData((prev) => safeSaveWeekPlanning(prev, selectedShop, selectedWeek, planning, localSelectedEmployees));
+        setPlanningData((prev) => safeSaveWeekPlanning(prev, selectedShop, validWeek, planning, localSelectedEmployees));
         console.log('💾 Sauvegarde silencieuse lors du changement de jour');
       } catch (error) {
         console.error('Erreur lors de la sauvegarde silencieuse:', error);
@@ -617,7 +629,7 @@ const PlanningDisplay = ({
       });
     }
     setCurrentDay(newDay);
-  }, [currentDay, lastModifiedDay, autoLockPreviousDay, selectedShop, selectedWeek, planning, localSelectedEmployees, setPlanningData, safeSaveWeekPlanning]);
+  }, [currentDay, lastModifiedDay, autoLockPreviousDay, selectedShop, validWeek, planning, localSelectedEmployees, setPlanningData, safeSaveWeekPlanning]);
 
   // Mettre à jour les employés sélectionnés globalement
   useEffect(() => {
@@ -926,7 +938,7 @@ const PlanningDisplay = ({
       planningDataKeys: planningData ? Object.keys(planningData) : 'null'
     });
     
-    if (selectedShop && selectedWeek) {
+    if (selectedShop && validWeek) {
       // ⚡ UTILISER les données FRAÎCHES depuis localStorage (sans modifier le state pour éviter la boucle)
       let freshPlanningData = planningData;
       try {
@@ -934,7 +946,7 @@ const PlanningDisplay = ({
         if (storedData && storedData.shops && storedData.shops.length > 0) {
           freshPlanningData = storedData;
           console.log('🔄 Utilisation des données fraîches depuis localStorage');
-          console.log('📊 Données fraîches:', JSON.stringify(storedData.shops?.find(s => s.id === selectedShop)?.weeks?.[selectedWeek]?.planning || {}).substring(0, 200));
+          console.log('📊 Données fraîches:', JSON.stringify(storedData.shops?.find(s => s.id === selectedShop)?.weeks?.[validWeek]?.planning || {}).substring(0, 200));
         }
       } catch (error) {
         console.error('Erreur lecture localStorage:', error);
@@ -955,7 +967,7 @@ const PlanningDisplay = ({
       });
 
       // Conserver une vue globale pour les usages annexes, sans piloter l'affichage boutique avec canWorkIn
-      const weekDate = parseISO(selectedWeek);
+      const weekDate = parseISO(validWeek);
       const allEmployeesData = getAllEmployees(freshPlanningData, weekDate);
       setAllEmployees(allEmployeesData);
 
@@ -967,9 +979,9 @@ const PlanningDisplay = ({
       setCurrentShopEmployees(dedupedShopEmployees);
       
       // 2. Récupérer le planning existant pour cette boutique/semaine
-      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek, freshPlanningData });
+      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek: validWeek, freshPlanningData });
       console.log('🔍 freshPlanningData.shops:', freshPlanningData.shops);
-      const weekData = getWeekPlanning(freshPlanningData, selectedShop, selectedWeek);
+      const weekData = getWeekPlanning(freshPlanningData, selectedShop, validWeek);
       console.log('🔍 Résultat getWeekPlanning:', weekData);
       console.log('🔍 weekData.planning:', weekData.planning);
       console.log('🔍 weekData.selectedEmployees:', weekData.selectedEmployees);
@@ -995,18 +1007,18 @@ const PlanningDisplay = ({
         }
       }
     }
-  }, [selectedShop, selectedWeek, forceRefresh, isEmployeeAssignedToCurrentShop]); // Retiré planningData pour éviter le rechargement automatique
+  }, [selectedShop, selectedWeek, validWeek, forceRefresh, isEmployeeAssignedToCurrentShop]); // Retiré planningData pour éviter le rechargement automatique
 
   useEffect(() => {
-    if (!selectedShop || !selectedWeek || !planningData?.shops?.length) return;
-    const syncKey = `${selectedShop}:${selectedWeek}`;
+    if (!selectedShop || !validWeek || !planningData?.shops?.length) return;
+    const syncKey = `${selectedShop}:${validWeek}`;
     if (getPlanningEntryCount(planning) > 0) {
       initialPlanningSyncKeyRef.current = syncKey;
       return;
     }
     if (initialPlanningSyncKeyRef.current === syncKey) return;
 
-    const weekDataFromLoadedState = getWeekPlanning(planningData, selectedShop, selectedWeek);
+    const weekDataFromLoadedState = getWeekPlanning(planningData, selectedShop, validWeek);
     const loadedPlanning = weekDataFromLoadedState?.planning || {};
     if (getPlanningEntryCount(loadedPlanning) === 0) return;
 
@@ -1027,7 +1039,7 @@ const PlanningDisplay = ({
     console.log('📥 Planning resynchronisé après chargement initial des données:', loadedPlanning);
   }, [
     selectedShop,
-    selectedWeek,
+    validWeek,
     planningData,
     planning,
     getPlanningEntryCount,
@@ -1040,13 +1052,13 @@ const PlanningDisplay = ({
       return;
     }
     // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
-    if (selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
-        const backupKey = `backup_${selectedShop}_${selectedWeek}_${Date.now()}`;
+        const backupKey = `backup_${selectedShop}_${validWeek}_${Date.now()}`;
         localStorage.setItem(backupKey, JSON.stringify(planning));
         console.log('🛡️ Sauvegarde de sécurité créée:', backupKey);
         try {
-          const prefix = `backup_${selectedShop}_${selectedWeek}_`;
+          const prefix = `backup_${selectedShop}_${validWeek}_`;
           const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix)).sort();
           while (keys.length > 2) {
             const oldest = keys.shift();
@@ -1145,11 +1157,11 @@ const PlanningDisplay = ({
       );
       
       // SAUVEGARDE AUTOMATIQUE IMMÉDIATE (seulement si on a la main)
-      if (selectedShop && selectedWeek && !readOnly) {
+      if (selectedShop && validWeek && !readOnly) {
         try {
           // Toujours partir du planningData le plus récent (évite d'écraser d'autres boutiques avec un snapshot périmé)
           setPlanningData((prevData) =>
-            saveWeekPlanning(prevData, selectedShop, selectedWeek, updatedPlanning, localSelectedEmployees)
+            saveWeekPlanning(prevData, selectedShop, validWeek, updatedPlanning, localSelectedEmployees)
           );
           setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde
           console.log('💾 Sauvegarde automatique après modification');
@@ -1163,7 +1175,7 @@ const PlanningDisplay = ({
       
       return updatedPlanning;
     });
-  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, selectedWeek, localSelectedEmployees, readOnly]);
+  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, validWeek, localSelectedEmployees, readOnly]);
 
   // Fonction pour marquer un créneau comme validé
   const markAsValidated = useCallback((employee, dayKey, slotIndex) => {
@@ -1199,11 +1211,11 @@ const PlanningDisplay = ({
       return;
     }
     try {
-      if (selectedShop && selectedWeek) {
+      if (selectedShop && validWeek) {
         // Forcer la sauvegarde des données actuelles en mémoire
         let updatedSnapshot;
         setPlanningData((prev) => {
-          updatedSnapshot = saveWeekPlanning(prev, selectedShop, selectedWeek, planning, localSelectedEmployees);
+          updatedSnapshot = saveWeekPlanning(prev, selectedShop, validWeek, planning, localSelectedEmployees);
           return updatedSnapshot;
         });
         if (updatedSnapshot) {
@@ -1215,7 +1227,7 @@ const PlanningDisplay = ({
         
         // Sauvegarder d'abord la semaine courante (enregistrement visible par boutique/semaine)
         try {
-          const weekSaved = await saveRemotePlanning(updatedSnapshot, selectedShop, selectedWeek);
+          const weekSaved = await saveRemotePlanning(updatedSnapshot, selectedShop, validWeek);
           if (weekSaved) {
             console.log('✅ Sauvegarde semaine Supabase réussie');
             setLocalFeedback('💾 Semaine sauvegardée (Supabase)');
@@ -1235,7 +1247,7 @@ const PlanningDisplay = ({
             setLocalFeedback('💾 Sauvegarde complète réussie');
             addAuditLog({
               action: 'Sauvegarde Manuelle',
-              details: `Sauvegarde complete validee pour la semaine ${selectedWeek}.`,
+              details: `Sauvegarde complete validee pour la semaine ${validWeek}.`,
               userCode: currentUser?.code,
               userName: currentUser?.name,
               shopId: selectedShop,
@@ -1258,7 +1270,7 @@ const PlanningDisplay = ({
       console.error('Erreur sauvegarde manuelle:', error);
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
-  }, [planning, localSelectedEmployees, selectedShop, selectedWeek, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly, shops, currentUser?.code, currentUser?.name]);
+  }, [planning, localSelectedEmployees, selectedShop, validWeek, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly, shops, currentUser?.code, currentUser?.name]);
 
   // Fonction de test de connexion Supabase
   const testSupabase = useCallback(async () => {
@@ -1347,9 +1359,9 @@ const PlanningDisplay = ({
 
   // Fonction pour restaurer les données de sauvegarde
   const restoreFromBackup = useCallback(() => {
-    if (selectedShop && selectedWeek) {
+    if (selectedShop && validWeek) {
       const backupKeys = Object.keys(localStorage).filter(key => 
-        key.startsWith(`backup_${selectedShop}_${selectedWeek}_`)
+        key.startsWith(`backup_${selectedShop}_${validWeek}_`)
       );
       
       if (backupKeys.length > 0) {
@@ -1396,7 +1408,7 @@ const PlanningDisplay = ({
     } else {
       setLocalFeedback('❌ Veuillez sélectionner une boutique et une semaine');
     }
-  }, [selectedShop, selectedWeek]);
+  }, [selectedShop, validWeek]);
 
   // Fonction de sauvegarde automatique JSON
   const createAutoBackupJSON = useCallback((type = 'auto') => {
@@ -1411,7 +1423,7 @@ const PlanningDisplay = ({
           autoBackup: type !== 'manual',
           backupType: type === 'manual' ? 'manual' : 'periodic',
           selectedShop: selectedShop,
-          selectedWeek: selectedWeek,
+          selectedWeek: validWeek,
           currentPlanning: planning
         };
         
@@ -1448,7 +1460,7 @@ const PlanningDisplay = ({
         setLocalFeedback('❌ Erreur lors de la sauvegarde JSON');
       }
     }
-  }, [planningData, selectedShop, selectedWeek, planning, readOnly]);
+  }, [planningData, selectedShop, validWeek, planning, readOnly]);
 
   // État pour la prochaine sauvegarde automatique
   const [nextAutoBackup, setNextAutoBackup] = useState(null);
@@ -1482,7 +1494,7 @@ const PlanningDisplay = ({
 
   const changeWeek = (direction) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (!readOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (!readOnly && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
         // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
         const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
@@ -1494,7 +1506,7 @@ const PlanningDisplay = ({
           updatedPlanningData = saveWeekPlanningForEmployee(
             updatedPlanningData,
             employeeId,
-            selectedWeek,
+            validWeek,
             planning,
             localSelectedEmployees,
             selectedShop
@@ -1536,10 +1548,10 @@ const PlanningDisplay = ({
 
   const changeToSpecificWeek = (weekDate) => {
     // Sauvegarder les modifications actuelles avant de changer de semaine
-    if (!readOnly && selectedShop && selectedWeek && planning && Object.keys(planning).length > 0) {
+    if (!readOnly && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
         setPlanningData((prev) =>
-          saveWeekPlanning(prev, selectedShop, selectedWeek, planning, localSelectedEmployees)
+          saveWeekPlanning(prev, selectedShop, validWeek, planning, localSelectedEmployees)
         );
         console.log('💾 Sauvegarde automatique avant changement vers semaine spécifique');
       } catch (error) {
@@ -1556,8 +1568,8 @@ const PlanningDisplay = ({
   const changeShop = (newShop) => {
     try {
       // Sauvegarder le planning actuel avant de changer de boutique
-      if (selectedShop && selectedWeek && Object.keys(planning).length > 0) {
-        console.log('Sauvegarde avant changement de boutique:', { selectedShop, selectedWeek, planning, localSelectedEmployees });
+      if (selectedShop && validWeek && Object.keys(planning).length > 0) {
+        console.log('Sauvegarde avant changement de boutique:', { selectedShop, selectedWeek: validWeek, planning, localSelectedEmployees });
         
         // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
         const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
@@ -1569,7 +1581,7 @@ const PlanningDisplay = ({
           updatedPlanningData = saveWeekPlanningForEmployee(
             updatedPlanningData,
             employeeId,
-            selectedWeek,
+            validWeek,
             planning,
             localSelectedEmployees,
             selectedShop // on sauvegarde dans la boutique qu'on quitte
@@ -1623,7 +1635,7 @@ const PlanningDisplay = ({
         const updatedPlanningData = saveWeekPlanning(
           planningData,
           selectedShop,
-          selectedWeek,
+          validWeek,
           emptyPlanning,
           []
         );
@@ -1633,7 +1645,7 @@ const PlanningDisplay = ({
         setFeedback('✅ Tous les clics de la semaine ont été effacés');
     } else if (resetType === 'employee' && employeeName) {
       // Effacer les clics d'un employé spécifique
-        const currentWeekData = getWeekPlanning(planningData, selectedShop, selectedWeek);
+        const currentWeekData = getWeekPlanning(planningData, selectedShop, validWeek);
         const newPlanning = { ...currentWeekData.planning };
         
       // Supprimer toutes les entrées pour cet employé
@@ -1644,7 +1656,7 @@ const PlanningDisplay = ({
         const updatedPlanningData = saveWeekPlanning(
           planningData,
           selectedShop,
-          selectedWeek,
+          validWeek,
           newPlanning,
           currentWeekData.selectedEmployees || []
         );
@@ -1656,7 +1668,7 @@ const PlanningDisplay = ({
         const updatedPlanningData = saveWeekPlanning(
           planningData,
           selectedShop,
-          selectedWeek,
+          validWeek,
           emptyPlanning,
           []
         );
@@ -1669,7 +1681,7 @@ const PlanningDisplay = ({
         const updatedPlanningData = saveWeekPlanning(
           planningData,
           selectedShop,
-          selectedWeek,
+          validWeek,
           emptyPlanning,
           localSelectedEmployees
         );
@@ -1730,7 +1742,7 @@ const PlanningDisplay = ({
       // l'état local en mémoire pour inclure les modifications non encore sauvegardées
       // (notamment statuts Congé/Maladie).
       const sourceWeekData = planningData?.shops?.find(shop => shop.id === selectedShop)?.weeks?.[sourceWeek];
-      const isSourceCurrentWeek = sourceWeek === selectedWeek;
+      const isSourceCurrentWeek = sourceWeek === validWeek;
       const sourcePlanning = isSourceCurrentWeek ? (planning || {}) : (sourceWeekData?.planning || {});
       const sourceSelectedEmployees = isSourceCurrentWeek
         ? (localSelectedEmployees || [])
@@ -1842,20 +1854,20 @@ const PlanningDisplay = ({
       console.error('❌ Erreur lors de la copie:', error);
       setLocalFeedback('❌ Erreur lors de la copie des données');
     }
-  }, [selectedShop, setSelectedWeek, planningData, setPlanningData, planning, localSelectedEmployees, selectedWeek]);
+  }, [selectedShop, setSelectedWeek, planningData, setPlanningData, planning, localSelectedEmployees, validWeek]);
 
 
 
   // Fonction pour copier vers la semaine suivante (compatibilité)
   const copyWeekToNextWeek = useCallback(() => {
-    const sourceWeek = selectedWeek;
-    const destinationWeek = format(addDays(parseISO(selectedWeek), 7), 'yyyy-MM-dd');
+    const sourceWeek = validWeek;
+    const destinationWeek = format(addDays(parseISO(validWeek), 7), 'yyyy-MM-dd');
     copyWeekToWeek(sourceWeek, destinationWeek);
-  }, [selectedWeek, copyWeekToWeek]);
+  }, [validWeek, copyWeekToWeek]);
 
   const exportReadableSchedules = useCallback(() => {
     try {
-      if (!selectedWeek || !planningData?.shops?.length) {
+      if (!validWeek || !planningData?.shops?.length) {
         setLocalFeedback('❌ Export impossible: semaine ou donnees indisponibles.');
         return;
       }
@@ -1895,11 +1907,11 @@ const PlanningDisplay = ({
         return;
       }
 
-      const weekStart = parseISO(selectedWeek);
+      const weekStart = parseISO(validWeek);
       const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
       const weekLabel = `${format(weekStart, 'dd/MM/yyyy')} - ${format(addDays(weekStart, 6), 'dd/MM/yyyy')}`;
 
-      const monthAnchor = parseISO(selectedWeek);
+      const monthAnchor = parseISO(validWeek);
       const monthLabel = format(monthAnchor, 'MMMM yyyy', { locale: fr });
       const monthTagFile = format(monthAnchor, 'yyyy-MM');
       const monthDaysFlat = eachDayOfInterval({
@@ -1930,17 +1942,17 @@ const PlanningDisplay = ({
         ) {
           return planning;
         }
-        const w = shop.weeks?.[selectedWeek];
+        const w = shop.weeks?.[validWeek];
         const inline = w?.planning;
         if (inline && typeof inline === 'object' && Object.keys(inline).length > 0) {
           return inline;
         }
-        return loadFromLocalStorage(`planning_${shop.id}_${selectedWeek}`, {});
+        return loadFromLocalStorage(`planning_${shop.id}_${validWeek}`, {});
       };
 
       const getMonthWeeksForSelectedMonth = () => {
-        const start = startOfMonth(parseISO(selectedWeek));
-        const end = endOfMonth(parseISO(selectedWeek));
+        const start = startOfMonth(parseISO(validWeek));
+        const end = endOfMonth(parseISO(validWeek));
         const weeks = [];
         let current = startOfWeek(start, { weekStartsOn: 1 });
         while (current <= end) {
@@ -1954,7 +1966,7 @@ const PlanningDisplay = ({
         if (
           selectedShop != null &&
           String(shop.id) === String(selectedShop) &&
-          weekKey === selectedWeek &&
+          weekKey === validWeek &&
           planning &&
           typeof planning === 'object' &&
           Object.keys(planning).length > 0
@@ -2078,7 +2090,7 @@ const PlanningDisplay = ({
         sumEmployeeHoursForCalendarDay(employeeId, dayDate);
 
       const getEmployeeMonthlyHoursByShop = (employeeId) => {
-        const mAnchor = parseISO(selectedWeek);
+        const mAnchor = parseISO(validWeek);
         const monthStartStr = format(startOfMonth(mAnchor), 'yyyy-MM-dd');
         const monthEndStr = format(endOfMonth(mAnchor), 'yyyy-MM-dd');
         const monthWeeks = getMonthWeeksForSelectedMonth();
@@ -2512,7 +2524,7 @@ const PlanningDisplay = ({
         });
       };
 
-      const filePeriodTag = exportScopeMonth ? monthTagFile : selectedWeek;
+      const filePeriodTag = exportScopeMonth ? monthTagFile : validWeek;
 
       if (normalizedExportMode === '1') {
         const buildTxtLinesForEmployee = (employeeId) => {
@@ -2685,7 +2697,7 @@ const PlanningDisplay = ({
       console.error('Erreur export horaires lisibles:', error);
       setLocalFeedback('❌ Erreur lors de l export horaires lisibles.');
     }
-  }, [selectedWeek, selectedShop, planning, planningData, config, setLocalFeedback]);
+  }, [validWeek, selectedShop, planning, planningData, config, setLocalFeedback]);
 
   if (!currentShopData) {
     return (
@@ -2726,7 +2738,7 @@ const PlanningDisplay = ({
         planningData={planningData}
         setPlanningData={setPlanningData}
         selectedShop={selectedShop}
-        selectedWeek={selectedWeek}
+        selectedWeek={validWeek}
         liveWeekPlanning={planning}
         onBack={() => setShowCopyPastePage(false)}
       />

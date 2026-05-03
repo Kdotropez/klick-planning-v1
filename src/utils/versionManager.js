@@ -132,6 +132,11 @@ const VERSION_HIGHLIGHTS = {
     'Fiche inspection: champs longs repliables/lisibles, colonne Heures semaine, PDF et impression restructures.',
     'Convention collective par defaut corrigee: Commerces de gros - IDCC 2216.',
     'Planning: resynchronisation initiale des drag & drop lorsque les donnees sauvegardees arrivent apres le premier rendu.'
+  ],
+  '3.10.77': [
+    'Planning: correction de l ouverture initiale des horaires drag & drop quand la semaine courante etait initialisee avec la date du jour au lieu du lundi.',
+    'Planning: normalisation systematique de la cle semaine au lundi pour charger, afficher et sauvegarder les semaines existantes.',
+    'Selection semaine: reprise automatique d une ancienne date non-lundi vers la semaine canonique correspondante.'
   ]
 };
 

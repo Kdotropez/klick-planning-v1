@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 import { saveToLocalStorage } from './utils/localStorage';
 import { checkVersion, logVersionInfo, showVersionHighlightsOnce } from './utils/versionManager';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -58,6 +58,8 @@ const USER_DEFAULT_SHOP_ALIASES = {
   EVELYNE: 'SAINTE MAXIME',
   CHRISTELLE: 'CANNES'
 };
+
+const getCurrentWeekKey = () => format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
 const normalizeToken = (value) =>
   String(value || '')
@@ -763,7 +765,7 @@ const App = () => {
   const handleContinueWithLocalData = () => {
     if (planningData && planningData.shops && planningData.shops.length > 0) {
       setSelectedShop(resolvePreferredShopId(currentUser, planningData));
-      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+      setSelectedWeek(getCurrentWeekKey());
       setMode('week-selection');
       setFeedback('✅ Continuation avec les données locales');
     } else {
@@ -876,7 +878,7 @@ const App = () => {
       
       // Sélectionner la première boutique
       setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
-      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+      setSelectedWeek(getCurrentWeekKey());
       
       // Aller à la sélection de semaine
       setMode('week-selection');
@@ -967,7 +969,7 @@ const App = () => {
       localStorage.setItem('planningData', JSON.stringify(restoredData));
 
       setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
-      setSelectedWeek(format(new Date(), 'yyyy-MM-dd'));
+      setSelectedWeek(getCurrentWeekKey());
       setMode('week-selection');
 
       const restoredAt = chosen.updatedAt ? new Date(chosen.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
@@ -1345,7 +1347,7 @@ const App = () => {
       }
       
       // Initialiser la semaine courante
-      const currentWeek = format(new Date(), 'yyyy-MM-dd');
+      const currentWeek = getCurrentWeekKey();
       setSelectedWeek(currentWeek);
       
       // Initialiser les employés sélectionnés (employés affectés à la première boutique)

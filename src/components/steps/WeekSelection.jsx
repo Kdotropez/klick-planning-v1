@@ -5,10 +5,18 @@ import { loadFromLocalStorage } from '../../utils/localStorage';
 import Button from '../common/Button';
 import '@/assets/styles.css';
 
+const normalizeWeekKey = (dateKey) => {
+    if (!dateKey) return '';
+    const parsed = new Date(dateKey);
+    if (isNaN(parsed.getTime())) return '';
+    return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+};
+
 const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, planningData, onChangeShop }) => {
-    const [month, setMonth] = useState(selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : format(new Date(), 'yyyy-MM'));
-    const [savedWeeksMonth, setSavedWeeksMonth] = useState(selectedWeek ? format(new Date(selectedWeek), 'yyyy-MM') : format(new Date(), 'yyyy-MM'));
-    const [currentWeek, setCurrentWeek] = useState(selectedWeek || '');
+    const initialWeek = normalizeWeekKey(selectedWeek);
+    const [month, setMonth] = useState(initialWeek ? format(new Date(initialWeek), 'yyyy-MM') : format(new Date(), 'yyyy-MM'));
+    const [savedWeeksMonth, setSavedWeeksMonth] = useState(initialWeek ? format(new Date(initialWeek), 'yyyy-MM') : format(new Date(), 'yyyy-MM'));
+    const [currentWeek, setCurrentWeek] = useState(initialWeek);
     const [savedWeeks, setSavedWeeks] = useState([]);
     const [feedback, setFeedback] = useState('');
 
@@ -74,8 +82,10 @@ const WeekSelection = ({ onNext, onBack, onReset, selectedWeek, selectedShop, pl
     // Mettre à jour le mois des semaines sauvegardées quand selectedWeek change
     useEffect(() => {
         if (selectedWeek) {
-            const weekMonth = format(new Date(selectedWeek), 'yyyy-MM');
+            const normalizedWeek = normalizeWeekKey(selectedWeek);
+            const weekMonth = format(new Date(normalizedWeek || selectedWeek), 'yyyy-MM');
             setSavedWeeksMonth(weekMonth);
+            setCurrentWeek(normalizedWeek || selectedWeek);
             console.log('Mise à jour du mois des semaines sauvegardées vers:', weekMonth);
         }
     }, [selectedWeek]);
