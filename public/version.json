@@ -1,7 +1,18 @@
 {
-  "version": "3.10.75",
-  "lastUpdate": "2026-05-01",
+  "version": "3.10.76",
+  "lastUpdate": "2026-05-03",
   "changelog": [
+    {
+      "version": "3.10.76",
+      "date": "2026-05-03",
+      "changes": [
+        "Affichage Inspection du travail : sélection des employés à faire figurer par boutique, mémorisée avec les mentions.",
+        "Affichage Inspection du travail : remplacement de Repos par Extérieur quand l'employé travaille dans une autre boutique le même jour.",
+        "Fiche inspection : champs longs repliables/lisibles, colonne Heures semaine, PDF et impression restructurés.",
+        "Convention collective par défaut corrigée : Commerces de gros - IDCC 2216.",
+        "Planning : resynchronisation initiale des drag & drop lorsque les données sauvegardées arrivent après le premier rendu."
+      ]
+    },
     {
       "version": "3.10.75",
       "date": "2026-05-01",

@@ -125,6 +125,13 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.74': [
     'Totaux journaliers et heures sur la ligne employe au format horaire (h et minutes), coherent avec une grille au quart d heure — plus de 8,8 h pour 8 h 45.'
+  ],
+  '3.10.76': [
+    'Affichage Inspection du travail: selection des employes a faire figurer par boutique, memorisee avec les mentions.',
+    'Affichage Inspection du travail: remplacement de Repos par Exterieur quand l employe travaille dans une autre boutique le meme jour.',
+    'Fiche inspection: champs longs repliables/lisibles, colonne Heures semaine, PDF et impression restructures.',
+    'Convention collective par defaut corrigee: Commerces de gros - IDCC 2216.',
+    'Planning: resynchronisation initiale des drag & drop lorsque les donnees sauvegardees arrivent apres le premier rendu.'
   ]
 };
 
