@@ -532,6 +532,15 @@ const PlanningDisplay = ({
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && selectedWeek ? getWeekPlanning(planningData, selectedShop, selectedWeek) : { planning: {}, selectedEmployees: [] };
   const [planning, setPlanning] = useState(weekData.planning || {});
+  const initialPlanningSyncKeyRef = useRef('');
+
+  const getPlanningEntryCount = useCallback((weekPlanning) => {
+    if (!weekPlanning || typeof weekPlanning !== 'object') return 0;
+    return Object.values(weekPlanning).reduce((total, employeePlanning) => {
+      if (!employeePlanning || typeof employeePlanning !== 'object') return total;
+      return total + Object.keys(employeePlanning).length;
+    }, 0);
+  }, []);
   
   // Fonction de verrouillage automatique lors du changement de jour
   const autoLockPreviousDay = useCallback((newDay) => {
@@ -987,6 +996,44 @@ const PlanningDisplay = ({
       }
     }
   }, [selectedShop, selectedWeek, forceRefresh, isEmployeeAssignedToCurrentShop]); // Retiré planningData pour éviter le rechargement automatique
+
+  useEffect(() => {
+    if (!selectedShop || !selectedWeek || !planningData?.shops?.length) return;
+    const syncKey = `${selectedShop}:${selectedWeek}`;
+    if (getPlanningEntryCount(planning) > 0) {
+      initialPlanningSyncKeyRef.current = syncKey;
+      return;
+    }
+    if (initialPlanningSyncKeyRef.current === syncKey) return;
+
+    const weekDataFromLoadedState = getWeekPlanning(planningData, selectedShop, selectedWeek);
+    const loadedPlanning = weekDataFromLoadedState?.planning || {};
+    if (getPlanningEntryCount(loadedPlanning) === 0) return;
+
+    const currentShopData = planningData.shops?.find((shop) => shop.id === selectedShop);
+    const visibleShopEmployees = (currentShopData?.employees || []).filter((emp) =>
+      !!emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp)
+    );
+    const currentShopEmployeeIds = Array.from(new Set(visibleShopEmployees.map((emp) => emp.id).filter(Boolean)));
+    const validSelectedEmployees = (weekDataFromLoadedState.selectedEmployees || [])
+      .filter((empId) => currentShopEmployeeIds.includes(empId));
+
+    setPlanning(loadedPlanning);
+    initialPlanningSyncKeyRef.current = syncKey;
+    if (validSelectedEmployees.length > 0) {
+      setLocalSelectedEmployees(validSelectedEmployees);
+      setSelectedEmployees(validSelectedEmployees);
+    }
+    console.log('📥 Planning resynchronisé après chargement initial des données:', loadedPlanning);
+  }, [
+    selectedShop,
+    selectedWeek,
+    planningData,
+    planning,
+    getPlanningEntryCount,
+    isEmployeeAssignedToCurrentShop,
+    setSelectedEmployees
+  ]);
 
   const toggleSlot = useCallback((employee, slotIndex, dayIndex, forceValue = null) => {
           if (readOnly) {

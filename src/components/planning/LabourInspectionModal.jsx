@@ -678,20 +678,29 @@ const LabourInspectionModal = ({
 
   const field = (key, label, options = {}) => {
     const multiline = options.multiline || String(meta[key] || '').length > 45;
+    const textLength = String(meta[key] || '').length;
+    const textareaRows = options.rows || Math.min(6, Math.max(3, Math.ceil(textLength / 68)));
+    const fieldStyle = {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
+      fontSize: '13px',
+      ...(options.fullWidth ? { gridColumn: '1 / -1' } : {})
+    };
     return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+    <label style={fieldStyle}>
       <span style={{ fontWeight: 700 }}>{label}</span>
       {multiline ? (
         <textarea
           value={meta[key] || ''}
-          rows={options.rows || 2}
+          rows={textareaRows}
           onChange={(event) => setMeta((prev) => ({ ...prev, [key]: event.target.value }))}
           style={{
             border: '1px solid #cfd8dc',
             borderRadius: '6px',
             padding: '8px 10px',
             resize: 'vertical',
-            minHeight: options.minHeight || '58px',
+            minHeight: options.minHeight || `${textareaRows * 22 + 20}px`,
             lineHeight: 1.35
           }}
         />
@@ -700,7 +709,7 @@ const LabourInspectionModal = ({
           type="text"
           value={meta[key] || ''}
           onChange={(event) => setMeta((prev) => ({ ...prev, [key]: event.target.value }))}
-          style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px' }}
+          style={{ border: '1px solid #cfd8dc', borderRadius: '6px', padding: '8px 10px', minWidth: 0 }}
         />
       )}
     </label>
@@ -743,8 +752,8 @@ const LabourInspectionModal = ({
     >
       <div
         style={{
-          width: 'min(1500px, 98vw)',
-          height: 'min(920px, 96vh)',
+          width: 'min(1600px, 98vw)',
+          height: 'min(980px, 98vh)',
           background: '#fff',
           borderRadius: '10px',
           overflow: 'hidden',
@@ -778,16 +787,16 @@ const LabourInspectionModal = ({
           </div>
         </div>
 
-        <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px', borderBottom: '1px solid #e0e0e0', maxHeight: '260px', overflow: 'auto' }}>
+        <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', borderBottom: '1px solid #e0e0e0', maxHeight: '52vh', overflow: 'auto' }}>
           {field('adresseEtablissement', 'Adresse etablissement')}
-          {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)', { multiline: true })}
+          {field('conventionCollective', 'Convention collective (remplir une fois, mémorisé par boutique)', { multiline: true, fullWidth: true })}
           {field('responsable', 'Responsable')}
           {field('boutiqueAffichee', 'Boutique affichee')}
-          {field('inspecteurTravail', 'Inspection du travail (nom/contact)', { multiline: true })}
-          {field('medecineTravail', 'Medecine du travail (contact)', { multiline: true })}
-          {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)', { multiline: true })}
-          {field('horairesCollectifs', 'Horaires collectifs de reference', { multiline: true })}
-          {field('pauseCollective', 'Pause/coupure collective', { multiline: true })}
+          {field('inspecteurTravail', 'Inspection du travail (nom/contact)', { multiline: true, fullWidth: true })}
+          {field('medecineTravail', 'Medecine du travail (contact)', { multiline: true, fullWidth: true })}
+          {field('secoursUrgence', 'Secours urgence (15/18/112 + consignes)', { multiline: true, fullWidth: true })}
+          {field('horairesCollectifs', 'Horaires collectifs de reference', { multiline: true, fullWidth: true })}
+          {field('pauseCollective', 'Pause/coupure collective', { multiline: true, fullWidth: true })}
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
             <span style={{ fontWeight: 700 }}>Date d affichage / publication (mémorisé)</span>
             <input
