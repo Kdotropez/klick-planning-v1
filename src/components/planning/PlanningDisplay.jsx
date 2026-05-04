@@ -436,7 +436,12 @@ const PlanningDisplay = ({
 
   const handleExport = () => {
     console.log('Export simple appelé');
-    onExport();
+    onExport({
+      currentShopId: selectedShop,
+      currentWeekKey: validWeek,
+      currentWeekPlanning: planning,
+      currentEmployees: [...(currentShopEmployees || []), ...(allEmployees || [])],
+    });
   };
 
   // Récupérer la boutique actuelle et sa configuration

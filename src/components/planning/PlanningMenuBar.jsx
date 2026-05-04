@@ -256,8 +256,9 @@ const PlanningMenuBar = ({
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#218838'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+            title="Excel toutes boutiques et tous les employés (fichier planning_detaille_mois_…). Ce n’est pas l’export d’une fiche employée : pour cela utilisez « Exporter en Excel » dans le récap mensuel détaillé."
           >
-            <FaDownload /> Exporter les données
+            <FaDownload /> Excel global
           </Button>
 
         <Button

@@ -1387,8 +1387,12 @@ const App = () => {
   };
 
   // Gestion du planning
-  const handleExport = () => {
+  const handleExport = (exportContext = {}) => {
     try {
+      const exportMonthDefault =
+        selectedWeek && /^\d{4}-\d{2}-\d{2}$/.test(selectedWeek)
+          ? selectedWeek.slice(0, 7)
+          : format(new Date(), 'yyyy-MM');
       // Ouvrir un sélecteur de mois via une petite modale
       const containerId = 'export-month-modal';
       let container = document.getElementById(containerId);
@@ -1402,11 +1406,15 @@ const App = () => {
       container.style.alignItems = 'center';
       container.style.justifyContent = 'center';
       container.innerHTML = `
-        <div style="background:#fff;padding:16px 20px;border-radius:8px;min-width:320px;font-family:Roboto, sans-serif">
-          <div style="font-weight:700;margin-bottom:10px;font-size:14px">Exporter le mois</div>
+        <div style="background:#fff;padding:16px 20px;border-radius:8px;min-width:340px;font-family:Roboto, sans-serif">
+          <div style="font-weight:700;margin-bottom:6px;font-size:14px">Excel planning global</div>
+          <div style="font-size:11px;color:#546e7a;line-height:1.45;margin-bottom:12px">
+            Export séparé du bouton « Exporter en Excel » dans une fiche employé (mensuel détaillé).
+            Celui-ci génère le fichier « planning_detaille_mois_<année>-<mois>_… », avec toutes les boutiques et plusieurs feuilles.
+          </div>
           <div style="display:flex;gap:10px;align-items:center">
             <label for="export-month-input" style="min-width:90px;font-size:12px">Mois:</label>
-            <input id="export-month-input" type="month" style="flex:1;padding:6px 8px;font-size:12px" value="${format(new Date(), 'yyyy-MM')}" />
+            <input id="export-month-input" type="month" style="flex:1;padding:6px 8px;font-size:12px" value="${exportMonthDefault}" />
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
             <button id="export-month-cancel" style="padding:6px 10px;font-size:12px;background:#eee;border:1px solid #ccc;border-radius:4px;cursor:pointer">Annuler</button>
@@ -1427,9 +1435,15 @@ const App = () => {
         const [y, m] = value.split('-').map(Number);
         const monthDate = new Date(y, m - 1, 1);
         cleanup();
-        const ok = exportPlanningToExcel(planningData, { monthDate });
+        const ok = exportPlanningToExcel(planningData, {
+          monthDate,
+          currentShopId: exportContext.currentShopId || selectedShop,
+          currentWeekKey: exportContext.currentWeekKey || selectedWeek,
+          currentWeekPlanning: exportContext.currentWeekPlanning || planning,
+          currentEmployees: exportContext.currentEmployees || selectedEmployees,
+        });
         if (ok === true) {
-          setFeedback('📊 Export Excel réussi !');
+          setFeedback('📊 Export Excel planning global téléchargé (toutes boutiques, fichier planning_detaille_mois…). Pour un employé : utiliser Exporter en Excel dans le récap mensuel détaillé.');
         } else {
           setFeedback('❌ Échec export Excel');
         }

@@ -85,9 +85,11 @@ const WeeklyWorkMatrixModal = ({
   const [periodMode, setPeriodMode] = useState('week');
   /** 'employees' = une ligne par employé ; 'shops' = une ligne par boutique, 1ʳᵉ col. = boutique. */
   const [tableView, setTableView] = useState('shops');
+  const [showActiveEmployees, setShowActiveEmployees] = useState(false);
   const [modalSize, setModalSize] = useState({ width: 1280, height: 820 });
   const wasModalOpen = useRef(false);
   const pdfCaptureRef = useRef(null);
+  const ignoreBackdropClickUntilRef = useRef(0);
 
   const getModalResizeBounds = useCallback(() => {
     const viewportW = Math.max(320, window.innerWidth - 24);
@@ -114,6 +116,7 @@ const WeeklyWorkMatrixModal = ({
       setRecapShopKey('all');
       setPeriodMode('week');
       setTableView('shops');
+      setShowActiveEmployees(false);
       setModalSize((size) => clampModalSize(size));
     }
     wasModalOpen.current = isOpen;
@@ -143,7 +146,10 @@ const WeeklyWorkMatrixModal = ({
       }));
     };
 
-    const stop = () => {
+    const stop = (stopEvent) => {
+      stopEvent?.preventDefault?.();
+      stopEvent?.stopPropagation?.();
+      ignoreBackdropClickUntilRef.current = Date.now() + 450;
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', stop);
       window.removeEventListener('touchmove', move);
@@ -412,11 +418,22 @@ const WeeklyWorkMatrixModal = ({
   }, [isOpen, selectedWeek, planningData, dayColumns, resolvePlanningForShop, recapShopKey]);
 
   const summary = useMemo(() => {
+    const activeEmployees = new Set();
     const workEmployees = new Set();
     const leaveEmployees = new Set();
     const sickEmployees = new Set();
     let staffedDays = 0;
     let totalHours = 0;
+
+    (planningData?.shops || []).forEach((shop) => {
+      if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return;
+      (shop.employees || []).forEach((emp) => {
+        if (!emp?.id) return;
+        if (isEmployeeVisibleForRecap(planningData, emp.id, shop.id)) {
+          activeEmployees.add(emp.id);
+        }
+      });
+    });
 
     shopMatrix.rows.forEach((shopRow) => {
       totalHours += shopRow.weekTotal || 0;
@@ -432,13 +449,69 @@ const WeeklyWorkMatrixModal = ({
 
     return {
       shopCount: shopMatrix.rows.length,
+      activeEmployeeCount: activeEmployees.size,
       workEmployeeCount: workEmployees.size,
       leaveEmployeeCount: leaveEmployees.size,
       sickEmployeeCount: sickEmployees.size,
       staffedDays,
       totalHours
     };
-  }, [shopMatrix]);
+  }, [planningData, recapShopKey, shopMatrix]);
+
+  const activeEmployeeRows = useMemo(() => {
+    if (!isOpen || !selectedWeek || !planningData?.shops?.length) return [];
+
+    const employeeRows = new Map();
+    (planningData.shops || []).forEach((shop) => {
+      if (recapShopKey !== 'all' && String(shop.id) !== String(recapShopKey)) return;
+      (shop.employees || []).forEach((emp) => {
+        if (!emp?.id || !isEmployeeVisibleForRecap(planningData, emp.id, shop.id)) return;
+        const existing = employeeRows.get(emp.id) || {
+          employeeId: emp.id,
+          name: emp.name || emp.id,
+          shops: new Set(),
+          totalHours: 0
+        };
+        existing.shops.add(shop.name || String(shop.id));
+        employeeRows.set(emp.id, existing);
+      });
+    });
+
+    return Array.from(employeeRows.values())
+      .map((employee) => {
+        const totalHours = dayColumns.reduce((sum, dayDate) => {
+          const dayKey = format(dayDate, 'yyyy-MM-dd');
+          const weekKey = getWeekKeyForDate(dayDate);
+          return sum + sumHoursDayForScope(
+            planningData,
+            resolvePlanningForShop,
+            employee.employeeId,
+            dayKey,
+            recapShopKey,
+            weekKey
+          );
+        }, 0);
+        const calendarMonthHours = monthDays.reduce((sum, dayDate) => {
+          const dayKey = format(dayDate, 'yyyy-MM-dd');
+          const weekKey = getWeekKeyForDate(dayDate);
+          return sum + sumHoursDayForScope(
+            planningData,
+            resolvePlanningForShop,
+            employee.employeeId,
+            dayKey,
+            recapShopKey,
+            weekKey
+          );
+        }, 0);
+        return {
+          ...employee,
+          shopNames: Array.from(employee.shops).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' })),
+          totalHours,
+          calendarMonthHours
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+  }, [dayColumns, isOpen, monthDays, planningData, recapShopKey, resolvePlanningForShop, selectedWeek]);
 
   const renderShopDayCell = (cell) => {
     const parts = cell.parts || [];
@@ -563,6 +636,7 @@ const WeeklyWorkMatrixModal = ({
           </div>
           <div class="cards">
             <div class="card"><strong>${summary.shopCount}</strong><span>Boutiques</span></div>
+            <div class="card"><strong>${summary.activeEmployeeCount}</strong><span>Employés actifs</span></div>
             <div class="card"><strong>${summary.workEmployeeCount}</strong><span>Employés au planning</span></div>
             <div class="card"><strong>${formatWorkedHoursForDisplay(summary.totalHours)}</strong><span>Total période</span></div>
             <div class="card"><strong>${summary.leaveEmployeeCount}</strong><span>En congé</span></div>
@@ -653,6 +727,87 @@ const WeeklyWorkMatrixModal = ({
 
     doc.addImage(imgData, 'PNG', x, y, imgW, imgH);
 
+    doc.addPage('a4', 'landscape');
+    doc.setFillColor(15, 76, 117);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('Récapitulatif employés actifs', 12, 9);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(
+      `${recapShopKey === 'all' ? 'Toutes les boutiques' : selectedShopName || String(recapShopKey)} - ${periodLabel}`,
+      12,
+      16
+    );
+    doc.text(`Edité le ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`, pageW - 12, 16, { align: 'right' });
+
+    const recapCards = [
+      ['Employés actifs', String(summary.activeEmployeeCount)],
+      ['Employés au planning', String(summary.workEmployeeCount)],
+      ['Cumul horaire', formatWorkedHoursForDisplay(summary.totalHours)],
+      ['Congés', String(summary.leaveEmployeeCount)],
+      ['Maladie', String(summary.sickEmployeeCount)]
+    ];
+    const cardW = (pageW - 24 - ((recapCards.length - 1) * 3)) / recapCards.length;
+    recapCards.forEach(([label, value], index) => {
+      const cardX = 12 + index * (cardW + 3);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(cardX, 28, cardW, 16, 2, 2, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 76, 117);
+      doc.text(value, cardX + 4, 35);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(label.toUpperCase(), cardX + 4, 40);
+    });
+
+    doc.autoTable({
+      startY: 52,
+      head: [['Employé actif', 'Boutique(s)', 'Cumul période', 'Cumul mois calendaire', 'Remarque']],
+      body: activeEmployeeRows.map((employee) => [
+        employee.name,
+        employee.shopNames.join(', '),
+        formatWorkedHoursForDisplay(employee.totalHours || 0),
+        formatWorkedHoursForDisplay(employee.calendarMonthHours || 0),
+        (employee.totalHours || 0) > 0.001 ? 'Planifié sur la période' : 'Actif sans horaire sur la période'
+      ]),
+      styles: {
+        fontSize: 8,
+        cellPadding: 2,
+        lineColor: [226, 232, 240],
+        lineWidth: 0.1,
+        valign: 'middle'
+      },
+      headStyles: {
+        fillColor: [15, 76, 117],
+        textColor: 255,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 56, fontStyle: 'bold' },
+        1: { cellWidth: 88 },
+        2: { cellWidth: 34, halign: 'right', fontStyle: 'bold', textColor: [15, 118, 110] },
+        3: { cellWidth: 42, halign: 'right', fontStyle: 'bold', textColor: [37, 99, 235] },
+        4: { cellWidth: 52, textColor: [71, 85, 105] }
+      }
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i += 1) {
+      doc.setPage(i);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${i}/${pageCount}`, pageW - 12, pageH - 6, { align: 'right' });
+    }
+
     doc.save(`recap_${periodMode}_${tableView === 'shops' ? 'par_boutique' : 'global_multi_boutiques'}_${scopeSlug}_${periodSlug}.pdf`);
   };
 
@@ -678,7 +833,14 @@ const WeeklyWorkMatrixModal = ({
         padding: '12px',
         boxSizing: 'border-box'
       }}
-      onClick={onClose}
+      onClick={(event) => {
+        if (Date.now() < ignoreBackdropClickUntilRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        onClose();
+      }}
     >
       <div
         ref={pdfCaptureRef}
@@ -890,6 +1052,23 @@ const WeeklyWorkMatrixModal = ({
           >
             Par boutique
           </button>
+          <button
+            type="button"
+            onClick={() => setShowActiveEmployees((value) => !value)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: showActiveEmployees ? '2px solid #2563eb' : '1px solid #94a3b8',
+              background: showActiveEmployees ? '#2563eb' : '#fff',
+              color: showActiveEmployees ? '#fff' : '#334155',
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontSize: '12px',
+              marginLeft: 'auto'
+            }}
+          >
+            {showActiveEmployees ? 'Masquer employés actifs' : 'Voir employés actifs'}
+          </button>
         </div>
 
         <div
@@ -905,6 +1084,7 @@ const WeeklyWorkMatrixModal = ({
         >
           {[
             { label: 'Boutiques affichées', value: summary.shopCount, color: '#0f4c75' },
+            { label: 'Employés actifs', value: summary.activeEmployeeCount, color: '#2563eb' },
             { label: 'Employés au planning', value: summary.workEmployeeCount, color: '#0f766e' },
             { label: 'Total période', value: formatWorkedHoursForDisplay(summary.totalHours), color: '#7c3aed' },
             { label: 'Employés en congé', value: summary.leaveEmployeeCount, color: '#ea580c' },
@@ -940,6 +1120,143 @@ const WeeklyWorkMatrixModal = ({
             background: '#f1f5f9'
           }}
         >
+          {showActiveEmployees && (
+            <div
+              data-html2canvas-ignore="true"
+              style={{
+                marginBottom: '12px',
+                background: '#ffffff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: '0 6px 18px rgba(37,99,235,0.12)'
+              }}
+            >
+              <div
+                style={{
+                  padding: '12px 14px',
+                  background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
+                  color: '#fff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  flexWrap: 'wrap',
+                  alignItems: 'center'
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: '14px' }}>
+                    Employés actifs avec cumul horaire
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.92, marginTop: '3px' }}>
+                    {periodLabel} · Mois calendaire : {monthLabel} · {recapShopKey === 'all' ? 'Toutes les boutiques' : selectedShopName || String(recapShopKey)}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 900, fontSize: '18px' }}>
+                  {activeEmployeeRows.length} actif{activeEmployeeRows.length > 1 ? 's' : ''}
+                </div>
+              </div>
+
+              {activeEmployeeRows.length === 0 ? (
+                <div style={{ padding: '16px', color: '#64748b', textAlign: 'center' }}>
+                  Aucun employé actif dans le périmètre affiché.
+                </div>
+              ) : (
+                <div style={{ overflow: 'auto' }}>
+                  <table
+                    style={{
+                      width: '100%',
+                      minWidth: '900px',
+                      borderCollapse: 'collapse',
+                      fontSize: '12px'
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ background: '#eff6ff', color: '#1e3a8a' }}>
+                        <th style={{ textAlign: 'left', padding: '10px 12px', border: '1px solid #dbeafe' }}>
+                          Employé actif
+                        </th>
+                        <th style={{ textAlign: 'left', padding: '10px 12px', border: '1px solid #dbeafe' }}>
+                          Boutique(s)
+                        </th>
+                        <th style={{ textAlign: 'right', padding: '10px 12px', border: '1px solid #dbeafe' }}>
+                          Cumul période
+                        </th>
+                        <th style={{ textAlign: 'right', padding: '10px 12px', border: '1px solid #dbeafe' }}>
+                          Cumul mois calendaire
+                        </th>
+                        <th style={{ textAlign: 'left', padding: '10px 12px', border: '1px solid #dbeafe' }}>
+                          Situation
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeEmployeeRows.map((employee, index) => {
+                        const hasHours = (employee.totalHours || 0) > 0.001;
+                        return (
+                          <tr key={employee.employeeId} style={{ background: index % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                            <td
+                              style={{
+                                padding: '10px 12px',
+                                border: '1px solid #e2e8f0',
+                                fontWeight: 800,
+                                color: '#0f172a'
+                              }}
+                            >
+                              {employee.name}
+                            </td>
+                            <td style={{ padding: '10px 12px', border: '1px solid #e2e8f0', color: '#334155' }}>
+                              {employee.shopNames.join(', ')}
+                            </td>
+                            <td
+                              style={{
+                                padding: '10px 12px',
+                                border: '1px solid #e2e8f0',
+                                textAlign: 'right',
+                                fontWeight: 900,
+                                color: hasHours ? '#0f766e' : '#64748b',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              {formatWorkedHoursForDisplay(employee.totalHours || 0)}
+                            </td>
+                            <td
+                              style={{
+                                padding: '10px 12px',
+                                border: '1px solid #e2e8f0',
+                                textAlign: 'right',
+                                fontWeight: 900,
+                                color: '#2563eb',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              {formatWorkedHoursForDisplay(employee.calendarMonthHours || 0)}
+                            </td>
+                            <td style={{ padding: '10px 12px', border: '1px solid #e2e8f0' }}>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  padding: '4px 8px',
+                                  borderRadius: '999px',
+                                  background: hasHours ? '#dcfce7' : '#f1f5f9',
+                                  color: hasHours ? '#166534' : '#475569',
+                                  fontWeight: 800,
+                                  fontSize: '11px'
+                                }}
+                              >
+                                {hasHours ? 'Planifié sur la période' : 'Actif sans horaire sur la période'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {showEmpty ? (
             <div style={{ textAlign: 'center', color: '#64748b', padding: '32px' }}>
               {tableView === 'employees'
@@ -1213,6 +1530,10 @@ const WeeklyWorkMatrixModal = ({
           data-html2canvas-ignore="true"
           onMouseDown={startResizeModal}
           onTouchStart={startResizeModal}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           title="Redimensionner la fenêtre"
           style={{
             position: 'absolute',

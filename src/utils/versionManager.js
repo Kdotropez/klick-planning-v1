@@ -203,6 +203,61 @@ const VERSION_HIGHLIGHTS = {
     'Planning: les cartes/recapitulatifs employes sont desormais masques par defaut a l ouverture.',
     'Le bouton Afficher permet de faire apparaitre les cartes employes a la demande.',
     'Aucun changement sur le statut reel des employes: le masquage concerne uniquement l affichage des cartes.'
+  ],
+  '3.10.91': [
+    'Planning global multi-boutiques: correction de la fermeture accidentelle apres redimensionnement rapide.',
+    'Fenetre planning: le clic de fond est ignore juste apres le lacher de la poignee de redimensionnement.',
+    'Poignee de redimensionnement: blocage explicite du clic pour eviter le retour involontaire au menu.'
+  ],
+  '3.10.92': [
+    'Planning global multi-boutiques: ajout du nombre d employes actifs dans les cartes de synthese.',
+    'Employes actifs: comptage des employes visibles/non masques et affectes au perimetre affiche.',
+    'Impression/PDF du planning semaine: inclusion du compteur d employes actifs dans le rendu capture.'
+  ],
+  '3.10.93': [
+    'Planning global multi-boutiques: ajout d une page 2 au PDF avec les employes actifs de la periode.',
+    'Page 2 PDF: tableau des employes actifs, boutiques concernees, cumul horaire et statut de planification.',
+    'Recap PDF: ajout des compteurs employes actifs, employes au planning, cumul horaire, conges et maladie.'
+  ],
+  '3.10.94': [
+    'Planning semaine: ajout d un bouton pour visualiser les employes actifs directement dans la fenetre.',
+    'Employes actifs: affichage ecran des boutiques concernees, du cumul horaire et du statut de planification.',
+    'Recap ecran: indication claire des employes actifs sans horaire sur la periode.'
+  ],
+  '3.10.95': [
+    'Planning semaine: ajout du cumul sur le mois calendaire dans le tableau des employes actifs.',
+    'Employes actifs: distinction entre cumul de la periode affichee et cumul du mois complet.',
+    'PDF page 2: ajout de la colonne cumul mois calendaire dans le recapitulatif des employes actifs.'
+  ],
+  '3.10.96': [
+    'Export Excel: distinction claire avec le recap mensuel d un employe (nouveau libelle bouton et modale).',
+    'Export Excel global: mois par defaut aligne sur la semaine ouverte dans le planning.',
+    'Fichier exporte: nom planning_detaille_mois_YYYY-MM pour identifier le mois couvert.'
+  ],
+  '3.10.97': [
+    'Export Excel global: prise en compte des plannings sauvegardes localement pour correspondre au planning affiche.',
+    'Export Excel: resolution renforcee des employes depuis les selections sauvegardees afin de retrouver les vrais noms.',
+    'Export Excel: suppression des colonnes d employes sans donnees sur le mois et filtrage des identifiants techniques emp_.'
+  ],
+  '3.10.98': [
+    'Export Excel global: restauration des employes multi-boutiques et des colonnes presentes avant le filtrage.',
+    'Export Excel: conservation des identifiants techniques emp_ lorsqu ils portent encore des horaires reels.',
+    'Export Excel: retrait du filtrage trop agressif qui masquait des boutiques et des employes.'
+  ],
+  '3.10.99': [
+    'Export Excel global: recherche renforcee du vrai nom employe a partir des identifiants de planning emp_.',
+    'Export Excel: prise en compte des selections employees sauvegardees meme lorsqu elles contiennent seulement des identifiants.',
+    'Export Excel: recuperation des metadonnees employe dans les donnees locales JSON pour reafficher Angelique si l association existe.'
+  ],
+  '3.10.100': [
+    'Export Excel global: transmission du contexte reel affiche (boutique, semaine, planning en memoire et employes connus par l ecran).',
+    'Export Excel: arret de l exclusion des employes masques lorsque des horaires existent dans le planning.',
+    'Export Excel: alignement renforce avec les donnees utilisees par le recap mensuel detaille.'
+  ],
+  '3.10.101': [
+    'Export Excel employe: correction des journees multi-boutiques, toutes les boutiques du meme jour sont maintenant ecrites.',
+    'Export Excel employe: totaux hebdomadaires et mensuels par boutique recalcules avec toutes les lignes du jour.',
+    'Export Excel: correction de l ecart entre le recap mensuel ecran et la feuille Excel employe.'
   ]
 };
 

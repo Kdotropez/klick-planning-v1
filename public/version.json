@@ -1,7 +1,106 @@
 {
-  "version": "3.10.90",
-  "lastUpdate": "2026-05-03",
+  "version": "3.10.101",
+  "lastUpdate": "2026-05-04",
   "changelog": [
+    {
+      "version": "3.10.101",
+      "date": "2026-05-04",
+      "changes": [
+        "Export Excel employé : correction des journées multi-boutiques, toutes les boutiques du même jour sont maintenant écrites.",
+        "Export Excel employé : totaux hebdomadaires et mensuels par boutique recalculés avec toutes les lignes du jour.",
+        "Export Excel : correction de l'écart entre le récap mensuel écran et la feuille Excel employé."
+      ]
+    },
+    {
+      "version": "3.10.100",
+      "date": "2026-05-04",
+      "changes": [
+        "Export Excel global : transmission du contexte réel affiché (boutique, semaine, planning en mémoire et employés connus par l'écran).",
+        "Export Excel : arrêt de l'exclusion des employés masqués lorsque des horaires existent dans le planning.",
+        "Export Excel : alignement renforcé avec les données utilisées par le récap mensuel détaillé."
+      ]
+    },
+    {
+      "version": "3.10.99",
+      "date": "2026-05-04",
+      "changes": [
+        "Export Excel global : recherche renforcée du vrai nom employé à partir des identifiants de planning emp_...",
+        "Export Excel : prise en compte des sélections employées sauvegardées même lorsqu'elles contiennent seulement des identifiants.",
+        "Export Excel : récupération des métadonnées employé dans les données locales JSON pour réafficher Angélique si l'association existe."
+      ]
+    },
+    {
+      "version": "3.10.98",
+      "date": "2026-05-04",
+      "changes": [
+        "Export Excel global : restauration des employés multi-boutiques et des colonnes présentes avant le filtrage.",
+        "Export Excel : conservation des identifiants techniques emp_ lorsqu'ils portent encore des horaires réels.",
+        "Export Excel : retrait du filtrage trop agressif qui masquait des boutiques et des employés."
+      ]
+    },
+    {
+      "version": "3.10.97",
+      "date": "2026-05-04",
+      "changes": [
+        "Export Excel global : prise en compte des plannings sauvegardés localement pour correspondre au planning affiché.",
+        "Export Excel : résolution renforcée des employés depuis les sélections sauvegardées afin de retrouver les vrais noms.",
+        "Export Excel : suppression des colonnes d'employés sans données sur le mois et filtrage des identifiants techniques emp_..."
+      ]
+    },
+    {
+      "version": "3.10.96",
+      "date": "2026-05-03",
+      "changes": [
+        "Export Excel : distinction claire avec le récap mensuel d'un employé (nouveau libellé bouton et modale).",
+        "Export Excel global : mois par défaut aligné sur la semaine ouverte dans le planning.",
+        "Fichier exporté : nom planning_detaille_mois_YYYY-MM pour identifier le mois couvert."
+      ]
+    },
+    {
+      "version": "3.10.95",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning semaine : ajout du cumul sur le mois calendaire dans le tableau des employés actifs.",
+        "Employés actifs : distinction entre cumul de la période affichée et cumul du mois complet.",
+        "PDF page 2 : ajout de la colonne cumul mois calendaire dans le récapitulatif des employés actifs."
+      ]
+    },
+    {
+      "version": "3.10.94",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning semaine : ajout d'un bouton pour visualiser les employés actifs directement dans la fenêtre.",
+        "Employés actifs : affichage écran des boutiques concernées, du cumul horaire et du statut de planification.",
+        "Récap écran : indication claire des employés actifs sans horaire sur la période."
+      ]
+    },
+    {
+      "version": "3.10.93",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : ajout d'une page 2 au PDF avec les employés actifs de la période.",
+        "Page 2 PDF : tableau des employés actifs, boutiques concernées, cumul horaire et statut de planification.",
+        "Récap PDF : ajout des compteurs employés actifs, employés au planning, cumul horaire, congés et maladie."
+      ]
+    },
+    {
+      "version": "3.10.92",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : ajout du nombre d'employés actifs dans les cartes de synthèse.",
+        "Employés actifs : comptage des employés visibles/non masqués et affectés au périmètre affiché.",
+        "Impression/PDF du planning semaine : inclusion du compteur d'employés actifs dans le rendu capturé."
+      ]
+    },
+    {
+      "version": "3.10.91",
+      "date": "2026-05-03",
+      "changes": [
+        "Planning global multi-boutiques : correction de la fermeture accidentelle après redimensionnement rapide.",
+        "Fenêtre planning : le clic de fond est ignoré juste après le lâcher de la poignée de redimensionnement.",
+        "Poignée de redimensionnement : blocage explicite du clic pour éviter le retour involontaire au menu."
+      ]
+    },
     {
       "version": "3.10.90",
       "date": "2026-05-03",
