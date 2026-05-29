@@ -1273,7 +1273,10 @@ const App = () => {
     setMode('startup'); // Retour à l'écran de démarrage du planning
   };
 
+  const [schoolModeReturnMode, setSchoolModeReturnMode] = useState('main-startup');
+
   const handleOpenSchoolMode = () => {
+    setSchoolModeReturnMode(mode);
     setMode('school-mode');
   };
 
@@ -1542,7 +1545,7 @@ const App = () => {
     return (
       <ErrorBoundary>
         {renderContrastToggle()}
-        <SchoolModeViewer onBack={() => setMode('main-startup')} />
+        <SchoolModeViewer onBack={() => setMode(schoolModeReturnMode || 'main-startup')} />
         <VersionBadge />
       </ErrorBoundary>
     );
@@ -1818,6 +1821,7 @@ const App = () => {
               onBackToShopManagement={handleBackToShopManagement}
               onBackToWeekSelection={handleBackToWeekSelection}
               onBackToConfig={handleBackToConfig}
+              onOpenSchoolMode={handleOpenSchoolMode}
               setFeedback={setFeedback}
               onRestoreFromSupabase={handleRestoreFromSupabase}
               onRestoreBackupFromHistory={handleRestoreBackupFromHistory}

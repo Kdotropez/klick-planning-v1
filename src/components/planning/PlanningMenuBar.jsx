@@ -25,6 +25,7 @@ const PlanningMenuBar = ({
   onBackToWeek,
   onBackToConfig,
   onBackToStartup,
+  onOpenSchoolMode,
   
   // Actions
   onExport,
@@ -605,6 +606,31 @@ const PlanningMenuBar = ({
         >
           🏠 Démarrage
         </Button>
+
+        {onOpenSchoolMode && (
+          <Button
+            className="button-primary"
+            onClick={onOpenSchoolMode}
+            style={{
+              backgroundColor: '#2563eb',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            title="Ouvrir une sauvegarde JSON en lecture seule, sans remplacer le planning actif"
+          >
+            🎓 Mode école
+          </Button>
+        )}
 
         {/* LIGNE 3: Nouveaux boutons ajoutés */}
         <Button

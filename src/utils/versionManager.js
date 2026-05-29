@@ -263,6 +263,11 @@ const VERSION_HIGHLIGHTS = {
     'Mode ecole: ouverture d une sauvegarde JSON en lecture seule sans remplacer le planning actif.',
     'Mode ecole: visualisation du contenu d une ancienne sauvegarde avec resume boutiques, employes, semaines et jours planifies.',
     'Mode ecole: export JSON ou Excel isole, sans melange avec les donnees actives du navigateur.'
+  ],
+  '3.10.103': [
+    'Mode ecole: bouton d acces direct dans la barre de menu du planning.',
+    'Mode ecole: accessible sans passer par l ecran de demarrage.',
+    'Mode ecole: retour automatique au planning apres consultation.'
   ]
 };
 

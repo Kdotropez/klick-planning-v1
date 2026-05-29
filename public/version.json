@@ -1,7 +1,16 @@
 {
-  "version": "3.10.102",
+  "version": "3.10.103",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.103",
+      "date": "2026-05-29",
+      "changes": [
+        "Mode école : ajout d'un bouton 🎓 Mode école dans la barre de menu du planning pour un accès direct.",
+        "Mode école : le bouton est désormais accessible sans passer par l'écran de démarrage.",
+        "Mode école : retour automatique à l'écran d'origine (planning ou menu) après consultation."
+      ]
+    },
     {
       "version": "3.10.102",
       "date": "2026-05-29",

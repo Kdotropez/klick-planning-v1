@@ -65,6 +65,7 @@ const PlanningDisplay = ({
   onBackToShopManagement,
   onBackToWeekSelection,
   onBackToConfig,
+  onOpenSchoolMode,
   setFeedback,
   onDeleteEmployee,
   onRestoreFromSupabase,
@@ -2948,6 +2949,7 @@ const PlanningDisplay = ({
             onBackToWeek={onBackToWeekSelection}
             onBackToConfig={onBackToConfig}
             onBackToStartup={onBackToStartup}
+            onOpenSchoolMode={onOpenSchoolMode}
             onExport={handleExport}
             onImport={onImport}
             onReset={() => setShowResetModal(true)}
