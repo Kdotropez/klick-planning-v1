@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { addDays, format, parseISO, startOfWeek } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { exportPlanningToExcel } from '../utils/planningDataManager';
+import WeeklyWorkMatrixModal from './planning/WeeklyWorkMatrixModal';
 
 const readJsonFile = (file) =>
   new Promise((resolve, reject) => {
@@ -28,10 +30,50 @@ const downloadJson = (data, fileName) => {
 
 const safeName = (value) => String(value || 'sauvegarde').replace(/[^\w-]+/g, '_');
 
+const normalizeWeekKey = (weekKey) => {
+  try {
+    return format(startOfWeek(parseISO(weekKey), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  } catch {
+    return weekKey;
+  }
+};
+
+const formatWeekLabel = (weekKey) => {
+  try {
+    const monday = parseISO(normalizeWeekKey(weekKey));
+    return `Du ${format(monday, 'd MMMM', { locale: fr })} au ${format(addDays(monday, 6), 'd MMMM yyyy', { locale: fr })}`;
+  } catch {
+    return weekKey;
+  }
+};
+
+const normalizeSchoolDataWeekKeys = (data) => {
+  const shops = (data?.shops || []).map((shop) => {
+    const weeks = {};
+    Object.entries(shop.weeks || {}).forEach(([weekKey, weekData]) => {
+      const normalizedKey = normalizeWeekKey(weekKey);
+      const existing = weeks[normalizedKey] || {};
+      weeks[normalizedKey] = {
+        ...existing,
+        ...weekData,
+        planning: {
+          ...(existing.planning || {}),
+          ...(weekData?.planning || {})
+        },
+        selectedEmployees: weekData?.selectedEmployees || existing.selectedEmployees
+      };
+    });
+    return { ...shop, weeks };
+  });
+  return { ...data, shops };
+};
+
 const SchoolModeViewer = ({ onBack }) => {
   const [schoolData, setSchoolData] = useState(null);
   const [fileName, setFileName] = useState('');
   const [message, setMessage] = useState('');
+  const [selectedWeek, setSelectedWeek] = useState('');
+  const [showWeeklyMatrix, setShowWeeklyMatrix] = useState(false);
 
   const summary = useMemo(() => {
     const shops = Array.isArray(schoolData?.shops) ? schoolData.shops : [];
@@ -60,7 +102,7 @@ const SchoolModeViewer = ({ onBack }) => {
       weekCount: weekKeys.size,
       planningEntries,
       shops,
-      weekKeys: Array.from(weekKeys).sort()
+      weekKeys: Array.from(weekKeys).sort().map(normalizeWeekKey).filter((value, index, array) => array.indexOf(value) === index)
     };
   }, [schoolData]);
 
@@ -73,8 +115,15 @@ const SchoolModeViewer = ({ onBack }) => {
         setMessage('Fichier invalide : aucune liste de boutiques trouvée.');
         return;
       }
-      setSchoolData(parsed);
+      setSchoolData(normalizeSchoolDataWeekKeys(parsed));
       setFileName(file.name);
+      const weekKeys = new Set();
+      (parsed.shops || []).forEach((shop) => {
+        Object.keys(shop.weeks || {}).forEach((weekKey) => weekKeys.add(normalizeWeekKey(weekKey)));
+      });
+      const sortedWeeks = Array.from(weekKeys).sort();
+      setSelectedWeek(sortedWeeks[sortedWeeks.length - 1] || '');
+      setShowWeeklyMatrix(false);
       setMessage('Fichier chargé en mode école : aucune donnée active n’a été remplacée.');
     } catch (error) {
       console.error('Erreur mode école:', error);
@@ -146,13 +195,46 @@ const SchoolModeViewer = ({ onBack }) => {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'center' }}>
               <button onClick={handleExportJson} style={{ padding: '10px 14px', borderRadius: '8px', border: 'none', background: '#0f766e', color: '#fff', cursor: 'pointer', fontWeight: 800 }}>
                 Exporter ce JSON
               </button>
               <button onClick={handleExportExcel} style={{ padding: '10px 14px', borderRadius: '8px', border: 'none', background: '#7c3aed', color: '#fff', cursor: 'pointer', fontWeight: 800 }}>
                 Exporter ce contenu en Excel
               </button>
+              {summary.weekKeys.length > 0 && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#334155' }}>
+                    Semaine
+                    <select
+                      value={selectedWeek}
+                      onChange={(event) => setSelectedWeek(event.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', minWidth: '280px' }}
+                    >
+                      {summary.weekKeys.map((weekKey) => (
+                        <option key={weekKey} value={weekKey}>
+                          {formatWeekLabel(weekKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    onClick={() => setShowWeeklyMatrix(true)}
+                    disabled={!selectedWeek}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: selectedWeek ? '#0f4c75' : '#94a3b8',
+                      color: '#fff',
+                      cursor: selectedWeek ? 'pointer' : 'not-allowed',
+                      fontWeight: 800
+                    }}
+                  >
+                    📋 Visualiser les horaires
+                  </button>
+                </>
+              )}
             </div>
 
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}>
@@ -188,6 +270,16 @@ const SchoolModeViewer = ({ onBack }) => {
           </>
         )}
       </div>
+
+      <WeeklyWorkMatrixModal
+        isOpen={showWeeklyMatrix}
+        onClose={() => setShowWeeklyMatrix(false)}
+        planningData={schoolData}
+        selectedWeek={selectedWeek}
+        currentShopId={null}
+        currentWeekPlanning={{}}
+        isolatedMode
+      />
     </div>
   );
 };

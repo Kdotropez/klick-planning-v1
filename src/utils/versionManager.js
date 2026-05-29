@@ -268,6 +268,11 @@ const VERSION_HIGHLIGHTS = {
     'Mode ecole: bouton d acces direct dans la barre de menu du planning.',
     'Mode ecole: accessible sans passer par l ecran de demarrage.',
     'Mode ecole: retour automatique au planning apres consultation.'
+  ],
+  '3.10.104': [
+    'Mode ecole: visualisation des horaires par boutique avec le tableau planning semaine/mois.',
+    'Mode ecole: selecteur de semaine et bouton Visualiser les horaires.',
+    'Mode ecole: lecture isolee du fichier JSON sans melange avec le planning actif.'
   ]
 };
 

@@ -78,7 +78,8 @@ const WeeklyWorkMatrixModal = ({
   planningData,
   selectedWeek,
   currentShopId,
-  currentWeekPlanning = {}
+  currentWeekPlanning = {},
+  isolatedMode = false
 }) => {
   const [recapShopKey, setRecapShopKey] = useState('all');
   /** 'week' = semaine affichée ; 'month' = mois de la semaine affichée. */
@@ -208,9 +209,10 @@ const WeeklyWorkMatrixModal = ({
       if (inline && typeof inline === 'object' && Object.keys(inline).length > 0) {
         return inline;
       }
+      if (isolatedMode) return {};
       return loadFromLocalStorage(`planning_${shop.id}_${weekKey}`, {});
     },
-    [currentShopId, currentWeekPlanning, selectedWeek]
+    [currentShopId, currentWeekPlanning, selectedWeek, isolatedMode]
   );
 
   const selectedShopName = useMemo(() => {
