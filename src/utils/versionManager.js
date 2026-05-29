@@ -273,6 +273,11 @@ const VERSION_HIGHLIGHTS = {
     'Mode ecole: visualisation des horaires par boutique avec le tableau planning semaine/mois.',
     'Mode ecole: selecteur de semaine et bouton Visualiser les horaires.',
     'Mode ecole: lecture isolee du fichier JSON sans melange avec le planning actif.'
+  ],
+  '3.10.105': [
+    'Mode ecole: choix libre des dates a visualiser (semaine, mois ou plage personnalisee).',
+    'Mode ecole: selecteurs de dates avec bornes deduites du fichier charge.',
+    'Mode ecole: acces rapide par semaine avec donnees enregistrees.'
   ]
 };
 

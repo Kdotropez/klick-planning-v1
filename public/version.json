@@ -1,7 +1,16 @@
 {
-  "version": "3.10.104",
+  "version": "3.10.105",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.105",
+      "date": "2026-05-29",
+      "changes": [
+        "Mode école : choix libre des dates à visualiser (semaine, mois calendaire ou plage personnalisée).",
+        "Mode école : sélecteurs de dates avec bornes déduites du fichier chargé.",
+        "Mode école : accès rapide par semaine avec données enregistrées."
+      ]
+    },
     {
       "version": "3.10.104",
       "date": "2026-05-29",

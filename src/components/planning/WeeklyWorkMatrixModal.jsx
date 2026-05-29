@@ -79,7 +79,9 @@ const WeeklyWorkMatrixModal = ({
   selectedWeek,
   currentShopId,
   currentWeekPlanning = {},
-  isolatedMode = false
+  isolatedMode = false,
+  viewerPeriodMode = null,
+  viewerRangeEnd = null
 }) => {
   const [recapShopKey, setRecapShopKey] = useState('all');
   /** 'week' = semaine affichée ; 'month' = mois de la semaine affichée. */
@@ -190,8 +192,39 @@ const WeeklyWorkMatrixModal = ({
     return format(parseISO(selectedWeek), 'MMMM yyyy', { locale: fr });
   }, [selectedWeek]);
 
-  const dayColumns = periodMode === 'month' ? monthDays : weekDays;
-  const periodLabel = periodMode === 'month' ? monthLabel : weekLabel;
+  const effectivePeriodMode = isolatedMode && viewerPeriodMode ? viewerPeriodMode : periodMode;
+
+  const customRangeDays = useMemo(() => {
+    if (effectivePeriodMode !== 'range' || !selectedWeek || !viewerRangeEnd) return [];
+    try {
+      const start = parseISO(selectedWeek);
+      const end = parseISO(viewerRangeEnd);
+      if (start > end) return [];
+      return eachDayOfInterval({ start, end });
+    } catch {
+      return [];
+    }
+  }, [effectivePeriodMode, selectedWeek, viewerRangeEnd]);
+
+  const rangeLabel = useMemo(() => {
+    if (effectivePeriodMode !== 'range' || !selectedWeek || !viewerRangeEnd) return '';
+    try {
+      return `${format(parseISO(selectedWeek), 'dd/MM/yyyy', { locale: fr })} → ${format(parseISO(viewerRangeEnd), 'dd/MM/yyyy', { locale: fr })}`;
+    } catch {
+      return '';
+    }
+  }, [effectivePeriodMode, selectedWeek, viewerRangeEnd]);
+
+  const dayColumns = effectivePeriodMode === 'range'
+    ? customRangeDays
+    : effectivePeriodMode === 'month'
+      ? monthDays
+      : weekDays;
+  const periodLabel = effectivePeriodMode === 'range'
+    ? rangeLabel
+    : effectivePeriodMode === 'month'
+      ? monthLabel
+      : weekLabel;
 
   const resolvePlanningForShop = useCallback(
     (shop, weekKey = selectedWeek) => {
@@ -583,8 +616,8 @@ const WeeklyWorkMatrixModal = ({
     if (!printedRows.length) return;
 
     const title = tableView === 'shops'
-      ? `Planning ${periodMode === 'month' ? 'mois' : 'semaine'} par boutique`
-      : `Planning global multi-boutiques ${periodMode === 'month' ? 'mois' : 'semaine'} par employé`;
+      ? `Planning ${effectivePeriodMode === 'month' ? 'mois' : effectivePeriodMode === 'range' ? 'plage' : 'semaine'} par boutique`
+      : `Planning global multi-boutiques ${effectivePeriodMode === 'month' ? 'mois' : effectivePeriodMode === 'range' ? 'plage' : 'semaine'} par employé`;
     const firstHeader = tableView === 'shops' ? 'Boutique' : 'Employé';
     const htmlRows = printedRows.map((row) => {
       const firstCell = tableView === 'shops' ? row.shopName : row.name;
@@ -664,7 +697,11 @@ const WeeklyWorkMatrixModal = ({
   };
 
   const exportPdf = async () => {
-    const periodSlug = periodMode === 'month' ? format(parseISO(selectedWeek), 'yyyy-MM') : selectedWeek;
+    const periodSlug = effectivePeriodMode === 'month'
+      ? format(parseISO(selectedWeek), 'yyyy-MM')
+      : effectivePeriodMode === 'range'
+        ? `${selectedWeek}_${viewerRangeEnd}`
+        : selectedWeek;
     const captureTarget = pdfCaptureRef.current;
     if (!captureTarget) return;
     const scopeSlug = recapShopKey === 'all' ? 'toutes' : String(recapShopKey).replace(/[^\w-]+/g, '_');
@@ -810,7 +847,7 @@ const WeeklyWorkMatrixModal = ({
       doc.text(`${i}/${pageCount}`, pageW - 12, pageH - 6, { align: 'right' });
     }
 
-    doc.save(`recap_${periodMode}_${tableView === 'shops' ? 'par_boutique' : 'global_multi_boutiques'}_${scopeSlug}_${periodSlug}.pdf`);
+    doc.save(`recap_${effectivePeriodMode}_${tableView === 'shops' ? 'par_boutique' : 'global_multi_boutiques'}_${scopeSlug}_${periodSlug}.pdf`);
   };
 
   if (!isOpen) return null;
@@ -879,7 +916,7 @@ const WeeklyWorkMatrixModal = ({
         >
           <div>
             <div style={{ fontSize: '18px', fontWeight: 800 }}>
-              Planning {periodMode === 'month' ? 'mois' : 'semaine'} — boutiques, horaires et congés
+              Planning {effectivePeriodMode === 'month' ? 'mois' : effectivePeriodMode === 'range' ? 'plage' : 'semaine'} — boutiques, horaires et congés
             </div>
             <div style={{ fontSize: '13px', opacity: 0.92, marginTop: '4px' }}>
               {recapShopKey === 'all'
@@ -985,6 +1022,12 @@ const WeeklyWorkMatrixModal = ({
           }}
         >
           <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>Période :</span>
+          {isolatedMode && viewerPeriodMode ? (
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid #94a3b8' }}>
+              {effectivePeriodMode === 'range' ? `Plage ${periodLabel}` : effectivePeriodMode === 'month' ? `Mois ${monthLabel}` : `Semaine ${weekLabel}`}
+            </span>
+          ) : (
+            <>
           <button
             type="button"
             onClick={() => setPeriodMode('week')}
@@ -1021,6 +1064,8 @@ const WeeklyWorkMatrixModal = ({
           >
             Mois global
           </button>
+            </>
+          )}
           <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155', marginLeft: '8px' }}>Organisation :</span>
           <button
             type="button"
@@ -1262,7 +1307,7 @@ const WeeklyWorkMatrixModal = ({
           {showEmpty ? (
             <div style={{ textAlign: 'center', color: '#64748b', padding: '32px' }}>
               {tableView === 'employees'
-                ? `Aucun horaire enregistré sur ${periodMode === 'month' ? 'ce mois' : 'cette semaine'} pour les employés du périmètre.`
+                ? `Aucun horaire enregistré sur ${effectivePeriodMode === 'month' ? 'ce mois' : effectivePeriodMode === 'range' ? 'cette plage' : 'cette semaine'} pour les employés du périmètre.`
                 : 'Aucune donnée pour les boutiques du périmètre.'}
             </div>
           ) : tableView === 'employees' ? (
@@ -1296,7 +1341,7 @@ const WeeklyWorkMatrixModal = ({
                         style={{
                           textAlign: 'left',
                           padding: '10px 10px',
-                          minWidth: periodMode === 'month' ? '92px' : '120px',
+                          minWidth: effectivePeriodMode === 'month' || effectivePeriodMode === 'range' ? '92px' : '120px',
                           border: '1px solid #0a3d5c',
                           fontWeight: 700
                         }}
@@ -1424,7 +1469,7 @@ const WeeklyWorkMatrixModal = ({
                         style={{
                           textAlign: 'left',
                           padding: '10px 10px',
-                          minWidth: periodMode === 'month' ? '96px' : '140px',
+                          minWidth: effectivePeriodMode === 'month' || effectivePeriodMode === 'range' ? '96px' : '140px',
                           border: '1px solid #0a3d5c',
                           fontWeight: 700
                         }}
