@@ -1,6 +1,6 @@
 import React from 'react';
 
-const MainStartupScreen = ({ onSelectPlanning }) => {
+const MainStartupScreen = ({ onSelectPlanning, onOpenSchoolMode }) => {
   return (
     <div style={{
       minHeight: '100vh',
@@ -201,6 +201,68 @@ const MainStartupScreen = ({ onSelectPlanning }) => {
             </div>
           </div>
 
+          <div style={{
+            background: 'linear-gradient(135deg, #2563eb 0%, #1e40af 100%)',
+            borderRadius: '25px',
+            padding: '50px 40px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 20px 60px rgba(37, 99, 235, 0.3)',
+            border: '3px solid rgba(255,255,255,0.2)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+          onClick={onOpenSchoolMode}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'translateY(-15px) scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 30px 80px rgba(37, 99, 235, 0.5)';
+            e.currentTarget.style.border = '3px solid rgba(255,255,255,0.4)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = '0 20px 60px rgba(37, 99, 235, 0.3)';
+            e.currentTarget.style.border = '3px solid rgba(255,255,255,0.2)';
+          }}
+          >
+            <div style={{ fontSize: '92px', marginBottom: '30px', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}>
+              🎓
+            </div>
+
+            <h2 style={{
+              fontSize: '2.5rem',
+              fontWeight: '700',
+              color: '#ffffff',
+              margin: '0 0 20px 0',
+              textShadow: '0 4px 8px rgba(0,0,0,0.3)',
+              letterSpacing: '1px'
+            }}>
+              Mode école
+            </h2>
+
+            <p style={{
+              fontSize: '1.2rem',
+              color: '#ffffff',
+              margin: '0 0 30px 0',
+              opacity: '0.95',
+              lineHeight: '1.6',
+              fontWeight: '400'
+            }}>
+              Ouvrir une ancienne sauvegarde en lecture seule, vérifier son contenu et l’exporter sans remplacer le planning actif.
+            </p>
+
+            <div style={{
+              background: 'rgba(255,255,255,0.15)',
+              padding: '15px',
+              borderRadius: '15px',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.2)'
+            }}>
+              <span style={{ fontSize: '1rem', fontWeight: '600', color: '#ffffff' }}>
+                Contrôler une sauvegarde →
+              </span>
+            </div>
+          </div>
 
         </div>
       </div>

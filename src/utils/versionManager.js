@@ -258,6 +258,11 @@ const VERSION_HIGHLIGHTS = {
     'Export Excel employe: correction des journees multi-boutiques, toutes les boutiques du meme jour sont maintenant ecrites.',
     'Export Excel employe: totaux hebdomadaires et mensuels par boutique recalcules avec toutes les lignes du jour.',
     'Export Excel: correction de l ecart entre le recap mensuel ecran et la feuille Excel employe.'
+  ],
+  '3.10.102': [
+    'Mode ecole: ouverture d une sauvegarde JSON en lecture seule sans remplacer le planning actif.',
+    'Mode ecole: visualisation du contenu d une ancienne sauvegarde avec resume boutiques, employes, semaines et jours planifies.',
+    'Mode ecole: export JSON ou Excel isole, sans melange avec les donnees actives du navigateur.'
   ]
 };
 

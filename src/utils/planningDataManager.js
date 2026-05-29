@@ -630,6 +630,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
 
     const parseLocalStorageJson = (key, fallback) => {
       try {
+        if (opts?.isolatedMode) return fallback;
         if (typeof localStorage === 'undefined') return fallback;
         const raw = localStorage.getItem(key);
         if (!raw) return fallback;
@@ -697,7 +698,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         if (found) return found;
       }
 
-      if (typeof localStorage === 'undefined') return null;
+      if (opts?.isolatedMode || typeof localStorage === 'undefined') return null;
 
       const seen = new Set();
       const scan = (value) => {

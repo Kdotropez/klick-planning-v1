@@ -440,6 +440,7 @@ const LicenseManager = () => {
     onRestoreFromSupabase,
     onRestoreBackupFromHistory,
     onContinueWithLocalData,
+    onOpenSchoolMode,
     hasLocalData
   }) => {
   const [showLicenseManager, setShowLicenseManager] = useState(false);
@@ -810,6 +811,35 @@ const LicenseManager = () => {
               >
                 <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>🕘</span>
                 Historique Supabase
+              </Button>
+
+              <Button
+                onClick={onOpenSchoolMode}
+                style={{
+                  padding: '20px 40px',
+                  fontSize: '1.2rem',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  display: 'inline-block',
+                  fontWeight: '600',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 6px 20px rgba(37, 99, 235, 0.3)',
+                  minWidth: '250px'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 10px 25px rgba(37, 99, 235, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(37, 99, 235, 0.3)';
+                }}
+              >
+                <span style={{ fontSize: '1.4rem', marginRight: '10px' }}>🎓</span>
+                Mode école
               </Button>
             </div>
           </div>

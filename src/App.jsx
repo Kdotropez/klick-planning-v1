@@ -15,6 +15,7 @@ import VersionBadge from './components/common/VersionBadge';
 import MainStartupScreen from './components/MainStartupScreen';
 import StartupScreen from './components/StartupScreen';
 import UserIdentificationModal from './components/UserIdentificationModal';
+import SchoolModeViewer from './components/SchoolModeViewer';
 
 import ShopCreation from './components/steps/ShopCreation';
 import ShopConfig from './components/steps/ShopConfig';
@@ -133,7 +134,7 @@ const App = () => {
   };
 
   // États de l'application
-  const [mode, setMode] = useState('identification'); // 'identification', 'main-startup', 'startup', 'new', 'imported', 'week-selection', 'planning', 'cash-register'
+  const [mode, setMode] = useState('identification'); // 'identification', 'main-startup', 'startup', 'school-mode', 'new', 'imported', 'week-selection', 'planning', 'cash-register'
   const [planningData, setPlanningData] = useState(createNewPlanningData());
   const [currentStep, setCurrentStep] = useState(1); // 1: création boutiques, 2: config, 3: employés, 4: affectation
   const [currentShopIndex, setCurrentShopIndex] = useState(0);
@@ -1272,6 +1273,10 @@ const App = () => {
     setMode('startup'); // Retour à l'écran de démarrage du planning
   };
 
+  const handleOpenSchoolMode = () => {
+    setMode('school-mode');
+  };
+
 
 
   const handleBackToMain = () => {
@@ -1525,8 +1530,19 @@ const App = () => {
         {renderInactivityCounter()}
         <MainStartupScreen 
           onSelectPlanning={handleSelectPlanning}
+          onOpenSchoolMode={handleOpenSchoolMode}
         />
         <CopyrightNotice />
+        <VersionBadge />
+      </ErrorBoundary>
+    );
+  }
+
+  if (mode === 'school-mode') {
+    return (
+      <ErrorBoundary>
+        {renderContrastToggle()}
+        <SchoolModeViewer onBack={() => setMode('main-startup')} />
         <VersionBadge />
       </ErrorBoundary>
     );
@@ -1545,6 +1561,7 @@ const App = () => {
             onRestoreFromSupabase={handleRestoreFromSupabase}
             onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
             onContinueWithLocalData={handleContinueWithLocalData}
+            onOpenSchoolMode={handleOpenSchoolMode}
             hasLocalData={planningData && planningData.shops && planningData.shops.length > 0}
           />
         <CopyrightNotice />

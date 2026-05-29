@@ -1,7 +1,16 @@
 {
-  "version": "3.10.101",
-  "lastUpdate": "2026-05-04",
+  "version": "3.10.102",
+  "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.102",
+      "date": "2026-05-29",
+      "changes": [
+        "Mode école : ouverture d'une sauvegarde JSON en lecture seule sans remplacer le planning actif.",
+        "Mode école : visualisation du contenu d'une ancienne sauvegarde avec résumé boutiques, employés, semaines et jours planifiés.",
+        "Mode école : export JSON ou Excel isolé, sans mélange avec les données actives du navigateur."
+      ]
+    },
     {
       "version": "3.10.101",
       "date": "2026-05-04",
