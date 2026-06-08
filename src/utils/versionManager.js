@@ -304,6 +304,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.110': [
     'Recap hebdo employe (cartes): correction heures effectives et total semaine a 0 h.',
     'Recap hebdo: calcul multi-boutiques avec config horaire de chaque boutique.'
+  ],
+  '3.10.111': [
+    'Restauration historique Supabase: correction erreur firstShop is not defined.',
+    'Audit: boutique correctement journalisee apres restauration historique.'
   ]
 };
 

@@ -1,7 +1,15 @@
 {
-  "version": "3.10.110",
-  "lastUpdate": "2026-05-29",
+  "version": "3.10.111",
+  "lastUpdate": "2026-06-08",
   "changelog": [
+    {
+      "version": "3.10.111",
+      "date": "2026-06-08",
+      "changes": [
+        "Restauration historique Supabase : correction de l'erreur firstShop is not defined qui bloquait la fin de la restauration.",
+        "Journal d'audit : boutique correctement enregistrée après restauration depuis l'historique."
+      ]
+    },
     {
       "version": "3.10.110",
       "date": "2026-05-29",

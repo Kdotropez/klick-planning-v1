@@ -970,7 +970,9 @@ const App = () => {
       setPlanningData(restoredData);
       localStorage.setItem('planningData', JSON.stringify(restoredData));
 
-      setSelectedShop(resolvePreferredShopId(currentUser, restoredData));
+      const parsedUser = currentUser ? JSON.parse(currentUser) : null;
+      const restoredShopId = resolvePreferredShopId(parsedUser, restoredData);
+      setSelectedShop(restoredShopId);
       setSelectedWeek(getCurrentWeekKey());
       setMode('planning');
 
@@ -980,10 +982,10 @@ const App = () => {
       addAuditLog({
         action: 'Restauration Historique Supabase',
         details: `Sauvegarde restauree: ${restoredAt}`,
-        userCode: currentUser?.code,
-        userName: currentUser?.name,
-        shopId: firstShop?.id || '',
-        shopName: getShopNameById(firstShop?.id || '', restoredData)
+        userCode: parsedUser?.code,
+        userName: parsedUser?.name,
+        shopId: restoredShopId || restoredData?.shops?.[0]?.id || '',
+        shopName: getShopNameById(restoredShopId || restoredData?.shops?.[0]?.id || '', restoredData)
       });
     } catch (error) {
       console.error('❌ Erreur restauration historique:', error);

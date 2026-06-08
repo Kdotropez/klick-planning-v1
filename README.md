@@ -8,7 +8,9 @@ Application de gestion de planning pour boutiques avec fonctionnalités avancée
 
 ### Vercel (Recommandé)
 L'application est déployée sur Vercel : 
-**https://planning-appv9-6fnujmbpy-nicolas-projects-0446a58d.vercel.app**
+**https://klick-planning-v1.vercel.app**
+
+(ancienne URL `planning-appv9-...` obsolète — ne plus utiliser)
 
 ### GitHub Pages
 Configuration prête pour GitHub Pages avec workflow GitHub Actions.
