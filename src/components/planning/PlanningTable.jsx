@@ -500,6 +500,37 @@ const PlanningTable = ({
       .filter((id) => hasCongeOrMaladieThisDay(id) && !sel.includes(id));
     return Array.from(new Set([...sel, ...extra]));
   }, [selectedEmployees, planning, validWeek, currentDay, currentShopEmployees]);
+
+  const weekHoursByEmployee = useMemo(() => {
+    const map = new Map();
+    if (!validWeek || !planningData?.shops) return map;
+
+    rowEmployeeIds.forEach((employeeId) => {
+      let totalHours = 0;
+      planningData.shops.forEach((shop) => {
+        const weekPlanning =
+          shop.id === selectedShop && planning
+            ? planning
+            : shop.weeks?.[validWeek]?.planning;
+        if (!weekPlanning?.[employeeId]) return;
+        const shopConfig = shop.id === selectedShop ? config : shop.config;
+        if (!shopConfig?.timeSlots?.length) return;
+        for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+          const dayKey = format(addDays(parseISO(validWeek), dayIndex), 'yyyy-MM-dd');
+          const dayData = weekPlanning[employeeId][dayKey];
+          if (!Array.isArray(dayData) || !dayData.some((slot) => slot === true)) continue;
+          totalHours += calculateEmployeeDailyHours(
+            employeeId,
+            dayKey,
+            { [employeeId]: weekPlanning[employeeId] },
+            shopConfig
+          );
+        }
+      });
+      map.set(employeeId, totalHours);
+    });
+    return map;
+  }, [rowEmployeeIds, validWeek, planningData, planning, selectedShop, config]);
   
   if (validTimeSlots.length === 0) {
     console.warn('PlanningTable: Configuration des tranches horaires invalide:', { config, timeSlots: config?.timeSlots });
@@ -639,6 +670,7 @@ const PlanningTable = ({
             const displayStatus = dayStatus || legacyArrayStatus;
             const employeeSlots = Array.isArray(dayData) ? dayData : Array(validTimeSlots.length).fill(false);
             const hours = calculateEmployeeDailyHours(employeeId, dayKey, planning, config);
+            const weekHours = weekHoursByEmployee.get(employeeId) || 0;
             
             // Trouver l'employé dans currentShopEmployees pour récupérer son nom
             const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
@@ -667,7 +699,12 @@ const PlanningTable = ({
                     displayStatus ? ' employee-day-status' : ''
                   }`}
                 >
-                  {employeeName} ({formatWorkedHoursForDisplay(hours)})
+                  <div style={{ lineHeight: 1.25 }}>
+                    <div style={{ fontWeight: 800 }}>{employeeName}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#334155', marginTop: '2px' }}>
+                      Jour {formatWorkedHoursForDisplay(hours)} · Sem. {formatWorkedHoursForDisplay(weekHours)}
+                    </div>
+                  </div>
                   {(() => {
                     // Vérifier si l'employé travaille déjà ce jour dans d'autres boutiques
                     if (!planningData || !planningData.shops) return null;

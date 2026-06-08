@@ -12,6 +12,7 @@ import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
 import ShopWeekInsightsModal from './ShopWeekInsightsModal';
 import WeeklyWorkMatrixModal from './WeeklyWorkMatrixModal';
+import EmployeeRecapCompact from './EmployeeRecapCompact';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
@@ -229,8 +230,16 @@ const PlanningDisplay = ({
     return saveWeekPlanning(planningData, shop, week, planning, employees);
   }, [readOnly]);
   
-  // Cartes employés masquées par défaut; le bouton "Afficher" les ouvre à la demande.
-  const [showEmployeeRecap, setShowEmployeeRecap] = useState(false);
+  // Récap employés affiché par défaut; le bouton "Masquer" le replie à la demande.
+  const [showEmployeeRecap, setShowEmployeeRecap] = useState(true);
+  const [showPlanningMenuBar, setShowPlanningMenuBar] = useState(() => {
+    try {
+      const stored = localStorage.getItem('planning_menu_bar_visible');
+      return stored === null ? false : stored === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [activeMenu, setActiveMenu] = useState(null);
 
   const [showCalendarTotals, setShowCalendarTotals] = useState(false);
@@ -247,6 +256,14 @@ const PlanningDisplay = ({
   useEffect(() => {
     try { initRemoteOutbox(); } catch (e) { console.warn('initRemoteOutbox failed', e); }
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('planning_menu_bar_visible', String(showPlanningMenuBar));
+    } catch {
+      // ignore storage errors
+    }
+  }, [showPlanningMenuBar]);
   
   // États pour la protection des données validées
   const [validatedData, setValidatedData] = useState({});
@@ -2850,8 +2867,8 @@ const PlanningDisplay = ({
       {/* Titre de la semaine - EN HAUT */}
       <div style={{
         textAlign: 'center',
-        marginBottom: deviceInfo.isTablet ? '30px' : '25px',
-        padding: deviceInfo.isTablet ? '30px 25px' : '25px 20px',
+        marginBottom: deviceInfo.isTablet ? '14px' : '12px',
+        padding: deviceInfo.isTablet ? '16px 18px' : '12px 16px',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         borderRadius: deviceInfo.isTablet ? '20px' : '16px',
         border: 'none',
@@ -2873,7 +2890,7 @@ const PlanningDisplay = ({
         }} />
         <h2 style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: deviceInfo.isTablet ? '32px' : '28px',
+          fontSize: deviceInfo.isTablet ? '24px' : '22px',
           fontWeight: '800',
           color: '#ffffff',
           margin: '0',
@@ -2887,9 +2904,9 @@ const PlanningDisplay = ({
         </h2>
         <p style={{
           fontFamily: 'Roboto, sans-serif',
-          fontSize: deviceInfo.isTablet ? '26px' : '22px',
+          fontSize: deviceInfo.isTablet ? '18px' : '16px',
           color: '#ffffff',
-          margin: '12px 0 0 0',
+          margin: '6px 0 0 0',
           fontStyle: 'italic',
           fontWeight: '500',
           textShadow: '0 1px 2px rgba(0,0,0,0.3)',
@@ -2934,8 +2951,42 @@ const PlanningDisplay = ({
 
 
 
-      {/* Menu Actions - Juste après le titre */}
+      {/* Menu Actions - affichage optionnel */}
         <div style={{ width: '100%' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 12px',
+              background: '#f8fafc',
+              borderRadius: '10px',
+              border: '1px solid #e2e8f0',
+              marginBottom: showPlanningMenuBar ? '8px' : 0
+            }}
+          >
+            <span style={{ fontSize: '14px', fontWeight: 800, color: '#334155' }}>
+              ⚙️ Menu actions (Pilotage, exports, sauvegardes…)
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPlanningMenuBar((value) => !value)}
+              style={{
+                backgroundColor: showPlanningMenuBar ? '#ff9800' : '#4caf50',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 700
+              }}
+              title={showPlanningMenuBar ? 'Masquer la barre de menu' : 'Afficher la barre de menu'}
+            >
+              {showPlanningMenuBar ? '👁️ Masquer menu' : '👁️ Afficher menu'}
+            </button>
+          </div>
+          {showPlanningMenuBar && (
           <PlanningMenuBar
             currentShop={selectedShop}
             shops={shops}
@@ -2984,1485 +3035,9 @@ const PlanningDisplay = ({
           planningData={planningData}
           onEmployeeUpdate={setPlanningData}
           />
+          )}
         </div>
 
-
-
-
-      {/* Récapitulatifs des Employés - Juste après le titre de la semaine */}
-      <div style={{ 
-        fontSize: deviceInfo.isTablet ? '20px' : '18px', 
-        fontWeight: '800', 
-        color: '#2c3e50',
-        marginBottom: '15px',
-        width: '100%',
-        textAlign: 'center',
-        padding: '12px 20px',
-        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-        borderRadius: '12px',
-        border: '2px solid #dee2e6',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        textTransform: 'uppercase',
-        letterSpacing: '1px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <span>📊 Récapitulatifs Employés</span>
-        <button
-          onClick={() => setShowEmployeeRecap(!showEmployeeRecap)}
-          style={{
-            backgroundColor: showEmployeeRecap ? '#ff9800' : '#4caf50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 16px',
-            fontSize: '14px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-            textTransform: 'none',
-            letterSpacing: 'normal'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 3px 6px rgba(0,0,0,0.3)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-          }}
-          title={showEmployeeRecap ? 'Masquer le récapitulatif employé' : 'Afficher le récapitulatif employé'}
-        >
-          {showEmployeeRecap ? '👁️ Masquer' : '👁️ Afficher'}
-        </button>
-      </div>
-      
-      {showEmployeeRecap && currentShopEmployees && currentShopEmployees.length > 0 && (
-        <>
-          <div style={{ 
-            display: 'flex',
-            flexDirection: 'column',
-            flexWrap: 'nowrap',
-            alignItems: 'stretch',
-            justifyContent: 'flex-start',
-            gap: '16px',
-            padding: '20px',
-            background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
-            borderRadius: '16px',
-            border: '2px solid #fed7d7',
-            marginBottom: '20px',
-            width: '100%',
-            boxSizing: 'border-box',
-            overflowX: 'hidden',
-            overflowY: 'auto',
-            boxShadow: '0 4px 20px rgba(254, 215, 215, 0.3)'
-          }}>
-            {((localSelectedEmployees && localSelectedEmployees.length > 0
-              ? localSelectedEmployees.filter((employeeId) =>
-                  (currentShopEmployees || []).some((emp) => emp.id === employeeId)
-                )
-              : (currentShopEmployees || []).map((emp) => emp.id)
-            )).map((employeeId) => {
-              const employee = currentShopEmployees?.find(emp => emp.id === employeeId);
-              const employeeName = employee?.name || employeeId;
-              const weeklyTotalHours = (() => {
-                if (!selectedWeek || !planningData) return 0;
-                let totalHours = 0;
-                const employeeShops = (planningData?.shops || []).filter(shop =>
-                  shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]
-                );
-
-                employeeShops.forEach(shop => {
-                  for (let i = 0; i < 7; i++) {
-                    const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                    if (shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                      const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                        totalHours += hours;
-                      }
-                    }
-                  }
-                });
-                return totalHours;
-              })();
-              const monthlyTotalHours = (() => {
-                if (!selectedWeek || !planningData) return 0;
-                const currentDate = parseISO(selectedWeek);
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const lastDayOfMonth = new Date(year, month + 1, 0);
-                let totalHours = 0;
-
-                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                  if (planningData.shops) {
-                    planningData.shops.forEach(shop => {
-                      if (shop.weeks) {
-                        Object.keys(shop.weeks).forEach(weekKey => {
-                          const weekData = shop.weeks[weekKey];
-                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                            const slots = weekData.planning[employeeId][dayKey];
-                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                              totalHours += hours;
-                            }
-                          }
-                        });
-                      }
-                    });
-                  }
-                }
-                return totalHours;
-              })();
-              
-              return (
-                <div key={employeeId} style={{
-                  display: 'grid',
-                  gridAutoFlow: 'column',
-                  gridAutoColumns: deviceInfo.isTablet ? 'minmax(190px, auto)' : 'minmax(170px, auto)',
-                  columnGap: '10px',
-                  rowGap: '8px',
-                  alignItems: 'start',
-                  padding: '22px 24px',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-                  borderRadius: '16px',
-                  border: '2px solid #e3f2fd',
-                  width: '100%',
-                  minWidth: '100%',
-                  maxWidth: 'none',
-                  flex: '0 0 auto',
-                  textAlign: 'center',
-                  boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
-                  transition: 'all 0.3s ease',
-                  position: 'relative',
-                  overflowX: 'auto',
-                  overflowY: 'hidden',
-                  boxSizing: 'border-box'
-                }}>
-                  <div style={{ 
-                    fontSize: deviceInfo.isTablet ? '18px' : '16px', 
-                    fontWeight: '800',
-                    color: '#1a237e',
-                    marginBottom: '10px',
-                    padding: '12px 16px',
-                    background: 'linear-gradient(135deg, #e8f4fd 0%, #bbdefb 100%)',
-                    borderRadius: '12px',
-                    border: '2px solid #2196f3',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
-                    textShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                    letterSpacing: '0.5px',
-                    gridColumn: '1 / -1'
-                  }}>
-                    👤 {employeeName}
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    width: '100%',
-                    gridColumn: '1 / -1'
-                  }}>
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeForWeeklyRecap(employeeId);
-                        setShowEmployeeWeeklyRecap(true);
-                      }}
-                      style={{
-                        backgroundColor: '#2e7d32',
-                        color: 'white',
-                        padding: deviceInfo.isTablet ? '10px 12px' : '9px 10px',
-                        fontSize: deviceInfo.isTablet ? '13px' : '12px',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontWeight: '700',
-                        letterSpacing: '0.2px',
-                        width: '100%',
-                        textAlign: 'center'
-                      }}
-                      title="Récapitulatif hebdomadaire"
-                    >
-                      📊 Semaine: {formatWorkedHoursForDisplay(weeklyTotalHours)}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeForMonthlyDetail(employeeId);
-                        setShowEmployeeMonthlyDetail(true);
-                      }}
-                      style={{
-                        backgroundColor: '#1e88e5',
-                        color: 'white',
-                        padding: deviceInfo.isTablet ? '10px 12px' : '9px 10px',
-                        fontSize: deviceInfo.isTablet ? '13px' : '12px',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontWeight: '700',
-                        letterSpacing: '0.2px',
-                        width: '100%',
-                        textAlign: 'center'
-                      }}
-                      title="Récapitulatif mensuel global"
-                    >
-                      📈 Mois: {formatWorkedHoursForDisplay(monthlyTotalHours)}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeForMonthlyRecap(employeeId);
-                        setShowEmployeeMonthlyRecap(true);
-                      }}
-                      style={{
-                        backgroundColor: '#ff9800',
-                        color: 'white',
-                        padding: deviceInfo.isTablet ? '10px 12px' : '9px 10px',
-                        fontSize: deviceInfo.isTablet ? '13px' : '12px',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontWeight: '700',
-                        letterSpacing: '0.2px',
-                        width: '100%',
-                        textAlign: 'center'
-                      }}
-                      title="Detail/mois/boutique"
-                    >
-                      📈 Detail/mois/boutique
-                    </button>
-                  </div>
-                  
-                  {/* Bouton Semaine - Toujours présent avec couleur verte */}
-                  <button
-                    onClick={() => {
-                      setSelectedEmployeeForWeeklyRecap(employeeId);
-                      setShowEmployeeWeeklyRecap(true);
-                    }}
-                    style={{
-                      backgroundColor: '#2e7d32', // Couleur verte pour semaine
-                      color: 'white',
-                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
-                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      marginBottom: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
-                      boxShadow: '0 3px 8px rgba(46, 125, 50, 0.3)',
-                      whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
-                      letterSpacing: '0.5px',
-                      width: '100%',
-                      display: 'none'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1b5e20';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(46, 125, 50, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#2e7d32';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(46, 125, 50, 0.3)';
-                    }}
-                    title="Récapitulatif hebdomadaire"
-                  >
-                    📊 Semaine: {(() => {
-                      if (!selectedWeek || !planningData) return formatWorkedHoursForDisplay(0);
-          let totalHours = 0;
-                      
-                      // Calculer le total pour toutes les boutiques où l'employé travaille
-                      const employeeShops = (planningData?.shops || []).filter(shop => 
-                        shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]
-                      );
-                      
-                      employeeShops.forEach(shop => {
-          for (let i = 0; i < 7; i++) {
-            const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                          if (shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                            const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-            totalHours += hours;
-          }
-                          }
-                        }
-                      });
-                      
-          return formatWorkedHoursForDisplay(totalHours);
-                    })()}
-                  </button>
-                  
-                  {/* Bouton Mois supprimé selon la demande utilisateur */}
-
-                  {/* Section Semaines par boutique - Boutons dynamiques pour les boutiques où l'employé travaille */}
-                  <div style={{ 
-                    width: '100%', 
-                    marginBottom: '15px',
-                    padding: '12px',
-                    border: '2px solid #2e7d32',
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(46, 125, 50, 0.05)'
-                  }}>
-                    <div style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 'bold', 
-                      color: '#2e7d32', 
-                      marginBottom: '8px',
-                      textAlign: 'center'
-                    }}>
-                      Semaines par boutique
-                    </div>
-                    
-                    {/* Boutons dynamiques pour les boutiques où l'employé travaille */}
-                    {(() => {
-                      // Filtrer seulement les boutiques où l'employé a des données
-                      const employeeShops = (planningData?.shops || []).filter(shop => 
-                        shop.weeks && Object.keys(shop.weeks).some(weekKey => 
-                          shop.weeks[weekKey]?.planning?.[employeeId]
-                        )
-                      );
-                      
-                      // Créer exactement 3 boutons : les boutiques réelles + placeholders si nécessaire
-                      return Array.from({ length: 3 }, (_, index) => {
-                        const shop = employeeShops[index];
-                        
-                        if (shop) {
-                          // Boutique avec données de l'employé
-                          return (
-                            <button
-                              key={`week-${shop.id}`}
-                              onClick={() => {
-                                setSelectedEmployeeForWeeklyRecap(employeeId);
-                                setShowEmployeeWeeklyRecap(true);
-                              }}
-                              style={{
-                                backgroundColor: (() => {
-                                  const hours = (() => {
-                                    if (!selectedWeek || !planningData) return 0;
-                                    let totalHours = 0;
-                                    for (let i = 0; i < 7; i++) {
-                                      const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                      if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                        const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                  if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                    const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                          totalHours += hours;
-                                        }
-                                      }
-                                    }
-                                    return totalHours;
-                                  })();
-                                  return hours === 0 ? 'white' : '#2e7d32';
-                                })(),
-                                color: (() => {
-                                  const hours = (() => {
-                                    if (!selectedWeek || !planningData) return 0;
-                                    let totalHours = 0;
-                                    for (let i = 0; i < 7; i++) {
-                                      const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                      if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                        const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                        if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                          totalHours += hours;
-                                        }
-                                      }
-                                    }
-                                    return totalHours;
-                                  })();
-                                  return hours === 0 ? 'white' : 'white';
-                                })(),
-                                  padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                                  fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                  border: 'none',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                marginBottom: '4px',
-                                  fontWeight: '600',
-                                  transition: 'all 0.3s ease',
-                                boxShadow: (() => {
-                                  const hours = (() => {
-                                    if (!selectedWeek || !planningData) return 0;
-                                    let totalHours = 0;
-                                    for (let i = 0; i < 7; i++) {
-                                      const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                      if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                        const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                        if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                          const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                          totalHours += hours;
-                                        }
-                                      }
-                                    }
-                                    return totalHours;
-                                  })();
-                                  return hours === 0 ? 'none' : '0 2px 6px rgba(46, 125, 50, 0.3)';
-                                })(),
-                                  whiteSpace: 'nowrap',
-                                  width: '100%',
-                                  letterSpacing: '0.5px'
-                                }}
-                                onMouseOver={(e) => {
-                                const hours = (() => {
-                                  if (!selectedWeek || !planningData) return 0;
-                                  let totalHours = 0;
-                                  for (let i = 0; i < 7; i++) {
-                                    const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                    if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                      const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                        totalHours += hours;
-                                      }
-                                    }
-                                  }
-                                  return totalHours;
-                                })();
-                                if (hours > 0) {
-                                  e.currentTarget.style.backgroundColor = '#1b5e20';
-                                  e.currentTarget.style.transform = 'translateY(-1px)';
-                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(46, 125, 50, 0.4)';
-                                }
-                                }}
-                                onMouseOut={(e) => {
-                                const hours = (() => {
-                                  if (!selectedWeek || !planningData) return 0;
-                                  let totalHours = 0;
-                                  for (let i = 0; i < 7; i++) {
-                                    const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                    if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                      const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                        totalHours += hours;
-                                      }
-                                    }
-                                  }
-                                  return totalHours;
-                                })();
-                                if (hours > 0) {
-                                  e.currentTarget.style.backgroundColor = '#2e7d32';
-                                  e.currentTarget.style.transform = 'translateY(0)';
-                                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(46, 125, 50, 0.3)';
-                                }
-                              }}
-                              title={`Semaine - ${shop.name}`}
-                            >
-                              {(() => {
-                                if (!selectedWeek || !planningData) return `📊 ${formatWorkedHoursForDisplay(0)}`;
-                                let totalHours = 0;
-                                for (let i = 0; i < 7; i++) {
-                                  const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                  if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                    const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                    if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                      const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                      totalHours += hours;
-                                    }
-                                  }
-                                }
-                                return totalHours === 0 ? `${shop.name}: ${formatWorkedHoursForDisplay(0)}` : `📊 ${shop.name}: ${formatWorkedHoursForDisplay(totalHours)}`;
-                              })()}
-                              </button>
-                          );
-                        } else {
-                          // Bouton fantôme avec fond blanc et police blanche
-                          return (
-                            <button
-                              disabled
-                              style={{
-                                backgroundColor: 'white',
-                                color: 'white',
-                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                border: '1px solid white',
-                                borderRadius: '6px',
-                                cursor: 'not-allowed',
-                                marginBottom: '4px',
-                                fontWeight: '600',
-                                width: '100%',
-                                letterSpacing: '0.5px'
-                              }}
-                              title="Boutique non assignée (invisible pour cohérence visuelle)"
-                            >
-                              Boutique {index + 1}: -
-                            </button>
-                          );
-                        }
-                      });
-                    })()}
-                  </div>
-
-                  {/* Bouton Mois avec 2 décimales - Total mensuel global */}
-                  <button
-                    onClick={() => {
-                      setSelectedEmployeeForMonthlyDetail(employeeId);
-                      setShowEmployeeMonthlyDetail(true);
-                    }}
-                    style={{
-                      backgroundColor: '#1e88e5', // Couleur bleue pour mois
-                      color: 'white',
-                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
-                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
-                      border: 'none',
-                      borderRadius: '8px',
-                                cursor: 'pointer',
-                      marginBottom: '6px',
-                                fontWeight: '600',
-                                transition: 'all 0.3s ease',
-                      boxShadow: '0 3px 8px rgba(30, 136, 229, 0.3)',
-                                whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
-                      letterSpacing: '0.5px',
-                      width: '100%',
-                      display: 'none'
-                              }}
-                              onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1565c0';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(30, 136, 229, 0.4)';
-                              }}
-                              onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1e88e5';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(30, 136, 229, 0.3)';
-                              }}
-                              title="Récapitulatif mensuel global"
-                            >
-                    📈 Mois: {(() => {
-                      if (!selectedWeek || !planningData) return formatWorkedHoursForDisplay(0);
-                                
-                                // Calculer les heures du mois complet sur toutes les boutiques
-                                const currentDate = parseISO(selectedWeek);
-                                const year = currentDate.getFullYear();
-                                const month = currentDate.getMonth();
-                                
-                                // Premier jour du mois
-                                const firstDayOfMonth = new Date(year, month, 1);
-                                // Dernier jour du mois
-                                const lastDayOfMonth = new Date(year, month + 1, 0);
-                                
-                                let totalHours = 0;
-                                
-                                // Parcourir tous les jours du mois
-                                for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                  const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                  
-                                  // Calculer les heures pour toutes les boutiques où l'employé travaille
-                                  if (planningData.shops) {
-                                    planningData.shops.forEach(shop => {
-                                      if (shop.weeks) {
-                                        Object.keys(shop.weeks).forEach(weekKey => {
-                                          const weekData = shop.weeks[weekKey];
-                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                            const slots = weekData.planning[employeeId][dayKey];
-                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                              totalHours += hours;
-                                            }
-                                          }
-                                        });
-                                      }
-                                    });
-                                  }
-                                }
-                                
-                      return formatWorkedHoursForDisplay(totalHours);
-                              })()}
-                            </button>
-
-                  {/* Section Mois par boutique - Boutons dynamiques pour les boutiques où l'employé travaille */}
-                  <div style={{ 
-                    width: '100%', 
-                    marginBottom: '15px',
-                    padding: '12px',
-                    border: '2px solid #1e88e5',
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(30, 136, 229, 0.05)'
-                  }}>
-                    <div style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 'bold', 
-                      color: '#1e88e5', 
-                      marginBottom: '8px',
-                      textAlign: 'center'
-                    }}>
-                      Mois par boutique
-                          </div>
-                    
-                    {/* Boutons dynamiques pour les boutiques où l'employé travaille */}
-                    {(() => {
-                      // Filtrer seulement les boutiques où l'employé a des données
-                      const employeeShops = (planningData?.shops || []).filter(shop => 
-                        shop.weeks && Object.keys(shop.weeks).some(weekKey => 
-                          shop.weeks[weekKey]?.planning?.[employeeId]
-                        )
-                      );
-                      
-                      // Créer exactement 3 boutons : les boutiques réelles + placeholders si nécessaire
-                      return Array.from({ length: 3 }, (_, index) => {
-                        const shop = employeeShops[index];
-                        
-                        if (shop) {
-                          // Boutique avec données de l'employé
-                    return (
-                      <button
-                              key={`month-${shop.id}`}
-                        onClick={() => {
-                                setSelectedEmployeeForMonthlyDetail(employeeId);
-                                setShowEmployeeMonthlyDetail(true);
-                    }}
-                    style={{
-                                backgroundColor: (() => {
-                                  const hours = (() => {
-                                    if (!selectedWeek || !planningData) return 0;
-                                    const currentDate = parseISO(selectedWeek);
-                                    const year = currentDate.getFullYear();
-                                    const month = currentDate.getMonth();
-                                    const lastDayOfMonth = new Date(year, month + 1, 0);
-                                    let totalHours = 0;
-                                    
-                                    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                      const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                      if (shop.weeks) {
-                                        Object.keys(shop.weeks).forEach(weekKey => {
-                                          const weekData = shop.weeks[weekKey];
-                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                            const slots = weekData.planning[employeeId][dayKey];
-                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                              totalHours += hours;
-                                            }
-                                          }
-                                        });
-                                      }
-                                    }
-                                    return totalHours;
-                                  })();
-                                  return hours === 0 ? 'white' : '#1e88e5';
-                                })(),
-                                color: (() => {
-                                  const hours = (() => {
-                                    if (!selectedWeek || !planningData) return 0;
-                                    const currentDate = parseISO(selectedWeek);
-                                    const year = currentDate.getFullYear();
-                                    const month = currentDate.getMonth();
-                                    const lastDayOfMonth = new Date(year, month + 1, 0);
-                                    let totalHours = 0;
-                                    
-                                    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                      const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                      if (shop.weeks) {
-                                        Object.keys(shop.weeks).forEach(weekKey => {
-                                          const weekData = shop.weeks[weekKey];
-                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                            const slots = weekData.planning[employeeId][dayKey];
-                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                              totalHours += hours;
-                                            }
-                                          }
-                                        });
-                                      }
-                                    }
-                                    return totalHours;
-                                  })();
-                                  return hours === 0 ? 'white' : 'white';
-                                })(),
-                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                      border: 'none',
-                                borderRadius: '6px',
-                      cursor: 'pointer',
-                                marginBottom: '4px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
-                                boxShadow: (() => {
-                                  const hours = (() => {
-                                    if (!selectedWeek || !planningData) return 0;
-                                    const currentDate = parseISO(selectedWeek);
-                                    const year = currentDate.getFullYear();
-                                    const month = currentDate.getMonth();
-                                    const lastDayOfMonth = new Date(year, month + 1, 0);
-                                    let totalHours = 0;
-                                    
-                                    for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                      const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                      if (shop.weeks) {
-                                        Object.keys(shop.weeks).forEach(weekKey => {
-                                          const weekData = shop.weeks[weekKey];
-                                          if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                            const slots = weekData.planning[employeeId][dayKey];
-                                            if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                              const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                              totalHours += hours;
-                                            }
-                                          }
-                                        });
-                                      }
-                                    }
-                                    return totalHours;
-                                  })();
-                                  return hours === 0 ? 'none' : '0 2px 6px rgba(30, 136, 229, 0.3)';
-                                })(),
-                      whiteSpace: 'nowrap',
-                                width: '100%',
-                      letterSpacing: '0.5px'
-                    }}
-                    onMouseOver={(e) => {
-                                const hours = (() => {
-                                  if (!selectedWeek || !planningData) return 0;
-                                  const currentDate = parseISO(selectedWeek);
-                                  const year = currentDate.getFullYear();
-                                  const month = currentDate.getMonth();
-                                  const lastDayOfMonth = new Date(year, month + 1, 0);
-                                  let totalHours = 0;
-                                  
-                                  for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                    const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                    if (shop.weeks) {
-                                      Object.keys(shop.weeks).forEach(weekKey => {
-                                        const weekData = shop.weeks[weekKey];
-                                        if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                          const slots = weekData.planning[employeeId][dayKey];
-                                          if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                            const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                            totalHours += hours;
-                                          }
-                                        }
-                                      });
-                                    }
-                                  }
-                                  return totalHours;
-                                })();
-                                if (hours > 0) {
-                                  e.currentTarget.style.backgroundColor = '#1565c0';
-                                  e.currentTarget.style.transform = 'translateY(-1px)';
-                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(30, 136, 229, 0.4)';
-                                }
-                    }}
-                    onMouseOut={(e) => {
-                                const hours = (() => {
-                                  if (!selectedWeek || !planningData) return 0;
-                                  const currentDate = parseISO(selectedWeek);
-                                  const year = currentDate.getFullYear();
-                                  const month = currentDate.getMonth();
-                                  const lastDayOfMonth = new Date(year, month + 1, 0);
-                                  let totalHours = 0;
-                                  
-                                  for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-                                    const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                                    if (shop.weeks) {
-                                      Object.keys(shop.weeks).forEach(weekKey => {
-                                        const weekData = shop.weeks[weekKey];
-                                        if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                                          const slots = weekData.planning[employeeId][dayKey];
-                                          if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                                            const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                                            totalHours += hours;
-                                          }
-                                        }
-                                      });
-                                    }
-                                  }
-                                  return totalHours;
-                                })();
-                                if (hours > 0) {
-                                  e.currentTarget.style.backgroundColor = '#1e88e5';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(30, 136, 229, 0.3)';
-                                }
-                              }}
-                              title={`Mois - ${shop.name}`}
-                            >
-                              {(() => {
-                                if (!selectedWeek || !planningData) return `📈 ${formatWorkedHoursForDisplay(0)}`;
-          const currentDate = parseISO(selectedWeek);
-          const year = currentDate.getFullYear();
-          const month = currentDate.getMonth();
-          const lastDayOfMonth = new Date(year, month + 1, 0);
-          let totalHours = 0;
-          
-          for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-            const dayKey = format(new Date(year, month, day), 'yyyy-MM-dd');
-                if (shop.weeks) {
-                  Object.keys(shop.weeks).forEach(weekKey => {
-                    const weekData = shop.weeks[weekKey];
-                    if (weekData.planning && weekData.planning[employeeId] && weekData.planning[employeeId][dayKey]) {
-                      const slots = weekData.planning[employeeId][dayKey];
-                      if (Array.isArray(slots) && slots.some(slot => slot === true)) {
-                        const hours = calculateEmployeeDailyHours(employeeId, dayKey, { [employeeId]: { [dayKey]: slots } }, config);
-                        totalHours += hours;
-                      }
-                    }
-                  });
-                }
-                                }
-                                return totalHours === 0 ? `${shop.name}: ${formatWorkedHoursForDisplay(0)}` : `📈 ${shop.name}: ${formatWorkedHoursForDisplay(totalHours)}`;
-                              })()}
-                  </button>
-                    );
-                        } else {
-                          // Bouton fantôme avec fond blanc et police blanche
-                          return (
-                            <button
-                              disabled
-                              style={{
-                                backgroundColor: 'white',
-                                color: 'white',
-                                padding: deviceInfo.isTablet ? '10px 14px' : '8px 12px',
-                                fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                border: '1px solid white',
-                                borderRadius: '6px',
-                                cursor: 'not-allowed',
-                                marginBottom: '4px',
-                                fontWeight: '600',
-                                width: '100%',
-                                letterSpacing: '0.5px'
-                              }}
-                              title="Boutique non assignée (invisible pour cohérence visuelle)"
-                            >
-                              Boutique {index + 1}: -
-                            </button>
-                          );
-                        }
-                      });
-                  })()}
-                  </div>
-                  
-                  {/* Bouton Mois déplacé en haut, juste après le bouton Semaine */}
-                  
-                  {/* Bouton Mois: XX.00h supprimé - Duplication avec le bouton global mensuel */}
-                  
-                  {/* Bouton Detail/mois/boutique - Couleur orange */}
-                  <button
-                    onClick={() => {
-                      setSelectedEmployeeForMonthlyRecap(employeeId);
-                      setShowEmployeeMonthlyRecap(true);
-                    }}
-                    style={{
-                      backgroundColor: '#ff9800', // Couleur orange pour Detail/mois/boutique
-                      color: 'white',
-                      padding: deviceInfo.isTablet ? '14px 18px' : '12px 16px',
-                      fontSize: deviceInfo.isTablet ? '15px' : '13px',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      marginBottom: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.3s ease',
-                      boxShadow: '0 3px 8px rgba(255, 152, 0, 0.3)',
-                      whiteSpace: 'nowrap',
-                      minHeight: deviceInfo.isTablet ? '48px' : '40px',
-                      letterSpacing: '0.5px',
-                      width: '100%',
-                      display: 'none'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = '#f57c00';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 152, 0, 0.4)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = '#ff9800';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 3px 8px rgba(255, 152, 0, 0.3)';
-                    }}
-                    title="Detail/mois/boutique"
-                  >
-                    📈 Detail/mois/boutique
-                  </button>
-
-                                                                             {/* Section Congé de la semaine */}
-                                       <div style={{ 
-                                         width: '100%', 
-                                         marginBottom: '15px',
-                                         padding: '12px',
-                                         border: '2px solid #ff9800',
-                                         borderRadius: '8px',
-                                         backgroundColor: 'rgba(255, 152, 0, 0.08)'
-                                       }}>
-                                         <div style={{
-                                           fontSize: '12px',
-                                           fontWeight: 'bold',
-                                           color: '#ff9800',
-                                           marginBottom: '8px',
-                                           textAlign: 'center',
-                                           letterSpacing: '0.5px'
-                                         }}>
-                                           🏖️ Congé de la semaine
-                                         </div>
-                                         
-                                         {/* Affichage des congés par boutique */}
-                                         {(() => {
-                                           if (!selectedWeek || !planningData) return null;
-                                           
-                                           let congesParBoutique = [];
-                                           
-                                           // Parcourir tous les jours de la semaine pour détecter les congés
-                                           for (let i = 0; i < 7; i++) {
-                                             const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                             let hasCongé = false;
-                                             
-                                             // Vérifier si l'employé est en congé dans au moins une boutique ce jour-là
-                                             Object.values(planningData.shops || {}).forEach(shop => {
-                                               if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                                 const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                                 
-                                                 if ((Array.isArray(slots) && slots.some(slot => slot === 'Congé ☀️')) || slots === 'Congé ☀️') {
-                                                   hasCongé = true;
-                                                 }
-                                               }
-                                             });
-                                             
-                                             // Si l'employé est en congé ce jour, ajouter le jour à la liste
-                                             if (hasCongé) {
-                                               const date = addDays(parseISO(selectedWeek), i);
-                                               const dayName = format(date, 'EEEE', { locale: fr }).toUpperCase();
-                                               congesParBoutique.push(dayName);
-                                             }
-                                           }
-                                           
-                                           if (congesParBoutique.length === 0) {
-                                             return (
-                                               <div style={{
-                                                 textAlign: 'center',
-                                                 color: '#666',
-                                                 fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                                 marginBottom: '8px'
-                                               }}>
-                                                 Aucun congé
-                                               </div>
-                                             );
-                                           }
-                                           
-                                           return congesParBoutique.map((dayName, index) => (
-                                             <div key={index} style={{
-                                               backgroundColor: 'rgba(255, 152, 0, 0.15)',
-                                               padding: '8px 12px',
-                                               marginBottom: '6px',
-                                               borderRadius: '6px',
-                                               fontSize: deviceInfo.isTablet ? '12px' : '11px',
-                                               border: '1px solid rgba(255, 152, 0, 0.3)',
-                                               color: '#d84315',
-                                               fontWeight: '500',
-                                               textAlign: 'center'
-                                             }}>
-                                               <strong>{dayName}</strong>
-                                             </div>
-                                           ));
-                                         })()}
-                                       </div>
-
-                                       {/* Section Maladie de la semaine */}
-                                       <div style={{ 
-                                         width: '100%', 
-                                         marginBottom: '15px',
-                                         padding: '12px',
-                                         border: '2px solid #e91e63',
-                                         borderRadius: '8px',
-                                         backgroundColor: 'rgba(233, 30, 99, 0.08)'
-                                       }}>
-                                         <div style={{
-                                           fontSize: '12px',
-                                           fontWeight: 'bold',
-                                           color: '#e91e63',
-                                           marginBottom: '8px',
-                                           textAlign: 'center',
-                                           letterSpacing: '0.5px'
-                                         }}>
-                                           🤒 Maladie de la semaine
-                                         </div>
-                                         
-                                         {/* Affichage des maladies par jour */}
-                                         {(() => {
-                                           if (!selectedWeek || !planningData) return null;
-                                           
-                                           let maladiesParJour = [];
-                                           
-                                           // Parcourir tous les jours de la semaine pour détecter les maladies
-                                           for (let i = 0; i < 7; i++) {
-                                             const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                             let hasMaladie = false;
-                                             
-                                             // Vérifier si l'employé est en maladie dans au moins une boutique ce jour-là
-                                             Object.values(planningData.shops || {}).forEach(shop => {
-                                               if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                                 const slots = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                                 
-                                                 if ((Array.isArray(slots) && slots.some(slot => slot === 'Maladie 🤒')) || slots === 'Maladie 🤒') {
-                                                   hasMaladie = true;
-                                                 }
-                                               }
-                                             });
-                                             
-                                             // Si l'employé est en maladie ce jour, ajouter le jour à la liste
-                                             if (hasMaladie) {
-                                               const date = addDays(parseISO(selectedWeek), i);
-                                               const dayName = format(date, 'EEEE', { locale: fr }).toUpperCase();
-                                               maladiesParJour.push(dayName);
-                                             }
-                                           }
-                                           
-                                           if (maladiesParJour.length === 0) {
-                                             return (
-                                               <div style={{
-                                                 textAlign: 'center',
-                                                 color: '#666',
-                                                 fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                                 marginBottom: '8px'
-                                               }}>
-                                                 Aucune maladie
-                                               </div>
-                                             );
-                                           }
-                                           
-                                           return maladiesParJour.map((dayName, index) => (
-                                             <div key={index} style={{
-                                               backgroundColor: 'rgba(233, 30, 99, 0.15)',
-                                               padding: '8px 12px',
-                                               marginBottom: '6px',
-                                               borderRadius: '6px',
-                                               fontSize: deviceInfo.isTablet ? '12px' : '11px',
-                                               border: '1px solid rgba(233, 30, 99, 0.3)',
-                                               color: '#c2185b',
-                                               fontWeight: '500',
-                                               textAlign: 'center'
-                                             }}>
-                                               <strong>{dayName}</strong>
-                                             </div>
-                                           ));
-                                         })()}
-                                                                              </div>
-
-                                                                              {/* Section Horaire de l'employé */}
-                                       <div style={{ 
-                                         width: '100%', 
-                                         marginBottom: '15px',
-                                         padding: '12px',
-                                         border: '2px solid #9c27b0',
-                                         borderRadius: '8px',
-                                         backgroundColor: 'rgba(156, 39, 176, 0.08)'
-                                       }}>
-                                                                                  <div style={{
-                                           fontSize: '12px',
-                                           fontWeight: 'bold',
-                                           color: '#9c27b0',
-                                           marginBottom: '8px',
-                                           textAlign: 'center',
-                                           letterSpacing: '0.5px',
-                                           display: 'flex',
-                                           alignItems: 'center',
-                                           justifyContent: 'space-between'
-                                         }}>
-                                           <span>{employeeName}</span>
-                                           <button
-                                             onClick={() => {
-                                               const currentState = localStorage.getItem(`horaire_visible_${employeeId}`) === 'true';
-                                               const newState = !currentState;
-                                               localStorage.setItem(`horaire_visible_${employeeId}`, newState);
-                                               // Force le re-render sans page reload
-                                               setPlanningData({...planningData});
-                                             }}
-                                             style={{
-                                               background: 'none',
-                                               border: 'none',
-                                               fontSize: '10px',
-                                               cursor: 'pointer',
-                                               color: '#9c27b0',
-                                               fontWeight: 'bold'
-                                             }}
-                                             title="Afficher/Masquer l'horaire"
-                                           >
-                                             {localStorage.getItem(`horaire_visible_${employeeId}`) === 'true' ? '👁️' : '🙈'}
-                                           </button>
-                                         </div>
-                                         
-                                         {/* Affichage de l'horaire (conditionnel) */}
-                                         {localStorage.getItem(`horaire_visible_${employeeId}`) === 'true' && (
-                                           <div>
-                                             {(() => {
-                                               if (!selectedWeek || !planningData) {
-                                                 return null;
-                                               }
-                                               
-                                               const days = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE'];
-                                               const horaires = [];
-                                               
-                                               // Parcourir les 7 jours de la semaine
-                                               for (let i = 0; i < 7; i++) {
-                                                 const dayKey = format(addDays(parseISO(selectedWeek), i), 'yyyy-MM-dd');
-                                                 const dayName = days[i];
-                                                 
-                                                 // Parcourir TOUTES les boutiques où l'employé peut travailler
-                                                 if (planningData && planningData.shops) {
-                                                   const boutiquesDuJour = [];
-                                                   
-                                                   planningData.shops.forEach(shop => {
-                                                     if (shop.weeks && shop.weeks[selectedWeek]?.planning?.[employeeId]?.[dayKey]) {
-                                                      const dayPlanning = shop.weeks[selectedWeek].planning[employeeId][dayKey];
-                                                       
-                                                       // Meme logique que le pilotage semaine / grille horaire
-                                                       if (Array.isArray(dayPlanning)) {
-                                                         // Récupérer timeSlots et interval depuis la configuration globale
-                                                         const timeSlots = config?.timeSlots || [];
-                                                         const interval = config?.interval || 60;
-                                                         
-                                                         let plagesConsolidees = [];
-                                                         let currentStart = null;
-                                                         let currentEnd = null;
-                                                         
-                                                         // Logique identique à getEmployeeSchedule de la modale
-                                                         dayPlanning.forEach((isSelected, slotIndex) => {
-                                                           if (isSelected) {
-                                                             const slotTime = timeSlots[slotIndex];
-                                                             if (!currentStart) {
-                                                               currentStart = slotTime;
-                                                             }
-                                                             // Calculer l'heure de fin en ajoutant l'intervalle (comme dans la modale)
-                                                             if (slotTime && typeof slotTime === 'string' && slotTime.includes(':')) {
-                                                               try {
-                                                                 const [hours, minutes] = slotTime.split(':').map(Number);
-                                                                 const endTime = new Date();
-                                                                 endTime.setHours(hours, minutes + interval, 0);
-                                                                 currentEnd = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}`;
-                                                               } catch (error) {
-                                                                 console.error('Erreur calcul heure fin:', error);
-                                                               }
-                                                             }
-                                                           } else if (currentStart) {
-                                                             // Créneau terminé, ajouter la plage
-                                                             if (currentStart && currentEnd) {
-                                                               const plage = `${currentStart}-${currentEnd}`;
-                                                               plagesConsolidees.push(plage);
-                                                             }
-                                                             currentStart = null;
-                                                             currentEnd = null;
-                                                           }
-                                                         });
-                                                         
-                                                         // Ajouter le dernier créneau si nécessaire (comme dans la modale)
-                                                         if (currentStart && currentEnd) {
-                                                           const plage = `${currentStart}-${currentEnd}`;
-                                                           plagesConsolidees.push(plage);
-                                                         }
-
-                                                         if (plagesConsolidees.length > 0) {
-                                                           boutiquesDuJour.push({
-                                                             boutique: shop.name,
-                                                             plages: plagesConsolidees
-                                                           });
-                                                         }
-                                                       }
-                                                     }
-                                                   });
-                                                   
-                                                   // Ajouter ce jour seulement s'il y a des créneaux dans au moins une boutique
-                                                   if (boutiquesDuJour.length > 0) {
-                                                     horaires.push({
-                                                       jour: dayName,
-                                                       boutiques: boutiquesDuJour
-                                                     });
-                                                   }
-                                                }
-                                               } // Fin de la boucle for
-
-                                               if (horaires.length === 0) {
-                                                 return (
-                                                   <div style={{
-                                                     textAlign: 'center',
-                                                     color: '#666',
-                                                     fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                                                     marginBottom: '8px'
-                                                   }}>
-                                                     Aucun horaire défini
-                                                   </div>
-                                                 );
-                                               }
-                                               
-                                               return horaires.map((item, index) => (
-                                                 <div key={index} style={{
-                                                   backgroundColor: 'rgba(156, 39, 176, 0.15)',
-                                                   padding: '6px 10px',
-                                                   marginBottom: '4px',
-                                                   borderRadius: '6px',
-                                                   fontSize: deviceInfo.isTablet ? '11px' : '10px',
-                                                   border: '1px solid rgba(156, 39, 176, 0.3)',
-                                                   color: '#7b1fa2',
-                                                   fontWeight: '500'
-                                                 }}>
-                                                   {item.boutiques.map((boutique, bIndex) => {
-                                                     // Définir une couleur unique pour chaque boutique
-                                                     const boutiqueColors = {
-                                                       'PORT GRIMAUD': { bg: 'rgba(30, 136, 229, 0.15)', border: 'rgba(30, 136, 229, 0.4)', text: '#1565c0' },
-                                                       'CAVALAIRE': { bg: 'rgba(76, 175, 80, 0.15)', border: 'rgba(76, 175, 80, 0.4)', text: '#2e7d32' },
-                                                       'SAINT TROPEZ': { bg: 'rgba(255, 152, 0, 0.15)', border: 'rgba(255, 152, 0, 0.4)', text: '#f57c00' },
-                                                       'CANNES': { bg: 'rgba(156, 39, 176, 0.15)', border: 'rgba(156, 39, 176, 0.4)', text: '#7b1fa2' },
-                                                       'SAINTE MAXIME': { bg: 'rgba(233, 30, 99, 0.15)', border: 'rgba(233, 30, 99, 0.4)', text: '#c2185b' },
-                                                       'MARCHE AMBULANT': { bg: 'rgba(121, 85, 72, 0.15)', border: 'rgba(121, 85, 72, 0.4)', text: '#5d4037' }
-                                                     };
-                                                     
-                                                     // Utiliser la couleur de la boutique ou une couleur par défaut
-                                                     const boutiqueColor = boutiqueColors[boutique.boutique] || { 
-                                                       bg: 'rgba(158, 158, 158, 0.15)', 
-                                                       border: 'rgba(158, 158, 158, 0.4)', 
-                                                       text: '#616161' 
-                                                     };
-                                                     
-                                                     return (
-                                                       <div key={bIndex} style={{ 
-                                                         marginBottom: bIndex < item.boutiques.length - 1 ? '6px' : '0',
-                                                         backgroundColor: boutiqueColor.bg,
-                                                         border: `1px solid ${boutiqueColor.border}`,
-                                                         borderRadius: '4px',
-                                                         padding: '4px 6px'
-                                                       }}>
-                                                         {/* Ligne 1 : Jour et Boutique */}
-                                                         <div style={{ 
-                                                           display: 'flex', 
-                                                           alignItems: 'center',
-                                                           marginBottom: '2px'
-                                                         }}>
-                                                                                                                    <span style={{ 
-                                                           fontWeight: 'bold', 
-                                                           color: '#000000',
-                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                           marginRight: '8px'
-                                                         }}>
-                                                           {item.jour}
-                                                         </span>
-                                                         <span style={{ 
-                                                           fontStyle: 'italic', 
-                                                           color: '#000000',
-                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px'
-                                                         }}>
-                                                           ({boutique.boutique})
-                                                         </span>
-                                                         </div>
-                                                         
-                                                         {/* Ligne 2 : Tranches horaires */}
-                                                         <div style={{ 
-                                                           marginLeft: '16px',
-                                                           fontSize: deviceInfo.isTablet ? '10px' : '9px',
-                                                           color: '#000000',
-                                                           fontWeight: 'bold'
-                                                         }}>
-                                                           {boutique.plages.join(' / ')}
-                                                         </div>
-                                                       </div>
-                                                     );
-                                                   })}
-                                                 </div>
-                                               ));
-                                             })()}
-                                           </div>
-                                         )}
-                                       </div>
-                  
-                  {/* Boutons de verrouillage/déverrouillage */}
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', justifyContent: 'space-between', flexWrap: 'wrap', width: '100%' }}>
-                    {validationState.lockedEmployees.includes(employeeId) ? (
-                      <button
-                        onClick={() => {
-                          const updatedValidationState = {
-                            ...validationState,
-                            lockedEmployees: validationState.lockedEmployees.filter(id => id !== employeeId)
-                          };
-                          setValidationState(updatedValidationState);
-                          if (selectedShop && validWeek) {
-                            localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-                          }
-                        }}
-                        style={{
-                          backgroundColor: '#dc3545',
-                          color: 'white',
-                          padding: deviceInfo.isTablet ? '10px 14px' : '6px 10px',
-                          fontSize: deviceInfo.isTablet ? '13px' : '11px',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontWeight: 'bold',
-                          transition: 'all 0.2s ease',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                          flex: '1',
-                          minHeight: deviceInfo.isTablet ? '44px' : 'auto'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = '#c82333';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = '#dc3545';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                        title="Déverrouiller l'employé"
-                      >
-                        🔓 Débloquer
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          const updatedValidationState = {
-                            ...validationState,
-                            lockedEmployees: [...validationState.lockedEmployees, employeeId]
-                          };
-                          setValidationState(updatedValidationState);
-                          if (selectedShop && validWeek) {
-                            localStorage.setItem(`validation_${selectedShop}_${validWeek}`, JSON.stringify(updatedValidationState));
-                          }
-                        }}
-                        style={{
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          padding: '6px 10px',
-                          fontSize: '11px',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontWeight: 'bold',
-                          transition: 'all 0.2s ease',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                          flex: '1'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = '#218838';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.backgroundColor = '#28a745';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                        title="Verrouiller l'employé"
-                      >
-                        🔒 Bloquer
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleRenameEmployeeClick(employeeId, employeeName)}
-                      style={{
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        padding: '6px 10px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.backgroundColor = '#0069d9';
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.backgroundColor = '#007bff';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }}
-                      title="Renommer l'employé"
-                    >
-                      ✏️ Renommer
-                    </button>
-                    
-                    {/* Bouton Masquer/Réactiver l'employé */}
-                    {(() => {
-                      const currentShopData = planningData?.shops?.find((shop) => shop.id === selectedShop);
-                      const isHidden = !!currentShopData?.employees?.some(
-                        (emp) => emp.id === employeeId && emp.hiddenFrom
-                      );
-                      
-                      if (isHidden) {
-                        return (
-                          <button
-                            onClick={() => {
-                              console.log(`🚨 RÉACTIVATION de l'employé ${employeeId}`);
-                              handleShowEmployee(employeeId);
-                            }}
-                            style={{
-                              backgroundColor: '#28a745',
-                              color: 'white',
-                              padding: '6px 10px',
-                              fontSize: '11px',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontWeight: 'bold',
-                              transition: 'all 0.2s ease',
-                              flex: '1'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = '#218838';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = '#28a745';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                            }}
-                            title="Réactiver l'employé dans cette boutique"
-                          >
-                            🔓 Réactiver
-                          </button>
-                        );
-                      } else {
-                        return (
-                          <button
-                            onClick={() => {
-                              console.log(`🚨 MASQUAGE de l'employé ${employeeId}`);
-                              handleHideEmployee(employeeId);
-                            }}
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              padding: '6px 10px',
-                              fontSize: '11px',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontWeight: 'bold',
-                              transition: 'all 0.2s ease',
-                              flex: '1'
-                            }}
-                            onMouseOver={(e) => {
-                              e.currentTarget.style.backgroundColor = '#c82333';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                            }}
-                            onMouseOut={(e) => {
-                              e.currentTarget.style.backgroundColor = '#dc3545';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                            }}
-                            title="Masquer l'employé dans cette boutique (jusqu'à réactivation manuelle)"
-                          >
-                            🚫 Masquer
-                          </button>
-                        );
-                      }
-                    })()}
-                    
-                    {/* Bouton Supprimer retiré */}
-                  </div>
-                </div>
-              );
-            })}
-
-
-
-            {/* Input file caché pour l'import */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleFileChange}
-              style={{ display: 'none' }}
-            />
-          </div>
-        </>
-      )}
 
 
 
@@ -4493,8 +3068,8 @@ const PlanningDisplay = ({
           {/* Sélecteur de boutique et navigation */}
           <div style={{
             textAlign: 'center',
-            marginBottom: '20px',
-            padding: deviceInfo.isTablet ? '25px' : '20px',
+            marginBottom: '10px',
+            padding: deviceInfo.isTablet ? '12px' : '10px',
             background: 'linear-gradient(135deg, #fffaf0 0%, #fef5e7 100%)',
             borderRadius: '16px',
             border: '2px solid #fbd38d',
@@ -4668,10 +3243,10 @@ const PlanningDisplay = ({
           {/* Boutons de déverrouillage simples */}
           <div style={{
             backgroundColor: '#f8f9fa',
-            border: '2px solid #dee2e6',
+            border: '1px solid #dee2e6',
             borderRadius: '8px',
-            padding: '15px',
-            margin: '10px 0',
+            padding: '8px',
+            margin: '6px 0',
             display: 'flex',
             gap: '10px',
             flexWrap: 'wrap'
@@ -4923,6 +3498,42 @@ const PlanningDisplay = ({
           />
         </div>
       </div>
+
+      <EmployeeRecapCompact
+        show={showEmployeeRecap}
+        onToggle={() => setShowEmployeeRecap(!showEmployeeRecap)}
+        employeeIds={(localSelectedEmployees && localSelectedEmployees.length > 0
+          ? localSelectedEmployees.filter((employeeId) =>
+              (currentShopEmployees || []).some((emp) => emp.id === employeeId)
+            )
+          : (currentShopEmployees || []).map((emp) => emp.id))}
+        currentShopEmployees={currentShopEmployees}
+        planningData={planningData}
+        planning={planning}
+        selectedShop={selectedShop}
+        validWeek={validWeek}
+        mondayOfWeek={mondayOfWeek}
+        config={config}
+        deviceInfo={deviceInfo}
+        onOpenWeeklyRecap={(employeeId) => {
+          setSelectedEmployeeForWeeklyRecap(employeeId);
+          setShowEmployeeWeeklyRecap(true);
+        }}
+        onOpenMonthlyDetail={(employeeId) => {
+          setSelectedEmployeeForMonthlyDetail(employeeId);
+          setShowEmployeeMonthlyDetail(true);
+        }}
+        onOpenMonthlyRecap={(employeeId) => {
+          setSelectedEmployeeForMonthlyRecap(employeeId);
+          setShowEmployeeMonthlyRecap(true);
+        }}
+        onHideEmployee={handleHideEmployee}
+        onReactivateEmployee={handleShowEmployee}
+        isEmployeeHiddenInShop={(employeeId) => {
+          const emp = currentShopEmployees?.find((e) => e.id === employeeId);
+          return !!emp?.hiddenFrom;
+        }}
+      />
 
       {/* TOUT LE RESTE - SOUS LE PLANNING */}
 

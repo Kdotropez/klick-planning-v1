@@ -278,6 +278,13 @@ const VERSION_HIGHLIGHTS = {
     'Mode ecole: choix libre des dates a visualiser (semaine, mois ou plage personnalisee).',
     'Mode ecole: selecteurs de dates avec bornes deduites du fichier charge.',
     'Mode ecole: acces rapide par semaine avec donnees enregistrees.'
+  ],
+  '3.10.106': [
+    'Planning: reorganisation ecran drag & drop avant les recaps, cartes employes compactes en bas.',
+    'Planning: cumul hebdomadaire ajoute dans le tableau drag & drop (jour + semaine).',
+    'Recap employes: heures semaine et cumul mois en cadres, conges et maladie en cartes par jour.',
+    'Menu actions: affichage/masquage optionnel de la barre complete, preference memorisee.',
+    'Recap employes affiche par defaut a l ouverture du planning.'
   ]
 };
 

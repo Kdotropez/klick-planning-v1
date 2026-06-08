@@ -1,7 +1,18 @@
 {
-  "version": "3.10.105",
+  "version": "3.10.106",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.106",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning : réorganisation de l'écran pour afficher le drag & drop avant les récaps, avec cartes employés compactes en bas.",
+        "Planning : cumul hebdomadaire ajouté à côté des heures du jour dans le tableau drag & drop.",
+        "Récap employés : heures semaine et cumul mois dans des cadres dédiés, jours de congé et maladie en cartes par jour.",
+        "Menu actions : affichage/masquage optionnel de toute la barre de boutons, mémorisé entre les sessions.",
+        "Récap employés affiché par défaut à l'ouverture du planning."
+      ]
+    },
     {
       "version": "3.10.105",
       "date": "2026-05-29",
