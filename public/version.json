@@ -1,7 +1,42 @@
 {
-  "version": "3.10.106",
+  "version": "3.10.110",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.110",
+      "date": "2026-05-29",
+      "changes": [
+        "Récap hebdomadaire employé (cartes) : correction du calcul des heures effectives et du total semaine (affichait 0 h malgré des horaires renseignés).",
+        "Récap hebdo : calcul multi-boutiques avec la configuration horaire de chaque boutique concernée."
+      ]
+    },
+    {
+      "version": "3.10.109",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning : boutons SAUVE SUPABASE et Fermer toujours visibles, même quand le menu actions est masqué.",
+        "Barre d'actions épinglée en haut de l'écran lors du défilement du planning."
+      ]
+    },
+    {
+      "version": "3.10.108",
+      "date": "2026-05-29",
+      "changes": [
+        "Cartographie présence : affichage des noms uniquement (sans compteur 1 pers / 2 pers).",
+        "Cartographie : en-tête des jours figé lors du défilement des heures.",
+        "Cartographie : couleur pastel distincte par jour (en-tête, cellules et congés/maladie)."
+      ]
+    },
+    {
+      "version": "3.10.107",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning : nouvelle popup Cartographie présence pour la boutique affichée (grille jour × heure).",
+        "Cartographie : noms des employés présents simultanément par créneau, avec code couleur selon l'effectif.",
+        "Cartographie : filtre chevauchements (2+ personnes), vue semaine ou jour affiché, congés/maladies en pied de grille.",
+        "Accès direct depuis le planning (bouton sous les jours) et depuis le menu actions."
+      ]
+    },
     {
       "version": "3.10.106",
       "date": "2026-05-29",

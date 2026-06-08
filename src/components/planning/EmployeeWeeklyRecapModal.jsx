@@ -10,6 +10,8 @@ import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedH
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import '@/assets/styles.css';
 
+const isSelectedSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
+
 const EmployeeWeeklyRecapModal = ({
   showEmployeeWeeklyRecap,
   setShowEmployeeWeeklyRecap,
@@ -78,13 +80,63 @@ const EmployeeWeeklyRecapModal = ({
 
   const employeePlanning = getEmployeePlanning();
 
+  const getDayWorkContext = (dayIndex) => {
+    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+
+    if (planningData?.shops) {
+      for (const shop of planningData.shops) {
+        const dayPlanning =
+          shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap]?.[day];
+        if (Array.isArray(dayPlanning) && dayPlanning.some(isSelectedSlot)) {
+          return {
+            shopConfig: shop.config || config,
+            dayPlanning,
+            shopName: shop.name?.replace(/[-_]/g, ' ').toUpperCase() || shop.name || '-'
+          };
+        }
+      }
+    }
+
+    return {
+      shopConfig: config,
+      dayPlanning: employeePlanning[day],
+      shopName: '-'
+    };
+  };
+
+  const calculateDayHours = (dayIndex) => {
+    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+
+    if (!planningData?.shops?.length) {
+      return calculateEmployeeDailyHours(
+        selectedEmployeeForWeeklyRecap,
+        day,
+        { [selectedEmployeeForWeeklyRecap]: employeePlanning },
+        config
+      );
+    }
+
+    let totalHours = 0;
+    for (const shop of planningData.shops) {
+      const employeeSlice = shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap];
+      if (!employeeSlice?.[day]) continue;
+      const shopConfig = shop.config || config;
+      if (!shopConfig?.timeSlots?.length) continue;
+      totalHours += calculateEmployeeDailyHours(
+        selectedEmployeeForWeeklyRecap,
+        day,
+        { [selectedEmployeeForWeeklyRecap]: employeeSlice },
+        shopConfig
+      );
+    }
+    return totalHours;
+  };
+
   // Calculer les heures totales de la semaine
   const calculateWeekHours = () => {
     let totalHours = 0;
     for (let i = 0; i < 7; i++) {
-      const day = format(addDays(mondayOfWeek, i), 'yyyy-MM-dd');
-      const hours = calculateEmployeeDailyHours(selectedEmployeeForWeeklyRecap, day, employeePlanning, config);
-      totalHours += hours;
+      totalHours += calculateDayHours(i);
     }
     return totalHours;
   };
@@ -102,19 +154,6 @@ const EmployeeWeeklyRecapModal = ({
   };
 
   // Vérifier si un créneau est sélectionné (tolérant aux statuts chaîne)
-  const isSlotSelected = (dayIndex, slotIndex) => {
-    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    const dayPlanning = employeePlanning[day];
-    if (typeof dayPlanning === 'string') return false;
-    return Array.isArray(dayPlanning) && !!dayPlanning[slotIndex];
-  };
-
-  // Calculer les heures d'un jour
-  const calculateDayHours = (dayIndex) => {
-    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    return calculateEmployeeDailyHours(selectedEmployeeForWeeklyRecap, day, employeePlanning, config);
-  };
-
   // Obtenir le statut du jour ("Maladie 🤒" / "Congé ☀️" / null)
   const getDayStatus = (dayIndex) => {
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
@@ -125,28 +164,7 @@ const EmployeeWeeklyRecapModal = ({
   };
 
   // Obtenir la boutique où l'employé a travaillé un jour donné
-  const getDayShop = (dayIndex) => {
-    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    
-    // Utiliser les données fusionnées pour déterminer la boutique
-    const dayPlanning = employeePlanning[day];
-    if (Array.isArray(dayPlanning) && dayPlanning.some(slot => slot === true)) {
-      // Chercher dans quelle boutique l'employé a des créneaux ce jour-là
-      if (planningData?.shops) {
-        for (const shop of planningData.shops) {
-          if (shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap]?.[day]) {
-            const shopDayPlanning = shop.weeks[selectedWeek].planning[selectedEmployeeForWeeklyRecap][day];
-            if (Array.isArray(shopDayPlanning) && shopDayPlanning.some(slot => slot === true)) {
-              // Formater le nom de la boutique
-              return shop.name?.replace(/[-_]/g, ' ').toUpperCase() || shop.name;
-            }
-          }
-        }
-      }
-    }
-    
-    return '-';
-  };
+  const getDayShop = (dayIndex) => getDayWorkContext(dayIndex).shopName;
 
   // Jour sans heures (zéro) s'il a un statut ou aucun créneau
   const isDayOff = (dayIndex) => getDayStatus(dayIndex) !== null;
@@ -155,55 +173,48 @@ const EmployeeWeeklyRecapModal = ({
   const calculateWorkHours = (dayIndex) => {
     const status = getDayStatus(dayIndex);
     if (status) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
-    
-    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    const dayPlanning = employeePlanning[day];
-    
-    if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) {
+
+    const { shopConfig, dayPlanning } = getDayWorkContext(dayIndex);
+    const timeSlots = shopConfig?.timeSlots || [];
+
+    if (!Array.isArray(dayPlanning) || !timeSlots.length || dayPlanning.every((slot) => !isSelectedSlot(slot))) {
       return { entry: null, pause: null, return: null, exit: null, hours: 0 };
     }
-    
-    // Trouver les créneaux sélectionnés
+
     const selectedSlots = [];
     for (let i = 0; i < dayPlanning.length; i++) {
-      if (dayPlanning[i]) {
+      if (isSelectedSlot(dayPlanning[i]) && timeSlots[i]) {
         selectedSlots.push({
           index: i,
-          time: config.timeSlots[i]
+          time: timeSlots[i]
         });
       }
     }
-    
-    if (selectedSlots.length === 0) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
-    
-    // Trier par index pour avoir l'ordre chronologique
+
+    if (selectedSlots.length === 0) {
+      return { entry: null, pause: null, return: null, exit: null, hours: 0 };
+    }
+
     selectedSlots.sort((a, b) => a.index - b.index);
-    
+
     const entry = selectedSlots[0].time;
-    
-    // Calculer l'heure de fin (dernier créneau + intervalle)
     const lastSlotIndex = selectedSlots[selectedSlots.length - 1].index;
-    const exit = getSlotEndTimeFormatted(config.timeSlots, lastSlotIndex, config);
-    
-    // Détecter les pauses (gaps dans les créneaux sélectionnés)
+    const exit = getSlotEndTimeFormatted(timeSlots, lastSlotIndex, shopConfig);
+
     let pause = null;
     let returnTime = null;
-    
+
     for (let i = 0; i < selectedSlots.length - 1; i++) {
       const currentIndex = selectedSlots[i].index;
       const nextIndex = selectedSlots[i + 1].index;
-      
-      // Si il y a un gap entre les créneaux sélectionnés
+
       if (nextIndex > currentIndex + 1) {
-        // L'heure de pause est l'heure de fin du créneau actuel
-        pause = getSlotEndTimeFormatted(config.timeSlots, currentIndex, config);
-        
-        // L'heure de retour est l'heure de début du prochain créneau
-        returnTime = config.timeSlots[nextIndex];
+        pause = getSlotEndTimeFormatted(timeSlots, currentIndex, shopConfig);
+        returnTime = timeSlots[nextIndex];
         break;
       }
     }
-    
+
     return { entry, pause, return: returnTime, exit, hours: calculateDayHours(dayIndex) };
   };
 

@@ -11,6 +11,7 @@ import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
 import ShopWeekInsightsModal from './ShopWeekInsightsModal';
+import ShopPresenceMapModal from './ShopPresenceMapModal';
 import WeeklyWorkMatrixModal from './WeeklyWorkMatrixModal';
 import EmployeeRecapCompact from './EmployeeRecapCompact';
 import MonthlyRecapModals from './MonthlyRecapModals';
@@ -75,6 +76,7 @@ const PlanningDisplay = ({
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showShopWeekInsights, setShowShopWeekInsights] = useState(false);
+  const [showPresenceMap, setShowPresenceMap] = useState(false);
   const [showWeeklyWorkMatrix, setShowWeeklyWorkMatrix] = useState(false);
 
   const [showResetModal, setShowResetModal] = useState(false);
@@ -968,6 +970,18 @@ const PlanningDisplay = ({
     };
   });
 
+  const employeeNameById = useMemo(() => {
+    const map = new Map();
+    (currentShopEmployees || []).forEach((employee) => {
+      if (employee?.id) {
+        map.set(employee.id, employee.name || employee.id);
+      }
+    });
+    return map;
+  }, [currentShopEmployees]);
+
+  const currentShopLabel = currentShopData?.name || selectedShop;
+
   // Formater le titre de la semaine
   const getWeekTitle = () => {
     const monday = format(mondayOfWeek, 'd MMMM', { locale: fr });
@@ -1340,6 +1354,25 @@ const PlanningDisplay = ({
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
   }, [planning, localSelectedEmployees, selectedShop, validWeek, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly, shops, currentUser?.code, currentUser?.name]);
+
+  const handleCloseApplication = useCallback(async () => {
+    if (!window.confirm('Voulez-vous fermer l’application ?')) return;
+    try {
+      if (typeof onExitApplication === 'function') {
+        await Promise.resolve(onExitApplication());
+        return;
+      }
+      await handleManualSave();
+      window.close();
+      setTimeout(() => {
+        if (!window.closed) {
+          window.location.href = 'about:blank';
+        }
+      }, 250);
+    } catch (_) {
+      window.location.href = 'about:blank';
+    }
+  }, [onExitApplication, handleManualSave]);
 
   // Fonction de test de connexion Supabase
   const testSupabase = useCallback(async () => {
@@ -2951,40 +2984,81 @@ const PlanningDisplay = ({
 
 
 
-      {/* Menu Actions - affichage optionnel */}
-        <div style={{ width: '100%' }}>
+      {/* Menu Actions - sauvegarde/fermeture toujours visibles */}
+        <div style={{ width: '100%', position: 'sticky', top: 0, zIndex: 200, flexShrink: 0 }}>
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 8,
               padding: '8px 12px',
               background: '#f8fafc',
               borderRadius: '10px',
               border: '1px solid #e2e8f0',
-              marginBottom: showPlanningMenuBar ? '8px' : 0
+              marginBottom: showPlanningMenuBar ? '8px' : 0,
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)'
             }}
           >
             <span style={{ fontSize: '14px', fontWeight: 800, color: '#334155' }}>
               ⚙️ Menu actions (Pilotage, exports, sauvegardes…)
             </span>
-            <button
-              type="button"
-              onClick={() => setShowPlanningMenuBar((value) => !value)}
-              style={{
-                backgroundColor: showPlanningMenuBar ? '#ff9800' : '#4caf50',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '6px 12px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: 700
-              }}
-              title={showPlanningMenuBar ? 'Masquer la barre de menu' : 'Afficher la barre de menu'}
-            >
-              {showPlanningMenuBar ? '👁️ Masquer menu' : '👁️ Afficher menu'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleManualSave}
+                style={{
+                  backgroundColor: '#17a2b8',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
+                }}
+                title="Sauvegarder la semaine et le fichier complet dans Supabase"
+              >
+                💾 SAUVE SUPABASE
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseApplication}
+                style={{
+                  backgroundColor: '#6c757d',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
+                }}
+                title="Fermer l'application"
+              >
+                🚪 Fermer
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPlanningMenuBar((value) => !value)}
+                style={{
+                  backgroundColor: showPlanningMenuBar ? '#ff9800' : '#4caf50',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 700
+                }}
+                title={showPlanningMenuBar ? 'Masquer la barre de menu' : 'Afficher la barre de menu'}
+              >
+                {showPlanningMenuBar ? '👁️ Masquer menu' : '👁️ Afficher menu'}
+              </button>
+            </div>
           </div>
           {showPlanningMenuBar && (
           <PlanningMenuBar
@@ -3005,6 +3079,7 @@ const PlanningDisplay = ({
             onImport={onImport}
             onReset={() => setShowResetModal(true)}
             onOpenShopWeekInsights={() => setShowShopWeekInsights(true)}
+            onOpenPresenceMap={() => setShowPresenceMap(true)}
             onOpenWeeklyWorkMatrix={() => setShowWeeklyWorkMatrix(true)}
             handleManualSave={handleManualSave}
             onCreateJSONBackup={createAutoBackupJSON}
@@ -3239,6 +3314,27 @@ const PlanningDisplay = ({
             selectedWeek={format(mondayOfWeek, 'yyyy-MM-dd')}
             selectedShop={selectedShop}
           />
+
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 4px' }}>
+            <button
+              type="button"
+              onClick={() => setShowPresenceMap(true)}
+              title="Voir qui est présent en même temps, créneau par créneau, pour la boutique affichée"
+              style={{
+                background: 'linear-gradient(90deg, #0f4c75 0%, #1b4964 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 18px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(15, 76, 117, 0.25)'
+              }}
+            >
+              🗺️ Cartographie présence (jour × heure)
+            </button>
+          </div>
           
           {/* Boutons de déverrouillage simples */}
           <div style={{
@@ -3576,6 +3672,19 @@ const PlanningDisplay = ({
         changeShop={changeShop}
         changeMonth={changeMonth}
         changeToSpecificWeek={changeToSpecificWeek}
+      />
+
+      <ShopPresenceMapModal
+        isOpen={showPresenceMap}
+        onClose={() => setShowPresenceMap(false)}
+        shopName={currentShopLabel}
+        selectedWeek={validWeek}
+        mondayOfWeek={mondayOfWeek}
+        planning={planning}
+        config={config}
+        employeeIds={localSelectedEmployees}
+        employeeNameById={employeeNameById}
+        currentDay={currentDay}
       />
 
       <WeeklyWorkMatrixModal

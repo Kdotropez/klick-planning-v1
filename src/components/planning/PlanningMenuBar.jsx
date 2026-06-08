@@ -32,6 +32,7 @@ const PlanningMenuBar = ({
   onImport,
   onReset,
   onOpenShopWeekInsights,
+  onOpenPresenceMap,
   onOpenWeeklyWorkMatrix,
   handleManualSave,
   handleRestoreFromSupabase,
@@ -218,6 +219,29 @@ const PlanningMenuBar = ({
 
           <Button
             className="button-primary"
+            onClick={() => onOpenPresenceMap && onOpenPresenceMap()}
+            style={{
+              backgroundColor: '#0f4c75',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0a3554')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#0f4c75')}
+            title="Grille jour × heure : voir qui est présent en même temps dans la boutique affichée."
+          >
+            🗺️ Cartographie présence
+          </Button>
+
+          <Button
+            className="button-primary"
             onClick={() => onOpenWeeklyWorkMatrix && onOpenWeeklyWorkMatrix()}
             style={{
               backgroundColor: '#1565c0',
@@ -307,72 +331,6 @@ const PlanningMenuBar = ({
         >
           🧾 Inspection Travail
         </Button>
-
-          <Button
-            className="button-primary"
-            onClick={handleManualSave}
-            style={{
-              backgroundColor: '#17a2b8',
-              color: '#fff',
-            padding: '10px 14px',
-            fontSize: '13px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-            gap: '6px',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#138496'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#17a2b8'}
-          >
-            💾 SAUVE SUPABASE
-          </Button>
-
-          <Button
-            className="button-primary"
-            onClick={async () => {
-              if (window.confirm('Voulez-vous fermer l’application ?')) {
-                try {
-                  if (typeof handleExitApplication === 'function') {
-                    await Promise.resolve(handleExitApplication());
-                    return;
-                  }
-
-                  // Fallback local si la fonction centrale n'est pas fournie
-                  if (typeof handleManualSave === 'function') {
-                    await Promise.resolve(handleManualSave());
-                  }
-                  window.close();
-                  setTimeout(() => {
-                    if (!window.closed) {
-                      window.location.href = 'about:blank';
-                    }
-                  }, 250);
-                } catch (_) {
-                  window.location.href = 'about:blank';
-                }
-              }
-            }}
-            style={{
-              backgroundColor: '#6c757d',
-              color: '#fff',
-              padding: '10px 14px',
-              fontSize: '13px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#495057'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6c757d'}
-          >
-            🚪 Fermer
-          </Button>
 
           <Button
             className="button-primary"

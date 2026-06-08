@@ -285,6 +285,25 @@ const VERSION_HIGHLIGHTS = {
     'Recap employes: heures semaine et cumul mois en cadres, conges et maladie en cartes par jour.',
     'Menu actions: affichage/masquage optionnel de la barre complete, preference memorisee.',
     'Recap employes affiche par defaut a l ouverture du planning.'
+  ],
+  '3.10.107': [
+    'Planning: popup Cartographie presence boutique (grille jour x heure).',
+    'Cartographie: employes presents simultanement par creneau, code couleur selon effectif.',
+    'Cartographie: filtre chevauchements, vue semaine ou jour affiche, conges/maladies en pied.',
+    'Acces direct sous les jours du planning et depuis le menu actions.'
+  ],
+  '3.10.108': [
+    'Cartographie presence: noms uniquement, sans compteur 1 pers / 2 pers.',
+    'Cartographie: en-tete des jours fige lors du scroll des heures.',
+    'Cartographie: couleur pastel distincte par jour.'
+  ],
+  '3.10.109': [
+    'Planning: boutons SAUVE SUPABASE et Fermer toujours visibles (menu masque ou non).',
+    'Barre actions epinglee en haut lors du scroll du planning.'
+  ],
+  '3.10.110': [
+    'Recap hebdo employe (cartes): correction heures effectives et total semaine a 0 h.',
+    'Recap hebdo: calcul multi-boutiques avec config horaire de chaque boutique.'
   ]
 };
 
