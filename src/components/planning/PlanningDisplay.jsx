@@ -3043,6 +3043,24 @@ const PlanningDisplay = ({
               </button>
               <button
                 type="button"
+                onClick={() => setShowWeeklyWorkMatrix(true)}
+                style={{
+                  backgroundColor: '#1565c0',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 14px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap'
+                }}
+                title="Planning semaine ou mois par boutique : employés présents, horaires, congés, impression et PDF"
+              >
+                📋 Planning boutiques semaine
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowPlanningMenuBar((value) => !value)}
                 style={{
                   backgroundColor: showPlanningMenuBar ? '#ff9800' : '#4caf50',

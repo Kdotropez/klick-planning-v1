@@ -308,6 +308,19 @@ const VERSION_HIGHLIGHTS = {
   '3.10.111': [
     'Restauration historique Supabase: correction erreur firstShop is not defined.',
     'Audit: boutique correctement journalisee apres restauration historique.'
+  ],
+  '3.10.112': [
+    'Planning boutiques semaine: mode plage personnalisee (du/au) en plus semaine et mois.',
+    'Planning boutiques semaine: bouton toujours visible dans la barre actions epinglee.'
+  ],
+  '3.10.113': [
+    'Planning boutiques semaine: plage > 7 jours decoupee en tableaux semaine par semaine.',
+    'Sous-total hebdomadaire par bloc; total periode sur le dernier tableau.',
+    'Impression/PDF: meme decoupage par semaine que l ecran.'
+  ],
+  '3.10.114': [
+    'Planning boutiques semaine: mode mois decoupe en tableaux semaine par semaine.',
+    'Meme presentation que la plage personnalisee: sous-total semaine et total mois.'
   ]
 };
 

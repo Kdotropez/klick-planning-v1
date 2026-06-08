@@ -1,7 +1,32 @@
 {
-  "version": "3.10.111",
-  "lastUpdate": "2026-06-08",
+  "version": "3.10.114",
+  "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.114",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning boutiques semaine : mode mois affiché semaine par semaine (même découpage que la plage personnalisée).",
+        "Tableaux empilés par bloc de 7 jours avec sous-total hebdomadaire et total mois sur le dernier bloc."
+      ]
+    },
+    {
+      "version": "3.10.113",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning boutiques semaine : plage personnalisée > 7 jours affichée semaine par semaine (tableaux empilés).",
+        "Chaque bloc affiche au plus 7 jours avec sous-total hebdomadaire ; total période sur le dernier bloc.",
+        "Impression/PDF : même découpage par semaine pour une lecture lisible à l'écran."
+      ]
+    },
+    {
+      "version": "3.10.112",
+      "date": "2026-06-08",
+      "changes": [
+        "Planning boutiques semaine : ajout du mode plage personnalisée (du … au …) en plus de la semaine et du mois.",
+        "Planning boutiques semaine : bouton toujours visible dans la barre d'actions épinglée du planning."
+      ]
+    },
     {
       "version": "3.10.111",
       "date": "2026-06-08",

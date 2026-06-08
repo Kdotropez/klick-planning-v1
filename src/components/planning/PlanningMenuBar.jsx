@@ -242,29 +242,6 @@ const PlanningMenuBar = ({
 
           <Button
             className="button-primary"
-            onClick={() => onOpenWeeklyWorkMatrix && onOpenWeeklyWorkMatrix()}
-            style={{
-              backgroundColor: '#1565c0',
-              color: '#fff',
-              padding: '10px 14px',
-              fontSize: '13px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0d47a1')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#1565c0')}
-            title="Planning semaine par boutique : employés présents, horaires, congés, impression directe et PDF."
-          >
-            📋 Planning boutiques semaine
-          </Button>
-
-          <Button
-            className="button-primary"
             onClick={onExport}
             style={{
               backgroundColor: '#28a745',

@@ -72,6 +72,53 @@ const isCongeStatus = (value) => /cong[eé]/i.test(String(value ?? ''));
 const isMaladieStatus = (value) => /maladie/i.test(String(value ?? ''));
 const getWeekKeyForDate = (date) => format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
+const sumCellHours = (cells = []) =>
+  cells.reduce((sum, cell) => sum + (typeof cell.hoursH === 'number' ? cell.hoursH : 0), 0);
+
+const buildDisplayWeekChunks = (days, periodMode) => {
+  const shouldChunkByWeek = (periodMode === 'range' || periodMode === 'month') && days.length > 7;
+  if (!shouldChunkByWeek) {
+    return [{ days, startIndex: 0, title: null }];
+  }
+  const chunks = [];
+  for (let startIndex = 0; startIndex < days.length; startIndex += 7) {
+    const slice = days.slice(startIndex, startIndex + 7);
+    chunks.push({
+      days: slice,
+      startIndex,
+      title: `Semaine ${chunks.length + 1} — du ${format(slice[0], 'dd/MM/yyyy', { locale: fr })} au ${format(slice[slice.length - 1], 'dd/MM/yyyy', { locale: fr })}`
+    });
+  }
+  return chunks;
+};
+
+const collectDateBounds = (data) => {
+  const dayKeys = new Set();
+  (data?.shops || []).forEach((shop) => {
+    Object.entries(shop.weeks || {}).forEach(([weekKey, weekData]) => {
+      try {
+        const monday = startOfWeek(parseISO(weekKey), { weekStartsOn: 1 });
+        for (let index = 0; index < 7; index += 1) {
+          dayKeys.add(format(addDays(monday, index), 'yyyy-MM-dd'));
+        }
+      } catch {
+        // ignore invalid week keys
+      }
+      Object.values(weekData?.planning || {}).forEach((employeePlanning) => {
+        if (!employeePlanning || typeof employeePlanning !== 'object') return;
+        Object.keys(employeePlanning).forEach((dayKey) => {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) dayKeys.add(dayKey);
+        });
+      });
+    });
+  });
+  const sorted = Array.from(dayKeys).sort();
+  return {
+    min: sorted[0] || '',
+    max: sorted[sorted.length - 1] || format(new Date(), 'yyyy-MM-dd')
+  };
+};
+
 const WeeklyWorkMatrixModal = ({
   isOpen,
   onClose,
@@ -84,8 +131,10 @@ const WeeklyWorkMatrixModal = ({
   viewerRangeEnd = null
 }) => {
   const [recapShopKey, setRecapShopKey] = useState('all');
-  /** 'week' = semaine affichée ; 'month' = mois de la semaine affichée. */
+  /** 'week' | 'month' | 'range' */
   const [periodMode, setPeriodMode] = useState('week');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
   /** 'employees' = une ligne par employé ; 'shops' = une ligne par boutique, 1ʳᵉ col. = boutique. */
   const [tableView, setTableView] = useState('shops');
   const [showActiveEmployees, setShowActiveEmployees] = useState(false);
@@ -121,9 +170,19 @@ const WeeklyWorkMatrixModal = ({
       setTableView('shops');
       setShowActiveEmployees(false);
       setModalSize((size) => clampModalSize(size));
+      if (selectedWeek) {
+        try {
+          const start = parseISO(selectedWeek);
+          setRangeStart(selectedWeek);
+          setRangeEnd(format(addDays(start, 6), 'yyyy-MM-dd'));
+        } catch {
+          setRangeStart('');
+          setRangeEnd('');
+        }
+      }
     }
     wasModalOpen.current = isOpen;
-  }, [clampModalSize, isOpen]);
+  }, [clampModalSize, isOpen, selectedWeek]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -194,32 +253,52 @@ const WeeklyWorkMatrixModal = ({
 
   const effectivePeriodMode = isolatedMode && viewerPeriodMode ? viewerPeriodMode : periodMode;
 
+  const dateBounds = useMemo(() => collectDateBounds(planningData), [planningData]);
+
+  const effectiveRangeStart = useMemo(() => {
+    if (effectivePeriodMode !== 'range') return selectedWeek || '';
+    if (isolatedMode && viewerPeriodMode === 'range') return selectedWeek || '';
+    return rangeStart || selectedWeek || '';
+  }, [effectivePeriodMode, isolatedMode, viewerPeriodMode, selectedWeek, rangeStart]);
+
+  const effectiveRangeEnd = useMemo(() => {
+    if (effectivePeriodMode !== 'range') return viewerRangeEnd || '';
+    if (isolatedMode && viewerPeriodMode === 'range') return viewerRangeEnd || '';
+    return rangeEnd || '';
+  }, [effectivePeriodMode, isolatedMode, viewerPeriodMode, viewerRangeEnd, rangeEnd]);
+
   const customRangeDays = useMemo(() => {
-    if (effectivePeriodMode !== 'range' || !selectedWeek || !viewerRangeEnd) return [];
+    if (effectivePeriodMode !== 'range' || !effectiveRangeStart || !effectiveRangeEnd) return [];
     try {
-      const start = parseISO(selectedWeek);
-      const end = parseISO(viewerRangeEnd);
+      const start = parseISO(effectiveRangeStart);
+      const end = parseISO(effectiveRangeEnd);
       if (start > end) return [];
       return eachDayOfInterval({ start, end });
     } catch {
       return [];
     }
-  }, [effectivePeriodMode, selectedWeek, viewerRangeEnd]);
+  }, [effectivePeriodMode, effectiveRangeStart, effectiveRangeEnd]);
 
   const rangeLabel = useMemo(() => {
-    if (effectivePeriodMode !== 'range' || !selectedWeek || !viewerRangeEnd) return '';
+    if (effectivePeriodMode !== 'range' || !effectiveRangeStart || !effectiveRangeEnd) return '';
     try {
-      return `${format(parseISO(selectedWeek), 'dd/MM/yyyy', { locale: fr })} → ${format(parseISO(viewerRangeEnd), 'dd/MM/yyyy', { locale: fr })}`;
+      return `${format(parseISO(effectiveRangeStart), 'dd/MM/yyyy', { locale: fr })} → ${format(parseISO(effectiveRangeEnd), 'dd/MM/yyyy', { locale: fr })}`;
     } catch {
       return '';
     }
-  }, [effectivePeriodMode, selectedWeek, viewerRangeEnd]);
+  }, [effectivePeriodMode, effectiveRangeStart, effectiveRangeEnd]);
 
   const dayColumns = effectivePeriodMode === 'range'
     ? customRangeDays
     : effectivePeriodMode === 'month'
       ? monthDays
       : weekDays;
+
+  const displayWeekChunks = useMemo(
+    () => buildDisplayWeekChunks(dayColumns, effectivePeriodMode),
+    [dayColumns, effectivePeriodMode]
+  );
+
   const periodLabel = effectivePeriodMode === 'range'
     ? rangeLabel
     : effectivePeriodMode === 'month'
@@ -619,15 +698,31 @@ const WeeklyWorkMatrixModal = ({
       ? `Planning ${effectivePeriodMode === 'month' ? 'mois' : effectivePeriodMode === 'range' ? 'plage' : 'semaine'} par boutique`
       : `Planning global multi-boutiques ${effectivePeriodMode === 'month' ? 'mois' : effectivePeriodMode === 'range' ? 'plage' : 'semaine'} par employé`;
     const firstHeader = tableView === 'shops' ? 'Boutique' : 'Employé';
-    const htmlRows = printedRows.map((row) => {
-      const firstCell = tableView === 'shops' ? row.shopName : row.name;
-      const total = tableView === 'shops' ? row.weekTotal : row.weekHours;
-      return `
+    const tablesHtml = displayWeekChunks.map((chunk) => {
+      const htmlRows = printedRows.map((row) => {
+        const firstCell = tableView === 'shops' ? row.shopName : row.name;
+        const cells = row.dayCells.slice(chunk.startIndex, chunk.startIndex + chunk.days.length);
+        const subtotal = sumCellHours(cells);
+        return `
         <tr>
           <th>${escapeHtml(firstCell)}</th>
-          ${row.dayCells.map((cell) => `<td>${escapeHtml(cell.display).replace(/\n/g, '<br>')}</td>`).join('')}
-          <td class="total">${escapeHtml(formatWorkedHoursForDisplay(total || 0))}</td>
+          ${cells.map((cell) => `<td>${escapeHtml(cell.display).replace(/\n/g, '<br>')}</td>`).join('')}
+          <td class="total">${escapeHtml(formatWorkedHoursForDisplay(subtotal || 0))}</td>
         </tr>
+      `;
+      }).join('');
+      return `
+        ${chunk.title ? `<h2 style="font-size:14px;color:#12395b;margin:14px 0 8px;">${escapeHtml(chunk.title)}</h2>` : ''}
+        <table>
+          <thead>
+            <tr>
+              <th>${escapeHtml(firstHeader)}</th>
+              ${chunk.days.map((d) => `<th>${escapeHtml(format(d, 'EEE dd/MM', { locale: fr }))}</th>`).join('')}
+              <th>Total h</th>
+            </tr>
+          </thead>
+          <tbody>${htmlRows}</tbody>
+        </table>
       `;
     }).join('');
 
@@ -677,16 +772,7 @@ const WeeklyWorkMatrixModal = ({
             <div class="card"><strong>${summary.leaveEmployeeCount}</strong><span>En congé</span></div>
             <div class="card"><strong>${summary.sickEmployeeCount}</strong><span>Maladie</span></div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>${escapeHtml(firstHeader)}</th>
-                ${dayColumns.map((d) => `<th>${escapeHtml(format(d, 'EEE dd/MM', { locale: fr }))}</th>`).join('')}
-                <th>Total h</th>
-              </tr>
-            </thead>
-            <tbody>${htmlRows}</tbody>
-          </table>
+          ${tablesHtml}
           <div class="legend">Les congés et maladies sont listés dans la case du jour concerné. Les totaux ne comptent que les heures travaillées.</div>
         </body>
       </html>
@@ -700,7 +786,7 @@ const WeeklyWorkMatrixModal = ({
     const periodSlug = effectivePeriodMode === 'month'
       ? format(parseISO(selectedWeek), 'yyyy-MM')
       : effectivePeriodMode === 'range'
-        ? `${selectedWeek}_${viewerRangeEnd}`
+        ? `${effectiveRangeStart}_${effectiveRangeEnd}`
         : selectedWeek;
     const captureTarget = pdfCaptureRef.current;
     if (!captureTarget) return;
@@ -1064,6 +1150,65 @@ const WeeklyWorkMatrixModal = ({
           >
             Mois global
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPeriodMode('range');
+              setTableView('employees');
+              setRecapShopKey('all');
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: periodMode === 'range' ? '2px solid #0f4c75' : '1px solid #94a3b8',
+              background: periodMode === 'range' ? '#0f4c75' : '#fff',
+              color: periodMode === 'range' ? '#fff' : '#334155',
+              cursor: 'pointer',
+              fontWeight: 800,
+              fontSize: '12px'
+            }}
+          >
+            Plage personnalisée
+          </button>
+            </>
+          )}
+          {!isolatedMode && periodMode === 'range' && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                Du
+                <input
+                  type="date"
+                  value={rangeStart}
+                  min={dateBounds.min || undefined}
+                  max={dateBounds.max || undefined}
+                  onChange={(event) => setRangeStart(event.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #94a3b8',
+                    fontSize: 12
+                  }}
+                />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                au
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  min={dateBounds.min || undefined}
+                  max={dateBounds.max || undefined}
+                  onChange={(event) => setRangeEnd(event.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #94a3b8',
+                    fontSize: 12
+                  }}
+                />
+              </label>
+              {rangeLabel && (
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{rangeLabel}</span>
+              )}
             </>
           )}
           <span style={{ fontSize: '12px', fontWeight: 800, color: '#334155', marginLeft: '8px' }}>Organisation :</span>
@@ -1311,243 +1456,359 @@ const WeeklyWorkMatrixModal = ({
                 : 'Aucune donnée pour les boutiques du périmètre.'}
             </div>
           ) : tableView === 'employees' ? (
-            <div data-pdf-expand="true" style={{ overflow: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: 0 }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: '12px',
-                  background: '#fff'
-                }}
-              >
-                <thead>
-                  <tr style={{ background: '#0f4c75', color: '#fff' }}>
-                    <th
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {displayWeekChunks.map((chunk, chunkIdx) => (
+                <div key={`employees-week-${chunk.startIndex}`}>
+                  {chunk.title && (
+                    <div
                       style={{
-                        textAlign: 'left',
-                        padding: '10px 12px',
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 2,
-                        minWidth: '140px',
-                        border: '1px solid #0a3d5c'
+                        fontWeight: 900,
+                        fontSize: '13px',
+                        color: '#0f4c75',
+                        marginBottom: '8px',
+                        padding: '8px 12px',
+                        background: '#e8f0f7',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1'
                       }}
                     >
-                      Employé
-                    </th>
-                    {dayColumns.map((d) => (
-                      <th
-                        key={format(d, 'yyyy-MM-dd')}
-                        style={{
-                          textAlign: 'left',
-                          padding: '10px 10px',
-                          minWidth: effectivePeriodMode === 'month' || effectivePeriodMode === 'range' ? '92px' : '120px',
-                          border: '1px solid #0a3d5c',
-                          fontWeight: 700
-                        }}
-                      >
-                        {format(d, 'EEE', { locale: fr })}{' '}
-                        <span style={{ fontWeight: 500, opacity: 0.9 }}>{format(d, 'dd/MM')}</span>
-                      </th>
-                    ))}
-                    <th
+                      {chunk.title}
+                    </div>
+                  )}
+                  <div data-pdf-expand="true" style={{ overflow: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: 0 }}>
+                    <table
                       style={{
-                        textAlign: 'right',
-                        padding: '10px 12px',
-                        minWidth: '72px',
-                        border: '1px solid #0a3d5c',
-                        fontWeight: 800,
-                        background: '#0a3d5c',
-                        color: '#fff'
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: '12px',
+                        background: '#fff'
                       }}
                     >
-                      Total h
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, rIdx) => (
-                    <tr
-                      key={row.employeeId}
-                      style={{ background: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}
-                    >
-                      <td
-                        style={{
-                          fontWeight: 700,
-                          padding: '10px 12px',
-                          border: '1px solid #e2e8f0',
-                          position: 'sticky',
-                          left: 0,
-                          background: rIdx % 2 === 0 ? '#fff' : '#f8fafc',
-                          zIndex: 1,
-                          boxShadow: '2px 0 6px rgba(0,0,0,0.04)',
-                          color: '#0f172a'
-                        }}
-                      >
-                        {row.name}
-                      </td>
-                      {row.dayCells.map((cell) => {
-                        const h = typeof cell.hoursH === 'number' ? cell.hoursH : 0;
-                        const showH = h > 0.001;
-                        return (
-                          <td
-                            key={cell.dayLabel}
+                      <thead>
+                        <tr style={{ background: '#0f4c75', color: '#fff' }}>
+                          <th
                             style={{
-                              verticalAlign: 'top',
-                              padding: '8px 10px',
-                              border: '1px solid #e2e8f0',
-                              color: '#334155',
-                              lineHeight: 1.45,
-                              whiteSpace: 'pre-line'
+                              textAlign: 'left',
+                              padding: '10px 12px',
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: 2,
+                              minWidth: '140px',
+                              border: '1px solid #0a3d5c'
                             }}
                           >
-                            {cell.display}
-                            {showH && (
-                              <div
+                            Employé
+                          </th>
+                          {chunk.days.map((d) => (
+                            <th
+                              key={format(d, 'yyyy-MM-dd')}
+                              style={{
+                                textAlign: 'left',
+                                padding: '10px 10px',
+                                minWidth: '120px',
+                                border: '1px solid #0a3d5c',
+                                fontWeight: 700
+                              }}
+                            >
+                              {format(d, 'EEE', { locale: fr })}{' '}
+                              <span style={{ fontWeight: 500, opacity: 0.9 }}>{format(d, 'dd/MM')}</span>
+                            </th>
+                          ))}
+                          <th
+                            style={{
+                              textAlign: 'right',
+                              padding: '10px 12px',
+                              minWidth: '72px',
+                              border: '1px solid #0a3d5c',
+                              fontWeight: 800,
+                              background: '#0a3d5c',
+                              color: '#fff'
+                            }}
+                          >
+                            {displayWeekChunks.length > 1 ? 'Total sem.' : 'Total h'}
+                          </th>
+                          {displayWeekChunks.length > 1 && chunkIdx === displayWeekChunks.length - 1 && (
+                            <th
+                              style={{
+                                textAlign: 'right',
+                                padding: '10px 12px',
+                                minWidth: '82px',
+                                border: '1px solid #0a3d5c',
+                                fontWeight: 800,
+                                background: '#1e3a5f',
+                                color: '#fff'
+                              }}
+                            >
+                              Total période
+                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, rIdx) => {
+                          const weekCells = row.dayCells.slice(chunk.startIndex, chunk.startIndex + chunk.days.length);
+                          const weekSubtotal = sumCellHours(weekCells);
+                          return (
+                            <tr
+                              key={`${row.employeeId}-${chunk.startIndex}`}
+                              style={{ background: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}
+                            >
+                              <td
                                 style={{
-                                  marginTop: '8px',
-                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  padding: '10px 12px',
+                                  border: '1px solid #e2e8f0',
+                                  position: 'sticky',
+                                  left: 0,
+                                  background: rIdx % 2 === 0 ? '#fff' : '#f8fafc',
+                                  zIndex: 1,
+                                  boxShadow: '2px 0 6px rgba(0,0,0,0.04)',
+                                  color: '#0f172a'
+                                }}
+                              >
+                                {row.name}
+                              </td>
+                              {weekCells.map((cell) => {
+                                const h = typeof cell.hoursH === 'number' ? cell.hoursH : 0;
+                                const showH = h > 0.001;
+                                return (
+                                  <td
+                                    key={`${row.employeeId}-${cell.dayLabel}`}
+                                    style={{
+                                      verticalAlign: 'top',
+                                      padding: '8px 10px',
+                                      border: '1px solid #e2e8f0',
+                                      color: '#334155',
+                                      lineHeight: 1.45,
+                                      whiteSpace: 'pre-line'
+                                    }}
+                                  >
+                                    {cell.display}
+                                    {showH && (
+                                      <div
+                                        style={{
+                                          marginTop: '8px',
+                                          fontSize: '12px',
+                                          fontWeight: 800,
+                                          color: '#0f766e',
+                                          fontVariantNumeric: 'tabular-nums'
+                                        }}
+                                      >
+                                        {formatWorkedHoursForDisplay(h)}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td
+                                style={{
+                                  textAlign: 'right',
+                                  verticalAlign: 'middle',
+                                  padding: '10px 12px',
+                                  border: '1px solid #e2e8f0',
                                   fontWeight: 800,
-                                  color: '#0f766e',
+                                  fontSize: '13px',
+                                  color: '#0f4c75',
+                                  background: rIdx % 2 === 0 ? 'rgba(15,76,117,0.06)' : 'rgba(15,76,117,0.1)',
                                   fontVariantNumeric: 'tabular-nums'
                                 }}
                               >
-                                {formatWorkedHoursForDisplay(h)}
-                              </div>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td
-                        style={{
-                          textAlign: 'right',
-                          verticalAlign: 'middle',
-                          padding: '10px 12px',
-                          border: '1px solid #e2e8f0',
-                          fontWeight: 800,
-                          fontSize: '13px',
-                          color: '#0f4c75',
-                          background: rIdx % 2 === 0 ? 'rgba(15,76,117,0.06)' : 'rgba(15,76,117,0.1)',
-                          fontVariantNumeric: 'tabular-nums'
-                        }}
-                      >
-                        {formatWorkedHoursForDisplay(row.weekHours)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                                {formatWorkedHoursForDisplay(weekSubtotal)}
+                              </td>
+                              {displayWeekChunks.length > 1 && chunkIdx === displayWeekChunks.length - 1 && (
+                                <td
+                                  style={{
+                                    textAlign: 'right',
+                                    verticalAlign: 'middle',
+                                    padding: '10px 12px',
+                                    border: '1px solid #e2e8f0',
+                                    fontWeight: 800,
+                                    fontSize: '13px',
+                                    color: '#1e3a5f',
+                                    background: rIdx % 2 === 0 ? 'rgba(30,58,95,0.08)' : 'rgba(30,58,95,0.12)',
+                                    fontVariantNumeric: 'tabular-nums'
+                                  }}
+                                >
+                                  {formatWorkedHoursForDisplay(row.weekHours)}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <div data-pdf-expand="true" style={{ overflow: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: 0 }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: '12px',
-                  background: '#fff'
-                }}
-              >
-                <thead>
-                  <tr style={{ background: '#0f4c75', color: '#fff' }}>
-                    <th
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {displayWeekChunks.map((chunk, chunkIdx) => (
+                <div key={`shops-week-${chunk.startIndex}`}>
+                  {chunk.title && (
+                    <div
                       style={{
-                        textAlign: 'left',
-                        padding: '10px 12px',
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 2,
-                        minWidth: '150px',
-                        border: '1px solid #0a3d5c'
+                        fontWeight: 900,
+                        fontSize: '13px',
+                        color: '#0f4c75',
+                        marginBottom: '8px',
+                        padding: '8px 12px',
+                        background: '#e8f0f7',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1'
                       }}
                     >
-                      Boutique
-                    </th>
-                    {dayColumns.map((d) => (
-                      <th
-                        key={format(d, 'yyyy-MM-dd')}
-                        style={{
-                          textAlign: 'left',
-                          padding: '10px 10px',
-                          minWidth: effectivePeriodMode === 'month' || effectivePeriodMode === 'range' ? '96px' : '140px',
-                          border: '1px solid #0a3d5c',
-                          fontWeight: 700
-                        }}
-                      >
-                        {format(d, 'EEE', { locale: fr })}{' '}
-                        <span style={{ fontWeight: 500, opacity: 0.9 }}>{format(d, 'dd/MM')}</span>
-                      </th>
-                    ))}
-                    <th
+                      {chunk.title}
+                    </div>
+                  )}
+                  <div data-pdf-expand="true" style={{ overflow: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: 0 }}>
+                    <table
                       style={{
-                        textAlign: 'right',
-                        padding: '10px 12px',
-                        minWidth: '72px',
-                        border: '1px solid #0a3d5c',
-                        fontWeight: 800,
-                        background: '#0a3d5c',
-                        color: '#fff'
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: '12px',
+                        background: '#fff'
                       }}
                     >
-                      Total h
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shopRows.map((row, rIdx) => (
-                    <tr
-                      key={row.shopId}
-                      style={{ background: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}
-                    >
-                      <td
-                        style={{
-                          fontWeight: 700,
-                          padding: '10px 12px',
-                          border: '1px solid #e2e8f0',
-                          position: 'sticky',
-                          left: 0,
-                          background: rIdx % 2 === 0 ? '#fff' : '#f8fafc',
-                          zIndex: 1,
-                          boxShadow: '2px 0 6px rgba(0,0,0,0.04)',
-                          color: '#0f172a'
-                        }}
-                      >
-                        {row.shopName}
-                      </td>
-                      {row.dayCells.map((cell) => (
-                        <td
-                          key={cell.dayKey}
-                          style={{
-                            verticalAlign: 'top',
-                            padding: '8px 10px',
-                            border: '1px solid #e2e8f0',
-                            color: '#334155',
-                            lineHeight: 1.45,
-                            whiteSpace: 'pre-line'
-                          }}
-                        >
-                          {renderShopDayCell(cell)}
-                        </td>
-                      ))}
-                      <td
-                        style={{
-                          textAlign: 'right',
-                          verticalAlign: 'middle',
-                          padding: '10px 12px',
-                          border: '1px solid #e2e8f0',
-                          fontWeight: 800,
-                          fontSize: '13px',
-                          color: '#0f4c75',
-                          background: rIdx % 2 === 0 ? 'rgba(15,76,117,0.06)' : 'rgba(15,76,117,0.1)',
-                          fontVariantNumeric: 'tabular-nums'
-                        }}
-                      >
-                        {formatWorkedHoursForDisplay(row.weekTotal)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      <thead>
+                        <tr style={{ background: '#0f4c75', color: '#fff' }}>
+                          <th
+                            style={{
+                              textAlign: 'left',
+                              padding: '10px 12px',
+                              position: 'sticky',
+                              left: 0,
+                              zIndex: 2,
+                              minWidth: '150px',
+                              border: '1px solid #0a3d5c'
+                            }}
+                          >
+                            Boutique
+                          </th>
+                          {chunk.days.map((d) => (
+                            <th
+                              key={format(d, 'yyyy-MM-dd')}
+                              style={{
+                                textAlign: 'left',
+                                padding: '10px 10px',
+                                minWidth: '140px',
+                                border: '1px solid #0a3d5c',
+                                fontWeight: 700
+                              }}
+                            >
+                              {format(d, 'EEE', { locale: fr })}{' '}
+                              <span style={{ fontWeight: 500, opacity: 0.9 }}>{format(d, 'dd/MM')}</span>
+                            </th>
+                          ))}
+                          <th
+                            style={{
+                              textAlign: 'right',
+                              padding: '10px 12px',
+                              minWidth: '72px',
+                              border: '1px solid #0a3d5c',
+                              fontWeight: 800,
+                              background: '#0a3d5c',
+                              color: '#fff'
+                            }}
+                          >
+                            {displayWeekChunks.length > 1 ? 'Total sem.' : 'Total h'}
+                          </th>
+                          {displayWeekChunks.length > 1 && chunkIdx === displayWeekChunks.length - 1 && (
+                            <th
+                              style={{
+                                textAlign: 'right',
+                                padding: '10px 12px',
+                                minWidth: '82px',
+                                border: '1px solid #0a3d5c',
+                                fontWeight: 800,
+                                background: '#1e3a5f',
+                                color: '#fff'
+                              }}
+                            >
+                              Total période
+                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shopRows.map((row, rIdx) => {
+                          const weekCells = row.dayCells.slice(chunk.startIndex, chunk.startIndex + chunk.days.length);
+                          const weekSubtotal = sumCellHours(weekCells);
+                          return (
+                            <tr
+                              key={`${row.shopId}-${chunk.startIndex}`}
+                              style={{ background: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}
+                            >
+                              <td
+                                style={{
+                                  fontWeight: 700,
+                                  padding: '10px 12px',
+                                  border: '1px solid #e2e8f0',
+                                  position: 'sticky',
+                                  left: 0,
+                                  background: rIdx % 2 === 0 ? '#fff' : '#f8fafc',
+                                  zIndex: 1,
+                                  boxShadow: '2px 0 6px rgba(0,0,0,0.04)',
+                                  color: '#0f172a'
+                                }}
+                              >
+                                {row.shopName}
+                              </td>
+                              {weekCells.map((cell) => (
+                                <td
+                                  key={`${row.shopId}-${cell.dayKey}`}
+                                  style={{
+                                    verticalAlign: 'top',
+                                    padding: '8px 10px',
+                                    border: '1px solid #e2e8f0',
+                                    color: '#334155',
+                                    lineHeight: 1.45,
+                                    whiteSpace: 'pre-line'
+                                  }}
+                                >
+                                  {renderShopDayCell(cell)}
+                                </td>
+                              ))}
+                              <td
+                                style={{
+                                  textAlign: 'right',
+                                  verticalAlign: 'middle',
+                                  padding: '10px 12px',
+                                  border: '1px solid #e2e8f0',
+                                  fontWeight: 800,
+                                  fontSize: '13px',
+                                  color: '#0f4c75',
+                                  background: rIdx % 2 === 0 ? 'rgba(15,76,117,0.06)' : 'rgba(15,76,117,0.1)',
+                                  fontVariantNumeric: 'tabular-nums'
+                                }}
+                              >
+                                {formatWorkedHoursForDisplay(weekSubtotal)}
+                              </td>
+                              {displayWeekChunks.length > 1 && chunkIdx === displayWeekChunks.length - 1 && (
+                                <td
+                                  style={{
+                                    textAlign: 'right',
+                                    verticalAlign: 'middle',
+                                    padding: '10px 12px',
+                                    border: '1px solid #e2e8f0',
+                                    fontWeight: 800,
+                                    fontSize: '13px',
+                                    color: '#1e3a5f',
+                                    background: rIdx % 2 === 0 ? 'rgba(30,58,95,0.08)' : 'rgba(30,58,95,0.12)',
+                                    fontVariantNumeric: 'tabular-nums'
+                                  }}
+                                >
+                                  {formatWorkedHoursForDisplay(row.weekTotal)}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
