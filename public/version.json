@@ -1,7 +1,22 @@
 {
-  "version": "3.10.115",
+  "version": "3.10.117",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.117",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning : barre de menu actions affichée par défaut à l'ouverture (au lieu de masquée)."
+      ]
+    },
+    {
+      "version": "3.10.116",
+      "date": "2026-05-29",
+      "changes": [
+        "Exports Excel et PDF limités aux boutiques autorisées de l'utilisateur connecté.",
+        "Planning boutiques semaine, horaires lisibles et récaps : périmètre aligné sur les droits boutique."
+      ]
+    },
     {
       "version": "3.10.115",
       "date": "2026-05-29",

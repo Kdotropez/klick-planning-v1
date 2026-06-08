@@ -40,7 +40,8 @@ import { addAuditLog } from '@/utils/auditLog';
 import {
   checkUserPermission,
   filterShopsForUser,
-  canUserAccessShop
+  canUserAccessShop,
+  filterPlanningDataForUser
 } from '../../config/userCodes';
 import '@/assets/styles.css';
 
@@ -244,9 +245,9 @@ const PlanningDisplay = ({
   const [showPlanningMenuBar, setShowPlanningMenuBar] = useState(() => {
     try {
       const stored = localStorage.getItem('planning_menu_bar_visible');
-      return stored === null ? false : stored === 'true';
+      return stored === null ? true : stored === 'true';
     } catch {
-      return false;
+      return true;
     }
   });
   const [activeMenu, setActiveMenu] = useState(null);
@@ -468,6 +469,7 @@ const PlanningDisplay = ({
       currentWeekKey: validWeek,
       currentWeekPlanning: planning,
       currentEmployees: [...(currentShopEmployees || []), ...(allEmployees || [])],
+      userCode: currentUser?.code,
     });
   };
 
@@ -575,6 +577,11 @@ const PlanningDisplay = ({
     if (!currentUser?.code) return shops;
     return filterShopsForUser(currentUser.code, shops);
   }, [currentUser, shops]);
+
+  const userScopedPlanningData = useMemo(() => {
+    if (!currentUser?.code) return planningData;
+    return filterPlanningDataForUser(currentUser.code, planningData);
+  }, [currentUser, planningData]);
 
   useEffect(() => {
     if (!accessibleShops.length || !setSelectedShop) return;
@@ -2000,6 +2007,7 @@ const PlanningDisplay = ({
   }, [validWeek, copyWeekToWeek]);
 
   const exportReadableSchedules = useCallback(() => {
+    const planningData = userScopedPlanningData;
     try {
       if (!validWeek || !planningData?.shops?.length) {
         setLocalFeedback('❌ Export impossible: semaine ou donnees indisponibles.');
@@ -2831,7 +2839,7 @@ const PlanningDisplay = ({
       console.error('Erreur export horaires lisibles:', error);
       setLocalFeedback('❌ Erreur lors de l export horaires lisibles.');
     }
-  }, [validWeek, selectedShop, planning, planningData, config, setLocalFeedback]);
+  }, [validWeek, selectedShop, planning, userScopedPlanningData, config, setLocalFeedback]);
 
   if (!currentShopData) {
     return (
@@ -3705,14 +3713,14 @@ const PlanningDisplay = ({
       <ShopWeekInsightsModal
         isOpen={showShopWeekInsights}
         onClose={() => setShowShopWeekInsights(false)}
-        planningData={planningData}
+        planningData={userScopedPlanningData}
         selectedShop={selectedShop}
         selectedWeek={validWeek}
         planning={planning}
         config={config}
         currentShopEmployees={currentShopEmployees}
         selectedEmployees={localSelectedEmployees}
-        shops={shops}
+        shops={accessibleShops}
         changeShop={changeShop}
         changeMonth={changeMonth}
         changeToSpecificWeek={changeToSpecificWeek}
@@ -3734,7 +3742,7 @@ const PlanningDisplay = ({
       <WeeklyWorkMatrixModal
         isOpen={showWeeklyWorkMatrix}
         onClose={() => setShowWeeklyWorkMatrix(false)}
-        planningData={planningData}
+        planningData={userScopedPlanningData}
         selectedWeek={validWeek}
         currentShopId={selectedShop}
         currentWeekPlanning={planning}
@@ -3764,8 +3772,8 @@ const PlanningDisplay = ({
         selectedShop={selectedShop}
         selectedWeek={validWeek}
         selectedEmployees={localSelectedEmployees}
-        shops={shops}
-          planningData={planningData}
+        shops={accessibleShops}
+          planningData={userScopedPlanningData}
       />
       )}
 
@@ -3806,9 +3814,9 @@ const PlanningDisplay = ({
           selectedWeek={validWeek}
           selectedEmployees={localSelectedEmployees}
           selectedEmployeeForMonthlyRecap={selectedEmployeeForMonthlyRecap}
-          shops={shops}
+          shops={accessibleShops}
           employees={currentShopEmployees}
-          planningData={planningData}
+          planningData={userScopedPlanningData}
         />
       )}
 
@@ -3820,9 +3828,9 @@ const PlanningDisplay = ({
           selectedShop={selectedShop}
           selectedWeek={validWeek}
           selectedEmployeeForWeeklyRecap={selectedEmployeeForWeeklyRecap}
-          shops={shops}
+          shops={accessibleShops}
           employees={currentShopEmployees}
-          planningData={planningData}
+          planningData={userScopedPlanningData}
         />
       )}
 

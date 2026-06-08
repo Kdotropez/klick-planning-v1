@@ -326,6 +326,13 @@ const VERSION_HIGHLIGHTS = {
     'Gestion acces: droits par utilisateur (boutiques + fonctions).',
     'Modale utilisateurs: bouton Droits pour configurer acces.',
     'Filtres appliques a la connexion (boutiques, menu, edition planning).'
+  ],
+  '3.10.116': [
+    'Exports Excel/PDF limites aux boutiques autorisees de l utilisateur.',
+    'Vues multi-boutiques et horaires lisibles alignes sur les droits boutique.'
+  ],
+  '3.10.117': [
+    'Planning: barre menu actions affichee par defaut a l ouverture.'
   ]
 };
 

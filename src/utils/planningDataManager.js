@@ -11,6 +11,7 @@ import {
 // Remplace xlsx standard par xlsx-js-style pour le formatage des cellules
 import * as XLSX from 'xlsx-js-style';
 import * as XLSXCore from 'xlsx';
+import { filterPlanningDataForUser } from '../config/userCodes';
 
 // Fonctions utilitaires pour le calcul des heures (créneaux à durées variables possibles)
 const getWorkTimesFromSlots = (timeSlots, slots, shopConfig = {}) => {
@@ -591,6 +592,10 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     if (typeof XLSX === 'undefined') {
       console.error('XLSX non disponible, annulation de l\'export Excel');
       return false;
+    }
+
+    if (opts?.userCode) {
+      planningData = filterPlanningDataForUser(opts.userCode, planningData);
     }
 
     const excelData = [];

@@ -57,7 +57,8 @@ import {
   pullUserCodesFromSupabase,
   enrichUserSession,
   filterShopsForUser,
-  canUserAccessShop
+  canUserAccessShop,
+  checkUserPermission
 } from './config/userCodes';
 
 const USER_DEFAULT_SHOP_ALIASES = {
@@ -1453,15 +1454,20 @@ const App = () => {
         const [y, m] = value.split('-').map(Number);
         const monthDate = new Date(y, m - 1, 1);
         cleanup();
+        const exportUserCode = exportContext.userCode || currentUser?.code;
         const ok = exportPlanningToExcel(planningData, {
           monthDate,
+          userCode: exportUserCode,
           currentShopId: exportContext.currentShopId || selectedShop,
           currentWeekKey: exportContext.currentWeekKey || selectedWeek,
           currentWeekPlanning: exportContext.currentWeekPlanning || planning,
           currentEmployees: exportContext.currentEmployees || selectedEmployees,
         });
         if (ok === true) {
-          setFeedback('📊 Export Excel planning global téléchargé (toutes boutiques, fichier planning_detaille_mois…). Pour un employé : utiliser Exporter en Excel dans le récap mensuel détaillé.');
+          const shopScopeLabel = exportUserCode && !checkUserPermission(exportUserCode, 'canAccessAllShops')
+            ? 'boutiques autorisees'
+            : 'toutes boutiques';
+          setFeedback(`📊 Export Excel planning global téléchargé (${shopScopeLabel}, fichier planning_detaille_mois…). Pour un employé : utiliser Exporter en Excel dans le récap mensuel détaillé.`);
         } else {
           setFeedback('❌ Échec export Excel');
         }

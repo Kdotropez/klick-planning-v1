@@ -387,6 +387,18 @@ export const enrichUserSession = (user, shops = []) => {
   };
 };
 
+/** Planning limité aux boutiques autorisées (exports Excel/PDF, vues multi-boutiques). */
+export const filterPlanningDataForUser = (userCode, planningData) => {
+  if (!planningData || !userCode) return planningData;
+  const allShops = planningData.shops || [];
+  const allowedShops = filterShopsForUser(userCode, allShops);
+  if (allowedShops.length === allShops.length) return planningData;
+  return {
+    ...planningData,
+    shops: allowedShops
+  };
+};
+
 // Fonction pour obtenir les informations d'un utilisateur (sans le code secret)
 export const getUserInfo = (userCode) => {
   const userInfo = getCodes()[userCode];
