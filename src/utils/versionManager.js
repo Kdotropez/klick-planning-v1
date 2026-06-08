@@ -321,6 +321,11 @@ const VERSION_HIGHLIGHTS = {
   '3.10.114': [
     'Planning boutiques semaine: mode mois decoupe en tableaux semaine par semaine.',
     'Meme presentation que la plage personnalisee: sous-total semaine et total mois.'
+  ],
+  '3.10.115': [
+    'Gestion acces: droits par utilisateur (boutiques + fonctions).',
+    'Modale utilisateurs: bouton Droits pour configurer acces.',
+    'Filtres appliques a la connexion (boutiques, menu, edition planning).'
   ]
 };
 

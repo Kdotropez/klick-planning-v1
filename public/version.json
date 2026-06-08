@@ -1,7 +1,16 @@
 {
-  "version": "3.10.114",
+  "version": "3.10.115",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.115",
+      "date": "2026-05-29",
+      "changes": [
+        "Gestion des accès : droits par utilisateur sur les boutiques et les fonctions du planning.",
+        "Modale Codes utilisateurs : bouton Droits pour choisir boutiques autorisées et fonctions activées.",
+        "Application des droits à la connexion (sélecteur boutique, boutons menu, édition planning)."
+      ]
+    },
     {
       "version": "3.10.114",
       "date": "2026-05-29",

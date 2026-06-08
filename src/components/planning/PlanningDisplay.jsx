@@ -37,6 +37,11 @@ import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import { addAuditLog } from '@/utils/auditLog';
+import {
+  checkUserPermission,
+  filterShopsForUser,
+  canUserAccessShop
+} from '../../config/userCodes';
 import '@/assets/styles.css';
 
 const normalizeWeekKey = (dateString) => {
@@ -206,13 +211,6 @@ const PlanningDisplay = ({
   }
   const currentUserId = currentUserIdRef.current;
   
-  // Identifiant de ressource pour le verrou (boutique + semaine)
-  const validWeek = normalizeWeekKey(selectedWeek);
-  const resourceId = `${selectedShop || 'unknown'}:${validWeek}`;
-  
-  // Hook de gestion du verrou
-  const { status, isOwner, readOnly, lockInfo, release, emergency } = usePlanningLock(resourceId, currentUserId);
-
   // Récupérer les informations de l'utilisateur connecté
   const currentUser = useMemo(() => {
     try {
@@ -222,6 +220,15 @@ const PlanningDisplay = ({
       return null;
     }
   }, []);
+
+  // Identifiant de ressource pour le verrou (boutique + semaine)
+  const validWeek = normalizeWeekKey(selectedWeek);
+  const resourceId = `${selectedShop || 'unknown'}:${validWeek}`;
+  
+  // Hook de gestion du verrou
+  const { status, isOwner, readOnly: lockReadOnly, lockInfo, release, emergency } = usePlanningLock(resourceId, currentUserId);
+  const canEditPlanning = !currentUser?.code || checkUserPermission(currentUser.code, 'canEditPlanning');
+  const readOnly = lockReadOnly || !canEditPlanning;
   
   // Fonction wrapper pour la sauvegarde qui respecte le verrou
   const safeSaveWeekPlanning = useCallback((planningData, shop, week, planning, employees) => {
@@ -563,6 +570,19 @@ const PlanningDisplay = ({
         config: shop.config && typeof shop.config === 'object' ? shop.config : {}
       }));
   }, [planningData?.shops]);
+
+  const accessibleShops = useMemo(() => {
+    if (!currentUser?.code) return shops;
+    return filterShopsForUser(currentUser.code, shops);
+  }, [currentUser, shops]);
+
+  useEffect(() => {
+    if (!accessibleShops.length || !setSelectedShop) return;
+    const isAllowed = accessibleShops.some((shop) => shop.id === selectedShop);
+    if (!isAllowed) {
+      setSelectedShop(accessibleShops[0].id);
+    }
+  }, [accessibleShops, selectedShop, setSelectedShop]);
   
   // État pour les employés de la boutique actuelle
   const [currentShopEmployees, setCurrentShopEmployees] = useState([]);
@@ -1669,6 +1689,10 @@ const PlanningDisplay = ({
 
   const changeShop = (newShop) => {
     try {
+      if (currentUser?.code && !canUserAccessShop(currentUser.code, newShop, shops)) {
+        alert('Vous n\'avez pas accès à cette boutique.');
+        return;
+      }
       // Sauvegarder le planning actuel avant de changer de boutique
       if (!isWeekFullyLocked && selectedShop && validWeek && Object.keys(planning).length > 0) {
         console.log('Sauvegarde avant changement de boutique:', { selectedShop, selectedWeek: validWeek, planning, localSelectedEmployees });
@@ -3041,24 +3065,26 @@ const PlanningDisplay = ({
               >
                 🚪 Fermer
               </button>
-              <button
-                type="button"
-                onClick={() => setShowWeeklyWorkMatrix(true)}
-                style={{
-                  backgroundColor: '#1565c0',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 14px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap'
-                }}
-                title="Planning semaine ou mois par boutique : employés présents, horaires, congés, impression et PDF"
-              >
-                📋 Planning boutiques semaine
-              </button>
+              {(!currentUser?.code || checkUserPermission(currentUser.code, 'canViewWeeklyMatrix')) && (
+                <button
+                  type="button"
+                  onClick={() => setShowWeeklyWorkMatrix(true)}
+                  style={{
+                    backgroundColor: '#1565c0',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 14px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Planning semaine ou mois par boutique : employés présents, horaires, congés, impression et PDF"
+                >
+                  📋 Planning boutiques semaine
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowPlanningMenuBar((value) => !value)}
@@ -3081,7 +3107,7 @@ const PlanningDisplay = ({
           {showPlanningMenuBar && (
           <PlanningMenuBar
             currentShop={selectedShop}
-            shops={shops}
+            shops={accessibleShops}
             currentWeek={validWeek}
             changeWeek={changeWeek}
             changeShop={changeShop}
@@ -3201,7 +3227,7 @@ const PlanningDisplay = ({
                 e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
               }}
             >
-              {shops.map(shop => (
+              {accessibleShops.map(shop => (
                 <option key={shop.id} value={shop.id}>{shop.name}</option>
               ))}
             </select>

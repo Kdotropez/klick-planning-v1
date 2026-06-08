@@ -52,7 +52,13 @@ import {
   cleanupExpiredLocks,
   emergencyUnlock
 } from './utils/collabLock';
-import { PRIMARY_ADMIN_CODE, pullUserCodesFromSupabase } from './config/userCodes';
+import {
+  PRIMARY_ADMIN_CODE,
+  pullUserCodesFromSupabase,
+  enrichUserSession,
+  filterShopsForUser,
+  canUserAccessShop
+} from './config/userCodes';
 
 const USER_DEFAULT_SHOP_ALIASES = {
   ANGELIQUE: 'SAINT TROPEZ',
@@ -200,8 +206,8 @@ const App = () => {
   };
 
   const resolvePreferredShopId = (user, data) => {
-    const shops = data?.shops || [];
-    if (!shops.length) return '';
+    const allowedShops = filterShopsForUser(user?.code, data?.shops || []);
+    if (!allowedShops.length) return '';
 
     const userName = normalizeToken(user?.name);
     const userCode = normalizeToken(user?.code);
@@ -210,16 +216,16 @@ const App = () => {
       userName.includes(alias) || userCode.includes(alias)
     )?.[1];
 
-    if (!preferredAlias) return shops[0]?.id || '';
+    if (!preferredAlias) return allowedShops[0]?.id || '';
 
     const target = normalizeToken(preferredAlias);
-    const match = shops.find((shop) => {
+    const match = allowedShops.find((shop) => {
       const idToken = normalizeToken(shop?.id);
       const nameToken = normalizeToken(shop?.name);
       return idToken === target || nameToken === target || idToken.includes(target) || nameToken.includes(target);
     });
 
-    return match?.id || shops[0]?.id || '';
+    return match?.id || allowedShops[0]?.id || '';
   };
 
   const getShopNameById = (shopId, data = planningData) =>
@@ -684,27 +690,29 @@ const App = () => {
       return;
     }
 
-    // Session locale persistée uniquement après validation du verrou global
-    localStorage.setItem('current_user', JSON.stringify(user));
-    localStorage.setItem('user_id', `user_${user.code}_${Date.now()}`);
+    const enrichedUser = enrichUserSession(user, planningData?.shops || []);
 
-    setCurrentUser(user);
+    // Session locale persistée uniquement après validation du verrou global
+    localStorage.setItem('current_user', JSON.stringify(enrichedUser));
+    localStorage.setItem('user_id', `user_${enrichedUser.code}_${Date.now()}`);
+
+    setCurrentUser(enrichedUser);
     setHasGlobalLock(true);
     resetInactivityTimer();
     setLockCountdownSeconds(0);
     setLockOwnerText('');
-    const preferredShopId = resolvePreferredShopId(user, planningData);
+    const preferredShopId = resolvePreferredShopId(enrichedUser, planningData);
     if (preferredShopId) {
       setSelectedShop(preferredShopId);
     }
     setSelectedWeek(getCurrentWeekKey());
     setMode(planningData?.shops?.length > 0 ? 'planning' : 'main-startup');
-    setFeedback(`👋 Bienvenue ${user.name} !`);
+    setFeedback(`👋 Bienvenue ${enrichedUser.name} !`);
     addAuditLog({
       action: 'Connexion',
-      details: 'Connexion utilisateur validee.',
-      userCode: user?.code,
-      userName: user?.name,
+      details: `Connexion utilisateur validee. Boutiques autorisees: ${(enrichedUser.allowedShopIds || []).join(', ') || 'aucune'}.`,
+      userCode: enrichedUser?.code,
+      userName: enrichedUser?.name,
       shopId: preferredShopId,
       shopName: getShopNameById(preferredShopId, planningData)
     });

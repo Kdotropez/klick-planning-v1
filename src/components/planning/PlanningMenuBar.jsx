@@ -116,11 +116,11 @@ const PlanningMenuBar = ({
     event.target.value = '';
   };
 
+  const can = (permission) => currentUser && checkUserPermission(currentUser.code, permission);
+
   const openAuditLog = () => {
-    const code = window.prompt('Code superviseur requis pour ouvrir le journal d audit:');
-    if (!code) return;
-    if (code.trim() !== '2111') {
-      alert('❌ Code incorrect.');
+    if (!can('canViewAuditLog')) {
+      alert('Vous n\'avez pas accès au journal d\'audit.');
       return;
     }
     setAuditEntries(listAuditLogs(500));
@@ -194,6 +194,7 @@ const PlanningMenuBar = ({
           paddingBottom: '4px'
         }}>
         {/* LIGNE 1: Fonctions principales */}
+          {can('canViewWeekInsights') && (
           <Button
             className="button-primary"
             onClick={() => onOpenShopWeekInsights && onOpenShopWeekInsights()}
@@ -216,7 +217,9 @@ const PlanningMenuBar = ({
           >
             Pilotage semaine
           </Button>
+          )}
 
+          {can('canViewPresenceMap') && (
           <Button
             className="button-primary"
             onClick={() => onOpenPresenceMap && onOpenPresenceMap()}
@@ -239,7 +242,9 @@ const PlanningMenuBar = ({
           >
             🗺️ Cartographie présence
           </Button>
+          )}
 
+          {can('canExportAll') && (
           <Button
             className="button-primary"
             onClick={onExport}
@@ -262,7 +267,9 @@ const PlanningMenuBar = ({
           >
             <FaDownload /> Excel global
           </Button>
+          )}
 
+        {can('canExportAll') && (
         <Button
           className="button-primary"
           onClick={onExportReadableSchedules}
@@ -285,7 +292,9 @@ const PlanningMenuBar = ({
         >
           🗓️ Export Horaires Lisibles
         </Button>
+        )}
 
+        {can('canViewLabourInspection') && (
         <Button
           className="button-primary"
           onClick={() => onOpenLabourInspection && onOpenLabourInspection()}
@@ -308,7 +317,9 @@ const PlanningMenuBar = ({
         >
           🧾 Inspection Travail
         </Button>
+        )}
 
+          {can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleRestoreFromSupabase}
@@ -330,7 +341,9 @@ const PlanningMenuBar = ({
           >
             🔄 RESTAURE SUPABASE
           </Button>
+          )}
 
+          {can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleRestoreBackupFromHistory}
@@ -352,8 +365,10 @@ const PlanningMenuBar = ({
           >
             🕘 HISTORIQUE SUPABASE
           </Button>
+          )}
 
         {/* LIGNE 2: Fonctions utilitaires et Navigation */}
+          {can('canImportData') && (
           <Button
             className="button-primary"
             onClick={handleImportClick}
@@ -375,7 +390,9 @@ const PlanningMenuBar = ({
           >
             📥 Importer les données
           </Button>
+          )}
 
+        {can('canModifySystem') && (
         <Button
           className="button-primary"
           onClick={diagnoseAndCleanLocks}
@@ -397,7 +414,9 @@ const PlanningMenuBar = ({
         >
           🔍 Diagnostic Verrous
         </Button>
+        )}
 
+        {can('canViewNotes') && (
         <Button
           className="button-primary"
           onClick={() => onOpenNotes && onOpenNotes()}
@@ -419,8 +438,9 @@ const PlanningMenuBar = ({
         >
           📝 Notes
         </Button>
+        )}
 
-        {currentUser && checkUserPermission(currentUser.code, 'canManageUsers') && (
+        {can('canManageUsers') && (
           <Button
             className="button-primary"
             onClick={() => setShowUserManagement(true)}
@@ -446,6 +466,7 @@ const PlanningMenuBar = ({
         )}
 
         {/* Bouton intelligent Gestion Employés Masqués */}
+        {can('canManageHiddenEmployees') && (
         <Button
           className="button-primary"
           onClick={() => setShowHiddenEmployeesModal(true)}
@@ -496,7 +517,9 @@ const PlanningMenuBar = ({
             </span>
           )}
         </Button>
+        )}
 
+        {can('canViewAuditLog') && (
         <Button
           className="button-primary"
           onClick={openAuditLog}
@@ -519,6 +542,7 @@ const PlanningMenuBar = ({
         >
           📋 Journal d audit
         </Button>
+        )}
 
         <Button
           className="button-primary"
@@ -542,7 +566,7 @@ const PlanningMenuBar = ({
           🏠 Démarrage
         </Button>
 
-        {onOpenSchoolMode && (
+        {onOpenSchoolMode && can('canViewSchoolMode') && (
           <Button
             className="button-primary"
             onClick={onOpenSchoolMode}
@@ -568,6 +592,7 @@ const PlanningMenuBar = ({
         )}
 
         {/* LIGNE 3: Nouveaux boutons ajoutés */}
+        {can('canResetData') && (
         <Button
           className="button-primary"
           onClick={() => setShowResetModal(true)}
@@ -589,6 +614,7 @@ const PlanningMenuBar = ({
         >
           🗑️ Effacer
         </Button>
+        )}
 
         <Button
           className="button-primary"
@@ -612,6 +638,7 @@ const PlanningMenuBar = ({
           ↩️ Retour
         </Button>
 
+        {can('canRestoreSupabase') && (
         <Button
           className="button-primary"
           onClick={restoreFromBackup}
@@ -633,6 +660,7 @@ const PlanningMenuBar = ({
         >
           🔄 Restaurer
         </Button>
+        )}
 
         <Button
           className="button-primary"
@@ -656,6 +684,7 @@ const PlanningMenuBar = ({
           💾 JSON
         </Button>
 
+        {can('canModifySystem') && (
         <Button
           className="button-primary"
           onClick={onBackToConfig}
@@ -677,7 +706,9 @@ const PlanningMenuBar = ({
         >
           ⚙️ Config
         </Button>
+        )}
 
+        {can('canModifySystem') && (
         <Button
           className="button-primary"
           onClick={onBack}
@@ -699,7 +730,9 @@ const PlanningMenuBar = ({
         >
           👥 Employés
         </Button>
+        )}
 
+        {can('canModifySystem') && (
         <Button
           className="button-primary"
           onClick={onBackToShop}
@@ -721,7 +754,9 @@ const PlanningMenuBar = ({
         >
           ➕ Nouvelle Boutique
         </Button>
+        )}
 
+        {can('canModifySystem') && (
         <Button
           className="button-primary"
           onClick={onBackToShopManagement}
@@ -743,6 +778,7 @@ const PlanningMenuBar = ({
         >
           🏪 Gérer Boutiques
         </Button>
+        )}
 
         <Button
           className="button-primary"
@@ -872,6 +908,7 @@ const PlanningMenuBar = ({
           {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
         </Button>
 
+        {can('canCopyWeek') && (
         <Button
           className="button-primary"
           onClick={copyWeekToNextWeek}
@@ -893,6 +930,7 @@ const PlanningMenuBar = ({
         >
           📋 Copier → Semaine +1
         </Button>
+        )}
 
         {/* Indicateur employés verrouillés */}
         {validationState && (
@@ -923,6 +961,7 @@ const PlanningMenuBar = ({
         isOpen={showUserManagement}
         onClose={() => setShowUserManagement(false)}
         currentUser={currentUser}
+        planningData={planningData}
       />
 
       {/* Modal de gestion des employés masqués */}
