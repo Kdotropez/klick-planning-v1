@@ -1,7 +1,15 @@
 {
-  "version": "3.10.122",
+  "version": "3.10.123",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.123",
+      "date": "2026-05-29",
+      "changes": [
+        "Recherche restauration : inclusion des sauvegardes par boutique/semaine Supabase (💾 SAUVE SUPABASE).",
+        "Inventaire des semaines enregistrées pour chaque boutique et recherche avec clés semaine alternatives."
+      ]
+    },
     {
       "version": "3.10.122",
       "date": "2026-05-29",

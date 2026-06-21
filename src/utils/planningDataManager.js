@@ -1,4 +1,4 @@
-import { format, startOfWeek, addDays } from 'date-fns';
+import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getSlotDurationMinutes, migrateSelectionsToNewTimeSlots } from './slotDurationUtils';
 import { generateMarcheAmbulantTimeSlots, looksLikeUniformMarchePlanningGrid } from './timeSlots';
@@ -505,6 +505,39 @@ const countWeekPlanningEntries = (weekData) => {
   return count;
 };
 
+/** Clés semaine à tester (lundi canonique + variantes fréquentes). */
+export const resolveWeekKeysToTry = (weekKey) => {
+  const keys = [];
+  const add = (k) => {
+    if (k && !keys.includes(k)) keys.push(k);
+  };
+  add(weekKey);
+  try {
+    const parsed = parseISO(weekKey);
+    if (!Number.isNaN(parsed.getTime())) {
+      const monday = format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      add(monday);
+      for (let offset = -2; offset <= 2; offset += 1) {
+        if (offset !== 0) add(format(addDays(parseISO(monday), offset * 7), 'yyyy-MM-dd'));
+      }
+      for (let offset = -6; offset <= 6; offset += 1) {
+        add(format(addDays(parseISO(monday), offset), 'yyyy-MM-dd'));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return keys;
+};
+
+export const resolveWeekKeyInShopWeeks = (weeks, weekKey) => {
+  if (!weeks || typeof weeks !== 'object') return null;
+  for (const wk of resolveWeekKeysToTry(weekKey)) {
+    if (countWeekPlanningEntries(weeks[wk]) > 0) return wk;
+  }
+  return null;
+};
+
 /** Fusionne une boutique + semaine depuis une sauvegarde sans toucher aux autres boutiques. */
 export const mergeShopWeekFromBackup = (currentData, backupData, shopId, weekKey) => {
   if (!currentData?.shops?.length) {
@@ -519,10 +552,12 @@ export const mergeShopWeekFromBackup = (currentData, backupData, shopId, weekKey
     throw new Error(`Boutique "${shopId}" introuvable dans la sauvegarde`);
   }
 
-  const backupWeek = backupShop.weeks?.[weekKey];
-  if (!backupWeek || countWeekPlanningEntries(backupWeek) === 0) {
+  const resolvedWeekKey = resolveWeekKeyInShopWeeks(backupShop.weeks, weekKey);
+  if (!resolvedWeekKey) {
     throw new Error(`Semaine ${weekKey} introuvable ou vide dans la sauvegarde pour cette boutique`);
   }
+
+  const backupWeek = backupShop.weeks[resolvedWeekKey];
 
   const currentShopIndex = currentData.shops.findIndex((s) => String(s.id) === String(shopId));
   if (currentShopIndex < 0) {
@@ -537,7 +572,7 @@ export const mergeShopWeekFromBackup = (currentData, backupData, shopId, weekKey
         ...shop,
         weeks: {
           ...(shop.weeks || {}),
-          [weekKey]: {
+          [resolvedWeekKey]: {
             planning: JSON.parse(JSON.stringify(backupWeek.planning || {})),
             selectedEmployees: Array.isArray(backupWeek.selectedEmployees)
               ? [...backupWeek.selectedEmployees]
@@ -617,6 +652,14 @@ export const getShopWeekBrief = (planningData, shopId, weekKey) => {
     entryCount,
     employeeCount
   };
+};
+
+export const getShopWeekBriefWithAliases = (planningData, shopId, weekKey) => {
+  for (const wk of resolveWeekKeysToTry(weekKey)) {
+    const brief = getShopWeekBrief(planningData, shopId, wk);
+    if (brief) return brief;
+  }
+  return null;
 };
 
 // Sauvegarder le planning pour la boutique actuelle seulement

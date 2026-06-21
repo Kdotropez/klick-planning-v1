@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { getShopWeekBrief } from './planningDataManager';
+import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData } from './planningDataManager';
 
 // Outbox locale pour mode hybride (sauvegardes différées)
 const OUTBOX_KEY = 'remote_outbox_v1';
@@ -521,6 +521,73 @@ export const loadCompletePlanningBackupByWeekKey = async (weekKey) => {
   }
 };
 
+/** Lignes Supabase SAINT_TROPEZ / semaine (💾 SAUVE SUPABASE par boutique). */
+export const findRemoteShopWeekRowBackups = async (shopId, weekKey, onProgress) => {
+  if (!isReady() || !shopId || !weekKey) return [];
+
+  const { data: rows, error } = await supabase
+    .from('plannings')
+    .select('shop_id,week_key,updated_at,data')
+    .eq('shop_id', shopId)
+    .order('updated_at', { ascending: false })
+    .limit(120);
+
+  if (error || !Array.isArray(rows)) {
+    console.warn('⚠️ findRemoteShopWeekRowBackups:', error?.message || 'aucune ligne');
+    return [];
+  }
+
+  const matches = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    if (onProgress) onProgress(i + 1, rows.length, row);
+    if (!row?.data || !isCompletePlanningData(row.data)) continue;
+
+    const brief = getShopWeekBriefWithAliases(row.data, shopId, weekKey);
+    if (!brief) continue;
+
+    matches.push({
+      backup: {
+        weekKey: `${LEGACY_PREFIX}${shopId}::${row.week_key}`,
+        updatedAt: row.updated_at,
+        shopsCount: Array.isArray(row.data?.shops) ? row.data.shops.length : 0,
+        savedByDevice: row.data?._backupMeta?.savedByDevice || 'Sauvegarde semaine Supabase',
+        savedByUser: row.data?._backupMeta?.savedByUser || 'Utilisateur inconnu'
+      },
+      ...brief,
+      isRemoteWeekRow: true,
+      savedOnWeekKey: row.week_key
+    });
+  }
+  return matches;
+};
+
+/** Inventaire des semaines avec horaires pour une boutique (version actuelle + lignes Supabase). */
+export const inspectShopWeekInventory = async (shopId) => {
+  const current = await loadCompletePlanningData();
+  const weeksInCurrent = listShopWeeksWithData(current, shopId);
+  const remoteWeekKeys = await listRemoteWeeksForShop(shopId);
+
+  const remoteWeeksWithData = [];
+  for (const rowWeekKey of remoteWeekKeys.slice(0, 40)) {
+    const data = await loadCompletePlanningBackupByWeekKey(`${LEGACY_PREFIX}${shopId}::${rowWeekKey}`);
+    const weeks = listShopWeeksWithData(data, shopId);
+    const target = weeks.find((w) => w.weekKey === rowWeekKey) || weeks[0];
+    if (target) {
+      remoteWeeksWithData.push({
+        rowWeekKey,
+        ...target
+      });
+    }
+  }
+
+  return {
+    weeksInCurrent,
+    remoteWeekKeys,
+    remoteWeeksWithData
+  };
+};
+
 /** Parcourt l'historique et retourne les sauvegardes contenant une boutique + semaine avec horaires. */
 export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options = {}) => {
   const { limit = 50, excludeCurrent = false, onProgress } = options;
@@ -532,19 +599,30 @@ export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options
   }
 
   const matches = [];
+  const seen = new Set();
+  const addMatch = (match) => {
+    const dedupe = `${match.backup?.weekKey}|${match.backup?.updatedAt}|${match.weekKey}|${match.entryCount}`;
+    if (seen.has(dedupe)) return;
+    seen.add(dedupe);
+    matches.push(match);
+  };
+
   for (let i = 0; i < backups.length; i += 1) {
     const item = backups[i];
     if (onProgress) onProgress(i + 1, backups.length, item);
     const data = await loadCompletePlanningBackupByWeekKey(item.weekKey);
-    const brief = getShopWeekBrief(data, shopId, weekKey);
+    const brief = getShopWeekBriefWithAliases(data, shopId, weekKey);
     if (brief) {
-      matches.push({
+      addMatch({
         backup: item,
         ...brief,
         isCurrent: item.weekKey === CURRENT_COMPLETE_SENTINEL
       });
     }
   }
+
+  const remoteMatches = await findRemoteShopWeekRowBackups(shopId, weekKey, onProgress);
+  remoteMatches.forEach(addMatch);
 
   return matches.sort((a, b) => {
     const ta = a.backup?.updatedAt ? new Date(a.backup.updatedAt).getTime() : 0;
