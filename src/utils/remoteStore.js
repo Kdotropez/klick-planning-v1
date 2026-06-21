@@ -83,7 +83,7 @@ const isCompletePlanningData = (data) => {
 const HISTORY_SHOP_ID = 'backup_history';
 const HISTORY_WEEK_PREFIX = 'h_';
 const LEGACY_HISTORY_WEEK_PREFIX = 'snapshot_';
-const HISTORY_MAX_ITEMS = 30;
+const HISTORY_MAX_ITEMS = 60;
 const CURRENT_COMPLETE_SENTINEL = 'current_complete_file';
 const LEGACY_PREFIX = 'legacy_row::';
 const DEVICE_ID_STORAGE_KEY = 'client_device_id';
@@ -302,7 +302,13 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       upsertResult: data
     });
 
-    await saveHistorySnapshot(dataWithMeta);
+    const snapshotOk = await saveHistorySnapshot(dataWithMeta);
+    if (!snapshotOk) {
+      console.warn(
+        '⚠️ Version actuelle enregistrée, mais snapshot historique non créé. ' +
+          'Seule la ligne complete_file a été mise à jour.'
+      );
+    }
     
     return true;
   } catch (error) {
@@ -311,16 +317,24 @@ export const saveCompletePlanningData = async (completePlanningData) => {
   }
 };
 
-export const listCompletePlanningBackups = async (limit = 15) => {
+/** Enregistre un snapshot historique ; retourne { ok, error? }. */
+export const saveHistorySnapshotWithStatus = async (completePlanningData) => {
+  if (!isCompletePlanningData(completePlanningData)) {
+    return { ok: false, error: 'Données invalides' };
+  }
+  const ok = await saveHistorySnapshot(completePlanningData);
+  return ok ? { ok: true } : { ok: false, error: 'Insertion snapshot refusée (voir console)' };
+};
+
+export const listCompletePlanningBackups = async (limit = 30) => {
   if (!isReady()) return [];
 
   try {
-    const safeLimit = Math.max(1, Math.min(50, Number(limit) || 15));
+    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 30));
     const { data, error } = await supabase
       .from('plannings')
       .select('week_key,updated_at,data')
       .eq('shop_id', HISTORY_SHOP_ID)
-      .or(`week_key.like.${HISTORY_WEEK_PREFIX}%,week_key.like.${LEGACY_HISTORY_WEEK_PREFIX}%`)
       .order('updated_at', { ascending: false })
       .limit(safeLimit);
 
@@ -509,7 +523,7 @@ export const loadCompletePlanningBackupByWeekKey = async (weekKey) => {
 
 /** Parcourt l'historique et retourne les sauvegardes contenant une boutique + semaine avec horaires. */
 export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options = {}) => {
-  const { limit = 30, excludeCurrent = true, onProgress } = options;
+  const { limit = 50, excludeCurrent = false, onProgress } = options;
   if (!shopId || !weekKey) return [];
 
   let backups = await listCompletePlanningBackups(limit);
@@ -524,10 +538,34 @@ export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options
     const data = await loadCompletePlanningBackupByWeekKey(item.weekKey);
     const brief = getShopWeekBrief(data, shopId, weekKey);
     if (brief) {
-      matches.push({ backup: item, ...brief });
+      matches.push({
+        backup: item,
+        ...brief,
+        isCurrent: item.weekKey === CURRENT_COMPLETE_SENTINEL
+      });
     }
   }
-  return matches;
+
+  return matches.sort((a, b) => {
+    const ta = a.backup?.updatedAt ? new Date(a.backup.updatedAt).getTime() : 0;
+    const tb = b.backup?.updatedAt ? new Date(b.backup.updatedAt).getTime() : 0;
+    return tb - ta;
+  });
+};
+
+/** Dates des dernières sauvegardes globales (version actuelle + snapshots). */
+export const getGlobalBackupTimeline = async (limit = 15) => {
+  const backups = await listCompletePlanningBackups(Math.max(limit, 20));
+  return backups.map((item, idx) => ({
+    rank: idx + 1,
+    weekKey: item.weekKey,
+    updatedAt: item.updatedAt,
+    shopsCount: item.shopsCount,
+    savedByUser: item.savedByUser,
+    savedByDevice: item.savedByDevice,
+    isCurrent: item.weekKey === CURRENT_COMPLETE_SENTINEL,
+    isLegacy: String(item.weekKey || '').startsWith(LEGACY_PREFIX)
+  }));
 };
 
 // Fonction pour charger le fichier complet de planning

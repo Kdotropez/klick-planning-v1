@@ -47,7 +47,8 @@ import {
   loadCompletePlanningBackupByWeekKey,
   getCurrentCompleteBackupInfo,
   loadCompletePlanningData,
-  findHistoricalBackupsWithShopWeek
+  findHistoricalBackupsWithShopWeek,
+  getGlobalBackupTimeline
 } from './utils/remoteStore';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -936,7 +937,7 @@ const App = () => {
     setFeedback('⏳ Chargement de l’historique Supabase...');
 
     try {
-      const backups = await listCompletePlanningBackups(15);
+      const backups = await listCompletePlanningBackups(50);
       if (!backups || backups.length === 0) {
         alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
         setFeedback('❌ Aucun historique de sauvegarde trouvé.');
@@ -946,7 +947,7 @@ const App = () => {
       const lines = backups.map((item, idx) => {
         const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
         const sourceLabel = item.weekKey === 'current_complete_file'
-          ? 'actuelle'
+          ? '★ VERSION ACTUELLE (la plus récente)'
           : item.weekKey.startsWith('legacy_row::')
             ? 'legacy'
             : 'snapshot';
@@ -1062,10 +1063,19 @@ const App = () => {
     const dateText = match.backup.updatedAt
       ? new Date(match.backup.updatedAt).toLocaleString('fr-FR')
       : 'date inconnue';
+    const currentTag = match.isCurrent ? ' [VERSION ACTUELLE — la plus récente]' : '';
     return (
-      `${idx + 1}. ${dateText} — ${match.entryCount} jour(s), ${match.employeeCount} employé(s) ` +
+      `${idx + 1}. ${dateText}${currentTag} — ${match.entryCount} jour(s), ${match.employeeCount} employé(s) ` +
       `(${match.backup.savedByUser || '?'}, ${match.backup.savedByDevice || '?'})`
     );
+  };
+
+  const formatGlobalTimelineLine = (item) => {
+    const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
+    let kind = 'snapshot';
+    if (item.isCurrent) kind = 'VERSION ACTUELLE';
+    else if (item.isLegacy) kind = 'legacy';
+    return `• ${dateText} — ${kind}, ${item.shopsCount || 0} boutique(s) (${item.savedByUser || '?'})`;
   };
 
   const pickShopAndWeekForHistory = async (baseData) => {
@@ -1126,9 +1136,10 @@ const App = () => {
   };
 
   const scanHistoricalBackupsForTarget = async (shopId, weekKey) => {
-    setFeedback('⏳ Analyse des sauvegardes historiques…');
+    setFeedback('⏳ Analyse des sauvegardes (version actuelle + historique)…');
     return findHistoricalBackupsWithShopWeek(shopId, weekKey, {
-      limit: 30,
+      limit: 50,
+      excludeCurrent: false,
       onProgress: (current, total) => setFeedback(`⏳ Analyse des sauvegardes… ${current}/${total}`)
     });
   };
@@ -1156,18 +1167,25 @@ const App = () => {
         return;
       }
 
+      const timeline = await getGlobalBackupTimeline(12);
+      const timelineBlock = timeline.length
+        ? `\n\n── Dernières sauvegardes GLOBALES Supabase ──\n${timeline.map(formatGlobalTimelineLine).join('\n')}`
+        : '';
+
       const matches = await scanHistoricalBackupsForTarget(target.shopId, target.weekKey);
       const currentBrief = getShopWeekBrief(baseData, target.shopId, target.weekKey);
       const currentLine = currentBrief
-        ? `Version ACTUELLE : ${currentBrief.entryCount} jour(s), ${currentBrief.employeeCount} employé(s).`
-        : 'Version ACTUELLE : aucun horaire pour cette semaine.';
+        ? `Version ACTUELLE en mémoire : ${currentBrief.entryCount} jour(s), ${currentBrief.employeeCount} employé(s).`
+        : 'Version ACTUELLE en mémoire : aucun horaire pour cette semaine.';
 
       if (!matches.length) {
         alert(
-          `❌ Aucune sauvegarde historique avec horaires pour :\n\n` +
+          `❌ Aucune sauvegarde avec horaires pour :\n\n` +
             `Boutique : ${target.shopName}\n` +
             `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
-            currentLine
+            currentLine +
+            timelineBlock +
+            `\n\nSi la VERSION ACTUELLE est récente mais sans ces horaires, cherchez un snapshot plus ancien qui les contient encore.`
         );
         setFeedback('ℹ️ Aucune sauvegarde trouvée pour cette boutique/semaine.');
         return;
@@ -1178,8 +1196,10 @@ const App = () => {
         `🔍 Sauvegardes contenant des horaires\n\n` +
           `Boutique : ${target.shopName}\n` +
           `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
+          `(Triées de la plus récente à la plus ancienne)\n\n` +
           `${lines.join('\n')}\n\n` +
           currentLine +
+          timelineBlock +
           `\n\nUtilisez 🎯 RESTAURATION CIBLÉE pour fusionner une de ces sauvegardes.`
       );
       setFeedback(

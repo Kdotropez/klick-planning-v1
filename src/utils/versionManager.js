@@ -348,6 +348,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.121': [
     'Recherche historique par boutique + semaine avec jours et employes par sauvegarde.',
     'Bouton CHERCHER HISTORIQUE pour previsualiser avant restauration.'
+  ],
+  '3.10.122': [
+    'Historique: version ACTUELLE Supabase incluse dans la recherche (la plus recente).',
+    'Calendrier des sauvegardes globales et liste historique elargie a 50 entrees.'
   ]
 };
 

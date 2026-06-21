@@ -1,7 +1,16 @@
 {
-  "version": "3.10.121",
+  "version": "3.10.122",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.122",
+      "date": "2026-05-29",
+      "changes": [
+        "Historique Supabase : inclusion de la VERSION ACTUELLE (la plus récente) dans la recherche par boutique/semaine.",
+        "Affichage du calendrier des dernières sauvegardes globales pour distinguer version actuelle et snapshots.",
+        "Liste historique élargie (jusqu'à 50 entrées) et requête snapshots corrigée."
+      ]
+    },
     {
       "version": "3.10.121",
       "date": "2026-05-29",
