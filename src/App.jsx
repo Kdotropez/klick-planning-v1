@@ -34,7 +34,9 @@ import {
   exportPlanningToExcel,
   importPlanningData,
   mergeShopWeekFromBackup,
-  listShopWeeksWithData
+  listShopWeeksWithData,
+  getPlanningDataStats,
+  validateTargetedMergeSafe
 } from './utils/planningDataManager.js';
 import './App.css';
 import {
@@ -1030,7 +1032,9 @@ const App = () => {
     setFeedback('⏳ Chargement de l’historique pour restauration ciblée...');
 
     try {
-      const backups = await listCompletePlanningBackups(20);
+      const backups = (await listCompletePlanningBackups(20)).filter(
+        (item) => item.weekKey !== 'current_complete_file'
+      );
       if (!backups?.length) {
         alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
         setFeedback('❌ Aucun historique de sauvegarde trouvé.');
@@ -1044,7 +1048,7 @@ const App = () => {
 
       const backupPick = window.prompt(
         `Restauration CIBLÉE (une boutique + une semaine, sans toucher aux autres).\n\n` +
-          `Historique Supabase (1-${backups.length}) :\n${backupLines.join('\n')}\n\n` +
+          `Historique Supabase (1-${backups.length}) — sauvegardes passées uniquement :\n${backupLines.join('\n')}\n\n` +
           `Entrez le numéro de la sauvegarde source :`
       );
       if (!backupPick) {
@@ -1064,6 +1068,27 @@ const App = () => {
         alert('❌ Sauvegarde source invalide ou vide.');
         return;
       }
+
+      setFeedback('⏳ Chargement de la version complète actuelle (Supabase)...');
+      let baseData = await loadCompletePlanningData();
+      if (!baseData?.shops?.length) {
+        try {
+          const stored = JSON.parse(localStorage.getItem('planningData') || 'null');
+          if (stored?.shops?.length) baseData = stored;
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      if (!baseData?.shops?.length) {
+        baseData = planningData;
+      }
+      if (!baseData?.shops?.length) {
+        alert('❌ Impossible de charger le planning complet actuel. Abandon pour éviter toute perte de données.');
+        setFeedback('❌ Planning complet introuvable — restauration annulée.');
+        return;
+      }
+
+      const beforeStats = getPlanningDataStats(baseData);
 
       const shopsWithWeeks = backupData.shops
         .map((shop) => ({
@@ -1117,6 +1142,7 @@ const App = () => {
       const weekKey = pickedShop.weeks[weekIndex].weekKey;
       const confirmMsg =
         `Confirmer la fusion ciblée ?\n\n` +
+        `Base : version complète Supabase (${beforeStats.shopsCount} boutique(s), ${beforeStats.totalWeeks} semaine(s) avec horaires)\n` +
         `Boutique : ${pickedShop.name}\n` +
         `Semaine : ${formatWeekRangeLabel(weekKey)}\n` +
         `Source : sauvegarde du ${chosenBackup.updatedAt ? new Date(chosenBackup.updatedAt).toLocaleString('fr-FR') : '?'}\n\n` +
@@ -1127,7 +1153,20 @@ const App = () => {
         return;
       }
 
-      const mergedData = mergeShopWeekFromBackup(planningData, backupData, pickedShop.id, weekKey);
+      const mergedData = mergeShopWeekFromBackup(baseData, backupData, pickedShop.id, weekKey);
+      const afterStats = getPlanningDataStats(mergedData);
+      const shrinkWarnings = validateTargetedMergeSafe(beforeStats, afterStats, pickedShop.id);
+
+      if (shrinkWarnings.length > 0) {
+        alert(
+          '❌ Fusion refusée : des données seraient perdues.\n\n' +
+            shrinkWarnings.join('\n') +
+            '\n\nAucune modification enregistrée. Utilisez 🕘 HISTORIQUE SUPABASE pour une restauration complète.'
+        );
+        setFeedback('❌ Restauration ciblée annulée (perte de données détectée).');
+        return;
+      }
+
       setPlanningData(mergedData);
       localStorage.setItem('planningData', JSON.stringify(mergedData));
       setSelectedShop(pickedShop.id);
@@ -1135,8 +1174,9 @@ const App = () => {
       setMode('planning');
 
       const pushNow = window.confirm(
-        '✅ Semaine fusionnée dans le planning actuel.\n\n' +
-          'Enregistrer immédiatement sur Supabase pour que tout le monde en profite ?'
+        '✅ Semaine fusionnée dans le planning complet actuel.\n\n' +
+          `Après fusion : ${afterStats.shopsCount} boutique(s), ${afterStats.totalWeeks} semaine(s) avec horaires.\n\n` +
+          'Enregistrer immédiatement sur Supabase ?'
       );
 
       if (pushNow) {

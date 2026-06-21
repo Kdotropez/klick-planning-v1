@@ -340,6 +340,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.119': [
     'Restauration ciblee depuis historique Supabase: une boutique + une semaine sans ecraser le reste.',
     'Bouton RESTAURATION CIBLEE dans le menu planning.'
+  ],
+  '3.10.120': [
+    'Fix restauration ciblee: base Supabase complete obligatoire avant fusion.',
+    'Blocage si perte de boutiques ou semaines detectee avant enregistrement.'
   ]
 };
 

@@ -1,7 +1,16 @@
 {
-  "version": "3.10.119",
+  "version": "3.10.120",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.120",
+      "date": "2026-05-29",
+      "changes": [
+        "Restauration ciblée : base obligatoirement chargée depuis Supabase (plus la copie mémoire partielle).",
+        "Blocage automatique si la fusion ferait perdre des boutiques ou des semaines.",
+        "Exclusion de la version actuelle de la liste des sources historiques."
+      ]
+    },
     {
       "version": "3.10.119",
       "date": "2026-05-29",

@@ -558,6 +558,44 @@ export const listShopWeeksWithData = (planningData, shopId) => {
     .sort((a, b) => a.weekKey.localeCompare(b.weekKey));
 };
 
+export const getPlanningDataStats = (planningData) => {
+  const shops = planningData?.shops || [];
+  const weeksByShop = {};
+  let totalWeeks = 0;
+  shops.forEach((shop) => {
+    const weeks = shop.weeks || {};
+    const count = Object.values(weeks).filter((wd) => countWeekPlanningEntries(wd) > 0).length;
+    weeksByShop[String(shop.id)] = count;
+    totalWeeks += count;
+  });
+  return { shopsCount: shops.length, totalWeeks, weeksByShop };
+};
+
+/** Bloque une fusion qui ferait perdre des boutiques ou des semaines hors cible. */
+export const validateTargetedMergeSafe = (beforeStats, afterStats, shopId) => {
+  const warnings = [];
+  const targetId = String(shopId);
+
+  if (afterStats.shopsCount < beforeStats.shopsCount) {
+    warnings.push(`Nombre de boutiques : ${beforeStats.shopsCount} → ${afterStats.shopsCount}`);
+  }
+
+  Object.entries(beforeStats.weeksByShop).forEach(([id, count]) => {
+    const afterCount = afterStats.weeksByShop[id] ?? 0;
+    if (id !== targetId && afterCount < count) {
+      warnings.push(`Boutique ${id} : ${count} semaine(s) → ${afterCount}`);
+    }
+  });
+
+  const beforeTarget = beforeStats.weeksByShop[targetId] ?? 0;
+  const afterTarget = afterStats.weeksByShop[targetId] ?? 0;
+  if (afterTarget < beforeTarget) {
+    warnings.push(`Boutique cible : ${beforeTarget} semaine(s) → ${afterTarget}`);
+  }
+
+  return warnings;
+};
+
 // Sauvegarder le planning pour la boutique actuelle seulement
 export const saveWeekPlanningForEmployee = (planningData, employeeId, weekKey, planning, selectedEmployees, currentShopId) => {
   // Sauvegarder seulement dans la boutique actuelle
