@@ -360,6 +360,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.124': [
     'Limites historique augmentees (200 snapshots, 300 lignes boutique).',
     'Diagnostic Supabase: date reelle derniere ecriture en base affichee dans Chercher historique.'
+  ],
+  '3.10.125': [
+    'Fix historique Supabase vide: liste metadata legere sans charger 100 fichiers complets.',
+    'HISTORIQUE SUPABASE reaffiche version actuelle + snapshots + lignes boutique.'
   ]
 };
 

@@ -330,106 +330,96 @@ export const listCompletePlanningBackups = async (limit = 50) => {
   if (!isReady()) return [];
 
   try {
-    const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
-    const { data, error } = await supabase
-      .from('plannings')
-      .select('week_key,updated_at,data')
-      .eq('shop_id', HISTORY_SHOP_ID)
-      .order('updated_at', { ascending: false })
-      .limit(safeLimit);
+    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
+    const items = [];
+    const seen = new Set();
+    const pushItem = (item) => {
+      const key = `${item.weekKey}|${item.updatedAt || ''}`;
+      if (!item?.weekKey || seen.has(key)) return;
+      seen.add(key);
+      items.push(item);
+    };
 
-    if (error) {
-      console.error('❌ listCompletePlanningBackups error:', error.message);
-      return [];
-    }
-
-    const historyItems = (data || [])
-      .filter((row) => isCompletePlanningData(row?.data))
-      .map((row) => ({
-        weekKey: row.week_key,
-        updatedAt: row.updated_at,
-        shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0,
-        savedByDevice: row?.data?._backupMeta?.savedByDevice || 'PC inconnu',
-        savedByUser: row?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu'
-      }));
-
-    // Compatibilité avec les sauvegardes historiques "pré-feature":
-    // même sans snapshots, on expose la sauvegarde complète courante.
-    const { data: currentComplete, error: currentError } = await supabase
+    // 1) Version actuelle — une seule ligne (léger)
+    const { data: currentRow, error: currentError } = await supabase
       .from('plannings')
       .select('updated_at,data')
       .eq('shop_id', 'complete_file')
       .eq('week_key', 'all_data')
       .maybeSingle();
 
-    if (!currentError && isCompletePlanningData(currentComplete?.data)) {
-      const currentItem = {
+    if (!currentError && currentRow) {
+      const valid = isCompletePlanningData(currentRow?.data);
+      pushItem({
         weekKey: CURRENT_COMPLETE_SENTINEL,
-        updatedAt: currentComplete.updated_at,
-        shopsCount: Array.isArray(currentComplete?.data?.shops) ? currentComplete.data.shops.length : 0,
-        savedByDevice: currentComplete?.data?._backupMeta?.savedByDevice || 'PC inconnu',
-        savedByUser: currentComplete?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu'
-      };
-      const merged = [currentItem, ...historyItems];
-
-      // Fallback legacy: exposer aussi les anciennes lignes "shop/week" valides
-      // qui contiennent des données complètes.
-      if (merged.length < safeLimit) {
-        const remaining = safeLimit - merged.length;
-        const { data: legacyRows, error: legacyError } = await supabase
-          .from('plannings')
-          .select('shop_id,week_key,updated_at,data')
-          .neq('shop_id', 'system_config')
-          .neq('shop_id', HISTORY_SHOP_ID)
-          .order('updated_at', { ascending: false })
-          .limit(150);
-
-        if (!legacyError && Array.isArray(legacyRows)) {
-          const legacyItems = legacyRows
-            .filter((row) => row.shop_id !== 'complete_file')
-            .filter((row) => isCompletePlanningData(row?.data))
-            .map((row) => ({
-              weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
-              updatedAt: row.updated_at,
-              shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0,
-              savedByDevice: row?.data?._backupMeta?.savedByDevice || 'PC legacy',
-              savedByUser: row?.data?._backupMeta?.savedByUser || 'Utilisateur legacy'
-            }));
-
-          return [...merged, ...legacyItems].slice(0, safeLimit);
-        }
-      }
-
-      return merged.slice(0, safeLimit);
+        updatedAt: currentRow.updated_at,
+        shopsCount: valid ? currentRow.data.shops.length : 0,
+        savedByDevice: currentRow?.data?._backupMeta?.savedByDevice || 'PC inconnu',
+        savedByUser: currentRow?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu',
+        isCurrent: true,
+        isValid: valid
+      });
     }
 
-    if (historyItems.length >= safeLimit) {
-      return historyItems.slice(0, safeLimit);
-    }
-
-    const { data: legacyRowsNoCurrent, error: legacyNoCurrentError } = await supabase
+    // 2) Snapshots historiques — métadonnées SEULEMENT (évite timeout Supabase)
+    const { data: historyRows, error: historyError } = await supabase
       .from('plannings')
-      .select('shop_id,week_key,updated_at,data')
-      .neq('shop_id', 'system_config')
-      .neq('shop_id', HISTORY_SHOP_ID)
+      .select('week_key,updated_at')
+      .eq('shop_id', HISTORY_SHOP_ID)
       .order('updated_at', { ascending: false })
-      .limit(150);
+      .limit(safeLimit);
 
-    if (!legacyNoCurrentError && Array.isArray(legacyRowsNoCurrent)) {
-      const legacyItems = legacyRowsNoCurrent
-        .filter((row) => row.shop_id !== 'complete_file')
-        .filter((row) => isCompletePlanningData(row?.data))
-        .map((row) => ({
-          weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
+    if (historyError) {
+      console.error('❌ listCompletePlanningBackups history error:', historyError.message);
+    } else {
+      (historyRows || []).forEach((row) => {
+        if (!row?.week_key) return;
+        pushItem({
+          weekKey: row.week_key,
           updatedAt: row.updated_at,
-          shopsCount: Array.isArray(row?.data?.shops) ? row.data.shops.length : 0,
-          savedByDevice: row?.data?._backupMeta?.savedByDevice || 'PC legacy',
-          savedByUser: row?.data?._backupMeta?.savedByUser || 'Utilisateur legacy'
-        }));
-      return [...historyItems, ...legacyItems].slice(0, safeLimit);
+          shopsCount: null,
+          savedByDevice: 'snapshot historique',
+          savedByUser: '—',
+          isSnapshot: true
+        });
+      });
     }
 
-    return historyItems.slice(0, safeLimit);
+    // 3) Lignes boutique/semaine — métadonnées seulement
+    if (items.length < safeLimit) {
+      const { data: legacyRows, error: legacyError } = await supabase
+        .from('plannings')
+        .select('shop_id,week_key,updated_at')
+        .neq('shop_id', 'system_config')
+        .neq('shop_id', HISTORY_SHOP_ID)
+        .neq('shop_id', 'complete_file')
+        .order('updated_at', { ascending: false })
+        .limit(safeLimit - items.length);
+
+      if (legacyError) {
+        console.warn('⚠️ listCompletePlanningBackups legacy error:', legacyError.message);
+      } else {
+        (legacyRows || []).forEach((row) => {
+          if (!row?.shop_id || !row?.week_key) return;
+          pushItem({
+            weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
+            updatedAt: row.updated_at,
+            shopsCount: null,
+            savedByDevice: 'Sauvegarde semaine Supabase',
+            savedByUser: row.shop_id,
+            isLegacyRow: true
+          });
+        });
+      }
+    }
+
+    items.sort((a, b) => {
+      const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return tb - ta;
+    });
+
+    return items.slice(0, safeLimit);
   } catch (error) {
     console.error('❌ Exception listCompletePlanningBackups:', error);
     return [];

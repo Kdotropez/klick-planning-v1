@@ -940,25 +940,31 @@ const App = () => {
     setFeedback('⏳ Chargement de l’historique Supabase...');
 
     try {
-      const backups = await listCompletePlanningBackups(100);
+      const backups = await listCompletePlanningBackups(40);
       if (!backups || backups.length === 0) {
         alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
         setFeedback('❌ Aucun historique de sauvegarde trouvé.');
         return;
       }
 
-      const lines = backups.map((item, idx) => {
+      const displayCount = Math.min(backups.length, 25);
+      const lines = backups.slice(0, displayCount).map((item, idx) => {
         const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
         const sourceLabel = item.weekKey === 'current_complete_file'
-          ? '★ VERSION ACTUELLE (la plus récente)'
+          ? '★ VERSION ACTUELLE'
           : item.weekKey.startsWith('legacy_row::')
-            ? 'legacy'
-            : 'snapshot';
-        return `${idx + 1}. ${dateText} (${item.shopsCount || 0} boutique(s), ${sourceLabel}, ${item.savedByDevice || 'PC inconnu'}, ${item.savedByUser || 'Utilisateur inconnu'})`;
+            ? 'sauvegarde boutique/semaine'
+            : 'snapshot historique';
+        const shopsLabel = item.shopsCount != null ? `${item.shopsCount} boutique(s)` : '—';
+        return `${idx + 1}. ${dateText} (${shopsLabel}, ${sourceLabel})`;
       });
 
+      const moreNote = backups.length > displayCount
+        ? `\n\n… et ${backups.length - displayCount} autre(s) sauvegarde(s). Entrez le numéro exact (1-${backups.length}).`
+        : '';
+
       const selected = window.prompt(
-        `Historique Supabase (1-${backups.length}) :\n${lines.join('\n')}\n\nEntrez le numero a restaurer:`
+        `Historique Supabase (${backups.length} sauvegarde(s)) :\n${lines.join('\n')}${moreNote}\n\nEntrez le numéro à restaurer :`
       );
 
       if (!selected) {
@@ -1205,7 +1211,7 @@ const App = () => {
         return;
       }
 
-      const timeline = await getGlobalBackupTimeline(40);
+      const timeline = await getGlobalBackupTimeline(25);
       const timelineBlock = timeline.length
         ? `\n\n── Dernières sauvegardes GLOBALES (${timeline.length} entrées analysées) ──\n${timeline.map(formatGlobalTimelineLine).join('\n')}`
         : '';

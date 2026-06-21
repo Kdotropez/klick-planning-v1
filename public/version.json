@@ -1,7 +1,15 @@
 {
-  "version": "3.10.124",
+  "version": "3.10.125",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.125",
+      "date": "2026-05-29",
+      "changes": [
+        "Correction historique Supabase vide : liste allégée (métadonnées seulement) pour éviter timeout Supabase.",
+        "Version actuelle toujours listée même si les snapshots échouent ; liste restaurée dans HISTORIQUE SUPABASE."
+      ]
+    },
     {
       "version": "3.10.124",
       "date": "2026-05-29",
