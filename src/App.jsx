@@ -36,7 +36,8 @@ import {
   mergeShopWeekFromBackup,
   listShopWeeksWithData,
   getPlanningDataStats,
-  validateTargetedMergeSafe
+  validateTargetedMergeSafe,
+  getShopWeekBrief
 } from './utils/planningDataManager.js';
 import './App.css';
 import {
@@ -45,7 +46,8 @@ import {
   listCompletePlanningBackups,
   loadCompletePlanningBackupByWeekKey,
   getCurrentCompleteBackupInfo,
-  loadCompletePlanningData
+  loadCompletePlanningData,
+  findHistoricalBackupsWithShopWeek
 } from './utils/remoteStore';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -1022,6 +1024,176 @@ const App = () => {
     }
   };
 
+  const parseWeekKeyInput = (input) => {
+    const trimmed = String(input || '').trim();
+    if (!trimmed) return null;
+    try {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return format(startOfWeek(parseISO(trimmed), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      }
+      const frMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (frMatch) {
+        const [, d, m, y] = frMatch;
+        const date = new Date(Number(y), Number(m) - 1, Number(d));
+        if (Number.isNaN(date.getTime())) return null;
+        return format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  const loadCompleteBasePlanningData = async () => {
+    let baseData = await loadCompletePlanningData();
+    if (!baseData?.shops?.length) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('planningData') || 'null');
+        if (stored?.shops?.length) baseData = stored;
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    if (!baseData?.shops?.length) baseData = planningData;
+    return baseData?.shops?.length ? baseData : null;
+  };
+
+  const formatBackupMatchLine = (match, idx) => {
+    const dateText = match.backup.updatedAt
+      ? new Date(match.backup.updatedAt).toLocaleString('fr-FR')
+      : 'date inconnue';
+    return (
+      `${idx + 1}. ${dateText} — ${match.entryCount} jour(s), ${match.employeeCount} employé(s) ` +
+      `(${match.backup.savedByUser || '?'}, ${match.backup.savedByDevice || '?'})`
+    );
+  };
+
+  const pickShopAndWeekForHistory = async (baseData) => {
+    const shops = (baseData.shops || []).filter((s) => s?.id);
+    if (!shops.length) return null;
+
+    const shopLines = shops.map((s, idx) => `${idx + 1}. ${s.name || s.id}`);
+    const shopPick = window.prompt(
+      `Quelle boutique ?\n\n${shopLines.join('\n')}\n\nNuméro (ou vide pour annuler) :`
+    );
+    if (!shopPick) return null;
+
+    const shopIdx = Number.parseInt(shopPick, 10) - 1;
+    if (Number.isNaN(shopIdx) || shopIdx < 0 || shopIdx >= shops.length) {
+      alert('❌ Numéro de boutique invalide.');
+      return null;
+    }
+
+    const pickedShop = shops[shopIdx];
+    const weeksInCurrent = listShopWeeksWithData(baseData, pickedShop.id);
+    let weekKey = null;
+
+    if (weeksInCurrent.length > 0) {
+      const weekLines = weeksInCurrent.map(
+        (w, idx) => `${idx + 1}. ${formatWeekRangeLabel(w.weekKey)} (${w.entryCount} jour(s) actuellement)`
+      );
+      weekLines.push(`${weeksInCurrent.length + 1}. Autre date (saisie manuelle)`);
+      const weekPick = window.prompt(
+        `Quelle semaine pour ${pickedShop.name} ?\n\n${weekLines.join('\n')}\n\nNuméro :`
+      );
+      if (!weekPick) return null;
+
+      const weekIdx = Number.parseInt(weekPick, 10) - 1;
+      if (weekIdx === weeksInCurrent.length) {
+        const dateInput = window.prompt('Date dans la semaine (JJ/MM/AAAA ou AAAA-MM-JJ) :');
+        weekKey = parseWeekKeyInput(dateInput);
+      } else if (!Number.isNaN(weekIdx) && weekIdx >= 0 && weekIdx < weeksInCurrent.length) {
+        weekKey = weeksInCurrent[weekIdx].weekKey;
+      }
+    } else {
+      const dateInput = window.prompt(
+        `Aucune semaine avec horaires actuellement pour ${pickedShop.name}.\n\n` +
+          `Date dans la semaine recherchée (JJ/MM/AAAA ou AAAA-MM-JJ) :`
+      );
+      weekKey = parseWeekKeyInput(dateInput);
+    }
+
+    if (!weekKey) {
+      alert('❌ Date ou semaine invalide.');
+      return null;
+    }
+
+    return {
+      shopId: pickedShop.id,
+      shopName: pickedShop.name || pickedShop.id,
+      weekKey
+    };
+  };
+
+  const scanHistoricalBackupsForTarget = async (shopId, weekKey) => {
+    setFeedback('⏳ Analyse des sauvegardes historiques…');
+    return findHistoricalBackupsWithShopWeek(shopId, weekKey, {
+      limit: 30,
+      onProgress: (current, total) => setFeedback(`⏳ Analyse des sauvegardes… ${current}/${total}`)
+    });
+  };
+
+  const handleExploreBackupHistory = async () => {
+    if (isRestoringSupabaseRef.current) {
+      setFeedback('⏳ Une opération historique est déjà en cours...');
+      return;
+    }
+
+    isRestoringSupabaseRef.current = true;
+    setFeedback('⏳ Préparation de la recherche dans l\'historique...');
+
+    try {
+      const baseData = await loadCompleteBasePlanningData();
+      if (!baseData) {
+        alert('❌ Planning complet introuvable.');
+        setFeedback('❌ Planning complet introuvable.');
+        return;
+      }
+
+      const target = await pickShopAndWeekForHistory(baseData);
+      if (!target) {
+        setFeedback('ℹ️ Recherche annulée.');
+        return;
+      }
+
+      const matches = await scanHistoricalBackupsForTarget(target.shopId, target.weekKey);
+      const currentBrief = getShopWeekBrief(baseData, target.shopId, target.weekKey);
+      const currentLine = currentBrief
+        ? `Version ACTUELLE : ${currentBrief.entryCount} jour(s), ${currentBrief.employeeCount} employé(s).`
+        : 'Version ACTUELLE : aucun horaire pour cette semaine.';
+
+      if (!matches.length) {
+        alert(
+          `❌ Aucune sauvegarde historique avec horaires pour :\n\n` +
+            `Boutique : ${target.shopName}\n` +
+            `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
+            currentLine
+        );
+        setFeedback('ℹ️ Aucune sauvegarde trouvée pour cette boutique/semaine.');
+        return;
+      }
+
+      const lines = matches.map((m, idx) => formatBackupMatchLine(m, idx));
+      alert(
+        `🔍 Sauvegardes contenant des horaires\n\n` +
+          `Boutique : ${target.shopName}\n` +
+          `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
+          `${lines.join('\n')}\n\n` +
+          currentLine +
+          `\n\nUtilisez 🎯 RESTAURATION CIBLÉE pour fusionner une de ces sauvegardes.`
+      );
+      setFeedback(
+        `✅ ${matches.length} sauvegarde(s) trouvée(s) pour ${target.shopName} (${formatWeekRangeLabel(target.weekKey)}).`
+      );
+    } catch (error) {
+      console.error('❌ Erreur exploration historique:', error);
+      setFeedback(`❌ Erreur exploration historique: ${error.message}`);
+      alert(`❌ Erreur exploration historique: ${error.message}`);
+    } finally {
+      isRestoringSupabaseRef.current = false;
+    }
+  };
+
   const handleRestoreShopWeekFromHistory = async () => {
     if (isRestoringSupabaseRef.current) {
       setFeedback('⏳ Une restauration est déjà en cours...');
@@ -1029,123 +1201,76 @@ const App = () => {
     }
 
     isRestoringSupabaseRef.current = true;
-    setFeedback('⏳ Chargement de l’historique pour restauration ciblée...');
+    setFeedback('⏳ Préparation de la restauration ciblée...');
 
     try {
-      const backups = (await listCompletePlanningBackups(20)).filter(
-        (item) => item.weekKey !== 'current_complete_file'
-      );
-      if (!backups?.length) {
-        alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
-        setFeedback('❌ Aucun historique de sauvegarde trouvé.');
+      const baseData = await loadCompleteBasePlanningData();
+      if (!baseData) {
+        alert('❌ Impossible de charger le planning complet actuel. Abandon pour éviter toute perte de données.');
+        setFeedback('❌ Planning complet introuvable — restauration annulée.');
         return;
       }
 
-      const backupLines = backups.map((item, idx) => {
-        const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
-        return `${idx + 1}. ${dateText} (${item.shopsCount || 0} boutique(s))`;
-      });
+      const target = await pickShopAndWeekForHistory(baseData);
+      if (!target) {
+        setFeedback('ℹ️ Restauration ciblée annulée.');
+        return;
+      }
+
+      const matches = await scanHistoricalBackupsForTarget(target.shopId, target.weekKey);
+      const currentBrief = getShopWeekBrief(baseData, target.shopId, target.weekKey);
+
+      if (!matches.length) {
+        alert(
+          `❌ Aucune sauvegarde historique avec horaires pour :\n\n` +
+            `Boutique : ${target.shopName}\n` +
+            `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
+            `Utilisez 🔍 CHERCHER HISTORIQUE pour explorer d'autres semaines.`
+        );
+        setFeedback('ℹ️ Aucune sauvegarde source trouvée.');
+        return;
+      }
+
+      const matchLines = matches.map((m, idx) => formatBackupMatchLine(m, idx));
+      const currentHint = currentBrief
+        ? `\n\nActuellement : ${currentBrief.entryCount} jour(s), ${currentBrief.employeeCount} employé(s).`
+        : '\n\nActuellement : aucun horaire pour cette semaine.';
 
       const backupPick = window.prompt(
-        `Restauration CIBLÉE (une boutique + une semaine, sans toucher aux autres).\n\n` +
-          `Historique Supabase (1-${backups.length}) — sauvegardes passées uniquement :\n${backupLines.join('\n')}\n\n` +
-          `Entrez le numéro de la sauvegarde source :`
+        `Restauration CIBLÉE — ${target.shopName}\n` +
+          `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
+          `Sauvegardes contenant ces horaires :\n${matchLines.join('\n')}` +
+          currentHint +
+          `\n\nEntrez le numéro de la sauvegarde à fusionner :`
       );
       if (!backupPick) {
         setFeedback('ℹ️ Restauration ciblée annulée.');
         return;
       }
 
-      const backupIndex = Number.parseInt(backupPick, 10) - 1;
-      if (Number.isNaN(backupIndex) || backupIndex < 0 || backupIndex >= backups.length) {
+      const matchIndex = Number.parseInt(backupPick, 10) - 1;
+      if (Number.isNaN(matchIndex) || matchIndex < 0 || matchIndex >= matches.length) {
         alert('❌ Numéro de sauvegarde invalide.');
         return;
       }
 
-      const chosenBackup = backups[backupIndex];
+      const chosenMatch = matches[matchIndex];
+      const chosenBackup = chosenMatch.backup;
       const backupData = await loadCompletePlanningBackupByWeekKey(chosenBackup.weekKey);
       if (!backupData?.shops?.length) {
         alert('❌ Sauvegarde source invalide ou vide.');
         return;
       }
 
-      setFeedback('⏳ Chargement de la version complète actuelle (Supabase)...');
-      let baseData = await loadCompletePlanningData();
-      if (!baseData?.shops?.length) {
-        try {
-          const stored = JSON.parse(localStorage.getItem('planningData') || 'null');
-          if (stored?.shops?.length) baseData = stored;
-        } catch (_) {
-          /* ignore */
-        }
-      }
-      if (!baseData?.shops?.length) {
-        baseData = planningData;
-      }
-      if (!baseData?.shops?.length) {
-        alert('❌ Impossible de charger le planning complet actuel. Abandon pour éviter toute perte de données.');
-        setFeedback('❌ Planning complet introuvable — restauration annulée.');
-        return;
-      }
-
       const beforeStats = getPlanningDataStats(baseData);
-
-      const shopsWithWeeks = backupData.shops
-        .map((shop) => ({
-          id: shop.id,
-          name: shop.name || shop.id,
-          weeks: listShopWeeksWithData(backupData, shop.id)
-        }))
-        .filter((s) => s.weeks.length > 0);
-
-      if (!shopsWithWeeks.length) {
-        alert('❌ Aucune semaine avec horaires trouvée dans cette sauvegarde.');
-        return;
-      }
-
-      const shopLines = shopsWithWeeks.map(
-        (s, idx) => `${idx + 1}. ${s.name} (${s.weeks.length} semaine(s) avec horaires)`
-      );
-      const shopPick = window.prompt(
-        `Boutique à restaurer depuis la sauvegarde du ${chosenBackup.updatedAt ? new Date(chosenBackup.updatedAt).toLocaleString('fr-FR') : '?'} :\n\n` +
-          `${shopLines.join('\n')}\n\nEntrez le numéro :`
-      );
-      if (!shopPick) {
-        setFeedback('ℹ️ Restauration ciblée annulée.');
-        return;
-      }
-
-      const shopIndex = Number.parseInt(shopPick, 10) - 1;
-      if (Number.isNaN(shopIndex) || shopIndex < 0 || shopIndex >= shopsWithWeeks.length) {
-        alert('❌ Numéro de boutique invalide.');
-        return;
-      }
-
-      const pickedShop = shopsWithWeeks[shopIndex];
-      const weekLines = pickedShop.weeks.map(
-        (w, idx) => `${idx + 1}. ${formatWeekRangeLabel(w.weekKey)} (${w.entryCount} jour(s))`
-      );
-      const weekPick = window.prompt(
-        `Semaine à restaurer pour ${pickedShop.name} :\n\n${weekLines.join('\n')}\n\nEntrez le numéro :`
-      );
-      if (!weekPick) {
-        setFeedback('ℹ️ Restauration ciblée annulée.');
-        return;
-      }
-
-      const weekIndex = Number.parseInt(weekPick, 10) - 1;
-      if (Number.isNaN(weekIndex) || weekIndex < 0 || weekIndex >= pickedShop.weeks.length) {
-        alert('❌ Numéro de semaine invalide.');
-        return;
-      }
-
-      const weekKey = pickedShop.weeks[weekIndex].weekKey;
+      const weekKey = target.weekKey;
       const confirmMsg =
         `Confirmer la fusion ciblée ?\n\n` +
         `Base : version complète Supabase (${beforeStats.shopsCount} boutique(s), ${beforeStats.totalWeeks} semaine(s) avec horaires)\n` +
-        `Boutique : ${pickedShop.name}\n` +
+        `Boutique : ${target.shopName}\n` +
         `Semaine : ${formatWeekRangeLabel(weekKey)}\n` +
-        `Source : sauvegarde du ${chosenBackup.updatedAt ? new Date(chosenBackup.updatedAt).toLocaleString('fr-FR') : '?'}\n\n` +
+        `Source : ${chosenMatch.entryCount} jour(s), ${chosenMatch.employeeCount} employé(s) — sauvegarde du ` +
+        `${chosenBackup.updatedAt ? new Date(chosenBackup.updatedAt).toLocaleString('fr-FR') : '?'}\n\n` +
         `Les autres boutiques et semaines ne seront PAS modifiées.`;
 
       if (!window.confirm(confirmMsg)) {
@@ -1153,9 +1278,9 @@ const App = () => {
         return;
       }
 
-      const mergedData = mergeShopWeekFromBackup(baseData, backupData, pickedShop.id, weekKey);
+      const mergedData = mergeShopWeekFromBackup(baseData, backupData, target.shopId, weekKey);
       const afterStats = getPlanningDataStats(mergedData);
-      const shrinkWarnings = validateTargetedMergeSafe(beforeStats, afterStats, pickedShop.id);
+      const shrinkWarnings = validateTargetedMergeSafe(beforeStats, afterStats, target.shopId);
 
       if (shrinkWarnings.length > 0) {
         alert(
@@ -1169,7 +1294,7 @@ const App = () => {
 
       setPlanningData(mergedData);
       localStorage.setItem('planningData', JSON.stringify(mergedData));
-      setSelectedShop(pickedShop.id);
+      setSelectedShop(target.shopId);
       setSelectedWeek(weekKey);
       setMode('planning');
 
@@ -1189,8 +1314,8 @@ const App = () => {
 
       writeAudit({
         action: 'Restauration ciblee',
-        details: `Boutique ${pickedShop.name}, semaine ${weekKey}, source ${chosenBackup.updatedAt || chosenBackup.weekKey}`,
-        shopId: pickedShop.id,
+        details: `Boutique ${target.shopName}, semaine ${weekKey}, source ${chosenBackup.updatedAt || chosenBackup.weekKey}`,
+        shopId: target.shopId,
         data: mergedData
       });
     } catch (error) {
@@ -2037,6 +2162,7 @@ const App = () => {
               onRestoreFromSupabase={handleRestoreFromSupabase}
               onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
               onRestoreShopWeekFromHistory={handleRestoreShopWeekFromHistory}
+              onExploreBackupHistory={handleExploreBackupHistory}
               onExitApplication={handleExit}
             />
           <CopyrightNotice />

@@ -344,6 +344,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.120': [
     'Fix restauration ciblee: base Supabase complete obligatoire avant fusion.',
     'Blocage si perte de boutiques ou semaines detectee avant enregistrement.'
+  ],
+  '3.10.121': [
+    'Recherche historique par boutique + semaine avec jours et employes par sauvegarde.',
+    'Bouton CHERCHER HISTORIQUE pour previsualiser avant restauration.'
   ]
 };
 

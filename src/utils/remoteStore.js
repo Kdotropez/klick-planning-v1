@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { getShopWeekBrief } from './planningDataManager';
 
 // Outbox locale pour mode hybride (sauvegardes différées)
 const OUTBOX_KEY = 'remote_outbox_v1';
@@ -504,6 +505,29 @@ export const loadCompletePlanningBackupByWeekKey = async (weekKey) => {
     console.error('❌ Exception loadCompletePlanningBackupByWeekKey:', error);
     return null;
   }
+};
+
+/** Parcourt l'historique et retourne les sauvegardes contenant une boutique + semaine avec horaires. */
+export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options = {}) => {
+  const { limit = 30, excludeCurrent = true, onProgress } = options;
+  if (!shopId || !weekKey) return [];
+
+  let backups = await listCompletePlanningBackups(limit);
+  if (excludeCurrent) {
+    backups = backups.filter((item) => item.weekKey !== CURRENT_COMPLETE_SENTINEL);
+  }
+
+  const matches = [];
+  for (let i = 0; i < backups.length; i += 1) {
+    const item = backups[i];
+    if (onProgress) onProgress(i + 1, backups.length, item);
+    const data = await loadCompletePlanningBackupByWeekKey(item.weekKey);
+    const brief = getShopWeekBrief(data, shopId, weekKey);
+    if (brief) {
+      matches.push({ backup: item, ...brief });
+    }
+  }
+  return matches;
 };
 
 // Fonction pour charger le fichier complet de planning

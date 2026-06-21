@@ -596,6 +596,29 @@ export const validateTargetedMergeSafe = (beforeStats, afterStats, shopId) => {
   return warnings;
 };
 
+/** Résumé d'une boutique + semaine dans un fichier planning (null si absent ou vide). */
+export const getShopWeekBrief = (planningData, shopId, weekKey) => {
+  const shop = planningData?.shops?.find((s) => String(s.id) === String(shopId));
+  if (!shop) return null;
+
+  const weekData = shop.weeks?.[weekKey];
+  const entryCount = countWeekPlanningEntries(weekData);
+  if (entryCount === 0) return null;
+
+  const planning = weekData?.planning || {};
+  const employeeCount = Object.values(planning).filter(
+    (days) => days && typeof days === 'object' && Object.keys(days).length > 0
+  ).length;
+
+  return {
+    shopId: String(shop.id),
+    shopName: shop.name || shop.id,
+    weekKey,
+    entryCount,
+    employeeCount
+  };
+};
+
 // Sauvegarder le planning pour la boutique actuelle seulement
 export const saveWeekPlanningForEmployee = (planningData, employeeId, weekKey, planning, selectedEmployees, currentShopId) => {
   // Sauvegarder seulement dans la boutique actuelle

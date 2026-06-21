@@ -38,6 +38,7 @@ const PlanningMenuBar = ({
   handleRestoreFromSupabase,
   handleRestoreBackupFromHistory,
   handleRestoreShopWeekFromHistory,
+  handleExploreBackupHistory,
   handleExitApplication,
   // Modules
   onOpenShopStats,
@@ -389,6 +390,30 @@ const PlanningMenuBar = ({
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#3949ab'}
           >
             🎯 RESTAURATION CIBLÉE
+          </Button>
+          )}
+
+          {can('canRestoreSupabase') && (
+          <Button
+            className="button-primary"
+            onClick={handleExploreBackupHistory}
+            style={{
+              backgroundColor: '#00838f',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#006064'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#00838f'}
+          >
+            🔍 CHERCHER HISTORIQUE
           </Button>
           )}
 

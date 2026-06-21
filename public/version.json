@@ -1,7 +1,15 @@
 {
-  "version": "3.10.120",
+  "version": "3.10.121",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.121",
+      "date": "2026-05-29",
+      "changes": [
+        "Recherche dans l'historique : choix boutique + semaine, puis liste des sauvegardes contenant réellement ces horaires.",
+        "Nouveau bouton 🔍 CHERCHER HISTORIQUE (aperçu sans restaurer) et restauration ciblée repensée dans le même ordre."
+      ]
+    },
     {
       "version": "3.10.120",
       "date": "2026-05-29",
