@@ -3,8 +3,24 @@ import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 
+const normalizeSlotSelected = (value) =>
+  value === true || value === 1 || value === '1' || value === 'true';
+
+const dayHasWorkedHours = (employeeId, dayKey, shop, weekPlanning, shopConfig) => {
+  const dayData = weekPlanning?.[employeeId]?.[dayKey];
+  if (!Array.isArray(dayData) || !dayData.some(normalizeSlotSelected)) return false;
+  if (!shopConfig?.timeSlots?.length) return false;
+  return calculateEmployeeDailyHours(
+    employeeId,
+    dayKey,
+    { [employeeId]: weekPlanning[employeeId] },
+    shopConfig
+  ) > 0;
+};
+
 const isCongeDayValue = (dayData) => {
   if (dayData == null) return false;
+  if (Array.isArray(dayData) && dayData.some(normalizeSlotSelected)) return false;
   if (typeof dayData === 'string') {
     const normalized = dayData.toLowerCase();
     return (normalized.includes('congé') || normalized.includes('conge')) && !normalized.includes('maladie');
@@ -26,6 +42,7 @@ const isCongeDayValue = (dayData) => {
 
 const isMaladieDayValue = (dayData) => {
   if (dayData == null) return false;
+  if (Array.isArray(dayData) && dayData.some(normalizeSlotSelected)) return false;
   if (typeof dayData === 'string') {
     return dayData.toLowerCase().includes('maladie');
   }
@@ -140,15 +157,32 @@ const EmployeeRecapCompact = ({
         let hasConge = false;
         let hasMaladie = false;
 
+        // Horaires travaillés ce jour (toutes boutiques) : priorité sur congé/maladie affiché ailleurs
+        let workedThisDay = false;
         (planningData.shops || []).forEach((shop) => {
           const weekPlanning =
             shop.id === selectedShop && planning
               ? planning
               : shop.weeks?.[validWeek]?.planning;
-          const dayData = weekPlanning?.[employeeId]?.[dayKey];
-          if (isCongeDayValue(dayData)) hasConge = true;
-          if (isMaladieDayValue(dayData)) hasMaladie = true;
+          const shopConfig = shop.id === selectedShop ? config : shop.config;
+          if (dayHasWorkedHours(employeeId, dayKey, shop, weekPlanning, shopConfig)) {
+            workedThisDay = true;
+          }
         });
+
+        if (!workedThisDay) {
+          // Congés/maladies : boutique affichée uniquement (évite les statuts d'une autre boutique)
+          const currentShop = (planningData.shops || []).find((s) => s.id === selectedShop);
+          if (currentShop) {
+            const weekPlanning =
+              planning && Object.keys(planning).length > 0
+                ? planning
+                : currentShop.weeks?.[validWeek]?.planning;
+            const dayData = weekPlanning?.[employeeId]?.[dayKey];
+            if (isCongeDayValue(dayData)) hasConge = true;
+            if (isMaladieDayValue(dayData)) hasMaladie = true;
+          }
+        }
 
         if (hasConge) congeDays.push(dayInfo);
         if (hasMaladie) maladieDays.push(dayInfo);
@@ -158,7 +192,7 @@ const EmployeeRecapCompact = ({
     });
 
     return map;
-  }, [employeeIds, planningData, planning, selectedShop, validWeek, mondayOfWeek]);
+  }, [employeeIds, planningData, planning, selectedShop, validWeek, mondayOfWeek, config]);
 
   if (!employeeIds.length) return null;
 

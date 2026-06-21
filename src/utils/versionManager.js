@@ -364,6 +364,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.125': [
     'Fix historique Supabase vide: liste metadata legere sans charger 100 fichiers complets.',
     'HISTORIQUE SUPABASE reaffiche version actuelle + snapshots + lignes boutique.'
+  ],
+  '3.10.126': [
+    'Recap employes: conges/maladies corriges pour employes multi-boutiques (Valou etc.).'
   ]
 };
 
