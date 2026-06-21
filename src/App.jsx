@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, addDays, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { saveToLocalStorage } from './utils/localStorage';
 import { checkVersion, logVersionInfo, showVersionHighlightsOnce } from './utils/versionManager';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -31,7 +32,9 @@ import {
   updateEmployeeShops,
   exportPlanningData,
   exportPlanningToExcel,
-  importPlanningData
+  importPlanningData,
+  mergeShopWeekFromBackup,
+  listShopWeeksWithData
 } from './utils/planningDataManager.js';
 import './App.css';
 import {
@@ -1007,6 +1010,158 @@ const App = () => {
     }
   };
 
+  const formatWeekRangeLabel = (weekKey) => {
+    try {
+      const start = parseISO(weekKey);
+      const end = addDays(start, 6);
+      return `${format(start, 'dd/MM/yyyy', { locale: fr })} → ${format(end, 'dd/MM/yyyy', { locale: fr })}`;
+    } catch {
+      return weekKey;
+    }
+  };
+
+  const handleRestoreShopWeekFromHistory = async () => {
+    if (isRestoringSupabaseRef.current) {
+      setFeedback('⏳ Une restauration est déjà en cours...');
+      return;
+    }
+
+    isRestoringSupabaseRef.current = true;
+    setFeedback('⏳ Chargement de l’historique pour restauration ciblée...');
+
+    try {
+      const backups = await listCompletePlanningBackups(20);
+      if (!backups?.length) {
+        alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
+        setFeedback('❌ Aucun historique de sauvegarde trouvé.');
+        return;
+      }
+
+      const backupLines = backups.map((item, idx) => {
+        const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
+        return `${idx + 1}. ${dateText} (${item.shopsCount || 0} boutique(s))`;
+      });
+
+      const backupPick = window.prompt(
+        `Restauration CIBLÉE (une boutique + une semaine, sans toucher aux autres).\n\n` +
+          `Historique Supabase (1-${backups.length}) :\n${backupLines.join('\n')}\n\n` +
+          `Entrez le numéro de la sauvegarde source :`
+      );
+      if (!backupPick) {
+        setFeedback('ℹ️ Restauration ciblée annulée.');
+        return;
+      }
+
+      const backupIndex = Number.parseInt(backupPick, 10) - 1;
+      if (Number.isNaN(backupIndex) || backupIndex < 0 || backupIndex >= backups.length) {
+        alert('❌ Numéro de sauvegarde invalide.');
+        return;
+      }
+
+      const chosenBackup = backups[backupIndex];
+      const backupData = await loadCompletePlanningBackupByWeekKey(chosenBackup.weekKey);
+      if (!backupData?.shops?.length) {
+        alert('❌ Sauvegarde source invalide ou vide.');
+        return;
+      }
+
+      const shopsWithWeeks = backupData.shops
+        .map((shop) => ({
+          id: shop.id,
+          name: shop.name || shop.id,
+          weeks: listShopWeeksWithData(backupData, shop.id)
+        }))
+        .filter((s) => s.weeks.length > 0);
+
+      if (!shopsWithWeeks.length) {
+        alert('❌ Aucune semaine avec horaires trouvée dans cette sauvegarde.');
+        return;
+      }
+
+      const shopLines = shopsWithWeeks.map(
+        (s, idx) => `${idx + 1}. ${s.name} (${s.weeks.length} semaine(s) avec horaires)`
+      );
+      const shopPick = window.prompt(
+        `Boutique à restaurer depuis la sauvegarde du ${chosenBackup.updatedAt ? new Date(chosenBackup.updatedAt).toLocaleString('fr-FR') : '?'} :\n\n` +
+          `${shopLines.join('\n')}\n\nEntrez le numéro :`
+      );
+      if (!shopPick) {
+        setFeedback('ℹ️ Restauration ciblée annulée.');
+        return;
+      }
+
+      const shopIndex = Number.parseInt(shopPick, 10) - 1;
+      if (Number.isNaN(shopIndex) || shopIndex < 0 || shopIndex >= shopsWithWeeks.length) {
+        alert('❌ Numéro de boutique invalide.');
+        return;
+      }
+
+      const pickedShop = shopsWithWeeks[shopIndex];
+      const weekLines = pickedShop.weeks.map(
+        (w, idx) => `${idx + 1}. ${formatWeekRangeLabel(w.weekKey)} (${w.entryCount} jour(s))`
+      );
+      const weekPick = window.prompt(
+        `Semaine à restaurer pour ${pickedShop.name} :\n\n${weekLines.join('\n')}\n\nEntrez le numéro :`
+      );
+      if (!weekPick) {
+        setFeedback('ℹ️ Restauration ciblée annulée.');
+        return;
+      }
+
+      const weekIndex = Number.parseInt(weekPick, 10) - 1;
+      if (Number.isNaN(weekIndex) || weekIndex < 0 || weekIndex >= pickedShop.weeks.length) {
+        alert('❌ Numéro de semaine invalide.');
+        return;
+      }
+
+      const weekKey = pickedShop.weeks[weekIndex].weekKey;
+      const confirmMsg =
+        `Confirmer la fusion ciblée ?\n\n` +
+        `Boutique : ${pickedShop.name}\n` +
+        `Semaine : ${formatWeekRangeLabel(weekKey)}\n` +
+        `Source : sauvegarde du ${chosenBackup.updatedAt ? new Date(chosenBackup.updatedAt).toLocaleString('fr-FR') : '?'}\n\n` +
+        `Les autres boutiques et semaines ne seront PAS modifiées.`;
+
+      if (!window.confirm(confirmMsg)) {
+        setFeedback('ℹ️ Restauration ciblée annulée.');
+        return;
+      }
+
+      const mergedData = mergeShopWeekFromBackup(planningData, backupData, pickedShop.id, weekKey);
+      setPlanningData(mergedData);
+      localStorage.setItem('planningData', JSON.stringify(mergedData));
+      setSelectedShop(pickedShop.id);
+      setSelectedWeek(weekKey);
+      setMode('planning');
+
+      const pushNow = window.confirm(
+        '✅ Semaine fusionnée dans le planning actuel.\n\n' +
+          'Enregistrer immédiatement sur Supabase pour que tout le monde en profite ?'
+      );
+
+      if (pushNow) {
+        setFeedback('⏳ Enregistrement Supabase en cours...');
+        const saved = await saveCompletePlanningData(mergedData);
+        setFeedback(saved ? '✅ Restauration ciblée enregistrée sur Supabase.' : '⚠️ Fusion locale OK, échec Supabase.');
+      } else {
+        setFeedback('✅ Restauration ciblée appliquée localement. Pensez à SAUVE SUPABASE.');
+      }
+
+      writeAudit({
+        action: 'Restauration ciblee',
+        details: `Boutique ${pickedShop.name}, semaine ${weekKey}, source ${chosenBackup.updatedAt || chosenBackup.weekKey}`,
+        shopId: pickedShop.id,
+        data: mergedData
+      });
+    } catch (error) {
+      console.error('❌ Erreur restauration ciblée:', error);
+      setFeedback(`❌ Erreur restauration ciblée: ${error.message}`);
+      alert(`❌ Erreur restauration ciblée: ${error.message}`);
+    } finally {
+      isRestoringSupabaseRef.current = false;
+    }
+  };
+
   // Gestion de la licence
   const handleLicenseValid = () => {
     setShowLicenseModal(false);
@@ -1841,6 +1996,7 @@ const App = () => {
               setFeedback={setFeedback}
               onRestoreFromSupabase={handleRestoreFromSupabase}
               onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
+              onRestoreShopWeekFromHistory={handleRestoreShopWeekFromHistory}
               onExitApplication={handleExit}
             />
           <CopyrightNotice />

@@ -429,38 +429,20 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
 // Gestion des semaines
 export const saveWeekPlanning = (planningData, shopId, weekKey, planning, selectedEmployees) => {
   console.log('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
-  
-  // ⚡ NETTOYAGE : Ne sauvegarder que les jours qui ont VRAIMENT des données
-  const cleanedPlanning = {};
-  Object.keys(planning || {}).forEach(empId => {
-    const employeeData = planning[empId];
-    if (employeeData && typeof employeeData === 'object') {
-      Object.keys(employeeData).forEach(dayKey => {
-        const dayData = employeeData[dayKey];
-        
-        // Garder seulement si :
-        // 1. C'est un statut (string comme "Congé ☀️" ou "Maladie 🤒")
-        // 2. C'est un tableau avec au moins un `true` (horaire coché)
-        const shouldKeep = 
-          (typeof dayData === 'string' && dayData.length > 0) || 
-          (Array.isArray(dayData) && dayData.some(slot => slot === true));
-        
-        if (shouldKeep) {
-          if (!cleanedPlanning[empId]) {
-            cleanedPlanning[empId] = {};
-          }
-          cleanedPlanning[empId][dayKey] = dayData;
-        }
-      });
-    }
-  });
-  
-  console.log('🧹 Planning nettoyé (jours vides supprimés):', cleanedPlanning);
-  
+
+  const normalizeSlotSelected = (value) =>
+    value === true || value === 1 || value === '1' || value === 'true';
+
+  const shouldKeepDayData = (dayData) =>
+    (typeof dayData === 'string' && dayData.length > 0) ||
+    (Array.isArray(dayData) && dayData.some(normalizeSlotSelected));
+
+  const incoming = planning || {};
+
   const result = {
     ...planningData,
-    shops: planningData.shops.map(shop => 
-      shop.id === shopId 
+    shops: planningData.shops.map(shop =>
+      shop.id === shopId
         ? {
             ...shop,
             weeks: {
@@ -470,12 +452,35 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
                 const existingSelected = Array.isArray(existingWeek.selectedEmployees) ? existingWeek.selectedEmployees : [];
                 const incomingSelected = Array.isArray(selectedEmployees) ? selectedEmployees : [];
                 const shopEmployeeIds = Array.isArray(shop.employees) ? shop.employees.map(e => e.id) : [];
-                // Fusionner les listes sans dupliquer
+
+                // Fusionner avec l'existant : ne jamais remplacer toute la semaine par un snapshot partiel.
+                const mergedPlanning = {};
+                Object.entries(existingWeek.planning || {}).forEach(([empId, days]) => {
+                  mergedPlanning[empId] = { ...(days || {}) };
+                });
+
+                Object.entries(incoming).forEach(([empId, employeeData]) => {
+                  if (!employeeData || typeof employeeData !== 'object') return;
+                  if (!mergedPlanning[empId]) mergedPlanning[empId] = {};
+
+                  Object.entries(employeeData).forEach(([dayKey, dayData]) => {
+                    if (shouldKeepDayData(dayData)) {
+                      mergedPlanning[empId][dayKey] = dayData;
+                    } else {
+                      delete mergedPlanning[empId][dayKey];
+                    }
+                  });
+
+                  if (Object.keys(mergedPlanning[empId]).length === 0) {
+                    delete mergedPlanning[empId];
+                  }
+                });
+
                 let mergedSelected = Array.from(new Set([...existingSelected, ...incomingSelected]));
-                // Si rien de sélectionné, par défaut: tous les employés de la boutique
                 if (mergedSelected.length === 0) mergedSelected = shopEmployeeIds;
+
                 return {
-                  planning: cleanedPlanning,
+                  planning: mergedPlanning,
                   selectedEmployees: mergedSelected
                 };
               })()
@@ -484,10 +489,73 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
         : shop
     )
   };
-  
+
   console.log('🔧 saveWeekPlanning - Résultat:', result.shops.find(s => s.id === shopId)?.weeks[weekKey]);
-  
+
   return result;
+};
+
+const countWeekPlanningEntries = (weekData) => {
+  const planning = weekData?.planning;
+  if (!planning || typeof planning !== 'object') return 0;
+  let count = 0;
+  Object.values(planning).forEach((days) => {
+    if (days && typeof days === 'object') count += Object.keys(days).length;
+  });
+  return count;
+};
+
+/** Fusionne une boutique + semaine depuis une sauvegarde sans toucher aux autres boutiques. */
+export const mergeShopWeekFromBackup = (currentData, backupData, shopId, weekKey) => {
+  if (!currentData?.shops?.length) {
+    throw new Error('Planning actuel invalide');
+  }
+  if (!backupData?.shops?.length) {
+    throw new Error('Sauvegarde source invalide');
+  }
+
+  const backupShop = backupData.shops.find((s) => String(s.id) === String(shopId));
+  if (!backupShop) {
+    throw new Error(`Boutique "${shopId}" introuvable dans la sauvegarde`);
+  }
+
+  const backupWeek = backupShop.weeks?.[weekKey];
+  if (!backupWeek || countWeekPlanningEntries(backupWeek) === 0) {
+    throw new Error(`Semaine ${weekKey} introuvable ou vide dans la sauvegarde pour cette boutique`);
+  }
+
+  const currentShopIndex = currentData.shops.findIndex((s) => String(s.id) === String(shopId));
+  if (currentShopIndex < 0) {
+    throw new Error(`Boutique "${shopId}" introuvable dans le planning actuel`);
+  }
+
+  return {
+    ...currentData,
+    shops: currentData.shops.map((shop) => {
+      if (String(shop.id) !== String(shopId)) return shop;
+      return {
+        ...shop,
+        weeks: {
+          ...(shop.weeks || {}),
+          [weekKey]: {
+            planning: JSON.parse(JSON.stringify(backupWeek.planning || {})),
+            selectedEmployees: Array.isArray(backupWeek.selectedEmployees)
+              ? [...backupWeek.selectedEmployees]
+              : []
+          }
+        }
+      };
+    })
+  };
+};
+
+export const listShopWeeksWithData = (planningData, shopId) => {
+  const shop = planningData?.shops?.find((s) => String(s.id) === String(shopId));
+  if (!shop?.weeks) return [];
+  return Object.entries(shop.weeks)
+    .filter(([, weekData]) => countWeekPlanningEntries(weekData) > 0)
+    .map(([wk, weekData]) => ({ weekKey: wk, entryCount: countWeekPlanningEntries(weekData) }))
+    .sort((a, b) => a.weekKey.localeCompare(b.weekKey));
 };
 
 // Sauvegarder le planning pour la boutique actuelle seulement

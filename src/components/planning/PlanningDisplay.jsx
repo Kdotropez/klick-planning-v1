@@ -78,6 +78,7 @@ const PlanningDisplay = ({
   onDeleteEmployee,
   onRestoreFromSupabase,
   onRestoreBackupFromHistory,
+  onRestoreShopWeekFromHistory,
   onExitApplication
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
@@ -3146,6 +3147,7 @@ const PlanningDisplay = ({
             diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
             handleRestoreBackupFromHistory={onRestoreBackupFromHistory}
+            handleRestoreShopWeekFromHistory={onRestoreShopWeekFromHistory}
             handleExitApplication={onExitApplication}
           currentUser={currentUser}
           // Nouveaux props pour les boutons déplacés

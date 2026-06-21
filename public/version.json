@@ -1,7 +1,22 @@
 {
-  "version": "3.10.117",
+  "version": "3.10.119",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.119",
+      "date": "2026-05-29",
+      "changes": [
+        "Restauration ciblée depuis l'historique Supabase : une boutique et une semaine sans écraser le reste.",
+        "Nouveau bouton 🎯 RESTAURATION CIBLÉE dans le menu planning (permission restauration Supabase)."
+      ]
+    },
+    {
+      "version": "3.10.118",
+      "date": "2026-05-29",
+      "changes": [
+        "Correction sauvegarde semaine : fusion avec les données existantes au lieu d'écraser toute la semaine (risque de perte d'horaires)."
+      ]
+    },
     {
       "version": "3.10.117",
       "date": "2026-05-29",

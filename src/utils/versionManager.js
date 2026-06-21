@@ -333,6 +333,13 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.117': [
     'Planning: barre menu actions affichee par defaut a l ouverture.'
+  ],
+  '3.10.118': [
+    'Fix saveWeekPlanning: fusion avec semaine existante au lieu d ecraser tout le planning.'
+  ],
+  '3.10.119': [
+    'Restauration ciblee depuis historique Supabase: une boutique + une semaine sans ecraser le reste.',
+    'Bouton RESTAURATION CIBLEE dans le menu planning.'
   ]
 };
 
