@@ -326,11 +326,11 @@ export const saveHistorySnapshotWithStatus = async (completePlanningData) => {
   return ok ? { ok: true } : { ok: false, error: 'Insertion snapshot refusée (voir console)' };
 };
 
-export const listCompletePlanningBackups = async (limit = 30) => {
+export const listCompletePlanningBackups = async (limit = 50) => {
   if (!isReady()) return [];
 
   try {
-    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 30));
+    const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
     const { data, error } = await supabase
       .from('plannings')
       .select('week_key,updated_at,data')
@@ -382,7 +382,7 @@ export const listCompletePlanningBackups = async (limit = 30) => {
           .neq('shop_id', 'system_config')
           .neq('shop_id', HISTORY_SHOP_ID)
           .order('updated_at', { ascending: false })
-          .limit(60);
+          .limit(150);
 
         if (!legacyError && Array.isArray(legacyRows)) {
           const legacyItems = legacyRows
@@ -413,7 +413,7 @@ export const listCompletePlanningBackups = async (limit = 30) => {
       .neq('shop_id', 'system_config')
       .neq('shop_id', HISTORY_SHOP_ID)
       .order('updated_at', { ascending: false })
-      .limit(60);
+      .limit(150);
 
     if (!legacyNoCurrentError && Array.isArray(legacyRowsNoCurrent)) {
       const legacyItems = legacyRowsNoCurrent
@@ -530,7 +530,7 @@ export const findRemoteShopWeekRowBackups = async (shopId, weekKey, onProgress) 
     .select('shop_id,week_key,updated_at,data')
     .eq('shop_id', shopId)
     .order('updated_at', { ascending: false })
-    .limit(120);
+    .limit(300);
 
   if (error || !Array.isArray(rows)) {
     console.warn('⚠️ findRemoteShopWeekRowBackups:', error?.message || 'aucune ligne');
@@ -569,7 +569,7 @@ export const inspectShopWeekInventory = async (shopId) => {
   const remoteWeekKeys = await listRemoteWeeksForShop(shopId);
 
   const remoteWeeksWithData = [];
-  for (const rowWeekKey of remoteWeekKeys.slice(0, 40)) {
+  for (const rowWeekKey of remoteWeekKeys.slice(0, 80)) {
     const data = await loadCompletePlanningBackupByWeekKey(`${LEGACY_PREFIX}${shopId}::${rowWeekKey}`);
     const weeks = listShopWeeksWithData(data, shopId);
     const target = weeks.find((w) => w.weekKey === rowWeekKey) || weeks[0];
@@ -590,7 +590,7 @@ export const inspectShopWeekInventory = async (shopId) => {
 
 /** Parcourt l'historique et retourne les sauvegardes contenant une boutique + semaine avec horaires. */
 export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options = {}) => {
-  const { limit = 50, excludeCurrent = false, onProgress } = options;
+  const { limit = 100, excludeCurrent = false, onProgress } = options;
   if (!shopId || !weekKey) return [];
 
   let backups = await listCompletePlanningBackups(limit);
@@ -632,8 +632,8 @@ export const findHistoricalBackupsWithShopWeek = async (shopId, weekKey, options
 };
 
 /** Dates des dernières sauvegardes globales (version actuelle + snapshots). */
-export const getGlobalBackupTimeline = async (limit = 15) => {
-  const backups = await listCompletePlanningBackups(Math.max(limit, 20));
+export const getGlobalBackupTimeline = async (limit = 30) => {
+  const backups = await listCompletePlanningBackups(Math.max(limit, 50));
   return backups.map((item, idx) => ({
     rank: idx + 1,
     weekKey: item.weekKey,
@@ -644,6 +644,51 @@ export const getGlobalBackupTimeline = async (limit = 15) => {
     isCurrent: item.weekKey === CURRENT_COMPLETE_SENTINEL,
     isLegacy: String(item.weekKey || '').startsWith(LEGACY_PREFIX)
   }));
+};
+
+/** Diagnostic : dates réelles sur Supabase (sans filtre boutique/semaine). */
+export const getSupabaseBackupDiagnostics = async () => {
+  if (!isReady()) return null;
+
+  try {
+    const currentInfo = await getCurrentCompleteBackupInfo();
+
+    const { data: latestRows, error: latestError } = await supabase
+      .from('plannings')
+      .select('shop_id,week_key,updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    const { count: historyCount, error: historyCountError } = await supabase
+      .from('plannings')
+      .select('*', { count: 'exact', head: true })
+      .eq('shop_id', HISTORY_SHOP_ID);
+
+    const { data: shopRowSample, error: shopRowError } = await supabase
+      .from('plannings')
+      .select('shop_id,updated_at')
+      .neq('shop_id', 'complete_file')
+      .neq('shop_id', HISTORY_SHOP_ID)
+      .neq('shop_id', 'system_config')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    const latestAny = latestRows?.[0] || null;
+    const latestShopRow = shopRowSample?.[0] || null;
+
+    return {
+      currentCompleteUpdatedAt: currentInfo?.updatedAt || null,
+      currentShopsCount: currentInfo?.shopsCount || 0,
+      latestAnyUpdatedAt: latestAny?.updated_at || null,
+      latestAnyLabel: latestAny ? `${latestAny.shop_id}/${latestAny.week_key}` : null,
+      latestShopRowUpdatedAt: latestShopRow?.updated_at || null,
+      latestShopRowId: latestShopRow?.shop_id || null,
+      historySnapshotCount: historyCountError ? null : (historyCount ?? 0)
+    };
+  } catch (error) {
+    console.error('❌ getSupabaseBackupDiagnostics error:', error);
+    return null;
+  }
 };
 
 // Fonction pour charger le fichier complet de planning

@@ -356,6 +356,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.123': [
     'Recherche restauration inclut les lignes Supabase boutique/semaine (SAUVE SUPABASE).',
     'Inventaire semaines par boutique et cles semaine alternatives.'
+  ],
+  '3.10.124': [
+    'Limites historique augmentees (200 snapshots, 300 lignes boutique).',
+    'Diagnostic Supabase: date reelle derniere ecriture en base affichee dans Chercher historique.'
   ]
 };
 

@@ -50,7 +50,8 @@ import {
   loadCompletePlanningData,
   findHistoricalBackupsWithShopWeek,
   getGlobalBackupTimeline,
-  inspectShopWeekInventory
+  inspectShopWeekInventory,
+  getSupabaseBackupDiagnostics
 } from './utils/remoteStore';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -939,7 +940,7 @@ const App = () => {
     setFeedback('⏳ Chargement de l’historique Supabase...');
 
     try {
-      const backups = await listCompletePlanningBackups(50);
+      const backups = await listCompletePlanningBackups(100);
       if (!backups || backups.length === 0) {
         alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
         setFeedback('❌ Aucun historique de sauvegarde trouvé.');
@@ -1142,28 +1143,40 @@ const App = () => {
   const scanHistoricalBackupsForTarget = async (shopId, weekKey) => {
     setFeedback('⏳ Analyse complète (version actuelle + snapshots + sauvegardes semaine boutique)…');
     return findHistoricalBackupsWithShopWeek(shopId, weekKey, {
-      limit: 50,
+      limit: 100,
       excludeCurrent: false,
       onProgress: (current, total) => setFeedback(`⏳ Analyse des sauvegardes… ${current}/${total}`)
     });
   };
 
+  const formatDiagnosticsBlock = (diag) => {
+    if (!diag) return '';
+    const fmt = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR') : 'inconnue');
+    return (
+      `\n\n── État réel Supabase (sans filtre) ──\n` +
+      `Version actuelle (complete_file) : ${fmt(diag.currentCompleteUpdatedAt)} (${diag.currentShopsCount || 0} boutique(s))\n` +
+      `Dernière écriture Supabase (toute table) : ${fmt(diag.latestAnyUpdatedAt)} [${diag.latestAnyLabel || '?'}]\n` +
+      `Dernière ligne boutique/semaine : ${fmt(diag.latestShopRowUpdatedAt)} (${diag.latestShopRowId || '?'})\n` +
+      `Snapshots historiques en base : ${diag.historySnapshotCount ?? '?'}`
+    );
+  };
+
   const buildShopInventoryMessage = (shopName, inventory) => {
     if (!inventory) return '';
-    const currentLines = inventory.weeksInCurrent?.length
+    const currentCount = inventory.weeksInCurrent?.length || 0;
+    const remoteCount = inventory.remoteWeekKeys?.length || 0;
+    const currentLines = currentCount
       ? inventory.weeksInCurrent
-          .slice(-8)
           .map((w) => `  • ${formatWeekRangeLabel(w.weekKey)} (${w.entryCount} j.)`)
           .join('\n')
       : '  • (aucune semaine avec horaires)';
-    const remoteLines = inventory.remoteWeekKeys?.length
+    const remoteLines = remoteCount
       ? inventory.remoteWeekKeys
-          .slice(-12)
           .map((wk) => `  • ligne Supabase semaine ${wk}`)
           .join('\n')
       : '  • (aucune ligne boutique/semaine enregistrée sur Supabase)';
     return (
-      `\n\n── Inventaire ${shopName} ──\n` +
+      `\n\n── Inventaire ${shopName} (${currentCount} semaine(s) actuelle, ${remoteCount} ligne(s) Supabase) ──\n` +
       `Semaines avec horaires (version actuelle) :\n${currentLines}\n\n` +
       `Lignes Supabase boutique/semaine (💾 SAUVE SUPABASE) :\n${remoteLines}`
     );
@@ -1192,10 +1205,13 @@ const App = () => {
         return;
       }
 
-      const timeline = await getGlobalBackupTimeline(12);
+      const timeline = await getGlobalBackupTimeline(40);
       const timelineBlock = timeline.length
-        ? `\n\n── Dernières sauvegardes GLOBALES Supabase ──\n${timeline.map(formatGlobalTimelineLine).join('\n')}`
+        ? `\n\n── Dernières sauvegardes GLOBALES (${timeline.length} entrées analysées) ──\n${timeline.map(formatGlobalTimelineLine).join('\n')}`
         : '';
+
+      const diagnostics = await getSupabaseBackupDiagnostics();
+      const diagnosticsBlock = formatDiagnosticsBlock(diagnostics);
 
       setFeedback('⏳ Inventaire des semaines enregistrées pour cette boutique…');
       const inventory = await inspectShopWeekInventory(target.shopId);
@@ -1213,6 +1229,7 @@ const App = () => {
             `Boutique : ${target.shopName}\n` +
             `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
             currentLine +
+            diagnosticsBlock +
             timelineBlock +
             inventoryBlock +
             `\n\nSi la VERSION ACTUELLE est récente mais sans ces horaires, cherchez un snapshot plus ancien qui les contient encore.`
@@ -1226,9 +1243,10 @@ const App = () => {
         `🔍 Sauvegardes contenant des horaires\n\n` +
           `Boutique : ${target.shopName}\n` +
           `Semaine : ${formatWeekRangeLabel(target.weekKey)}\n\n` +
-          `(Triées de la plus récente à la plus ancienne)\n\n` +
+          `(Triées de la plus récente à la plus ancienne — ${matches.length} source(s) contenant cette semaine)\n\n` +
           `${lines.join('\n')}\n\n` +
           currentLine +
+          diagnosticsBlock +
           timelineBlock +
           inventoryBlock +
           `\n\nUtilisez 🎯 RESTAURATION CIBLÉE pour fusionner une de ces sauvegardes.`

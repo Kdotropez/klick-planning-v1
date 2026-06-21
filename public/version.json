@@ -1,7 +1,15 @@
 {
-  "version": "3.10.123",
+  "version": "3.10.124",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.124",
+      "date": "2026-05-29",
+      "changes": [
+        "Chercher historique : limites augmentées (200 snapshots, 300 lignes boutique) et inventaire complet sans troncature.",
+        "Bloc diagnostic Supabase affichant la date réelle de la dernière écriture en base."
+      ]
+    },
     {
       "version": "3.10.123",
       "date": "2026-05-29",
