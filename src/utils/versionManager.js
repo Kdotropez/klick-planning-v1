@@ -391,6 +391,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.132': [
     'Export horaires lisibles: option HTML mobile paysage (TXT/PDF/HTML).',
     'Planning boutique semaine: bouton HTML avec blocage portrait sur telephone.'
+  ],
+  '3.10.133': [
+    'HTML paysage sur tous les exports PDF: recaps, matrix semaine, inspection, vue globale.',
+    'Utilitaire partage exportElementHtmlAsLandscape + modales recaps employes.'
   ]
 };
 

@@ -3,6 +3,7 @@ import { addDays, eachDayOfInterval, endOfMonth, format, parseISO, startOfMonth,
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { exportElementHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
 import 'jspdf-autotable';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
@@ -936,6 +937,26 @@ const WeeklyWorkMatrixModal = ({
     doc.save(`recap_${effectivePeriodMode}_${tableView === 'shops' ? 'par_boutique' : 'global_multi_boutiques'}_${scopeSlug}_${periodSlug}.pdf`);
   };
 
+  const exportHtml = () => {
+    if (!pdfCaptureRef.current) return;
+    const scopeSlug = recapShopKey === 'all' ? 'toutes' : String(recapShopKey).replace(/[^\w-]+/g, '_');
+    const periodSlug = effectivePeriodMode === 'month'
+      ? format(parseISO(selectedWeek), 'yyyy-MM')
+      : effectivePeriodMode === 'range'
+        ? `${effectiveRangeStart}_${effectiveRangeEnd}`
+        : selectedWeek;
+    exportElementHtmlAsLandscape({
+      element: pdfCaptureRef.current,
+      title: `Recap ${tableView === 'shops' ? 'par boutique' : 'multi-boutiques'}`,
+      metaLines: [
+        recapShopKey === 'all' ? 'Toutes les boutiques' : (selectedShopName || String(recapShopKey)),
+        periodLabel,
+        `Genere le: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`,
+      ],
+      filename: `recap_${effectivePeriodMode}_${tableView === 'shops' ? 'par_boutique' : 'global_multi_boutiques'}_${scopeSlug}_${periodSlug}.html`,
+    });
+  };
+
   if (!isOpen) return null;
 
   const { rows } = matrix;
@@ -1060,6 +1081,22 @@ const WeeklyWorkMatrixModal = ({
               }}
             >
               Imprimer
+            </button>
+            <button
+              type="button"
+              onClick={exportHtml}
+              disabled={!canExport}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: canExport ? '#0f766e' : '#94a3b8',
+                color: '#fff',
+                cursor: canExport ? 'pointer' : 'not-allowed',
+                fontWeight: 600
+              }}
+            >
+              HTML (paysage)
             </button>
             <button
               type="button"

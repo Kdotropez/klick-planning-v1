@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import Button from '../common/Button';
+import { exportElementHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
 import { FaDownload, FaFileExcel, FaFilePdf, FaTimes, FaChartBar, FaUsers, FaClock, FaStore } from 'react-icons/fa';
 import '@/assets/styles.css';
 
@@ -1059,6 +1060,44 @@ const GlobalDayViewModalV2 = ({
     }
   };
 
+  const exportToHtml = async () => {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, activeTab === 'weekly-multi' ? 500 : 200));
+      let container;
+      let title;
+      let filename;
+      if (activeTab === 'weekly') {
+        container = document.querySelector('.weekly-schedule');
+        title = `Planning hebdomadaire - ${selectedShop}`;
+        filename = `planning_hebdomadaire_${selectedShop}_${format(new Date(), 'yyyy-MM-dd')}.html`;
+      } else if (activeTab === 'weekly-multi') {
+        container = document.querySelector('#weekly-schedule-export');
+        title = 'Planning hebdomadaire multi-boutiques - GLOBAL';
+        filename = `planning_hebdomadaire_global_${format(new Date(), 'yyyy-MM-dd')}.html`;
+      } else {
+        container = document.querySelector('.table-scroll-container');
+        title = `Vue globale par jour - ${selectedShop}`;
+        filename = `vue_globale_${selectedShop}_${format(new Date(), 'yyyy-MM-dd')}.html`;
+      }
+      if (!container) {
+        alert('Contenu introuvable pour l export HTML.');
+        return;
+      }
+      exportElementHtmlAsLandscape({
+        element: container,
+        title,
+        metaLines: [
+          `Semaine du ${globalStats.weekRange}`,
+          `Genere le: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`,
+        ],
+        filename,
+      });
+    } catch (error) {
+      console.error('Erreur lors de l export HTML:', error);
+      alert('Erreur lors de l export HTML. Veuillez reessayer.');
+    }
+  };
+
   const exportToExcel = () => {
     const wsData = [
       ['Vue globale par jour', selectedShop],
@@ -1156,6 +1195,9 @@ const GlobalDayViewModalV2 = ({
           <div className="export-buttons">
             <Button className="export-btn" onClick={exportToPDF}>
               <FaFilePdf /> PDF
+            </Button>
+            <Button className="export-btn" onClick={exportToHtml}>
+              HTML (paysage)
             </Button>
             <Button className="export-btn" onClick={exportToExcel}>
               <FaFileExcel /> Excel

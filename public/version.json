@@ -1,7 +1,15 @@
 {
-  "version": "3.10.132",
+  "version": "3.10.133",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.133",
+      "date": "2026-05-29",
+      "changes": [
+        "Export HTML paysage étendu à tous les PDF : récaps employés, récap semaine multi-boutiques, inspection du travail, vue globale.",
+        "Utilitaire partagé pour exporter le contenu des modales en HTML mobile avec blocage en mode portrait."
+      ]
+    },
     {
       "version": "3.10.132",
       "date": "2026-05-29",

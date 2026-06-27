@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale';
 import { buildSlotRangeLines, sumSelectedSlotsMinutes } from '../../utils/slotDurationUtils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { exportRawBodyHtmlAsLandscape, escapeHtml as escapeHtmlExport } from '../../utils/htmlLandscapeExport';
 
 const STORAGE_PREFIX = 'labour_inspection_meta_v1_';
 const STORAGE_MAP_KEY = 'labour_inspection_meta_by_shop_v2';
@@ -535,6 +536,62 @@ const LabourInspectionModal = ({
 
   const labelTypeContrat = (id) => CONTRAT_TYPES.find((t) => t.id === id)?.label || id || '—';
 
+  const buildInspectionSheetBodyHtml = () => {
+    const metaRows = [
+      ['Boutique', meta.boutiqueAffichee || '-'],
+      ['Raison sociale', RAISON_SOCIALE_FIXE],
+      ['Adresse établissement', meta.adresseEtablissement || '-'],
+      ['SIRET', getSiretForShop(shop, selectedShop)],
+      ['Activité (NAF/APE)', ACTIVITE_FIXE],
+      ['Convention collective', meta.conventionCollective || '-'],
+      ['Responsable', meta.responsable || '-'],
+      ['Semaine affichée', selectedWeek || '-'],
+      ['Horaires collectifs de référence', meta.horairesCollectifs || '-'],
+      ['Pause / coupure collective', meta.pauseCollective || '-'],
+      ['Date d affichage / publication', meta.datePublication || '-'],
+      ['Heure d édition', meta.heureEdition || '-'],
+      ['Inspection du travail', meta.inspecteurTravail || '-'],
+      ['Médecine du travail', meta.medecineTravail || '-'],
+      ['Secours urgence', meta.secoursUrgence || '-'],
+      ['Date/signature employeur', meta.dateSignature || '-'],
+    ];
+    const rowsHtml = scheduleRows
+      .map((row) => {
+        const dayCells = row.cells.map((cell) => `<td>${escapeHtmlExport(cell)}</td>`).join('');
+        const duration = formatContractDuration(row.entryDate);
+        return `<tr><td><b>${escapeHtmlExport(row.employeeName)}</b></td><td>${escapeHtmlExport(row.entryDate || '-')}</td><td>${escapeHtmlExport(labelTypeContrat(row.typeContrat))}</td><td>${escapeHtmlExport(row.contractHours || '-')}</td><td>${escapeHtmlExport(duration)}</td><td class="hours">${escapeHtmlExport(row.weeklyHoursLabel)}</td>${dayCells}</tr>`;
+      })
+      .join('');
+    const dayHeaders = weekDays
+      .map((dayDate) => `<th>${escapeHtmlExport(format(dayDate, 'EEE dd/MM', { locale: fr }))}</th>`)
+      .join('');
+    const metaRowsHtml = metaRows
+      .map(([label, value]) => `<tr><th>${escapeHtmlExport(label)}</th><td>${escapeHtmlExport(value)}</td></tr>`)
+      .join('');
+    return `
+      <p class="footer-note">Document d affichage collectif date et signe par l employeur.</p>
+      <table class="meta-table"><tbody>${metaRowsHtml}</tbody></table>
+      <table class="schedule-table">
+        <thead><tr><th>Employe</th><th>Date entree</th><th>Type contrat</th><th>H contrat</th><th>Duree contrat</th><th>Heures semaine</th>${dayHeaders}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="footer-note">Repos = non planifie dans cette boutique. Exterieur = horaires planifies dans une autre boutique le meme jour.</div>`;
+  };
+
+  const exportHtml = () => {
+    exportRawBodyHtmlAsLandscape({
+      bodyHtml: buildInspectionSheetBodyHtml(),
+      title: 'Affichage des horaires - Inspection du travail',
+      metaLines: [
+        `Boutique: ${meta.boutiqueAffichee || shop?.name || selectedShop || '-'}`,
+        `Semaine: ${selectedWeek || '-'}`,
+        `Genere le: ${new Date().toLocaleString('fr-FR')}`,
+      ],
+      filename: `inspection_travail_${selectedShop}_${selectedWeek}.html`,
+      sheetClassName: 'inspection-sheet',
+    });
+  };
+
   const printSheet = () => {
     const metaRows = [
       ['Boutique', meta.boutiqueAffichee || '-'],
@@ -829,6 +886,7 @@ const LabourInspectionModal = ({
         <div style={{ padding: '8px 14px', display: 'flex', gap: '8px', borderBottom: '1px solid #e0e0e0' }}>
           <button type="button" onClick={saveMeta}>💾 Enregistrer mentions</button>
           <button type="button" onClick={printSheet}>🖨️ Imprimer affichage</button>
+          <button type="button" onClick={exportHtml}>📱 HTML (paysage)</button>
           <button type="button" onClick={exportPdf}>📄 Exporter PDF</button>
           <button type="button" onClick={onClose}>Fermer</button>
         </div>

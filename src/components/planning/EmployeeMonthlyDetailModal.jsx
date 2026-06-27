@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
+import { exportModalContentFromButtonAsLandscape } from '../../utils/htmlLandscapeExport';
 import '@/assets/styles.css';
 
 const EmployeeMonthlyDetailModal = ({ 
@@ -1715,6 +1716,22 @@ const EmployeeMonthlyDetailModal = ({
               </Button>
              <Button className="button-pdf" onClick={() => exportToPDF()}>
                Exporter en PDF
+             </Button>
+             <Button
+               className="button-pdf"
+               onClick={(e) => {
+                 exportModalContentFromButtonAsLandscape({
+                   triggerElement: e.currentTarget,
+                   title: `Récapitulatif mensuel détaillé - ${employeeName}`,
+                   metaLines: [
+                     `Boutique: ${selectedShopName}`,
+                     `Mois de ${format(new Date(selectedWeek), 'MMMM yyyy', { locale: fr })}`,
+                   ],
+                   filename: `monthly_detail_${employeeName}_${selectedShopName}_${format(new Date(), 'yyyy-MM-dd')}.html`,
+                 });
+               }}
+             >
+               Exporter en HTML (paysage)
              </Button>
              <Button className="button-pdf" onClick={() => exportToExcel()}>
                Exporter en Excel

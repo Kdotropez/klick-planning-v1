@@ -9,6 +9,7 @@ import Button from '../common/Button';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage'; // Correction de l'importation
+import { exportModalContentFromButtonAsLandscape } from '../../utils/htmlLandscapeExport';
 import '@/assets/styles.css';
 
 const RecapModal = ({
@@ -419,6 +420,26 @@ const RecapModal = ({
         <div className="button-group" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
           <Button className="button-pdf" onClick={exportToPDF}>
             Exporter en PDF
+          </Button>
+          <Button
+            className="button-pdf"
+            onClick={(e) => {
+              const recapTitle = isWeekRecap
+                ? `Récapitulatif hebdomadaire - ${selectedShop}`
+                : isEmployeeWeekRecap
+                ? `Récapitulatif de ${employee}`
+                : `Récapitulatif de ${employee}`;
+              exportModalContentFromButtonAsLandscape({
+                triggerElement: e.currentTarget,
+                title: recapTitle,
+                metaLines: [
+                  `Semaine du ${format(new Date(selectedWeek), 'dd/MM', { locale: fr })} au ${format(addDays(new Date(selectedWeek), 6), 'dd/MM', { locale: fr })}`,
+                ],
+                filename: `recap_${isWeekRecap ? 'weekly' : isEmployeeWeekRecap ? `employee_week_${employee}` : `employee_day_${employee}`}_${format(new Date(), 'yyyy-MM-dd')}.html`,
+              });
+            }}
+          >
+            Exporter en HTML (paysage)
           </Button>
           <Button className="button-pdf" onClick={exportToExcel}>
             Exporter en Excel

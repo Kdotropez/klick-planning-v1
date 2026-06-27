@@ -116,6 +116,51 @@ const LANDSCAPE_STYLES = `
     border-bottom: 2px solid #99f6e4;
     padding-bottom: 4px;
   }
+  .schedule-sheet.exported-view table { min-width: 640px; font-size: 11px; }
+  .schedule-sheet.exported-view th {
+    background: #f0f0f0;
+    color: #111;
+    border: 1px solid #ddd;
+  }
+  .schedule-sheet.exported-view td { border: 1px solid #ddd; }
+  .schedule-sheet.inspection-sheet .meta-table th {
+    width: 22%;
+    text-align: left;
+    background: #eaf2f8;
+    color: #123;
+    border: 1px solid #b0bec5;
+    padding: 4px 6px;
+  }
+  .schedule-sheet.inspection-sheet .meta-table td {
+    border: 1px solid #b0bec5;
+    padding: 4px 6px;
+  }
+  .schedule-sheet.inspection-sheet .schedule-table {
+    font-size: 9px;
+    table-layout: fixed;
+  }
+  .schedule-sheet.inspection-sheet .schedule-table th {
+    background: #0f4c81;
+    color: #fff;
+    border: 1px solid #345;
+    padding: 5px 4px;
+  }
+  .schedule-sheet.inspection-sheet .schedule-table td {
+    border: 1px solid #9e9e9e;
+    padding: 5px 4px;
+    vertical-align: top;
+    word-break: break-word;
+  }
+  .schedule-sheet.inspection-sheet .hours {
+    font-weight: bold;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .schedule-sheet .footer-note {
+    margin-top: 10px;
+    font-size: 10px;
+    color: #455a64;
+  }
   .toolbar {
     position: sticky;
     top: 0;
@@ -229,4 +274,78 @@ export const openOrDownloadLandscapeHtml = (htmlDocument, { title, filename, pre
   if (opened.ok) return { ok: true, mode: 'window' };
   downloadLandscapeHtmlFile(htmlDocument, filename);
   return { ok: true, mode: 'download-fallback' };
+};
+
+export const LANDSCAPE_MOBILE_HINT =
+  'Mode paysage requis sur telephone pour une lecture optimale.';
+
+export const DEFAULT_EXPORT_IGNORE_SELECTORS = [
+  '[data-html2canvas-ignore="true"]',
+  '.button-group',
+  '.button-pdf',
+  '.button-retour',
+  '.modal-close',
+];
+
+export const cloneElementHtmlForExport = (
+  sourceElement,
+  ignoreSelectors = DEFAULT_EXPORT_IGNORE_SELECTORS
+) => {
+  if (!sourceElement) return '';
+  const clone = sourceElement.cloneNode(true);
+  ignoreSelectors.forEach((selector) => {
+    clone.querySelectorAll(selector).forEach((element) => element.remove());
+  });
+  clone.querySelectorAll('button').forEach((element) => element.remove());
+  return clone.innerHTML;
+};
+
+export const exportElementHtmlAsLandscape = ({
+  element,
+  title,
+  metaLines = [],
+  filename,
+  sheetClassName = 'exported-view',
+}) => {
+  if (!element) return { ok: false, reason: 'no-element' };
+  const inner = cloneElementHtmlForExport(element);
+  const bodyHtml = `<div class="schedule-sheet ${sheetClassName}">${inner}</div>`;
+  const doc = buildLandscapeHtmlDocument({
+    title,
+    bodyHtml,
+    metaLines: [...metaLines, LANDSCAPE_MOBILE_HINT],
+  });
+  return openOrDownloadLandscapeHtml(doc, { title, filename });
+};
+
+export const exportModalContentFromButtonAsLandscape = ({
+  triggerElement,
+  title,
+  metaLines = [],
+  filename,
+}) => {
+  const root =
+    triggerElement?.closest('.modal-overlay')?.querySelector('.modal-content') ||
+    triggerElement?.closest('[data-export-root]')?.querySelector('[data-export-content]') ||
+    triggerElement?.closest('[data-export-root]') ||
+    document.querySelector('.modal-content');
+  return exportElementHtmlAsLandscape({ element: root, title, metaLines, filename });
+};
+
+export const exportRawBodyHtmlAsLandscape = ({
+  bodyHtml,
+  title,
+  metaLines = [],
+  filename,
+  sheetClassName = '',
+}) => {
+  const wrapped = sheetClassName
+    ? `<div class="schedule-sheet ${sheetClassName}">${bodyHtml}</div>`
+    : bodyHtml;
+  const doc = buildLandscapeHtmlDocument({
+    title,
+    bodyHtml: wrapped,
+    metaLines: [...metaLines, LANDSCAPE_MOBILE_HINT],
+  });
+  return openOrDownloadLandscapeHtml(doc, { title, filename });
 };

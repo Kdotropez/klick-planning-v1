@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
+import { exportModalContentFromButtonAsLandscape } from '../../utils/htmlLandscapeExport';
 import '@/assets/styles.css';
 
 const isSelectedSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
@@ -725,6 +726,21 @@ const EmployeeWeeklyRecapModal = ({
           </Button>
           <Button className="button-pdf" onClick={exportToPDF}>
             Exporter en PDF
+          </Button>
+          <Button
+            className="button-pdf"
+            onClick={(e) => {
+              exportModalContentFromButtonAsLandscape({
+                triggerElement: e.currentTarget,
+                title: `Récapitulatif hebdomadaire - ${employeeName}`,
+                metaLines: [
+                  `Semaine du ${format(new Date(selectedWeek), 'dd/MM', { locale: fr })}`,
+                ],
+                filename: `weekly_recap_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.html`,
+              });
+            }}
+          >
+            Exporter en HTML (paysage)
           </Button>
           <Button className="button-pdf" onClick={exportToExcel}>
             Exporter en Excel
