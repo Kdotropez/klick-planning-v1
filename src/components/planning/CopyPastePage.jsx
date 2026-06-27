@@ -1,8 +1,31 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { format, addDays, parseISO, differenceInDays } from 'date-fns';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { format, addDays, parseISO, differenceInDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { getWeekPlanning, saveWeekPlanning } from '../../utils/planningDataManager';
+import {
+  getWeekPlanning,
+  saveWeekPlanning,
+  listShopWeeksWithData,
+  resolveWeekKeyInShopWeeks
+} from '../../utils/planningDataManager';
 import { dayCellHasPlanningContent } from '../../utils/planningUtils';
+
+const normalizeWeekKey = (weekKey) => {
+  if (!weekKey) return '';
+  try {
+    const parsed = parseISO(weekKey);
+    if (Number.isNaN(parsed.getTime())) return weekKey;
+    return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+  } catch {
+    return weekKey;
+  }
+};
+
+const formatWeekLabel = (weekKey) => {
+  const monday = parseISO(normalizeWeekKey(weekKey));
+  const sunday = addDays(monday, 6);
+  const year = format(monday, 'yyyy');
+  return `Semaine du ${format(monday, 'EEEE dd/MM', { locale: fr })} au ${format(sunday, 'EEEE dd/MM/yyyy', { locale: fr })} (${year})`;
+};
 
 const CopyPastePage = ({ 
   planningData, 
@@ -16,31 +39,50 @@ const CopyPastePage = ({
   const [sourceWeek, setSourceWeek] = useState('');
   const [destinationWeek, setDestinationWeek] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
-  const [availableWeeks, setAvailableWeeks] = useState([]);
   const [availableEmployees, setAvailableEmployees] = useState([]);
   const [feedback, setFeedback] = useState('');
   const [copiedData, setCopiedData] = useState(null);
+  const [sourceDatePick, setSourceDatePick] = useState('');
+  const [destinationDatePick, setDestinationDatePick] = useState('');
 
-  // Générer les semaines disponibles (8 semaines avant et après la semaine actuelle)
+  const { storedWeeks, calendarWeeks } = useMemo(() => {
+    const weekMap = new Map();
+    const registerWeek = (weekKey, hasStoredData = false) => {
+      const norm = normalizeWeekKey(weekKey);
+      if (!norm) return;
+      const prev = weekMap.get(norm) || { key: norm, label: formatWeekLabel(norm), hasStoredData: false };
+      prev.hasStoredData = prev.hasStoredData || hasStoredData;
+      weekMap.set(norm, prev);
+    };
+
+    if (planningData && selectedShop) {
+      listShopWeeksWithData(planningData, selectedShop).forEach(({ weekKey }) => {
+        registerWeek(weekKey, true);
+      });
+      const shop = planningData.shops?.find((s) => s.id === selectedShop);
+      Object.keys(shop?.weeks || {}).forEach((weekKey) => registerWeek(weekKey, true));
+    }
+
+    if (selectedWeek) {
+      const anchor = parseISO(normalizeWeekKey(selectedWeek));
+      for (let i = -52; i <= 52; i += 1) {
+        registerWeek(format(addDays(anchor, i * 7), 'yyyy-MM-dd'), false);
+      }
+    }
+
+    const all = Array.from(weekMap.values()).sort((a, b) => b.key.localeCompare(a.key));
+    return {
+      storedWeeks: all.filter((w) => w.hasStoredData),
+      calendarWeeks: all.filter((w) => !w.hasStoredData)
+    };
+  }, [planningData, selectedShop, selectedWeek]);
+
+  // Semaines par défaut source / destination
   useEffect(() => {
     if (selectedWeek) {
-      const currentDate = parseISO(selectedWeek);
-      const weeks = [];
-      
-      for (let i = -8; i <= 8; i++) {
-        const weekDate = addDays(currentDate, i * 7);
-        const weekKey = format(weekDate, 'yyyy-MM-dd');
-        const monday = format(weekDate, 'EEEE dd/MM', { locale: fr });
-        const sunday = format(addDays(weekDate, 6), 'EEEE dd/MM', { locale: fr });
-        weeks.push({
-          key: weekKey,
-          label: `Semaine du ${monday} au ${sunday}`
-        });
-      }
-      
-      setAvailableWeeks(weeks);
-      setSourceWeek(selectedWeek);
-      setDestinationWeek(format(addDays(currentDate, 7), 'yyyy-MM-dd'));
+      const norm = normalizeWeekKey(selectedWeek);
+      setSourceWeek(norm);
+      setDestinationWeek(format(addDays(parseISO(norm), 7), 'yyyy-MM-dd'));
     }
   }, [selectedWeek]);
 
@@ -90,6 +132,36 @@ const CopyPastePage = ({
     return out;
   };
 
+  const resolveSourceWeekKey = useCallback(() => {
+    const shop = planningData?.shops?.find((s) => s.id === selectedShop);
+    const norm = normalizeWeekKey(sourceWeek);
+    return resolveWeekKeyInShopWeeks(shop?.weeks, norm) || norm;
+  }, [planningData, selectedShop, sourceWeek]);
+
+  const renderWeekOptions = () => (
+    <>
+      {storedWeeks.length > 0 && (
+        <optgroup label="Semaines enregistrées (toutes dates, ex. année dernière)">
+          {storedWeeks.map((week) => (
+            <option key={`stored-${week.key}`} value={week.key}>
+              {week.label}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      <optgroup label="Calendrier (± 1 an autour de la semaine affichée)">
+        {[...storedWeeks, ...calendarWeeks]
+          .filter((week, idx, arr) => arr.findIndex((w) => w.key === week.key) === idx)
+          .sort((a, b) => b.key.localeCompare(a.key))
+          .map((week) => (
+            <option key={`cal-${week.key}`} value={week.key}>
+              {week.label}
+            </option>
+          ))}
+      </optgroup>
+    </>
+  );
+
   // Fonction de copie simplifiée
   const handleCopy = useCallback(() => {
     try {
@@ -105,10 +177,13 @@ const CopyPastePage = ({
         return;
       }
 
+      const normalizedSourceWeek = normalizeWeekKey(sourceWeek);
+      const resolvedSourceWeek = resolveSourceWeekKey();
+
       // Récupérer les données source (grille init. + fusion écran courant si même semaine)
-      const sourceData = getWeekPlanning(planningData, selectedShop, sourceWeek);
+      const sourceData = getWeekPlanning(planningData, selectedShop, resolvedSourceWeek);
       let planningSource = sourceData.planning || {};
-      if (liveWeekPlanning && sourceWeek === selectedWeek) {
+      if (liveWeekPlanning && normalizeWeekKey(sourceWeek) === normalizeWeekKey(selectedWeek)) {
         planningSource = mergeLiveIntoStoredPlanning(planningSource, liveWeekPlanning);
       }
       console.log('🔍 Données source récupérées (éventuellement fusionnées):', planningSource);
@@ -148,7 +223,8 @@ const CopyPastePage = ({
       // Sauvegarder dans localStorage
       const copyBuffer = {
         data: dataToCopy,
-        sourceWeek,
+        sourceWeek: normalizedSourceWeek,
+        resolvedSourceWeek,
         selectedEmployees,
         timestamp: Date.now()
       };
@@ -157,8 +233,8 @@ const CopyPastePage = ({
       setCopiedData(copyBuffer);
 
       const employeeCount = selectedEmployees.length;
-      const sourceWeekStart = format(new Date(sourceWeek), 'dd/MM');
-      const sourceWeekEnd = format(new Date(new Date(sourceWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+      const sourceWeekStart = format(parseISO(normalizedSourceWeek), 'dd/MM/yyyy');
+      const sourceWeekEnd = format(addDays(parseISO(normalizedSourceWeek), 6), 'dd/MM/yyyy');
       
       setFeedback(`✅ Copie réussie : ${copiedCells} jour(s)-employé, ${employeeCount} employé(s) — semaine du ${sourceWeekStart} au ${sourceWeekEnd}`);
 
@@ -166,7 +242,7 @@ const CopyPastePage = ({
       console.error('Erreur lors de la copie:', error);
       setFeedback('❌ Erreur lors de la copie');
     }
-  }, [planningData, selectedShop, sourceWeek, selectedWeek, selectedEmployees, liveWeekPlanning]);
+  }, [planningData, selectedShop, sourceWeek, selectedWeek, selectedEmployees, liveWeekPlanning, resolveSourceWeekKey]);
 
   // Fonction de collage simplifiée
   const handlePaste = useCallback(() => {
@@ -177,6 +253,8 @@ const CopyPastePage = ({
         setFeedback('❌ Veuillez sélectionner une semaine de destination');
         return;
       }
+
+      const normalizedDestinationWeek = normalizeWeekKey(destinationWeek);
 
       let buffer = copiedData;
       if (!buffer) {
@@ -196,7 +274,7 @@ const CopyPastePage = ({
       }
 
       // Récupérer les données de destination actuelles
-      const destinationData = getWeekPlanning(planningData, selectedShop, destinationWeek);
+      const destinationData = getWeekPlanning(planningData, selectedShop, normalizedDestinationWeek);
       const currentPlanning = destinationData.planning || {};
       
       console.log('🔍 Données destination récupérées:', destinationData);
@@ -208,8 +286,8 @@ const CopyPastePage = ({
       );
 
       if (hasExistingData) {
-        const existingWeekStart = format(new Date(destinationWeek), 'dd/MM');
-        const existingWeekEnd = format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+        const existingWeekStart = format(parseISO(normalizedDestinationWeek), 'dd/MM/yyyy');
+        const existingWeekEnd = format(addDays(parseISO(normalizedDestinationWeek), 6), 'dd/MM/yyyy');
         const confirmOverwrite = window.confirm(
           `⚠️ Attention : Des données existent déjà dans la semaine du ${existingWeekStart} au ${existingWeekEnd}.\n\nVoulez-vous les écraser ?`
         );
@@ -223,8 +301,8 @@ const CopyPastePage = ({
       const newPlanning = { ...currentPlanning };
 
       // Transformer les dates de la semaine source vers la semaine destination
-      const sourceWeekStart = parseISO(buffer.sourceWeek);
-      const targetWeekStart = parseISO(destinationWeek);
+      const sourceWeekStart = parseISO(normalizeWeekKey(buffer.sourceWeek));
+      const targetWeekStart = parseISO(normalizedDestinationWeek);
 
       Object.keys(buffer.data).forEach(empId => {
         if (!newPlanning[empId]) {
@@ -249,15 +327,15 @@ const CopyPastePage = ({
       const updatedPlanningData = saveWeekPlanning(
         planningData, 
         selectedShop, 
-        destinationWeek, 
+        normalizedDestinationWeek, 
         newPlanning, 
-        destinationData.selectedEmployees || []
+        destinationData.selectedEmployees || buffer.selectedEmployees || []
       );
 
       setPlanningData(updatedPlanningData);
       
-      const successWeekStart = format(new Date(destinationWeek), 'dd/MM');
-      const successWeekEnd = format(new Date(new Date(destinationWeek).getTime() + 6 * 24 * 60 * 60 * 1000), 'dd/MM');
+      const successWeekStart = format(parseISO(normalizedDestinationWeek), 'dd/MM/yyyy');
+      const successWeekEnd = format(addDays(parseISO(normalizedDestinationWeek), 6), 'dd/MM/yyyy');
       
       setFeedback(`✅ Collage réussi vers la semaine du ${successWeekStart} au ${successWeekEnd}`);
       
@@ -296,6 +374,11 @@ const CopyPastePage = ({
           📋 Copier-Coller de Planning
         </h2>
 
+        <p style={{ marginBottom: '16px', color: '#555', fontSize: '14px', lineHeight: 1.5 }}>
+          Copiez une semaine passée (même l&apos;année dernière) vers une semaine de cette année.
+          Les horaires sont recalés jour par jour (lundi → lundi, mardi → mardi…), y compris congés et maladies.
+        </p>
+
         {/* Section Copie */}
         <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
           <h3 style={{ marginBottom: '15px', color: '#495057' }}>📤 COPIE</h3>
@@ -315,12 +398,20 @@ const CopyPastePage = ({
               }}
             >
               <option value="">Sélectionner une semaine</option>
-              {availableWeeks.map(week => (
-                <option key={week.key} value={week.key}>
-                  {week.label}
-                </option>
-              ))}
+              {renderWeekOptions()}
             </select>
+            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', color: '#666' }}>Ou choisir un jour (→ lundi de la semaine) :</span>
+              <input
+                type="date"
+                value={sourceDatePick}
+                onChange={(e) => {
+                  setSourceDatePick(e.target.value);
+                  if (e.target.value) setSourceWeek(normalizeWeekKey(e.target.value));
+                }}
+                style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ddd' }}
+              />
+            </div>
           </div>
 
           <div style={{ marginBottom: '15px' }}>
@@ -384,12 +475,20 @@ const CopyPastePage = ({
               }}
             >
               <option value="">Sélectionner une semaine</option>
-              {availableWeeks.map(week => (
-                <option key={week.key} value={week.key}>
-                  {week.label}
-                </option>
-              ))}
+              {renderWeekOptions()}
             </select>
+            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', color: '#666' }}>Ou choisir un jour (→ lundi de la semaine) :</span>
+              <input
+                type="date"
+                value={destinationDatePick}
+                onChange={(e) => {
+                  setDestinationDatePick(e.target.value);
+                  if (e.target.value) setDestinationWeek(normalizeWeekKey(e.target.value));
+                }}
+                style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ddd' }}
+              />
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>

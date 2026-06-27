@@ -91,6 +91,7 @@ const PlanningMenuBar = ({
   autoLockEnabled,
   setAutoLockEnabled,
   copyWeekToNextWeek,
+  onOpenCopyPastePage,
   validationState,
   
   // Gestion des employés masqués
@@ -957,6 +958,30 @@ const PlanningMenuBar = ({
         >
           {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
         </Button>
+
+        {can('canCopyWeek') && (
+        <Button
+          className="button-primary"
+          onClick={onOpenCopyPastePage}
+          style={{
+            backgroundColor: '#007bff',
+            color: '#fff',
+            padding: '8px 16px',
+            fontSize: '12px',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#0056b3'; }}
+          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#007bff'; }}
+        >
+          📋 Copier semaine…
+        </Button>
+        )}
 
         {can('canCopyWeek') && (
         <Button

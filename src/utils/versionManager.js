@@ -380,6 +380,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.129': [
     'Sauvegarde Supabase: fusion auto avec distant — boutiques manquantes preservees.',
     'Feedback sauvegarde: boutiques conservees depuis Supabase affichees.'
+  ],
+  '3.10.130': [
+    'Copier semaine: historique annee passee + calendrier +/- 1 an + bouton Copier semaine.',
+    'Recalage lundi-lundi entre semaine source et destination (ex. 2025 vers 2026).'
   ]
 };
 

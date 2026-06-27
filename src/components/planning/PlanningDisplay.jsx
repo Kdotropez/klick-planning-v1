@@ -3184,6 +3184,7 @@ const PlanningDisplay = ({
           autoLockEnabled={autoLockEnabled}
           setAutoLockEnabled={setAutoLockEnabled}
           copyWeekToNextWeek={copyWeekToNextWeek}
+          onOpenCopyPastePage={() => setShowCopyPastePage(true)}
           validationState={validationState}
           
           // Gestion des employés masqués
