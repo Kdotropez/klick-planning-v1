@@ -1,7 +1,14 @@
 {
-  "version": "3.10.130",
+  "version": "3.10.131",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.131",
+      "date": "2026-05-29",
+      "changes": [
+        "Fix copier-coller semaine : lecture données brutes, alias employés, navigation vers semaine destination, sync localStorage."
+      ]
+    },
     {
       "version": "3.10.130",
       "date": "2026-05-29",

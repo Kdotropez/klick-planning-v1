@@ -2908,6 +2908,9 @@ const PlanningDisplay = ({
         selectedShop={selectedShop}
         selectedWeek={validWeek}
         liveWeekPlanning={planning}
+        isEmployeeAssignedToCurrentShop={isEmployeeAssignedToCurrentShop}
+        setSelectedWeek={setSelectedWeek}
+        setForceRefresh={setForceRefresh}
         onBack={() => setShowCopyPastePage(false)}
       />
     );

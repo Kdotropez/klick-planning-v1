@@ -384,6 +384,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.130': [
     'Copier semaine: historique annee passee + calendrier +/- 1 an + bouton Copier semaine.',
     'Recalage lundi-lundi entre semaine source et destination (ex. 2025 vers 2026).'
+  ],
+  '3.10.131': [
+    'Fix copier-coller: donnees brutes, employes, navigation semaine destination, localStorage.'
   ]
 };
 

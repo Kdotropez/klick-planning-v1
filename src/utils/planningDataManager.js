@@ -628,6 +628,54 @@ export const resolveWeekKeyInShopWeeks = (weeks, weekKey) => {
   return null;
 };
 
+/** Planning brut boutique/semaine (données en base + repli localStorage legacy). */
+export const getRawWeekPlanningForShop = (planningData, shopId, weekKey) => {
+  if (!planningData || !shopId || !weekKey) {
+    return { resolvedWeekKey: weekKey || '', planning: {}, selectedEmployees: [] };
+  }
+
+  const shop = getShopById(planningData, shopId);
+  if (!shop) {
+    return { resolvedWeekKey: weekKey, planning: {}, selectedEmployees: [] };
+  }
+
+  let normalized = weekKey;
+  try {
+    const parsed = parseISO(weekKey);
+    if (!Number.isNaN(parsed.getTime())) {
+      normalized = format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    }
+  } catch {
+    /* keep weekKey */
+  }
+
+  const resolved = resolveWeekKeyInShopWeeks(shop.weeks, normalized) || normalized;
+  let planning = shop.weeks?.[resolved]?.planning;
+  if (!planning || typeof planning !== 'object') planning = {};
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      for (const key of [resolved, normalized, weekKey]) {
+        const raw = localStorage.getItem(`planning_${shopId}_${key}`);
+        if (!raw) continue;
+        const parsedLs = JSON.parse(raw);
+        if (parsedLs && typeof parsedLs === 'object' && Object.keys(parsedLs).length > 0) {
+          planning = { ...planning, ...parsedLs };
+          break;
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return {
+    resolvedWeekKey: resolved,
+    planning,
+    selectedEmployees: shop.weeks?.[resolved]?.selectedEmployees || []
+  };
+};
+
 /** Fusionne une boutique + semaine depuis une sauvegarde sans toucher aux autres boutiques. */
 export const mergeShopWeekFromBackup = (currentData, backupData, shopId, weekKey) => {
   if (!currentData?.shops?.length) {

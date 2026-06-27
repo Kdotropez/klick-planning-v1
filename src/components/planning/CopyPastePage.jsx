@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { format, addDays, parseISO, differenceInDays, startOfWeek } from 'date-fns';
+import { format, addDays, parseISO, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
-  getWeekPlanning,
   saveWeekPlanning,
   listShopWeeksWithData,
-  resolveWeekKeyInShopWeeks
+  getRawWeekPlanningForShop
 } from '../../utils/planningDataManager';
-import { dayCellHasPlanningContent } from '../../utils/planningUtils';
+import { dayCellHasPlanningContent, resolveEmployeePlanningSlice } from '../../utils/planningUtils';
+import { saveToLocalStorage } from '../../utils/localStorage';
 
 const normalizeWeekKey = (weekKey) => {
   if (!weekKey) return '';
@@ -27,14 +27,23 @@ const formatWeekLabel = (weekKey) => {
   return `Semaine du ${format(monday, 'EEEE dd/MM', { locale: fr })} au ${format(sunday, 'EEEE dd/MM/yyyy', { locale: fr })} (${year})`;
 };
 
-const CopyPastePage = ({ 
-  planningData, 
+const buildWeekDates = (weekStartKey) => {
+  const baseDate = parseISO(normalizeWeekKey(weekStartKey));
+  return Array.from({ length: 7 }, (_, index) =>
+    format(addDays(baseDate, index), 'yyyy-MM-dd')
+  );
+};
+
+const CopyPastePage = ({
+  planningData,
   setPlanningData,
-  selectedShop, 
+  selectedShop,
   selectedWeek,
-  /** Planning en mémoire (écran courant) — fusionné si semaine source = semaine affichée */
   liveWeekPlanning,
-  onBack 
+  isEmployeeAssignedToCurrentShop,
+  setSelectedWeek,
+  setForceRefresh,
+  onBack
 }) => {
   const [sourceWeek, setSourceWeek] = useState('');
   const [destinationWeek, setDestinationWeek] = useState('');
@@ -77,7 +86,6 @@ const CopyPastePage = ({
     };
   }, [planningData, selectedShop, selectedWeek]);
 
-  // Semaines par défaut source / destination
   useEffect(() => {
     if (selectedWeek) {
       const norm = normalizeWeekKey(selectedWeek);
@@ -86,24 +94,22 @@ const CopyPastePage = ({
     }
   }, [selectedWeek]);
 
-  // Charger les employés de la boutique
   useEffect(() => {
-    if (planningData && selectedShop) {
-      const shop = planningData.shops?.find(s => s.id === selectedShop);
+    if (planningData && selectedShop && isEmployeeAssignedToCurrentShop) {
+      const shop = planningData.shops?.find((s) => s.id === selectedShop);
       if (shop?.employees) {
         const employees = shop.employees
-          .filter(emp => emp.canWorkIn?.includes(selectedShop))
-          .map(emp => ({
+          .filter((emp) => emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp))
+          .map((emp) => ({
             id: emp.id,
             name: emp.name
           }));
         setAvailableEmployees(employees);
-        setSelectedEmployees(employees.map(emp => emp.id)); // Sélectionner tous par défaut
+        setSelectedEmployees(employees.map((emp) => emp.id));
       }
     }
-  }, [planningData, selectedShop]);
+  }, [planningData, selectedShop, isEmployeeAssignedToCurrentShop]);
 
-  // Rétablir le presse-papiers après rechargement (F5)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('copyPasteBuffer');
@@ -112,7 +118,7 @@ const CopyPastePage = ({
       if (parsed?.data && parsed?.sourceWeek) {
         setCopiedData(parsed);
       }
-    } catch (_) {
+    } catch {
       /* ignore */
     }
   }, []);
@@ -131,12 +137,6 @@ const CopyPastePage = ({
     });
     return out;
   };
-
-  const resolveSourceWeekKey = useCallback(() => {
-    const shop = planningData?.shops?.find((s) => s.id === selectedShop);
-    const norm = normalizeWeekKey(sourceWeek);
-    return resolveWeekKeyInShopWeeks(shop?.weeks, norm) || norm;
-  }, [planningData, selectedShop, sourceWeek]);
 
   const renderWeekOptions = () => (
     <>
@@ -162,93 +162,100 @@ const CopyPastePage = ({
     </>
   );
 
-  // Fonction de copie simplifiée
   const handleCopy = useCallback(() => {
     try {
       setFeedback('🔄 Copie en cours...');
-      
+
       if (!sourceWeek) {
         setFeedback('❌ Veuillez sélectionner une semaine source');
         return;
       }
 
       if (selectedEmployees.length === 0) {
-        setFeedback('❌ Veuillez sélectionner au moins un employé');
+        setFeedback('❌ Aucun employé sélectionné — cochez au moins un employé');
         return;
       }
 
       const normalizedSourceWeek = normalizeWeekKey(sourceWeek);
-      const resolvedSourceWeek = resolveSourceWeekKey();
+      const { resolvedWeekKey, planning: rawPlanning } = getRawWeekPlanningForShop(
+        planningData,
+        selectedShop,
+        normalizedSourceWeek
+      );
 
-      // Récupérer les données source (grille init. + fusion écran courant si même semaine)
-      const sourceData = getWeekPlanning(planningData, selectedShop, resolvedSourceWeek);
-      let planningSource = sourceData.planning || {};
-      if (liveWeekPlanning && normalizeWeekKey(sourceWeek) === normalizeWeekKey(selectedWeek)) {
+      let planningSource = { ...(rawPlanning || {}) };
+      if (liveWeekPlanning && normalizedSourceWeek === normalizeWeekKey(selectedWeek)) {
         planningSource = mergeLiveIntoStoredPlanning(planningSource, liveWeekPlanning);
       }
-      console.log('🔍 Données source récupérées (éventuellement fusionnées):', planningSource);
-      
-      if (!planningSource || Object.keys(planningSource).length === 0) {
-        setFeedback('❌ Aucune donnée à copier dans la semaine source');
-        return;
-      }
 
-      // Préparer les données à copier
+      const shop = planningData?.shops?.find((s) => s.id === selectedShop);
+      const employeesToCopy = (shop?.employees || []).filter(
+        (emp) => emp?.id && selectedEmployees.includes(emp.id)
+      );
+
       const dataToCopy = {};
-      
-      selectedEmployees.forEach(empId => {
-        if (planningSource[empId]) {
-          dataToCopy[empId] = {};
-          
-          Object.keys(planningSource[empId]).forEach(dayKey => {
-            const cell = planningSource[empId][dayKey];
-            if (!dayCellHasPlanningContent(cell)) return;
-            if (Array.isArray(cell)) {
-              dataToCopy[empId][dayKey] = [...cell];
-            } else if (typeof cell === 'string') {
-              dataToCopy[empId][dayKey] = cell;
-            }
-          });
-        }
+      employeesToCopy.forEach((emp) => {
+        const slice = resolveEmployeePlanningSlice(planningSource, emp);
+        if (!slice || typeof slice !== 'object') return;
+        dataToCopy[emp.id] = {};
+        Object.keys(slice).forEach((dayKey) => {
+          const cell = slice[dayKey];
+          if (!dayCellHasPlanningContent(cell)) return;
+          if (Array.isArray(cell)) {
+            dataToCopy[emp.id][dayKey] = [...cell];
+          } else if (typeof cell === 'string') {
+            dataToCopy[emp.id][dayKey] = cell;
+          }
+        });
       });
 
-      const copiedCells = Object.keys(dataToCopy).reduce((n, empId) => {
-        return n + Object.keys(dataToCopy[empId] || {}).length;
-      }, 0);
+      const copiedCells = Object.keys(dataToCopy).reduce(
+        (n, empId) => n + Object.keys(dataToCopy[empId] || {}).length,
+        0
+      );
+
       if (copiedCells === 0) {
-        setFeedback('❌ Aucun créneau ou statut (congé, maladie…) à copier pour les employés sélectionnés');
+        setFeedback(
+          `❌ Aucun horaire trouvé pour la semaine du ${format(parseISO(normalizedSourceWeek), 'dd/MM/yyyy')} ` +
+            `(clé en base : ${resolvedWeekKey}). Vérifiez que cette semaine contient bien des créneaux enregistrés.`
+        );
         return;
       }
 
-      // Sauvegarder dans localStorage
       const copyBuffer = {
         data: dataToCopy,
         sourceWeek: normalizedSourceWeek,
-        resolvedSourceWeek,
+        resolvedSourceWeek: resolvedWeekKey,
         selectedEmployees,
         timestamp: Date.now()
       };
-      
+
       localStorage.setItem('copyPasteBuffer', JSON.stringify(copyBuffer));
       setCopiedData(copyBuffer);
 
-      const employeeCount = selectedEmployees.length;
       const sourceWeekStart = format(parseISO(normalizedSourceWeek), 'dd/MM/yyyy');
       const sourceWeekEnd = format(addDays(parseISO(normalizedSourceWeek), 6), 'dd/MM/yyyy');
-      
-      setFeedback(`✅ Copie réussie : ${copiedCells} jour(s)-employé, ${employeeCount} employé(s) — semaine du ${sourceWeekStart} au ${sourceWeekEnd}`);
 
+      setFeedback(
+        `✅ Copie réussie : ${copiedCells} jour(s)-employé, ${employeesToCopy.length} employé(s) — semaine du ${sourceWeekStart} au ${sourceWeekEnd}`
+      );
     } catch (error) {
       console.error('Erreur lors de la copie:', error);
       setFeedback('❌ Erreur lors de la copie');
     }
-  }, [planningData, selectedShop, sourceWeek, selectedWeek, selectedEmployees, liveWeekPlanning, resolveSourceWeekKey]);
+  }, [
+    planningData,
+    selectedShop,
+    sourceWeek,
+    selectedWeek,
+    selectedEmployees,
+    liveWeekPlanning
+  ]);
 
-  // Fonction de collage simplifiée
   const handlePaste = useCallback(() => {
     try {
       setFeedback('🔄 Collage en cours...');
-      
+
       if (!destinationWeek) {
         setFeedback('❌ Veuillez sélectionner une semaine de destination');
         return;
@@ -261,25 +268,22 @@ const CopyPastePage = ({
         try {
           const raw = localStorage.getItem('copyPasteBuffer');
           if (raw) buffer = JSON.parse(raw);
-        } catch (_) {
+        } catch {
           buffer = null;
         }
       }
       if (!buffer?.data || typeof buffer.data !== 'object') {
-        setFeedback('❌ Aucune donnée copiée. Veuillez d\'abord copier des données.');
+        setFeedback('❌ Aucune donnée copiée. Cliquez d\'abord sur « Copier ».');
         return;
       }
       if (!copiedData && buffer) {
         setCopiedData(buffer);
       }
 
-      // Récupérer les données de destination actuelles
-      const destinationData = getWeekPlanning(planningData, selectedShop, normalizedDestinationWeek);
-      const currentPlanning = destinationData.planning || {};
-      
-      console.log('🔍 Données destination récupérées:', destinationData);
+      const { planning: currentPlanning, selectedEmployees: destSelectedEmployees } =
+        getRawWeekPlanningForShop(planningData, selectedShop, normalizedDestinationWeek);
 
-      const hasExistingData = Object.keys(currentPlanning).some((empId) =>
+      const hasExistingData = Object.keys(currentPlanning || {}).some((empId) =>
         Object.keys(currentPlanning[empId] || {}).some((dayKey) =>
           dayCellHasPlanningContent(currentPlanning[empId][dayKey])
         )
@@ -289,7 +293,7 @@ const CopyPastePage = ({
         const existingWeekStart = format(parseISO(normalizedDestinationWeek), 'dd/MM/yyyy');
         const existingWeekEnd = format(addDays(parseISO(normalizedDestinationWeek), 6), 'dd/MM/yyyy');
         const confirmOverwrite = window.confirm(
-          `⚠️ Attention : Des données existent déjà dans la semaine du ${existingWeekStart} au ${existingWeekEnd}.\n\nVoulez-vous les écraser ?`
+          `⚠️ Des données existent déjà dans la semaine du ${existingWeekStart} au ${existingWeekEnd}.\n\nVoulez-vous les écraser ?`
         );
         if (!confirmOverwrite) {
           setFeedback('❌ Collage annulé');
@@ -297,59 +301,73 @@ const CopyPastePage = ({
         }
       }
 
-      // Préparer les nouvelles données
-      const newPlanning = { ...currentPlanning };
+      const newPlanning = JSON.parse(JSON.stringify(currentPlanning || {}));
+      const sourceDates = buildWeekDates(buffer.sourceWeek);
+      const destinationDates = buildWeekDates(normalizedDestinationWeek);
 
-      // Transformer les dates de la semaine source vers la semaine destination
-      const sourceWeekStart = parseISO(normalizeWeekKey(buffer.sourceWeek));
-      const targetWeekStart = parseISO(normalizedDestinationWeek);
-
-      Object.keys(buffer.data).forEach(empId => {
-        if (!newPlanning[empId]) {
-          newPlanning[empId] = {};
-        }
-        
-        Object.keys(buffer.data[empId]).forEach(dayKey => {
-          // Vérifier si c'est une date valide
-          if (dayKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            const sourceDay = parseISO(dayKey);
-            const dayIndex = differenceInDays(sourceDay, sourceWeekStart);
-            const targetDay = format(addDays(targetWeekStart, dayIndex), 'yyyy-MM-dd');
-            const srcVal = buffer.data[empId][dayKey];
-            newPlanning[empId][targetDay] = Array.isArray(srcVal) ? [...srcVal] : srcVal;
-          }
+      Object.keys(buffer.data).forEach((empId) => {
+        if (!newPlanning[empId]) newPlanning[empId] = {};
+        sourceDates.forEach((sourceDate, index) => {
+          const destinationDate = destinationDates[index];
+          if (!Object.prototype.hasOwnProperty.call(buffer.data[empId], sourceDate)) return;
+          const srcVal = buffer.data[empId][sourceDate];
+          if (!dayCellHasPlanningContent(srcVal)) return;
+          newPlanning[empId][destinationDate] = Array.isArray(srcVal) ? [...srcVal] : srcVal;
         });
       });
 
-      console.log('🔍 Nouvelles données à sauvegarder:', newPlanning);
-
-      // Sauvegarder les nouvelles données
-      const updatedPlanningData = saveWeekPlanning(
-        planningData, 
-        selectedShop, 
-        normalizedDestinationWeek, 
-        newPlanning, 
-        destinationData.selectedEmployees || buffer.selectedEmployees || []
+      const mergedSelectedEmployees = Array.from(
+        new Set([...(destSelectedEmployees || []), ...(buffer.selectedEmployees || [])])
       );
 
+      const updatedPlanningData = saveWeekPlanning(
+        planningData,
+        selectedShop,
+        normalizedDestinationWeek,
+        newPlanning,
+        mergedSelectedEmployees
+      );
+
+      saveToLocalStorage('planningData', updatedPlanningData);
+      saveToLocalStorage(`planning_${selectedShop}_${normalizedDestinationWeek}`, newPlanning);
       setPlanningData(updatedPlanningData);
-      
+
+      if (setSelectedWeek) {
+        setSelectedWeek(normalizedDestinationWeek);
+      }
+      if (setForceRefresh) {
+        setForceRefresh((prev) => prev + 1);
+      }
+
       const successWeekStart = format(parseISO(normalizedDestinationWeek), 'dd/MM/yyyy');
       const successWeekEnd = format(addDays(parseISO(normalizedDestinationWeek), 6), 'dd/MM/yyyy');
-      
-      setFeedback(`✅ Collage réussi vers la semaine du ${successWeekStart} au ${successWeekEnd}`);
-      
-      // Vider le buffer de copie
+
+      setFeedback(
+        `✅ Collage réussi vers la semaine du ${successWeekStart} au ${successWeekEnd}. ` +
+          'Retour au planning pour voir le résultat — pensez à SAUVE SUPABASE.'
+      );
+
       setCopiedData(null);
       localStorage.removeItem('copyPasteBuffer');
 
+      if (onBack) {
+        setTimeout(() => onBack(), 800);
+      }
     } catch (error) {
       console.error('Erreur lors du collage:', error);
       setFeedback('❌ Erreur lors du collage');
     }
-  }, [planningData, selectedShop, destinationWeek, copiedData, setPlanningData]);
+  }, [
+    planningData,
+    selectedShop,
+    destinationWeek,
+    copiedData,
+    setPlanningData,
+    setSelectedWeek,
+    setForceRefresh,
+    onBack
+  ]);
 
-  // Fonction pour vider le buffer de copie
   const clearCopyBuffer = () => {
     setCopiedData(null);
     localStorage.removeItem('copyPasteBuffer');
@@ -357,16 +375,16 @@ const CopyPastePage = ({
   };
 
   return (
-    <div style={{ 
-      padding: '20px', 
-      maxWidth: '800px', 
+    <div style={{
+      padding: '20px',
+      maxWidth: '800px',
       margin: '0 auto',
       backgroundColor: '#f5f5f5',
       minHeight: '100vh'
     }}>
-      <div style={{ 
-        backgroundColor: 'white', 
-        padding: '20px', 
+      <div style={{
+        backgroundColor: 'white',
+        padding: '20px',
         borderRadius: '8px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }}>
@@ -379,22 +397,21 @@ const CopyPastePage = ({
           Les horaires sont recalés jour par jour (lundi → lundi, mardi → mardi…), y compris congés et maladies.
         </p>
 
-        {/* Section Copie */}
         <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
           <h3 style={{ marginBottom: '15px', color: '#495057' }}>📤 COPIE</h3>
-          
+
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
               Semaine source :
             </label>
-            <select 
-              value={sourceWeek} 
+            <select
+              value={sourceWeek}
               onChange={(e) => setSourceWeek(e.target.value)}
-              style={{ 
-                width: '100%', 
-                padding: '8px', 
-                borderRadius: '4px', 
-                border: '1px solid #ddd' 
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #ddd'
               }}
             >
               <option value="">Sélectionner une semaine</option>
@@ -416,27 +433,31 @@ const CopyPastePage = ({
 
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-              Employés à copier :
+              Employés à copier ({availableEmployees.length}) :
             </label>
-            <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
-              {availableEmployees.map(emp => (
-                <label key={emp.id} style={{ display: 'block', marginBottom: '5px' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedEmployees.includes(emp.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedEmployees([...selectedEmployees, emp.id]);
-                      } else {
-                        setSelectedEmployees(selectedEmployees.filter(id => id !== emp.id));
-                      }
-                    }}
-                    style={{ marginRight: '8px' }}
-                  />
-                  {emp.name}
-                </label>
-              ))}
-            </div>
+            {availableEmployees.length === 0 ? (
+              <p style={{ color: '#b71c1c', fontSize: '13px' }}>Aucun employé visible pour cette boutique.</p>
+            ) : (
+              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
+                {availableEmployees.map((emp) => (
+                  <label key={emp.id} style={{ display: 'block', marginBottom: '5px' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedEmployees.includes(emp.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEmployees([...selectedEmployees, emp.id]);
+                        } else {
+                          setSelectedEmployees(selectedEmployees.filter((id) => id !== emp.id));
+                        }
+                      }}
+                      style={{ marginRight: '8px' }}
+                    />
+                    {emp.name}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
@@ -456,22 +477,21 @@ const CopyPastePage = ({
           </button>
         </div>
 
-        {/* Section Collage */}
         <div style={{ marginBottom: '30px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
           <h3 style={{ marginBottom: '15px', color: '#495057' }}>📥 COLLAGE</h3>
-          
+
           <div style={{ marginBottom: '15px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
               Semaine de destination :
             </label>
-            <select 
-              value={destinationWeek} 
+            <select
+              value={destinationWeek}
               onChange={(e) => setDestinationWeek(e.target.value)}
-              style={{ 
-                width: '100%', 
-                padding: '8px', 
-                borderRadius: '4px', 
-                border: '1px solid #ddd' 
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #ddd'
               }}
             >
               <option value="">Sélectionner une semaine</option>
@@ -529,11 +549,10 @@ const CopyPastePage = ({
           </div>
         </div>
 
-        {/* Feedback */}
         {feedback && (
-          <div style={{ 
-            padding: '10px', 
-            borderRadius: '4px', 
+          <div style={{
+            padding: '10px',
+            borderRadius: '4px',
             backgroundColor: feedback.includes('✅') ? '#d4edda' : feedback.includes('❌') ? '#f8d7da' : '#d1ecf1',
             color: feedback.includes('✅') ? '#155724' : feedback.includes('❌') ? '#721c24' : '#0c5460',
             marginBottom: '20px'
@@ -542,22 +561,20 @@ const CopyPastePage = ({
           </div>
         )}
 
-        {/* Informations sur les données copiées */}
         {copiedData && (
-          <div style={{ 
-            padding: '15px', 
-            backgroundColor: '#e7f3ff', 
+          <div style={{
+            padding: '15px',
+            backgroundColor: '#e7f3ff',
             borderRadius: '6px',
             marginBottom: '20px'
           }}>
             <h4 style={{ marginBottom: '10px', color: '#0056b3' }}>📋 Données copiées :</h4>
-            <p><strong>Semaine source :</strong> {format(new Date(copiedData.sourceWeek), 'dd/MM/yyyy')}</p>
+            <p><strong>Semaine source :</strong> {format(parseISO(copiedData.sourceWeek), 'dd/MM/yyyy')}</p>
             <p><strong>Employés :</strong> {copiedData.selectedEmployees.length} employé(s)</p>
             <p><strong>Copié le :</strong> {format(new Date(copiedData.timestamp), 'dd/MM/yyyy à HH:mm')}</p>
           </div>
         )}
 
-        {/* Bouton retour */}
         <button
           onClick={onBack}
           style={{
@@ -578,4 +595,4 @@ const CopyPastePage = ({
   );
 };
 
-export default CopyPastePage; 
+export default CopyPastePage;
