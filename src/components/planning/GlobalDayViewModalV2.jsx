@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import Button from '../common/Button';
+import HtmlExportButton from '../common/HtmlExportButton';
 import { exportElementHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
 import { FaDownload, FaFileExcel, FaFilePdf, FaTimes, FaChartBar, FaUsers, FaClock, FaStore } from 'react-icons/fa';
 import '@/assets/styles.css';
@@ -1193,11 +1194,9 @@ const GlobalDayViewModalV2 = ({
 
         <div className="modal-footer">
           <div className="export-buttons">
+            <HtmlExportButton onClick={exportToHtml} />
             <Button className="export-btn" onClick={exportToPDF}>
               <FaFilePdf /> PDF
-            </Button>
-            <Button className="export-btn" onClick={exportToHtml}>
-              HTML (paysage)
             </Button>
             <Button className="export-btn" onClick={exportToExcel}>
               <FaFileExcel /> Excel

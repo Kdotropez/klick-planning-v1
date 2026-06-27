@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
@@ -10,6 +10,7 @@ import {
   buildLandscapeHtmlDocument,
   openOrDownloadLandscapeHtml,
 } from '../../utils/htmlLandscapeExport';
+import HtmlExportButton from '../common/HtmlExportButton';
 
 const WeeklyPlanningPrint = ({
   selectedShop,
@@ -18,7 +19,8 @@ const WeeklyPlanningPrint = ({
   shops,
   employees,
   config,
-  onClose
+  onClose,
+  autoAction = null,
 }) => {
      const printRef = useRef();
 
@@ -329,6 +331,15 @@ const WeeklyPlanningPrint = ({
     }
   };
 
+  useEffect(() => {
+    if (!autoAction) return undefined;
+    const timer = window.setTimeout(() => {
+      if (autoAction === 'html') handleExportHtml();
+      else if (autoAction === 'pdf') handlePrint();
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [autoAction]);
+
   return (
     <div style={{
       position: 'fixed',
@@ -364,6 +375,7 @@ const WeeklyPlanningPrint = ({
         }}>
           <h2 style={{ margin: 0, color: '#333' }}>📋 Planning Hebdomadaire - Impression</h2>
           <div style={{ display: 'flex', gap: '10px' }}>
+            <HtmlExportButton onClick={handleExportHtml} />
             <button
               onClick={handlePrint}
               style={{
@@ -378,21 +390,6 @@ const WeeklyPlanningPrint = ({
               }}
             >
               🖨️ Imprimer PDF
-            </button>
-            <button
-              onClick={handleExportHtml}
-              style={{
-                backgroundColor: '#0f766e',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '600'
-              }}
-            >
-              📱 HTML (paysage)
             </button>
                          <button
                onClick={() => {

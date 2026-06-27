@@ -6,6 +6,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
+import HtmlExportButton from '../common/HtmlExportButton';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { exportModalContentFromButtonAsLandscape } from '../../utils/htmlLandscapeExport';
@@ -724,11 +725,7 @@ const EmployeeWeeklyRecapModal = ({
           }}>
             Imprimer
           </Button>
-          <Button className="button-pdf" onClick={exportToPDF}>
-            Exporter en PDF
-          </Button>
-          <Button
-            className="button-pdf"
+          <HtmlExportButton
             onClick={(e) => {
               exportModalContentFromButtonAsLandscape({
                 triggerElement: e.currentTarget,
@@ -739,8 +736,9 @@ const EmployeeWeeklyRecapModal = ({
                 filename: `weekly_recap_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.html`,
               });
             }}
-          >
-            Exporter en HTML (paysage)
+          />
+          <Button className="button-pdf" onClick={exportToPDF}>
+            Exporter en PDF
           </Button>
           <Button className="button-pdf" onClick={exportToExcel}>
             Exporter en Excel

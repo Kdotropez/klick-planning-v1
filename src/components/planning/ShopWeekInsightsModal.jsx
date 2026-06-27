@@ -123,6 +123,7 @@ const ShopWeekInsightsModal = ({
 }) => {
   const [tab, setTab] = useState('synthese');
   const [showPrint, setShowPrint] = useState(false);
+  const [printAutoAction, setPrintAutoAction] = useState(null);
   /** '' = toute l'équipe (visible sur le planning) ; sinon un id employé */
   const [scopeEmployeeId, setScopeEmployeeId] = useState('');
 
@@ -1164,10 +1165,13 @@ const ShopWeekInsightsModal = ({
           }}
         >
           <span style={{ fontSize: 11, color: '#64748b' }}>Klick — pilotage (données issues du planning en mémoire)</span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setShowPrint(true)}
+              onClick={() => {
+                setPrintAutoAction('pdf');
+                setShowPrint(true);
+              }}
               style={{
                 padding: '8px 14px',
                 borderRadius: 8,
@@ -1177,7 +1181,25 @@ const ShopWeekInsightsModal = ({
                 cursor: 'pointer'
               }}
             >
-              Imprimer planning
+              📕 PDF planning
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPrintAutoAction('html');
+                setShowPrint(true);
+              }}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#0f766e',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              📱 HTML (paysage)
             </button>
           </div>
         </footer>
@@ -1201,7 +1223,11 @@ const ShopWeekInsightsModal = ({
               : currentShopEmployees
           }
           config={config}
-          onClose={() => setShowPrint(false)}
+          autoAction={printAutoAction}
+          onClose={() => {
+            setShowPrint(false);
+            setPrintAutoAction(null);
+          }}
         />
       )}
     </div>

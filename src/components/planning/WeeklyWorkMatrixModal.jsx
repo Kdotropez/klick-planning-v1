@@ -4,6 +4,7 @@ import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { exportElementHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
+import HtmlExportButton from '../common/HtmlExportButton';
 import 'jspdf-autotable';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
@@ -1082,22 +1083,7 @@ const WeeklyWorkMatrixModal = ({
             >
               Imprimer
             </button>
-            <button
-              type="button"
-              onClick={exportHtml}
-              disabled={!canExport}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '6px',
-                border: 'none',
-                background: canExport ? '#0f766e' : '#94a3b8',
-                color: '#fff',
-                cursor: canExport ? 'pointer' : 'not-allowed',
-                fontWeight: 600
-              }}
-            >
-              HTML (paysage)
-            </button>
+            <HtmlExportButton onClick={exportHtml} disabled={!canExport} />
             <button
               type="button"
               onClick={exportPdf}

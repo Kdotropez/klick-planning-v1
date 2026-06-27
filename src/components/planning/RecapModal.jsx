@@ -6,6 +6,7 @@ import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import Button from '../common/Button';
+import HtmlExportButton from '../common/HtmlExportButton';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage'; // Correction de l'importation
@@ -417,12 +418,8 @@ const RecapModal = ({
             )}
           </tbody>
         </table>
-        <div className="button-group" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-          <Button className="button-pdf" onClick={exportToPDF}>
-            Exporter en PDF
-          </Button>
-          <Button
-            className="button-pdf"
+        <div className="button-group" style={{ marginTop: '15px', display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <HtmlExportButton
             onClick={(e) => {
               const recapTitle = isWeekRecap
                 ? `Récapitulatif hebdomadaire - ${selectedShop}`
@@ -438,8 +435,9 @@ const RecapModal = ({
                 filename: `recap_${isWeekRecap ? 'weekly' : isEmployeeWeekRecap ? `employee_week_${employee}` : `employee_day_${employee}`}_${format(new Date(), 'yyyy-MM-dd')}.html`,
               });
             }}
-          >
-            Exporter en HTML (paysage)
+          />
+          <Button className="button-pdf" onClick={exportToPDF}>
+            Exporter en PDF
           </Button>
           <Button className="button-pdf" onClick={exportToExcel}>
             Exporter en Excel

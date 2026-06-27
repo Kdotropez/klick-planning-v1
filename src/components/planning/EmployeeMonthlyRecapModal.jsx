@@ -6,6 +6,7 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
+import HtmlExportButton from '../common/HtmlExportButton';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getWeekPlanning } from '../../utils/planningDataManager';
@@ -603,12 +604,8 @@ const EmployeeMonthlyRecapModal = ({
           );
         })()}
         
-        <div className="button-group" style={{ display: 'flex', justifyContent: 'center', marginTop: '15px' }}>
-          <Button className="button-pdf" onClick={exportToPDF}>
-            Exporter en PDF
-          </Button>
-          <Button
-            className="button-pdf"
+        <div className="button-group" style={{ display: 'flex', justifyContent: 'center', marginTop: '15px', flexWrap: 'wrap', gap: '10px' }}>
+          <HtmlExportButton
             onClick={(e) => {
               exportModalContentFromButtonAsLandscape({
                 triggerElement: e.currentTarget,
@@ -619,8 +616,9 @@ const EmployeeMonthlyRecapModal = ({
                 filename: `monthly_recap_${employeeName}_${format(new Date(), 'yyyy-MM-dd')}.html`,
               });
             }}
-          >
-            Exporter en HTML (paysage)
+          />
+          <Button className="button-pdf" onClick={exportToPDF}>
+            Exporter en PDF
           </Button>
           <Button className="button-pdf" onClick={exportToExcel}>
             Exporter en Excel

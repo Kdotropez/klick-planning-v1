@@ -273,14 +273,15 @@ const PlanningMenuBar = ({
           )}
 
         {can('canExportAll') && (
+        <>
         <Button
           className="button-primary"
-          onClick={onExportReadableSchedules}
+          onClick={() => onExportReadableSchedules?.('1')}
           style={{
-            backgroundColor: '#0ea5a6',
+            backgroundColor: '#64748b',
             color: '#fff',
-            padding: '10px 14px',
-            fontSize: '13px',
+            padding: '10px 12px',
+            fontSize: '12px',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
@@ -289,12 +290,52 @@ const PlanningMenuBar = ({
             gap: '6px',
             whiteSpace: 'nowrap'
           }}
-          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0b8b8c'}
-          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0ea5a6'}
-          title="Export lisible (semaine ou mois calendaire): TXT/PDF/HTML (mobile paysage), collectif, un employe, ou 1 fichier par employe (chaine d envoi mail)"
+          title="Export horaires lisibles en fichier texte"
         >
-          🗓️ Export Horaires Lisibles
+          📄 Horaires TXT
         </Button>
+        <Button
+          className="button-primary"
+          onClick={() => onExportReadableSchedules?.('2')}
+          style={{
+            backgroundColor: '#dc2626',
+            color: '#fff',
+            padding: '10px 12px',
+            fontSize: '12px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap'
+          }}
+          title="Export horaires lisibles en PDF"
+        >
+          📕 Horaires PDF
+        </Button>
+        <Button
+          className="button-primary"
+          onClick={() => onExportReadableSchedules?.('3')}
+          style={{
+            backgroundColor: '#0f766e',
+            color: '#fff',
+            padding: '10px 12px',
+            fontSize: '12px',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 0 0 2px rgba(15,118,110,0.25)'
+          }}
+          title="Export horaires lisibles en HTML mobile — mode paysage obligatoire sur telephone"
+        >
+          📱 Horaires HTML
+        </Button>
+        </>
         )}
 
         {can('canViewLabourInspection') && (

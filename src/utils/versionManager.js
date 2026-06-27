@@ -395,6 +395,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.133': [
     'HTML paysage sur tous les exports PDF: recaps, matrix semaine, inspection, vue globale.',
     'Utilitaire partage exportElementHtmlAsLandscape + modales recaps employes.'
+  ],
+  '3.10.134': [
+    'Menu: 3 boutons visibles Horaires TXT / PDF / HTML (fini le prompt option 3).',
+    'Pilotage semaine: PDF + HTML direct; bouton HTML vert avant chaque PDF.'
   ]
 };
 

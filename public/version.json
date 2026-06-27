@@ -1,7 +1,16 @@
 {
-  "version": "3.10.133",
+  "version": "3.10.134",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.134",
+      "date": "2026-05-29",
+      "changes": [
+        "Export horaires : 3 boutons visibles dans le menu (TXT, PDF, HTML) — plus besoin de taper « 3 » dans une fenêtre.",
+        "Pilotage semaine : boutons PDF et HTML (paysage) directement en bas de fenêtre.",
+        "Bouton HTML (paysage) vert visible en premier sur tous les écrans d export PDF."
+      ]
+    },
     {
       "version": "3.10.133",
       "date": "2026-05-29",

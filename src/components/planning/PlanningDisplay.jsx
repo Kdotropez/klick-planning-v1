@@ -2038,7 +2038,7 @@ const PlanningDisplay = ({
     copyWeekToWeek(sourceWeek, destinationWeek);
   }, [validWeek, copyWeekToWeek]);
 
-  const exportReadableSchedules = useCallback(() => {
+  const exportReadableSchedules = useCallback((forcedExportMode = null) => {
     const planningData = userScopedPlanningData;
     try {
       if (!validWeek || !planningData?.shops?.length) {
@@ -2057,11 +2057,15 @@ const PlanningDisplay = ({
       }
       const exportScopeMonth = scopeTrim === '2';
 
-      const exportMode = window.prompt(
-        'Format export:\n1 = TXT lisible\n2 = PDF presente\n3 = HTML (mobile paysage)\n\nEntrez 1, 2 ou 3:'
-      );
-      if (!exportMode) return;
-      const normalizedExportMode = exportMode.trim();
+      let normalizedExportMode =
+        forcedExportMode != null ? String(forcedExportMode).trim() : null;
+      if (!normalizedExportMode) {
+        const exportMode = window.prompt(
+          'Format export:\n1 = TXT lisible\n2 = PDF presente\n3 = HTML (mobile paysage)\n\nEntrez 1, 2 ou 3:'
+        );
+        if (!exportMode) return;
+        normalizedExportMode = exportMode.trim();
+      }
       if (normalizedExportMode !== '1' && normalizedExportMode !== '2' && normalizedExportMode !== '3') {
         setLocalFeedback('❌ Format invalide. Utilisez 1, 2 ou 3.');
         return;
