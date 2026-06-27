@@ -1,7 +1,15 @@
 {
-  "version": "3.10.127",
+  "version": "3.10.128",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.128",
+      "date": "2026-05-29",
+      "changes": [
+        "Historique Supabase : auteur et poste réaffichés de façon fiable (requête JSON + repli).",
+        "Sauvegardes boutique/semaine : enregistrement de l'utilisateur et du poste dans _backupMeta."
+      ]
+    },
     {
       "version": "3.10.127",
       "date": "2026-05-29",

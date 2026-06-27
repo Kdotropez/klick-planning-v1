@@ -958,18 +958,14 @@ const App = () => {
         const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
         const sourceLabel = item.weekKey === 'current_complete_file'
           ? '★ VERSION ACTUELLE'
-          : item.weekKey.startsWith('legacy_row::')
-            ? '⚠️ 1 boutique/semaine (pas une restauration complète)'
-            : 'snapshot historique complet';
+          : 'snapshot historique complet';
         const shopsLabel = item.shopsCount != null ? `${item.shopsCount} boutique(s)` : '—';
-        const authorLabel = item.savedByUser && item.savedByUser !== '—'
-          ? item.savedByUser
-          : 'auteur inconnu';
-        const deviceLabel = item.savedByDevice && item.savedByDevice !== 'snapshot historique'
+        const authorLabel = item.savedByUser || 'auteur inconnu';
+        const deviceLabel = item.savedByDevice && item.savedByDevice !== 'poste inconnu'
           ? item.savedByDevice
           : '';
-        const byLine = deviceLabel ? `${authorLabel}, ${deviceLabel}` : authorLabel;
-        return `${idx + 1}. ${dateText} — ${shopsLabel}, ${sourceLabel} (${byLine})`;
+        const whoLine = deviceLabel ? `👤 ${authorLabel} · ${deviceLabel}` : `👤 ${authorLabel}`;
+        return `${idx + 1}. ${whoLine}\n   ${dateText} — ${shopsLabel} — ${sourceLabel}`;
       });
 
       const legacyNote = backups.some((item) => item.isLegacyRow)
@@ -981,7 +977,9 @@ const App = () => {
         : '';
 
       const selected = window.prompt(
-        `Historique Supabase (${listForRestore.length} sauvegarde(s) restaurable(s)) :\n${lines.join('\n')}${moreNote}${legacyNote}\n\nEntrez le numéro à restaurer :`
+        `Historique Supabase (${listForRestore.length} sauvegarde(s) complète(s)) :\n` +
+        `(auteur et poste indiqués pour chaque ligne)\n\n` +
+        `${lines.join('\n\n')}${moreNote}${legacyNote}\n\nEntrez le numéro à restaurer :`
       );
 
       if (!selected) {
@@ -1107,8 +1105,11 @@ const App = () => {
     const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
     let kind = 'snapshot';
     if (item.isCurrent) kind = 'VERSION ACTUELLE';
-    else if (item.isLegacy) kind = 'legacy';
-    return `• ${dateText} — ${kind}, ${item.shopsCount || 0} boutique(s) (${item.savedByUser || '?'})`;
+    else if (item.isLegacy) kind = 'boutique/semaine';
+    const device = item.savedByDevice && item.savedByDevice !== 'poste inconnu'
+      ? ` · ${item.savedByDevice}`
+      : '';
+    return `• ${dateText} — ${kind}, ${item.shopsCount ?? '—'} boutique(s) — 👤 ${item.savedByUser || '?'}${device}`;
   };
 
   const pickShopAndWeekForHistory = async (baseData) => {

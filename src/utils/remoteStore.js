@@ -138,6 +138,82 @@ const createHistoryWeekKey = () => {
   return `${HISTORY_WEEK_PREFIX}${ts}${rnd}`;
 };
 
+const extractBackupMetaFromData = (data) => {
+  if (!data || typeof data !== 'object') {
+    return { savedByUser: null, savedByDevice: null, shopsCount: null };
+  }
+  const meta = data._backupMeta && typeof data._backupMeta === 'object' ? data._backupMeta : {};
+  return {
+    savedByUser: meta.savedByUser || null,
+    savedByDevice: meta.savedByDevice || null,
+    shopsCount:
+      meta.shopsCount ??
+      (Array.isArray(data.shops) ? data.shops.length : null)
+  };
+};
+
+/** Charge les snapshots historiques avec auteur/poste (requête légère + repli si besoin). */
+const fetchHistorySnapshotRowsWithMeta = async (safeLimit) => {
+  const historyMetaSelect = `
+    week_key,
+    updated_at,
+    savedByUser:data->"_backupMeta"->>savedByUser,
+    savedByDevice:data->"_backupMeta"->>savedByDevice,
+    shopsCountText:data->"_backupMeta"->>shopsCount
+  `;
+
+  const { data: lightRows, error: lightError } = await supabase
+    .from('plannings')
+    .select(historyMetaSelect)
+    .eq('shop_id', HISTORY_SHOP_ID)
+    .order('updated_at', { ascending: false })
+    .limit(safeLimit);
+
+  if (!lightError && Array.isArray(lightRows) && lightRows.length > 0) {
+    const normalized = lightRows.map((row) => ({
+      week_key: row.week_key,
+      updated_at: row.updated_at,
+      savedByUser: row.savedByUser || null,
+      savedByDevice: row.savedByDevice || null,
+      shopsCount: row.shopsCountText != null && row.shopsCountText !== ''
+        ? Number.parseInt(row.shopsCountText, 10)
+        : null
+    }));
+    if (normalized.some((row) => row.savedByUser)) {
+      return normalized;
+    }
+  }
+
+  if (lightError) {
+    console.warn('⚠️ fetchHistorySnapshotRowsWithMeta (léger):', lightError.message);
+  }
+
+  const fallbackLimit = Math.min(safeLimit, 15);
+  console.warn(`⚠️ Repli metadata historique: chargement de ${fallbackLimit} snapshot(s) complets`);
+  const { data: fullRows, error: fullError } = await supabase
+    .from('plannings')
+    .select('week_key,updated_at,data')
+    .eq('shop_id', HISTORY_SHOP_ID)
+    .order('updated_at', { ascending: false })
+    .limit(fallbackLimit);
+
+  if (fullError || !Array.isArray(fullRows)) {
+    console.error('❌ fetchHistorySnapshotRowsWithMeta (repli):', fullError?.message || 'aucune ligne');
+    return [];
+  }
+
+  return fullRows.map((row) => {
+    const meta = extractBackupMetaFromData(row.data);
+    return {
+      week_key: row.week_key,
+      updated_at: row.updated_at,
+      savedByUser: meta.savedByUser,
+      savedByDevice: meta.savedByDevice,
+      shopsCount: meta.shopsCount
+    };
+  });
+};
+
 const saveHistorySnapshot = async (completePlanningData) => {
   if (!isCompletePlanningData(completePlanningData)) return false;
 
@@ -363,31 +439,20 @@ export const listCompletePlanningBackups = async (limit = 50) => {
         });
     }
 
-    // 2) Snapshots historiques — métadonnées légères (_backupMeta seulement)
-    const { data: historyRows, error: historyError } = await supabase
-      .from('plannings')
-      .select('week_key,updated_at,backup_meta:data->_backupMeta')
-      .eq('shop_id', HISTORY_SHOP_ID)
-      .order('updated_at', { ascending: false })
-      .limit(safeLimit);
-
-    if (historyError) {
-      console.error('❌ listCompletePlanningBackups history error:', historyError.message);
-    } else {
-      (historyRows || []).forEach((row) => {
-        if (!row?.week_key) return;
-        const meta = row.backup_meta || {};
-        pushItem({
-          weekKey: row.week_key,
-          updatedAt: row.updated_at,
-          shopsCount: meta.shopsCount ?? null,
-          savedByDevice: meta.savedByDevice || 'snapshot historique',
-          savedByUser: meta.savedByUser || '—',
-          isSnapshot: true,
-          isRestorable: true
-        });
+    // 2) Snapshots historiques — auteur/poste via _backupMeta (léger + repli)
+    const historyRows = await fetchHistorySnapshotRowsWithMeta(safeLimit);
+    historyRows.forEach((row) => {
+      if (!row?.week_key) return;
+      pushItem({
+        weekKey: row.week_key,
+        updatedAt: row.updated_at,
+        shopsCount: Number.isFinite(row.shopsCount) ? row.shopsCount : null,
+        savedByDevice: row.savedByDevice || 'poste inconnu',
+        savedByUser: row.savedByUser || 'auteur inconnu (ancienne sauvegarde)',
+        isSnapshot: true,
+        isRestorable: true
       });
-    }
+    });
 
     // 3) Lignes boutique/semaine — métadonnées seulement
     if (items.length < safeLimit) {
@@ -810,7 +875,15 @@ export const saveRemotePlanning = async (planningData, shopId, weekKey, isOutbox
   const row = {
     shop_id: shopId,
     week_key: weekKey,
-    data: planningData,
+    data: {
+      ...planningData,
+      _backupMeta: {
+        ...buildBackupMeta(),
+        shopId,
+        weekKey,
+        saveType: 'shop_week'
+      }
+    },
     version: 1
   };
   
@@ -832,7 +905,18 @@ export const saveRemotePlanning = async (planningData, shopId, weekKey, isOutbox
     console.log('🔄 Updating existing record...');
     result = await supabase
       .from('plannings')
-      .update({ data: planningData, version: 1 })
+      .update({
+        data: {
+          ...planningData,
+          _backupMeta: {
+            ...buildBackupMeta(),
+            shopId,
+            weekKey,
+            saveType: 'shop_week'
+          }
+        },
+        version: 1
+      })
       .eq('shop_id', shopId)
       .eq('week_key', weekKey);
   } else {

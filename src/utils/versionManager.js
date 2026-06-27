@@ -372,6 +372,10 @@ const VERSION_HIGHLIGHTS = {
     'Fix race demarrage: localStorage plus ecrase par planning vide avant Supabase.',
     'Historique Supabase: auteur reaffiche, snapshots complets vs lignes boutique/semaine.',
     'Bouton Restaurer: message clarifie (backup_* vs JSON / historique).'
+  ],
+  '3.10.128': [
+    'Historique Supabase: auteur/poste fiables (JSON _backupMeta + repli).',
+    'Sauvegardes boutique/semaine: _backupMeta avec utilisateur et poste.'
   ]
 };
 
