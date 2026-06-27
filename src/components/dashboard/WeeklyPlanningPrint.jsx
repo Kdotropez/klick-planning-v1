@@ -6,6 +6,10 @@ import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { getWeekPlanning, determineEmployeeMainShop } from '../../utils/planningDataManager';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import {
+  buildLandscapeHtmlDocument,
+  openOrDownloadLandscapeHtml,
+} from '../../utils/htmlLandscapeExport';
 
 const WeeklyPlanningPrint = ({
   selectedShop,
@@ -247,6 +251,31 @@ const WeeklyPlanningPrint = ({
     }
   };
 
+  const handleExportHtml = () => {
+    if (!printRef.current) return;
+
+    const title = `Planning hebdomadaire — ${shopName}`;
+    const weekLabel = `${format(weekStart, 'dd/MM/yyyy')} – ${format(weekEnd, 'dd/MM/yyyy')}`;
+    const bodyHtml = `<div class="schedule-sheet weekly-print">${printRef.current.innerHTML}</div>`;
+    const doc = buildLandscapeHtmlDocument({
+      title,
+      bodyHtml,
+      metaLines: [
+        `Boutique: ${shopName}`,
+        `Semaine: ${weekLabel}`,
+        `Genere le: ${new Date().toLocaleString('fr-FR')}`,
+        'Mode paysage requis sur telephone pour une lecture optimale.',
+      ],
+    });
+    const filename = `planning-hebdomadaire-${shopName}-${format(weekStart, 'yyyy-MM-dd')}.html`;
+    const result = openOrDownloadLandscapeHtml(doc, { title, filename });
+    if (result.mode === 'window') {
+      alert('Planning HTML ouvert. Sur mobile, tournez votre telephone en mode paysage pour visualiser les horaires.');
+    } else {
+      alert('Planning HTML telecharge. Ouvrez le fichier sur mobile en mode paysage.');
+    }
+  };
+
   // Fonction pour imprimer
   const handlePrint = async () => {
     if (!printRef.current) return;
@@ -349,6 +378,21 @@ const WeeklyPlanningPrint = ({
               }}
             >
               🖨️ Imprimer PDF
+            </button>
+            <button
+              onClick={handleExportHtml}
+              style={{
+                backgroundColor: '#0f766e',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600'
+              }}
+            >
+              📱 HTML (paysage)
             </button>
                          <button
                onClick={() => {

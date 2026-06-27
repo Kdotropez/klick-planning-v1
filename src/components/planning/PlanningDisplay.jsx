@@ -43,6 +43,12 @@ import {
   canUserAccessShop,
   filterPlanningDataForUser
 } from '../../config/userCodes';
+import {
+  buildLandscapeHtmlDocument,
+  escapeHtml,
+  openOrDownloadLandscapeHtml,
+  downloadLandscapeHtmlFile,
+} from '../../utils/htmlLandscapeExport';
 import '@/assets/styles.css';
 
 const normalizeWeekKey = (dateString) => {
@@ -2052,12 +2058,12 @@ const PlanningDisplay = ({
       const exportScopeMonth = scopeTrim === '2';
 
       const exportMode = window.prompt(
-        'Format export:\n1 = TXT lisible\n2 = PDF presente\n\nEntrez 1 ou 2:'
+        'Format export:\n1 = TXT lisible\n2 = PDF presente\n3 = HTML (mobile paysage)\n\nEntrez 1, 2 ou 3:'
       );
       if (!exportMode) return;
       const normalizedExportMode = exportMode.trim();
-      if (normalizedExportMode !== '1' && normalizedExportMode !== '2') {
-        setLocalFeedback('❌ Format invalide. Utilisez 1 ou 2.');
+      if (normalizedExportMode !== '1' && normalizedExportMode !== '2' && normalizedExportMode !== '3') {
+        setLocalFeedback('❌ Format invalide. Utilisez 1, 2 ou 3.');
         return;
       }
 
@@ -2694,6 +2700,134 @@ const PlanningDisplay = ({
 
       const filePeriodTag = exportScopeMonth ? monthTagFile : validWeek;
 
+      const buildMonthlyHoursTableHtml = (employeeId) => {
+        const { rows: monthlyByShop, monthGrand } = getEmployeeMonthlyHoursByShop(employeeId);
+        if (!monthlyByShop.length) {
+          return '<p><em>(aucune heure sur ce mois dans les plannings)</em></p>';
+        }
+        const rows = monthlyByShop
+          .map(
+            ({ shopName, hours }) =>
+              `<tr><td>${escapeHtml(shopName)}</td><td>${escapeHtml(formatWorkedHoursForDisplay(hours))}</td></tr>`
+          )
+          .join('');
+        const totalRow = `<tr class="subtotal"><td>Total toutes boutiques</td><td>${escapeHtml(formatWorkedHoursForDisplay(monthGrand))}</td></tr>`;
+        return `<table><thead><tr><th>Boutique</th><th>Heures (mois)</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
+      };
+
+      const buildEmployeeReadableHtmlSection = (employeeId) => {
+        const employeeName = employeeMap.get(employeeId) || employeeId;
+        let mainTable = '';
+        let totalsHtml = '';
+
+        if (exportScopeMonth) {
+          const monthRows = buildEmployeeMonthRows(employeeId);
+          let weekKeyCurrent = null;
+          let weekRunDates = [];
+          let bodyRows = '';
+
+          const pushWeekSubtotal = () => {
+            if (!weekRunDates.length) return;
+            const sum = weekRunDates.reduce(
+              (acc, d) => acc + sumEmployeeHoursForCalendarDay(employeeId, d),
+              0
+            );
+            const start = weekRunDates[0];
+            const end = weekRunDates[weekRunDates.length - 1];
+            bodyRows += `<tr class="subtotal"><td colspan="2">Total sem. ${format(start, 'dd/MM')}–${format(end, 'dd/MM')}</td><td>${escapeHtml(formatWorkedHoursForDisplay(sum))}</td></tr>`;
+          };
+
+          monthDaysFlat.forEach((dayDate, dayIdx) => {
+            const wk = format(startOfWeek(dayDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            if (weekKeyCurrent !== null && wk !== weekKeyCurrent) {
+              pushWeekSubtotal();
+              weekRunDates = [];
+            }
+            weekKeyCurrent = wk;
+            weekRunDates.push(dayDate);
+            const { dayLabel, entries } = monthRows[dayIdx];
+            const dayHours = sumEmployeeHoursForCalendarDay(employeeId, dayDate);
+            const detail = formatMonthReadableDayDetail(entries);
+            bodyRows += `<tr><td>${escapeHtml(dayLabel)}</td><td>${escapeHtml(detail)}</td><td>${escapeHtml(formatWorkedHoursNbNotation(dayHours))}</td></tr>`;
+          });
+          pushWeekSubtotal();
+
+          mainTable = `<table><thead><tr><th>Jour</th><th>Horaires</th><th>Nb (h)</th></tr></thead><tbody>${bodyRows}</tbody></table>`;
+          const monthTotal = sumEmployeeHoursForExportedMonth(employeeId);
+          totalsHtml = `<p><strong>Total toutes boutiques :</strong> ${escapeHtml(formatWorkedHoursForDisplay(monthTotal))}</p>`;
+          if (selectedShop != null) {
+            totalsHtml += `<p><strong>Total ${escapeHtml(selectedShopLabelName)} :</strong> ${escapeHtml(formatWorkedHoursForDisplay(sumEmployeeHoursForShopMonth(employeeId, selectedShop)))}</p>`;
+          }
+          totalsHtml +=
+            '<p><em>Heures sur jours du mois calendaire (semaines a cheval : partie hors mois exclue).</em></p>';
+        } else {
+          let bodyRows = '';
+          buildEmployeeDayRows(employeeId).forEach(({ dayLabel, entries }, dayIdx) => {
+            const dayHours = sumEmployeeHoursForDay(employeeId, weekDays[dayIdx]);
+            if (!entries.length) {
+              bodyRows += `<tr><td>${escapeHtml(dayLabel)}</td><td>-</td><td>Repos</td><td>${escapeHtml(formatWorkedHoursNbNotation(dayHours))}</td></tr>`;
+              return;
+            }
+            entries.forEach((entry, entryIdx) => {
+              bodyRows += `<tr><td>${entryIdx === 0 ? escapeHtml(dayLabel) : ''}</td><td>${escapeHtml(entry.shopName || '-')}</td><td>${escapeHtml(entry.value)}</td><td>${entryIdx === 0 ? escapeHtml(formatWorkedHoursNbNotation(dayHours)) : ''}</td></tr>`;
+            });
+          });
+          mainTable = `<table><thead><tr><th>Jour</th><th>Boutique</th><th>Horaires / Statut</th><th>Nb (h)</th></tr></thead><tbody>${bodyRows}</tbody></table>`;
+          const weekTotal = sumEmployeeHoursForExportedWeek(employeeId);
+          totalsHtml = `<p><strong>Total toutes boutiques (cette semaine) :</strong> ${escapeHtml(formatWorkedHoursForDisplay(weekTotal))}</p>`;
+          if (selectedShop != null) {
+            totalsHtml += `<p><strong>Total ${escapeHtml(selectedShopLabelName)} (cette semaine) :</strong> ${escapeHtml(formatWorkedHoursForDisplay(sumEmployeeHoursForShopWeek(employeeId, selectedShop)))}</p>`;
+          }
+        }
+
+        return `
+          <div class="schedule-sheet employee-block">
+            <h2 class="section-title">${escapeHtml(employeeName)}</h2>
+            ${mainTable}
+            ${totalsHtml}
+            <h3 class="section-title">Cumul mensuel (${escapeHtml(monthLabel)}) — detail par boutique</h3>
+            ${buildMonthlyHoursTableHtml(employeeId)}
+          </div>`;
+      };
+
+      const buildSynthesisAllEmployeesHtml = () => {
+        if (exportScopeMonth) {
+          const rows = targetEmployeeIds
+            .map((id) => {
+              const mH = sumEmployeeHoursForExportedMonth(id);
+              return `<tr><td>${escapeHtml(employeeMap.get(id) || id)}</td><td>${escapeHtml(formatWorkedHoursForDisplay(mH))}</td><td>${escapeHtml(formatWorkedHoursNbNotation(mH))}</td></tr>`;
+            })
+            .join('');
+          return `<div class="schedule-sheet"><h2 class="section-title">Synthese : mois calendaire (tous les employes)</h2><table><thead><tr><th>Employe</th><th>Heures (mois)</th><th>Nb (h)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        }
+        const rows = targetEmployeeIds
+          .map((id) => {
+            const wH = sumEmployeeHoursForExportedWeek(id);
+            const { monthGrand } = getEmployeeMonthlyHoursByShop(id);
+            return `<tr><td>${escapeHtml(employeeMap.get(id) || id)}</td><td>${escapeHtml(formatWorkedHoursForDisplay(wH))}</td><td>${escapeHtml(formatWorkedHoursForDisplay(monthGrand))}</td></tr>`;
+          })
+          .join('');
+        return `<div class="schedule-sheet"><h2 class="section-title">Synthese : semaine & cumul du mois (tous les employes)</h2><table><thead><tr><th>Employe</th><th>Heures (semaine affichee)</th><th>Cumul du mois</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      };
+
+      const buildReadableExportMetaLines = () => [
+        exportScopeMonth ? `Mois: ${monthLabel}` : `Semaine: ${weekLabel}`,
+        `Genere le: ${new Date().toLocaleString('fr-FR')}`,
+        'Mode paysage requis sur telephone pour une lecture optimale.',
+      ];
+
+      const exportReadableHtmlDocument = (bodyHtml, filename) => {
+        const title = exportScopeMonth
+          ? `Horaires — ${monthLabel}`
+          : `Horaires — semaine ${weekLabel}`;
+        const doc = buildLandscapeHtmlDocument({
+          title,
+          bodyHtml,
+          metaLines: buildReadableExportMetaLines(),
+        });
+        return openOrDownloadLandscapeHtml(doc, { title, filename });
+      };
+
       if (normalizedExportMode === '1') {
         const buildTxtLinesForEmployee = (employeeId) => {
           const lines = [];
@@ -2819,7 +2953,7 @@ const PlanningDisplay = ({
             `✅ Export TXT ${audienceTrim === '2' ? 'individuel' : 'collectif'} genere.`
           );
         }
-      } else {
+      } else if (normalizedExportMode === '2') {
         if (audienceTrim === '3') {
           const runPdfChain = (idx) => {
             if (idx >= targetEmployeeIds.length) {
@@ -2859,6 +2993,53 @@ const PlanningDisplay = ({
                 : ''
             }.`
           );
+        }
+      } else {
+        if (audienceTrim === '3') {
+          const runHtmlChain = (idx) => {
+            if (idx >= targetEmployeeIds.length) {
+              setLocalFeedback(
+                `✅ ${targetEmployeeIds.length} fichier(s) HTML telecharges (un par employe). Basculez le telephone en paysage pour lire.`
+              );
+              return;
+            }
+            const eid = targetEmployeeIds[idx];
+            const bodyHtml = buildEmployeeReadableHtmlSection(eid);
+            const doc = buildLandscapeHtmlDocument({
+              title: `Horaires — ${employeeMap.get(eid) || eid}`,
+              bodyHtml,
+              metaLines: buildReadableExportMetaLines(),
+            });
+            downloadLandscapeHtmlFile(
+              doc,
+              `horaires_${sanitizeFileName(employeeMap.get(eid) || eid)}_${filePeriodTag}.html`
+            );
+            setTimeout(() => runHtmlChain(idx + 1), 420);
+          };
+          runHtmlChain(0);
+        } else {
+          const sections = targetEmployeeIds.map((employeeId) =>
+            buildEmployeeReadableHtmlSection(employeeId)
+          );
+          if (audienceTrim === '1' && targetEmployeeIds.length > 0) {
+            sections.push(buildSynthesisAllEmployeesHtml());
+          }
+          const suffix = audienceTrim === '2' ? 'individuel' : 'collectif';
+          const filename = `horaires_${suffix}_${filePeriodTag}.html`;
+          const result = exportReadableHtmlDocument(sections.join(''), filename);
+          if (result.mode === 'download-fallback') {
+            setLocalFeedback(
+              `✅ Export HTML ${audienceTrim === '2' ? 'individuel' : 'collectif'} telecharge (pop-up bloquee). Ouvrez le fichier et basculez en paysage.`
+            );
+          } else if (result.mode === 'download') {
+            setLocalFeedback(
+              `✅ Export HTML ${audienceTrim === '2' ? 'individuel' : 'collectif'} telecharge. Basculez le telephone en paysage.`
+            );
+          } else {
+            setLocalFeedback(
+              `✅ Export HTML ${audienceTrim === '2' ? 'individuel' : 'collectif'} ouvert. Basculez le telephone en paysage pour visualiser.`
+            );
+          }
         }
       }
     } catch (error) {

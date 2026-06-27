@@ -387,6 +387,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.131': [
     'Fix copier-coller: donnees brutes, employes, navigation semaine destination, localStorage.'
+  ],
+  '3.10.132': [
+    'Export horaires lisibles: option HTML mobile paysage (TXT/PDF/HTML).',
+    'Planning boutique semaine: bouton HTML avec blocage portrait sur telephone.'
   ]
 };
 

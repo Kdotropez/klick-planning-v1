@@ -1,7 +1,15 @@
 {
-  "version": "3.10.131",
+  "version": "3.10.132",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.132",
+      "date": "2026-05-29",
+      "changes": [
+        "Export horaires lisibles : option HTML (mobile paysage) en plus du TXT et du PDF.",
+        "Planning boutique semaine : bouton HTML (paysage) avec écran de blocage en mode portrait sur téléphone."
+      ]
+    },
     {
       "version": "3.10.131",
       "date": "2026-05-29",
