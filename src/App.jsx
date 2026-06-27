@@ -178,6 +178,7 @@ const App = () => {
   );
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
   const [isSupabaseStartupReady, setIsSupabaseStartupReady] = useState(false);
+  const [isBootstrapComplete, setIsBootstrapComplete] = useState(false);
   const [inactivityCounterPosition, setInactivityCounterPosition] = useState(() => {
     try {
       const raw = localStorage.getItem('ui_inactivity_counter_position');
@@ -393,18 +394,20 @@ const App = () => {
       setRestoredInfo('⚠️ Supabase indisponible au démarrage.');
       setFeedback('❌ Connexion bloquée: Supabase indisponible au lancement.');
       }
+      setIsBootstrapComplete(true);
     };
 
     bootstrapFromSupabase();
   }, []);
 
-  // Sauvegarder les données dans localStorage
+  // Sauvegarder les données dans localStorage (après bootstrap Supabase, jamais avec un planning vide)
   useEffect(() => {
-    // Sauvegarder les données dans localStorage
+    if (!isBootstrapComplete) return;
     if (mode !== 'startup') {
+      if (!Array.isArray(planningData?.shops) || planningData.shops.length === 0) return;
       saveToLocalStorage('planningData', planningData);
     }
-  }, [planningData, mode]);
+  }, [planningData, mode, isBootstrapComplete]);
 
   useEffect(() => {
     if (feedback) {
@@ -947,24 +950,38 @@ const App = () => {
         return;
       }
 
-      const displayCount = Math.min(backups.length, 25);
-      const lines = backups.slice(0, displayCount).map((item, idx) => {
+      const restorableBackups = backups.filter((item) => item.isRestorable !== false);
+      const listForRestore = restorableBackups.length > 0 ? restorableBackups : backups;
+
+      const displayCount = Math.min(listForRestore.length, 25);
+      const lines = listForRestore.slice(0, displayCount).map((item, idx) => {
         const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
         const sourceLabel = item.weekKey === 'current_complete_file'
           ? '★ VERSION ACTUELLE'
           : item.weekKey.startsWith('legacy_row::')
-            ? 'sauvegarde boutique/semaine'
-            : 'snapshot historique';
+            ? '⚠️ 1 boutique/semaine (pas une restauration complète)'
+            : 'snapshot historique complet';
         const shopsLabel = item.shopsCount != null ? `${item.shopsCount} boutique(s)` : '—';
-        return `${idx + 1}. ${dateText} (${shopsLabel}, ${sourceLabel})`;
+        const authorLabel = item.savedByUser && item.savedByUser !== '—'
+          ? item.savedByUser
+          : 'auteur inconnu';
+        const deviceLabel = item.savedByDevice && item.savedByDevice !== 'snapshot historique'
+          ? item.savedByDevice
+          : '';
+        const byLine = deviceLabel ? `${authorLabel}, ${deviceLabel}` : authorLabel;
+        return `${idx + 1}. ${dateText} — ${shopsLabel}, ${sourceLabel} (${byLine})`;
       });
 
-      const moreNote = backups.length > displayCount
-        ? `\n\n… et ${backups.length - displayCount} autre(s) sauvegarde(s). Entrez le numéro exact (1-${backups.length}).`
+      const legacyNote = backups.some((item) => item.isLegacyRow)
+        ? '\n\nNote : les lignes « 1 boutique/semaine » ne restaurent pas toutes les boutiques. Utilisez un « snapshot historique complet » ou 🔍 CHERCHER HISTORIQUE pour une boutique précise.'
+        : '';
+
+      const moreNote = listForRestore.length > displayCount
+        ? `\n\n… et ${listForRestore.length - displayCount} autre(s) sauvegarde(s). Entrez le numéro exact (1-${listForRestore.length}).`
         : '';
 
       const selected = window.prompt(
-        `Historique Supabase (${backups.length} sauvegarde(s)) :\n${lines.join('\n')}${moreNote}\n\nEntrez le numéro à restaurer :`
+        `Historique Supabase (${listForRestore.length} sauvegarde(s) restaurable(s)) :\n${lines.join('\n')}${moreNote}${legacyNote}\n\nEntrez le numéro à restaurer :`
       );
 
       if (!selected) {
@@ -973,13 +990,18 @@ const App = () => {
       }
 
       const parsedIndex = Number.parseInt(selected, 10) - 1;
-      if (Number.isNaN(parsedIndex) || parsedIndex < 0 || parsedIndex >= backups.length) {
+      if (Number.isNaN(parsedIndex) || parsedIndex < 0 || parsedIndex >= listForRestore.length) {
         alert('❌ Numero invalide.');
         setFeedback('❌ Numero de sauvegarde invalide.');
         return;
       }
 
-      const chosen = backups[parsedIndex];
+      const chosen = listForRestore[parsedIndex];
+      if (chosen.isRestorable === false) {
+        alert('❌ Cette entrée est une sauvegarde boutique/semaine, pas un fichier complet.\n\nUtilisez 🎯 RESTAURATION CIBLÉE ou 🔍 CHERCHER HISTORIQUE pour une boutique précise.');
+        setFeedback('❌ Sauvegarde non restaurable en mode complet.');
+        return;
+      }
       const restoredData = await loadCompletePlanningBackupByWeekKey(chosen.weekKey);
       if (!restoredData || !restoredData.shops || restoredData.shops.length === 0) {
         alert('❌ Sauvegarde historique invalide ou vide.');

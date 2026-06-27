@@ -367,6 +367,11 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.126': [
     'Recap employes: conges/maladies corriges pour employes multi-boutiques (Valou etc.).'
+  ],
+  '3.10.127': [
+    'Fix race demarrage: localStorage plus ecrase par planning vide avant Supabase.',
+    'Historique Supabase: auteur reaffiche, snapshots complets vs lignes boutique/semaine.',
+    'Bouton Restaurer: message clarifie (backup_* vs JSON / historique).'
   ]
 };
 

@@ -1533,7 +1533,10 @@ const PlanningDisplay = ({
             }
           }
         } else {
-          setLocalFeedback('❌ Aucune sauvegarde de sécurité trouvée dans localStorage');
+          setLocalFeedback(
+            '❌ Aucune micro-sauvegarde créneau (backup_*) dans localStorage. ' +
+            'Pour restaurer toutes les boutiques : 📁 Importer un JSON ou 🕘 HISTORIQUE SUPABASE.'
+          );
         }
       }
     } else {

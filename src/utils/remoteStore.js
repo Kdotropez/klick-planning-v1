@@ -125,10 +125,11 @@ const getCurrentUserLabel = () => {
   }
 };
 
-const buildBackupMeta = () => ({
+const buildBackupMeta = (completePlanningData = null) => ({
   savedAt: new Date().toISOString(),
   savedByDevice: getOrCreateDeviceLabel(),
-  savedByUser: getCurrentUserLabel()
+  savedByUser: getCurrentUserLabel(),
+  shopsCount: Array.isArray(completePlanningData?.shops) ? completePlanningData.shops.length : null
 });
 
 const createHistoryWeekKey = () => {
@@ -246,7 +247,7 @@ export const saveCompletePlanningData = async (completePlanningData) => {
   }
   
   try {
-    const backupMeta = buildBackupMeta();
+    const backupMeta = buildBackupMeta(completePlanningData);
     const dataWithMeta = {
       ...completePlanningData,
       _backupMeta: backupMeta
@@ -350,21 +351,22 @@ export const listCompletePlanningBackups = async (limit = 50) => {
 
     if (!currentError && currentRow) {
       const valid = isCompletePlanningData(currentRow?.data);
-      pushItem({
-        weekKey: CURRENT_COMPLETE_SENTINEL,
-        updatedAt: currentRow.updated_at,
-        shopsCount: valid ? currentRow.data.shops.length : 0,
-        savedByDevice: currentRow?.data?._backupMeta?.savedByDevice || 'PC inconnu',
-        savedByUser: currentRow?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu',
-        isCurrent: true,
-        isValid: valid
-      });
+        pushItem({
+          weekKey: CURRENT_COMPLETE_SENTINEL,
+          updatedAt: currentRow.updated_at,
+          shopsCount: valid ? currentRow.data.shops.length : 0,
+          savedByDevice: currentRow?.data?._backupMeta?.savedByDevice || 'PC inconnu',
+          savedByUser: currentRow?.data?._backupMeta?.savedByUser || 'Utilisateur inconnu',
+          isCurrent: true,
+          isValid: valid,
+          isRestorable: valid
+        });
     }
 
-    // 2) Snapshots historiques — métadonnées SEULEMENT (évite timeout Supabase)
+    // 2) Snapshots historiques — métadonnées légères (_backupMeta seulement)
     const { data: historyRows, error: historyError } = await supabase
       .from('plannings')
-      .select('week_key,updated_at')
+      .select('week_key,updated_at,backup_meta:data->_backupMeta')
       .eq('shop_id', HISTORY_SHOP_ID)
       .order('updated_at', { ascending: false })
       .limit(safeLimit);
@@ -374,13 +376,15 @@ export const listCompletePlanningBackups = async (limit = 50) => {
     } else {
       (historyRows || []).forEach((row) => {
         if (!row?.week_key) return;
+        const meta = row.backup_meta || {};
         pushItem({
           weekKey: row.week_key,
           updatedAt: row.updated_at,
-          shopsCount: null,
-          savedByDevice: 'snapshot historique',
-          savedByUser: '—',
-          isSnapshot: true
+          shopsCount: meta.shopsCount ?? null,
+          savedByDevice: meta.savedByDevice || 'snapshot historique',
+          savedByUser: meta.savedByUser || '—',
+          isSnapshot: true,
+          isRestorable: true
         });
       });
     }
@@ -407,7 +411,8 @@ export const listCompletePlanningBackups = async (limit = 50) => {
             shopsCount: null,
             savedByDevice: 'Sauvegarde semaine Supabase',
             savedByUser: row.shop_id,
-            isLegacyRow: true
+            isLegacyRow: true,
+            isRestorable: false
           });
         });
       }

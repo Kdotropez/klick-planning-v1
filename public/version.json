@@ -1,7 +1,16 @@
 {
-  "version": "3.10.126",
+  "version": "3.10.127",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.127",
+      "date": "2026-05-29",
+      "changes": [
+        "Correction race au démarrage : le localStorage n'est plus écrasé par un planning vide avant le chargement Supabase.",
+        "Historique Supabase : auteur/poste réaffichés ; distinction snapshot complet vs sauvegarde boutique/semaine.",
+        "Bouton Restaurer : message clarifié (micro-sauvegarde créneau vs import JSON / historique Supabase)."
+      ]
+    },
     {
       "version": "3.10.126",
       "date": "2026-05-29",
