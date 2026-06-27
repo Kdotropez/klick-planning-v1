@@ -399,6 +399,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.134': [
     'Menu: 3 boutons visibles Horaires TXT / PDF / HTML (fini le prompt option 3).',
     'Pilotage semaine: PDF + HTML direct; bouton HTML vert avant chaque PDF.'
+  ],
+  '3.10.135': [
+    'Planning boutiques semaine: Exporter HTML = telechargement .html comme Exporter PDF.',
+    'Export HTML: fichier telecharge + apercu paysage mobile.'
   ]
 };
 

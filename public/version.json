@@ -1,7 +1,15 @@
 {
-  "version": "3.10.134",
+  "version": "3.10.135",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.135",
+      "date": "2026-05-29",
+      "changes": [
+        "Planning boutiques semaine : bouton « Exporter HTML » (téléchargement .html) au même niveau que « Exporter PDF ».",
+        "Export HTML : téléchargement automatique du fichier + aperçu paysage (plus seulement une fenêtre HTML)."
+      ]
+    },
     {
       "version": "3.10.134",
       "date": "2026-05-29",

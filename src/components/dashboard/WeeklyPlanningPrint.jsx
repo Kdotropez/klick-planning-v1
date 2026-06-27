@@ -8,7 +8,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import {
   buildLandscapeHtmlDocument,
-  openOrDownloadLandscapeHtml,
+  deliverLandscapeHtmlExport,
 } from '../../utils/htmlLandscapeExport';
 import HtmlExportButton from '../common/HtmlExportButton';
 
@@ -270,12 +270,7 @@ const WeeklyPlanningPrint = ({
       ],
     });
     const filename = `planning-hebdomadaire-${shopName}-${format(weekStart, 'yyyy-MM-dd')}.html`;
-    const result = openOrDownloadLandscapeHtml(doc, { title, filename });
-    if (result.mode === 'window') {
-      alert('Planning HTML ouvert. Sur mobile, tournez votre telephone en mode paysage pour visualiser les horaires.');
-    } else {
-      alert('Planning HTML telecharge. Ouvrez le fichier sur mobile en mode paysage.');
-    }
+    deliverLandscapeHtmlExport(doc, { filename, openPreview: true });
   };
 
   // Fonction pour imprimer

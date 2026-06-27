@@ -1181,7 +1181,7 @@ const ShopWeekInsightsModal = ({
                 cursor: 'pointer'
               }}
             >
-              📕 PDF planning
+              📕 Exporter PDF
             </button>
             <button
               type="button"
@@ -1195,11 +1195,12 @@ const ShopWeekInsightsModal = ({
                 border: 'none',
                 background: '#0f766e',
                 color: '#fff',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer'
               }}
+              title="Télécharge un fichier .html dans le dossier Téléchargements"
             >
-              📱 HTML (paysage)
+              📱 Exporter HTML
             </button>
           </div>
         </footer>

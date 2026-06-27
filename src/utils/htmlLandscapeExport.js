@@ -161,6 +161,56 @@ const LANDSCAPE_STYLES = `
     font-size: 10px;
     color: #455a64;
   }
+  .schedule-sheet.matrix-export table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 10px;
+    min-width: 900px;
+  }
+  .schedule-sheet.matrix-export th,
+  .schedule-sheet.matrix-export td {
+    border: 1px solid #cbd5e1;
+    padding: 5px;
+    vertical-align: top;
+    word-break: break-word;
+  }
+  .schedule-sheet.matrix-export thead th {
+    background: #0f4c75;
+    color: #fff;
+  }
+  .schedule-sheet.matrix-export tbody th {
+    background: #e8f0f7;
+    color: #12395b;
+  }
+  .schedule-sheet.matrix-export .matrix-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .schedule-sheet.matrix-export .matrix-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px;
+    background: #f8fafc;
+  }
+  .schedule-sheet.matrix-export .matrix-card strong {
+    display: block;
+    font-size: 15px;
+    color: #0f4c75;
+  }
+  .schedule-sheet.matrix-export .matrix-card span {
+    font-size: 10px;
+    color: #64748b;
+    text-transform: uppercase;
+  }
+  .schedule-sheet.matrix-export .week-block-title {
+    font-size: 14px;
+    color: #12395b;
+    margin: 14px 0 8px;
+    font-weight: 700;
+  }
   .toolbar {
     position: sticky;
     top: 0;
@@ -265,15 +315,21 @@ export const downloadLandscapeHtmlFile = (htmlDocument, filename) => {
   URL.revokeObjectURL(url);
 };
 
-export const openOrDownloadLandscapeHtml = (htmlDocument, { title, filename, preferDownload = false }) => {
+export const deliverLandscapeHtmlExport = (htmlDocument, { filename, openPreview = true }) => {
+  downloadLandscapeHtmlFile(htmlDocument, filename);
+  if (openPreview) {
+    openLandscapeHtmlView(htmlDocument, `preview_${Date.now()}`);
+  }
+  return { ok: true, mode: 'download' };
+};
+
+export const openOrDownloadLandscapeHtml = (htmlDocument, { title, filename, preferDownload = true }) => {
   if (preferDownload) {
-    downloadLandscapeHtmlFile(htmlDocument, filename);
-    return { ok: true, mode: 'download' };
+    return deliverLandscapeHtmlExport(htmlDocument, { filename, openPreview: true });
   }
   const opened = openLandscapeHtmlView(htmlDocument, `klick_${Date.now()}`);
   if (opened.ok) return { ok: true, mode: 'window' };
-  downloadLandscapeHtmlFile(htmlDocument, filename);
-  return { ok: true, mode: 'download-fallback' };
+  return deliverLandscapeHtmlExport(htmlDocument, { filename, openPreview: false });
 };
 
 export const LANDSCAPE_MOBILE_HINT =

@@ -3,8 +3,7 @@ import { addDays, eachDayOfInterval, endOfMonth, format, parseISO, startOfMonth,
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { exportElementHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
-import HtmlExportButton from '../common/HtmlExportButton';
+import { exportRawBodyHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
 import 'jspdf-autotable';
 import { loadFromLocalStorage } from '../../utils/localStorage';
 import { isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
@@ -692,9 +691,9 @@ const WeeklyWorkMatrixModal = ({
     );
   };
 
-  const printSheet = () => {
+  const buildMatrixPrintContent = () => {
     const printedRows = tableView === 'shops' ? shopMatrix.rows : matrix.rows;
-    if (!printedRows.length) return;
+    if (!printedRows.length) return null;
 
     const title = tableView === 'shops'
       ? `Planning ${effectivePeriodMode === 'month' ? 'mois' : effectivePeriodMode === 'range' ? 'plage' : 'semaine'} par boutique`
@@ -714,7 +713,7 @@ const WeeklyWorkMatrixModal = ({
       `;
       }).join('');
       return `
-        ${chunk.title ? `<h2 style="font-size:14px;color:#12395b;margin:14px 0 8px;">${escapeHtml(chunk.title)}</h2>` : ''}
+        ${chunk.title ? `<h2 class="week-block-title">${escapeHtml(chunk.title)}</h2>` : ''}
         <table>
           <thead>
             <tr>
@@ -728,6 +727,39 @@ const WeeklyWorkMatrixModal = ({
       `;
     }).join('');
 
+    const cardsHtml = `
+      <div class="matrix-cards">
+        <div class="matrix-card"><strong>${summary.shopCount}</strong><span>Boutiques</span></div>
+        <div class="matrix-card"><strong>${summary.activeEmployeeCount}</strong><span>Employés actifs</span></div>
+        <div class="matrix-card"><strong>${summary.workEmployeeCount}</strong><span>Employés au planning</span></div>
+        <div class="matrix-card"><strong>${formatWorkedHoursForDisplay(summary.totalHours)}</strong><span>Total période</span></div>
+        <div class="matrix-card"><strong>${summary.leaveEmployeeCount}</strong><span>En congé</span></div>
+        <div class="matrix-card"><strong>${summary.sickEmployeeCount}</strong><span>Maladie</span></div>
+      </div>`;
+
+    const scopeSlug = recapShopKey === 'all' ? 'toutes' : String(recapShopKey).replace(/[^\w-]+/g, '_');
+    const periodSlug = effectivePeriodMode === 'month'
+      ? format(parseISO(selectedWeek), 'yyyy-MM')
+      : effectivePeriodMode === 'range'
+        ? `${effectiveRangeStart}_${effectiveRangeEnd}`
+        : selectedWeek;
+
+    return {
+      title,
+      bodyHtml: `${cardsHtml}${tablesHtml}<p class="footer-note">Les congés et maladies sont listés dans la case du jour concerné. Les totaux ne comptent que les heures travaillées.</p>`,
+      filename: `planning_boutiques_${effectivePeriodMode}_${tableView === 'shops' ? 'par_boutique' : 'par_employe'}_${scopeSlug}_${periodSlug}.html`,
+      metaLines: [
+        recapShopKey === 'all' ? 'Toutes les boutiques' : `Boutique : ${selectedShopName || String(recapShopKey)}`,
+        `Période : ${periodLabel}`,
+        `Généré le : ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`,
+      ],
+    };
+  };
+
+  const printSheet = () => {
+    const content = buildMatrixPrintContent();
+    if (!content) return;
+
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`
@@ -735,47 +767,39 @@ const WeeklyWorkMatrixModal = ({
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${escapeHtml(title)} - ${escapeHtml(periodLabel)}</title>
+          <title>${escapeHtml(content.title)} - ${escapeHtml(periodLabel)}</title>
           <style>
             @page { size: A4 landscape; margin: 8mm; }
             body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; }
             .header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 10px; }
             h1 { margin: 0; font-size: 20px; color: #12395b; }
             .meta { font-size: 12px; color: #475569; text-align: right; }
-            .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px 0 10px; }
-            .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px; background: #f8fafc; }
-            .card strong { display: block; font-size: 15px; color: #0f4c75; }
-            .card span { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
-            table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+            .matrix-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 10px; }
+            .matrix-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px; background: #f8fafc; }
+            .matrix-card strong { display: block; font-size: 15px; color: #0f4c75; }
+            .matrix-card span { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; margin-bottom: 10px; }
             th, td { border: 1px solid #cbd5e1; padding: 5px; vertical-align: top; white-space: normal; word-break: break-word; }
             thead th { background: #0f4c75; color: #fff; text-align: left; }
             tbody th { background: #e8f0f7; color: #12395b; text-align: left; width: 13%; }
             tbody tr:nth-child(even) td, tbody tr:nth-child(even) th { background: #f8fafc; }
             .total { font-weight: 800; text-align: right; background: #e0f2fe; color: #075985; }
-            .legend { margin-top: 8px; font-size: 10px; color: #64748b; }
+            .week-block-title { font-size: 14px; color: #12395b; margin: 14px 0 8px; }
+            .footer-note { margin-top: 8px; font-size: 10px; color: #64748b; }
           </style>
         </head>
         <body>
           <div class="header">
             <div>
-              <h1>${escapeHtml(title)}</h1>
-              <div class="legend">${escapeHtml(recapShopKey === 'all' ? 'Toutes les boutiques' : `Boutique : ${selectedShopName || String(recapShopKey)}`)}</div>
+              <h1>${escapeHtml(content.title)}</h1>
+              <div class="footer-note">${escapeHtml(recapShopKey === 'all' ? 'Toutes les boutiques' : `Boutique : ${selectedShopName || String(recapShopKey)}`)}</div>
             </div>
             <div class="meta">
               <div>Période : ${escapeHtml(periodLabel)}</div>
               <div>Édité le ${escapeHtml(format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr }))}</div>
             </div>
           </div>
-          <div class="cards">
-            <div class="card"><strong>${summary.shopCount}</strong><span>Boutiques</span></div>
-            <div class="card"><strong>${summary.activeEmployeeCount}</strong><span>Employés actifs</span></div>
-            <div class="card"><strong>${summary.workEmployeeCount}</strong><span>Employés au planning</span></div>
-            <div class="card"><strong>${formatWorkedHoursForDisplay(summary.totalHours)}</strong><span>Total période</span></div>
-            <div class="card"><strong>${summary.leaveEmployeeCount}</strong><span>En congé</span></div>
-            <div class="card"><strong>${summary.sickEmployeeCount}</strong><span>Maladie</span></div>
-          </div>
-          ${tablesHtml}
-          <div class="legend">Les congés et maladies sont listés dans la case du jour concerné. Les totaux ne comptent que les heures travaillées.</div>
+          ${content.bodyHtml}
         </body>
       </html>
     `);
@@ -939,22 +963,14 @@ const WeeklyWorkMatrixModal = ({
   };
 
   const exportHtml = () => {
-    if (!pdfCaptureRef.current) return;
-    const scopeSlug = recapShopKey === 'all' ? 'toutes' : String(recapShopKey).replace(/[^\w-]+/g, '_');
-    const periodSlug = effectivePeriodMode === 'month'
-      ? format(parseISO(selectedWeek), 'yyyy-MM')
-      : effectivePeriodMode === 'range'
-        ? `${effectiveRangeStart}_${effectiveRangeEnd}`
-        : selectedWeek;
-    exportElementHtmlAsLandscape({
-      element: pdfCaptureRef.current,
-      title: `Recap ${tableView === 'shops' ? 'par boutique' : 'multi-boutiques'}`,
-      metaLines: [
-        recapShopKey === 'all' ? 'Toutes les boutiques' : (selectedShopName || String(recapShopKey)),
-        periodLabel,
-        `Genere le: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}`,
-      ],
-      filename: `recap_${effectivePeriodMode}_${tableView === 'shops' ? 'par_boutique' : 'global_multi_boutiques'}_${scopeSlug}_${periodSlug}.html`,
+    const content = buildMatrixPrintContent();
+    if (!content) return;
+    exportRawBodyHtmlAsLandscape({
+      title: content.title,
+      bodyHtml: content.bodyHtml,
+      metaLines: content.metaLines,
+      filename: content.filename,
+      sheetClassName: 'matrix-export',
     });
   };
 
@@ -1083,7 +1099,23 @@ const WeeklyWorkMatrixModal = ({
             >
               Imprimer
             </button>
-            <HtmlExportButton onClick={exportHtml} disabled={!canExport} />
+            <button
+              type="button"
+              onClick={exportHtml}
+              disabled={!canExport}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: canExport ? '#0f766e' : '#94a3b8',
+                color: '#fff',
+                cursor: canExport ? 'pointer' : 'not-allowed',
+                fontWeight: 700
+              }}
+              title="Télécharge un fichier .html (comme Exporter PDF) — mode paysage sur mobile"
+            >
+              Exporter HTML
+            </button>
             <button
               type="button"
               onClick={exportPdf}

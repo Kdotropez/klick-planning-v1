@@ -3,7 +3,7 @@ import Button from './Button';
 
 const HtmlExportButton = ({
   onClick,
-  label = '📱 HTML (paysage)',
+  label = '📱 Exporter HTML',
   disabled = false,
 }) => (
   <Button
@@ -15,7 +15,7 @@ const HtmlExportButton = ({
       color: '#fff',
       borderColor: disabled ? '#94a3b8' : '#0f766e',
     }}
-    title="Export HTML pour mobile — tournez le téléphone en mode paysage pour lire"
+    title="Télécharge un fichier .html (aperçu paysage mobile) — comme Exporter PDF"
   >
     {label}
   </Button>
