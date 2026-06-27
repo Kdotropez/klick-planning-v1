@@ -505,6 +505,96 @@ const countWeekPlanningEntries = (weekData) => {
   return count;
 };
 
+const weekHasLocalData = (weekData) => {
+  if (!weekData) return false;
+  if (Array.isArray(weekData.selectedEmployees) && weekData.selectedEmployees.length > 0) return true;
+  return countWeekPlanningEntries(weekData) > 0;
+};
+
+const mergeEmployeeLists = (localEmployees = [], remoteEmployees = []) => {
+  const byId = new Map();
+  (remoteEmployees || []).forEach((employee) => {
+    if (employee?.id != null) byId.set(String(employee.id), employee);
+  });
+  (localEmployees || []).forEach((employee) => {
+    if (employee?.id == null) return;
+    const key = String(employee.id);
+    byId.set(key, { ...(byId.get(key) || {}), ...employee });
+  });
+  return Array.from(byId.values());
+};
+
+const mergeShopWeeksPreservingRemote = (localWeeks = {}, remoteWeeks = {}) => {
+  const merged = { ...(remoteWeeks || {}) };
+  Object.entries(localWeeks || {}).forEach(([weekKey, weekData]) => {
+    if (weekHasLocalData(weekData)) {
+      merged[weekKey] = weekData;
+    } else if (!(weekKey in merged)) {
+      merged[weekKey] = weekData;
+    }
+  });
+  return merged;
+};
+
+const mergeShopWithRemote = (localShop, remoteShop) => {
+  if (!remoteShop) return localShop;
+  if (!localShop) return remoteShop;
+  return {
+    ...remoteShop,
+    ...localShop,
+    config: { ...(remoteShop.config || {}), ...(localShop.config || {}) },
+    employees: mergeEmployeeLists(localShop.employees, remoteShop.employees),
+    weeks: mergeShopWeeksPreservingRemote(localShop.weeks, remoteShop.weeks)
+  };
+};
+
+/**
+ * Fusionne le planning local avec la version Supabase avant sauvegarde :
+ * - les boutiques absentes du poste local sont conservées (ex. Cavalaire)
+ * - pour une boutique présente des deux côtés, les semaines locales écrasent le remote si elles ont des données
+ */
+export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
+  const localShops = Array.isArray(localData?.shops) ? localData.shops : [];
+  const remoteShops = Array.isArray(remoteData?.shops) ? remoteData.shops : [];
+  const remoteById = new Map(remoteShops.map((shop) => [String(shop.id), shop]));
+  const seen = new Set();
+  const preservedShopIds = [];
+  const mergedShops = [];
+
+  localShops.forEach((localShop) => {
+    if (!localShop?.id) return;
+    const shopId = String(localShop.id);
+    seen.add(shopId);
+    const remoteShop = remoteById.get(shopId);
+    mergedShops.push(mergeShopWithRemote(localShop, remoteShop));
+  });
+
+  remoteShops.forEach((remoteShop) => {
+    if (!remoteShop?.id) return;
+    const shopId = String(remoteShop.id);
+    if (seen.has(shopId)) return;
+    preservedShopIds.push(shopId);
+    mergedShops.push(JSON.parse(JSON.stringify(remoteShop)));
+    seen.add(shopId);
+  });
+
+  const { _backupMeta: _localMeta, ...localRest } = localData || {};
+  const { _backupMeta: _remoteMeta, ...remoteRest } = remoteData || {};
+
+  return {
+    ...remoteRest,
+    ...localRest,
+    version: localData?.version || remoteData?.version || '2.0',
+    shops: mergedShops,
+    _mergeReport: {
+      localShopsCount: localShops.length,
+      remoteShopsCount: remoteShops.length,
+      mergedShopsCount: mergedShops.length,
+      preservedShopIds
+    }
+  };
+};
+
 /** Clés semaine à tester (lundi canonique + variantes fréquentes). */
 export const resolveWeekKeysToTry = (weekKey) => {
   const keys = [];

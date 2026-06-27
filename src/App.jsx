@@ -548,7 +548,12 @@ const App = () => {
 
       let saveSucceeded = false;
       try {
-        saveSucceeded = await saveCompletePlanningData(planningData);
+        const saveResult = await saveCompletePlanningData(planningData);
+        saveSucceeded = !!saveResult?.ok;
+        if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
+          setPlanningData(saveResult.planningData);
+          localStorage.setItem('planningData', JSON.stringify(saveResult.planningData));
+        }
       } catch (error) {
         console.error('❌ Erreur sauvegarde auto avant déconnexion:', error);
       }
@@ -1409,7 +1414,11 @@ const App = () => {
       if (pushNow) {
         setFeedback('⏳ Enregistrement Supabase en cours...');
         const saved = await saveCompletePlanningData(mergedData);
-        setFeedback(saved ? '✅ Restauration ciblée enregistrée sur Supabase.' : '⚠️ Fusion locale OK, échec Supabase.');
+        if (saved?.ok && saved.planningData) {
+          setPlanningData(saved.planningData);
+          localStorage.setItem('planningData', JSON.stringify(saved.planningData));
+        }
+        setFeedback(saved?.ok ? '✅ Restauration ciblée enregistrée sur Supabase.' : '⚠️ Fusion locale OK, échec Supabase.');
       } else {
         setFeedback('✅ Restauration ciblée appliquée localement. Pensez à SAUVE SUPABASE.');
       }
@@ -1465,7 +1474,11 @@ const App = () => {
 
     try {
       if (currentUser?.code && hasGlobalLock) {
-        await saveCompletePlanningData(planningData);
+        const saveResult = await saveCompletePlanningData(planningData);
+        if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
+          setPlanningData(saveResult.planningData);
+          localStorage.setItem('planningData', JSON.stringify(saveResult.planningData));
+        }
         await releaseLock(getLockHolderId(currentUser));
       }
     } catch (error) {

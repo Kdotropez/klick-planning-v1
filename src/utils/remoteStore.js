@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData } from './planningDataManager';
+import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData, mergeCompletePlanningWithRemote } from './planningDataManager';
 
 // Outbox locale pour mode hybride (sauvegardes différées)
 const OUTBOX_KEY = 'remote_outbox_v1';
@@ -310,22 +310,51 @@ export const cleanAndResaveData = async () => {
 };
 
 // Fonction pour sauvegarder le fichier complet de planning
-export const saveCompletePlanningData = async (completePlanningData) => {
+export const saveCompletePlanningData = async (completePlanningData, options = {}) => {
+  const { replaceEntirely = false } = options;
+
   console.log('🔍 saveCompletePlanningData called with:', { 
     hasData: !!completePlanningData,
     dataKeys: completePlanningData ? Object.keys(completePlanningData) : [],
-    shopsCount: completePlanningData?.shops?.length || 0
+    shopsCount: completePlanningData?.shops?.length || 0,
+    replaceEntirely
   });
   
   if (!isReady() || !completePlanningData) {
     console.log('❌ saveCompletePlanningData: not ready or missing data');
-    return false;
+    return { ok: false };
   }
   
   try {
-    const backupMeta = buildBackupMeta(completePlanningData);
+    let dataToSave = completePlanningData;
+    let preservedShopIds = [];
+
+    if (!replaceEntirely) {
+      const remoteRow = await fetchRowData('complete_file', 'all_data');
+      if (remoteRow && isCompletePlanningData(remoteRow)) {
+        const merged = mergeCompletePlanningWithRemote(completePlanningData, remoteRow);
+        preservedShopIds = merged._mergeReport?.preservedShopIds || [];
+        const { _mergeReport, ...withoutReport } = merged;
+        dataToSave = withoutReport;
+
+        if (preservedShopIds.length > 0) {
+          console.warn(
+            `🛡️ Fusion Supabase: ${preservedShopIds.length} boutique(s) absente(s) du poste local conservée(s):`,
+            preservedShopIds.join(', ')
+          );
+        }
+      }
+    }
+
+    const backupMeta = {
+      ...buildBackupMeta(dataToSave),
+      mergeApplied: !replaceEntirely,
+      preservedShopIds,
+      localShopsCount: completePlanningData?.shops?.length || 0,
+      mergedShopsCount: dataToSave?.shops?.length || 0
+    };
     const dataWithMeta = {
-      ...completePlanningData,
+      ...dataToSave,
       _backupMeta: backupMeta
     };
 
@@ -341,7 +370,8 @@ export const saveCompletePlanningData = async (completePlanningData) => {
       shop_id: row.shop_id,
       week_key: row.week_key,
       dataShops: dataWithMeta.shops?.length || 0,
-      dataVersion: dataWithMeta.version
+      dataVersion: dataWithMeta.version,
+      preservedShopIds
     });
     
     // Debug détaillé des boutiques et semaines
@@ -367,15 +397,13 @@ export const saveCompletePlanningData = async (completePlanningData) => {
     
     if (error) {
       console.error('❌ Erreur lors de l\'insertion:', error);
-      return false;
+      return { ok: false };
     }
     
     console.log('✅ saveCompletePlanningData success:', { 
-      shops: completePlanningData.shops?.length || 0,
-      version: completePlanningData.version,
-      dataKeys: Object.keys(completePlanningData),
-      hasPlanning: !!completePlanningData.planning,
-      planningKeys: completePlanningData.planning ? Object.keys(completePlanningData.planning) : [],
+      shops: dataToSave.shops?.length || 0,
+      version: dataToSave.version,
+      preservedShopIds,
       upsertResult: data
     });
 
@@ -386,11 +414,22 @@ export const saveCompletePlanningData = async (completePlanningData) => {
           'Seule la ligne complete_file a été mise à jour.'
       );
     }
+
+    const preservedShopNames = preservedShopIds.map((shopId) => {
+      const shop = dataToSave.shops?.find((s) => String(s.id) === String(shopId));
+      return shop?.name || shopId;
+    });
     
-    return true;
+    return {
+      ok: true,
+      planningData: dataToSave,
+      preservedShopIds,
+      preservedShopNames,
+      mergedShopsCount: dataToSave.shops?.length || 0
+    };
   } catch (error) {
     console.error('❌ Exception dans saveCompletePlanningData:', error);
-    return false;
+    return { ok: false };
   }
 };
 

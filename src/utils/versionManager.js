@@ -376,6 +376,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.128': [
     'Historique Supabase: auteur/poste fiables (JSON _backupMeta + repli).',
     'Sauvegardes boutique/semaine: _backupMeta avec utilisateur et poste.'
+  ],
+  '3.10.129': [
+    'Sauvegarde Supabase: fusion auto avec distant — boutiques manquantes preservees.',
+    'Feedback sauvegarde: boutiques conservees depuis Supabase affichees.'
   ]
 };
 

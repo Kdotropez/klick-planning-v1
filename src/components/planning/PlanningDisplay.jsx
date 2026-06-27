@@ -870,9 +870,16 @@ const PlanningDisplay = ({
       try {
         console.log('💾 Sauvegarde du masquage dans Supabase...');
         const remoteResult = await saveCompletePlanningData(updatedData);
-        if (remoteResult) {
+        if (remoteResult?.ok) {
+          if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
+            setPlanningData(remoteResult.planningData);
+            saveToLocalStorage('planningData', remoteResult.planningData);
+          }
           console.log('✅ Masquage sauvegardé dans Supabase');
-          setLocalFeedback(`🚫 Employé "${employeeName}" masqué dans ${shopLabel} (référence 01/01/2026) et sauvegardé dans Supabase`);
+          const preservedNote = remoteResult.preservedShopNames?.length
+            ? ` — boutiques conservées: ${remoteResult.preservedShopNames.join(', ')}`
+            : '';
+          setLocalFeedback(`🚫 Employé "${employeeName}" masqué dans ${shopLabel} (référence 01/01/2026) et sauvegardé dans Supabase${preservedNote}`);
                 } else {
           console.log('❌ Échec sauvegarde Supabase du masquage');
           setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement dans ${shopLabel} (référence 01/01/2026) mais échec sauvegarde Supabase`);
@@ -939,9 +946,16 @@ const PlanningDisplay = ({
       try {
         console.log('💾 Sauvegarde de la réactivation dans Supabase...');
         const remoteResult = await saveCompletePlanningData(updatedData);
-        if (remoteResult) {
+        if (remoteResult?.ok) {
+          if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
+            setPlanningData(remoteResult.planningData);
+            saveToLocalStorage('planningData', remoteResult.planningData);
+          }
           console.log('✅ Réactivation sauvegardée dans Supabase');
-          setLocalFeedback(`🔓 Employé "${employeeName}" réactivé dans ${shopLabel} et sauvegardé dans Supabase`);
+          const preservedNote = remoteResult.preservedShopNames?.length
+            ? ` — boutiques conservées: ${remoteResult.preservedShopNames.join(', ')}`
+            : '';
+          setLocalFeedback(`🔓 Employé "${employeeName}" réactivé dans ${shopLabel} et sauvegardé dans Supabase${preservedNote}`);
     } else {
           console.log('❌ Échec sauvegarde Supabase de la réactivation');
           setLocalFeedback(`🔓 Employé "${employeeName}" réactivé localement dans ${shopLabel} mais échec sauvegarde Supabase`);
@@ -1354,9 +1368,16 @@ const PlanningDisplay = ({
         try { 
           console.log('🔄 Sauvegarde complète avec données fraîches...');
           const remoteResult = await saveCompletePlanningData(updatedSnapshot);
-          if (remoteResult) {
+          if (remoteResult?.ok) {
+            if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
+              setPlanningData(remoteResult.planningData);
+              saveToLocalStorage('planningData', remoteResult.planningData);
+            }
             console.log('✅ Sauvegarde complète Supabase réussie');
-            setLocalFeedback('💾 Sauvegarde complète réussie');
+            const preservedNote = remoteResult.preservedShopNames?.length
+              ? ` — boutiques conservées depuis Supabase: ${remoteResult.preservedShopNames.join(', ')}`
+              : '';
+            setLocalFeedback(`💾 Sauvegarde complète réussie (${remoteResult.mergedShopsCount || 0} boutique(s))${preservedNote}`);
             addAuditLog({
               action: 'Sauvegarde Manuelle',
               details: `Sauvegarde complete validee pour la semaine ${validWeek}.`,

@@ -128,7 +128,7 @@ const HiddenEmployeesModal = ({
         console.log('💾 Sauvegarde de la modification de date dans Supabase...');
         const { saveCompletePlanningData } = await import('../../utils/remoteStore');
         const remoteResult = await saveCompletePlanningData(updatedData);
-        if (remoteResult) {
+        if (remoteResult?.ok) {
           console.log('✅ Date de masquage modifiée et sauvegardée dans Supabase');
           alert(`✅ Date de masquage modifiée pour "${employeeName}" : ${newHideDate}\n\nLa modification a été sauvegardée localement et dans Supabase.`);
         } else {
