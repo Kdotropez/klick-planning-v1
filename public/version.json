@@ -1,7 +1,15 @@
 {
-  "version": "3.10.138",
+  "version": "3.10.139",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.139",
+      "date": "2026-05-29",
+      "changes": [
+        "Export HTML cartographie équipe : durée (h) par personne, grille horaires type planning sous chaque jour, enchaînement jour 1 → jour 7.",
+        "Export HTML boutique (1 fichier) ou 1 fichier par employée avec ligne surlignée dans la grille."
+      ]
+    },
     {
       "version": "3.10.138",
       "date": "2026-05-29",

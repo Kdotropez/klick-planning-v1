@@ -7,6 +7,7 @@ import {
   buildPresenceDayStatuses,
   buildPresenceWeekLabel,
   buildReadablePresenceDays,
+  buildDayPlanningGridHtml,
   exportPresenceMapHtml
 } from '../../utils/presenceMapExport';
 
@@ -111,12 +112,16 @@ const ShopPresenceMapModal = ({
     [shopName, selectedWeek, mondayOfWeek, planning, config, employeeIds, employeeNameById, currentDay, scopeMode]
   );
 
-  const handleExportReadable = useCallback(() => {
-    exportPresenceMapHtml({ ...exportArgs, mode: 'readable' });
+  const handleExportShop = useCallback(() => {
+    exportPresenceMapHtml({ ...exportArgs, mode: 'readable', exportTarget: 'shop' });
   }, [exportArgs]);
 
-  const handleExportWeekGrid = useCallback(() => {
-    exportPresenceMapHtml({ ...exportArgs, mode: 'week' });
+  const handleExportEmployees = useCallback(() => {
+    exportPresenceMapHtml({
+      ...exportArgs,
+      mode: 'readable',
+      exportTarget: 'employees'
+    });
   }, [exportArgs]);
 
   if (!isOpen) return null;
@@ -290,11 +295,18 @@ const ShopPresenceMapModal = ({
           }}
         >
           <HtmlExportButton
-            label={scopeMode === 'day' ? '📱 HTML équipe (jour)' : '📱 HTML équipe (semaine)'}
-            onClick={handleExportReadable}
+            label={scopeMode === 'day' ? '📱 HTML boutique (jour)' : '📱 HTML boutique (semaine)'}
+            onClick={handleExportShop}
+          />
+          <HtmlExportButton
+            label="📱 HTML 1 fichier / employée"
+            onClick={handleExportEmployees}
           />
           {layoutMode === 'grid' && (
-            <HtmlExportButton label="📱 HTML grille" onClick={handleExportWeekGrid} />
+            <HtmlExportButton
+              label="📱 HTML grille"
+              onClick={() => exportPresenceMapHtml({ ...exportArgs, mode: 'week' })}
+            />
           )}
         </div>
 
@@ -312,7 +324,7 @@ const ShopPresenceMapModal = ({
               {visibleReadableDays.length === 0 ? (
                 <div style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>Aucune donnée à afficher.</div>
               ) : (
-                visibleReadableDays.map(({ day, roster, workingCount, teamMoments }) => (
+                visibleReadableDays.map(({ day, roster, workingCount, teamMoments }, dayIndex) => (
                   <article
                     key={day.dayKey}
                     style={{
@@ -344,6 +356,9 @@ const ShopPresenceMapModal = ({
                         }}
                       >
                         {day.weekday} {format(parseISO(day.dayKey), 'dd/MM/yyyy')}
+                        <span style={{ fontWeight: 600, opacity: 0.85, marginLeft: 6, fontSize: 13 }}>
+                          (jour {dayIndex + 1})
+                        </span>
                       </h3>
                       <span
                         style={{
@@ -387,6 +402,20 @@ const ShopPresenceMapModal = ({
                           >
                             Horaires
                           </th>
+                          <th
+                            style={{
+                              textAlign: 'center',
+                              padding: '8px 16px',
+                              background: '#f8fafc',
+                              color: '#64748b',
+                              fontSize: 11,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              width: 72
+                            }}
+                          >
+                            Durée (h)
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -394,6 +423,7 @@ const ShopPresenceMapModal = ({
                           const highlighted = entry.id === highlightEmployeeId;
                           let hoursStyle = { color: '#0f766e', fontWeight: 600 };
                           let label = entry.rangesLabel;
+                          let duration = entry.type === 'work' ? entry.hoursLabel || '—' : '—';
                           if (entry.type === 'conge') {
                             hoursStyle = { color: '#c2410c', fontWeight: 700 };
                             label = 'Congé ☀️';
@@ -417,6 +447,17 @@ const ShopPresenceMapModal = ({
                               </td>
                               <td style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', ...hoursStyle }}>
                                 {label}
+                              </td>
+                              <td
+                                style={{
+                                  padding: '10px 16px',
+                                  borderTop: '1px solid #e2e8f0',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                  color: '#0f172a'
+                                }}
+                              >
+                                {duration}
                               </td>
                             </tr>
                           );
@@ -458,6 +499,20 @@ const ShopPresenceMapModal = ({
                         ))}
                       </div>
                     )}
+
+                    <div
+                      style={{ margin: '0 16px 14px', overflowX: 'auto' }}
+                      dangerouslySetInnerHTML={{
+                        __html: buildDayPlanningGridHtml({
+                          day,
+                          planning,
+                          config,
+                          employeeIds,
+                          employeeNameById,
+                          highlightEmployeeId
+                        })
+                      }}
+                    />
                   </article>
                 ))
               )}

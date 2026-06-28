@@ -1,7 +1,8 @@
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getSlotEndTimeFormatted, buildSlotRangeLines } from './slotDurationUtils';
-import { buildLandscapeHtmlDocument, deliverLandscapeHtmlExport, escapeHtml } from './htmlLandscapeExport';
+import { buildLandscapeHtmlDocument, deliverLandscapeHtmlExport, downloadLandscapeHtmlFile, escapeHtml } from './htmlLandscapeExport';
+import { calculateEmployeeDailyHours, formatWorkedHoursNbNotation } from './planningUtils';
 
 const normSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
 
@@ -128,11 +129,13 @@ export const buildEmployeeDaySchedule = (planning, employeeId, day, config) => {
     return {
       type: status === 'maladie' ? 'maladie' : 'conge',
       ranges: [],
-      rangesLabel: status === 'maladie' ? 'Maladie' : 'Congé'
+      rangesLabel: status === 'maladie' ? 'Maladie' : 'Congé',
+      hours: 0,
+      hoursLabel: '—'
     };
   }
   if (!Array.isArray(dayData)) {
-    return { type: 'repos', ranges: [], rangesLabel: 'Repos' };
+    return { type: 'repos', ranges: [], rangesLabel: 'Repos', hours: 0, hoursLabel: '—' };
   }
   const ranges = buildSlotRangeLines(
     dayData,
@@ -140,9 +143,21 @@ export const buildEmployeeDaySchedule = (planning, employeeId, day, config) => {
     slotDurationCfg(config)
   );
   if (!ranges.length) {
-    return { type: 'repos', ranges: [], rangesLabel: 'Repos' };
+    return { type: 'repos', ranges: [], rangesLabel: 'Repos', hours: 0, hoursLabel: '—' };
   }
-  return { type: 'work', ranges, rangesLabel: ranges.join(' · ') };
+  const hours = calculateEmployeeDailyHours(
+    employeeId,
+    day.dayKey,
+    { [employeeId]: planning[employeeId] },
+    config
+  );
+  return {
+    type: 'work',
+    ranges,
+    rangesLabel: ranges.join(' · '),
+    hours,
+    hoursLabel: formatWorkedHoursNbNotation(hours)
+  };
 };
 
 /** Moments où 2+ personnes sont présentes (plages fusionnées). */
@@ -176,6 +191,7 @@ export const buildTeamMomentsForDay = (matrix, dayKey) => {
       flush();
       current = {
         ids,
+        employeeIds: people.map((p) => p.id),
         names: people.map((p) => p.name),
         count: people.length,
         start: slotStart,
@@ -221,6 +237,125 @@ export const buildReadablePresenceDays = ({
       teamMoments
     };
   });
+
+const EMPLOYEE_ROW_COLORS = [
+  '#e6f0fa',
+  '#e6ffed',
+  '#ffe6e6',
+  '#d0f0fa',
+  '#f0e6fa',
+  '#fffde6',
+  '#d6e6ff'
+];
+
+const getDayStatusLabel = (dayData) => {
+  if (dayData == null) return null;
+  if (typeof dayData === 'string') return dayData;
+  if (Array.isArray(dayData)) {
+    if (dayData.some((v) => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')))) {
+      return 'Maladie 🤒';
+    }
+    if (
+      dayData.some(
+        (v) =>
+          v === 'C' ||
+          (typeof v === 'string' && (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge')))
+      )
+    ) {
+      return 'Congé ☀️';
+    }
+  }
+  return null;
+};
+
+/** Grille type planning drag & drop pour un jour (employés × créneaux). */
+export const buildDayPlanningGridHtml = ({
+  day,
+  planning = {},
+  config = {},
+  employeeIds = [],
+  employeeNameById = new Map(),
+  highlightEmployeeId = null
+}) => {
+  const timeSlots = config?.timeSlots || [];
+  if (!timeSlots.length || !employeeIds.length) return '';
+
+  const durationCfg = slotDurationCfg(config);
+  const slotHeadersDe = timeSlots.map((slot) => escapeHtml(typeof slot === 'string' ? slot : slot?.start || ''));
+  const slotHeadersA = timeSlots.map((slot, index) => {
+    if (index < timeSlots.length - 1) {
+      const next = timeSlots[index + 1];
+      return escapeHtml(typeof next === 'string' ? next : next?.start || '');
+    }
+    return escapeHtml(getSlotEndTimeFormatted(timeSlots, index, durationCfg));
+  });
+
+  const rows = employeeIds
+    .map((employeeId, employeeIndex) => {
+      const name = employeeNameById.get(employeeId) || employeeId;
+      const dayData = planning?.[employeeId]?.[day.dayKey];
+      const statusLabel = getDayStatusLabel(dayData);
+      const rowBg = EMPLOYEE_ROW_COLORS[employeeIndex % EMPLOYEE_ROW_COLORS.length];
+      const highlighted = highlightEmployeeId && String(highlightEmployeeId) === String(employeeId);
+      const rowStyle = highlighted ? 'outline:3px solid #2563eb;outline-offset:-2px;' : '';
+
+      if (statusLabel) {
+        const isMaladie = statusLabel.toLowerCase().includes('maladie');
+        const statusBg = isMaladie ? '#fde8e8' : '#fff3e0';
+        return `<tr style="${rowStyle}">
+          <td class="pg-name" style="background:${rowBg}">${escapeHtml(name)}</td>
+          <td class="pg-status" colspan="${timeSlots.length}" style="background:${statusBg};font-weight:700;text-align:center">
+            ${escapeHtml(statusLabel)}
+          </td>
+        </tr>`;
+      }
+
+      const slots = Array.isArray(dayData) ? dayData : Array(timeSlots.length).fill(false);
+      const cells = timeSlots
+        .map((_, slotIndex) => {
+          const on = normSlot(slots[slotIndex]);
+          return `<td class="pg-slot${on ? ' pg-slot-on' : ''}">${on ? '✓' : ''}</td>`;
+        })
+        .join('');
+
+      return `<tr style="${rowStyle}">
+        <td class="pg-name" style="background:${rowBg}">${escapeHtml(name)}</td>
+        ${cells}
+      </tr>`;
+    })
+    .join('');
+
+  return `<div class="planning-grid-block">
+    <style>
+      .planning-grid-block .pg-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.04em; }
+      .planning-grid-block .pg-scroll { overflow-x: auto; }
+      .planning-grid-block .planning-grid-export { width: 100%; border-collapse: collapse; font-size: 9px; min-width: 640px; table-layout: fixed; }
+      .planning-grid-block .planning-grid-export th, .planning-grid-block .planning-grid-export td { border: 1px solid #cbd5e1; padding: 3px 2px; text-align: center; vertical-align: middle; }
+      .planning-grid-block .pg-corner { background: #f1f5f9; font-weight: 700; color: #475569; min-width: 72px; font-size: 9px; }
+      .planning-grid-block .pg-time { background: #e2e8f0; font-weight: 600; color: #334155; font-size: 8px; }
+      .planning-grid-block .pg-name { text-align: left; font-weight: 700; font-size: 10px; padding: 4px 6px; min-width: 72px; }
+      .planning-grid-block .pg-slot { background: #fff; color: #cbd5e1; }
+      .planning-grid-block .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; font-size: 10px; }
+      .planning-grid-block .pg-status { font-size: 11px; }
+    </style>
+    <h3 class="pg-title">Planning du jour (grille horaires)</h3>
+    <div class="pg-scroll">
+      <table class="planning-grid-export">
+        <thead>
+          <tr>
+            <th class="pg-corner">DE →</th>
+            ${slotHeadersDe.map((h) => `<th class="pg-time">${h}</th>`).join('')}
+          </tr>
+          <tr>
+            <th class="pg-corner">À →</th>
+            ${slotHeadersA.map((h) => `<th class="pg-time">${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+};
 
 const READABLE_STYLES = `
   .readable-presence { display: flex; flex-direction: column; gap: 14px; }
@@ -298,6 +433,72 @@ const READABLE_STYLES = `
     line-height: 1.4;
   }
   .team-line strong { color: #047857; }
+  .duration-cell { color: #0f172a; font-weight: 700; text-align: center; white-space: nowrap; }
+  .planning-grid-block {
+    margin: 0 14px 14px;
+    padding-top: 4px;
+  }
+  .pg-title {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pg-scroll { overflow-x: auto; }
+  .planning-grid-export {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9px;
+    min-width: 640px;
+    table-layout: fixed;
+  }
+  .planning-grid-export th,
+  .planning-grid-export td {
+    border: 1px solid #cbd5e1;
+    padding: 3px 2px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .planning-grid-export .pg-corner {
+    background: #f1f5f9;
+    font-weight: 700;
+    color: #475569;
+    min-width: 72px;
+    font-size: 9px;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  .planning-grid-export .pg-time {
+    background: #e2e8f0;
+    font-weight: 600;
+    color: #334155;
+    font-size: 8px;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    height: 52px;
+    padding: 2px;
+  }
+  .planning-grid-export .pg-name {
+    text-align: left;
+    font-weight: 700;
+    font-size: 10px;
+    padding: 4px 6px;
+    min-width: 72px;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  .planning-grid-export .pg-slot { background: #fff; color: #cbd5e1; }
+  .planning-grid-export .pg-slot-on {
+    background: #22c55e;
+    color: #fff;
+    font-weight: 800;
+    font-size: 10px;
+  }
+  .planning-grid-export .pg-status { font-size: 11px; }
   .empty-day {
     padding: 16px 14px;
     color: #64748b;
@@ -306,11 +507,25 @@ const READABLE_STYLES = `
   }
 `;
 
-export const buildReadablePresenceHtml = ({ readableDays, shopName, weekLabel }) => {
+export const buildReadablePresenceHtml = ({
+  readableDays,
+  shopName,
+  weekLabel,
+  planning = {},
+  config = {},
+  employeeIds = [],
+  employeeNameById = new Map(),
+  filterRosterEmployeeId = null,
+  highlightEmployeeId = null
+}) => {
   const cards = readableDays
-    .map(({ day, roster, workingCount, teamMoments }) => {
+    .map(({ day, roster, workingCount, teamMoments }, dayIndex) => {
       const palette = day.palette;
-      const rosterRows = roster
+      const visibleRoster = filterRosterEmployeeId
+        ? roster.filter((entry) => String(entry.id) === String(filterRosterEmployeeId))
+        : roster;
+
+      const rosterRows = visibleRoster
         .map((entry) => {
           let hoursClass = 'hours-cell';
           let label = escapeHtml(entry.rangesLabel);
@@ -323,18 +538,27 @@ export const buildReadablePresenceHtml = ({ readableDays, shopName, weekLabel })
           } else if (entry.type === 'repos') {
             hoursClass = 'status-repos';
           }
+          const duration =
+            entry.type === 'work' ? escapeHtml(entry.hoursLabel || '—') : '—';
           return `<tr>
             <td class="emp-name-cell">${escapeHtml(entry.name)}</td>
             <td class="${hoursClass}">${label}</td>
+            <td class="duration-cell">${duration}</td>
           </tr>`;
         })
         .join('');
 
+      const visibleTeamMoments = filterRosterEmployeeId
+        ? teamMoments.filter((m) =>
+            (m.employeeIds || []).some((id) => String(id) === String(filterRosterEmployeeId))
+          )
+        : teamMoments;
+
       const teamHtml =
-        teamMoments.length > 0
+        visibleTeamMoments.length > 0
           ? `<div class="team-block">
               <h3>En boutique en même temps</h3>
-              ${teamMoments
+              ${visibleTeamMoments
                 .map(
                   (m) =>
                     `<div class="team-line"><strong>${escapeHtml(m.timeLabel)}</strong> — ${escapeHtml(m.names.join(', '))}</div>`
@@ -343,17 +567,26 @@ export const buildReadablePresenceHtml = ({ readableDays, shopName, weekLabel })
             </div>`
           : '';
 
+      const planningGridHtml = buildDayPlanningGridHtml({
+        day,
+        planning,
+        config,
+        employeeIds,
+        employeeNameById,
+        highlightEmployeeId: highlightEmployeeId || filterRosterEmployeeId
+      });
+
       const body =
-        workingCount === 0 && roster.every((r) => r.type === 'repos')
+        visibleRoster.length === 0
           ? '<div class="empty-day">Personne planifiée ce jour.</div>'
           : `<table class="roster-table">
-              <thead><tr><th>Prénom</th><th>Horaires</th></tr></thead>
+              <thead><tr><th>Prénom</th><th>Horaires</th><th>Durée (h)</th></tr></thead>
               <tbody>${rosterRows}</tbody>
-            </table>${teamHtml}`;
+            </table>${teamHtml}${planningGridHtml}`;
 
       return `<article class="day-card" style="border-color:${palette.border}">
         <header class="day-card-head" style="background:${palette.header};color:${palette.text}">
-          <h2>${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'dd/MM/yyyy'))}</h2>
+          <h2>Jour ${dayIndex + 1} — ${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'dd/MM/yyyy'))}</h2>
           <span class="day-badge">${workingCount} en boutique</span>
         </header>
         ${body}
@@ -364,7 +597,7 @@ export const buildReadablePresenceHtml = ({ readableDays, shopName, weekLabel })
   return `<div class="schedule-sheet readable-presence">
     <style>${READABLE_STYLES}</style>
     ${cards}
-    <p class="presence-note">Vue équipe : une carte par jour, prénom + plages horaires. Section verte = moments où plusieurs personnes se croisent.</p>
+    <p class="presence-note">Par jour : équipe (prénom, horaires, durée), croisements simultanés, puis grille horaires type planning.</p>
   </div>`;
 };
 
@@ -553,6 +786,7 @@ export const buildPresenceWeekLabel = (weekDays) => {
 export const exportPresenceMapHtml = ({
   mode = 'week',
   readableScope = 'week',
+  exportTarget = 'shop',
   shopName = '',
   selectedWeek = '',
   mondayOfWeek,
@@ -560,7 +794,8 @@ export const exportPresenceMapHtml = ({
   config = {},
   employeeIds = [],
   employeeNameById = new Map(),
-  currentDay = 0
+  currentDay = 0,
+  onChainComplete = null
 }) => {
   const weekDays = buildPresenceWeekDays(mondayOfWeek, selectedWeek);
   if (!weekDays.length) return { ok: false, reason: 'no-week' };
@@ -580,35 +815,100 @@ export const exportPresenceMapHtml = ({
     matrix
   });
 
+  const buildReadableDoc = ({
+    daysFilter,
+    filterRosterEmployeeId = null,
+    highlightEmployeeId = null,
+    title,
+    metaLines,
+    filename
+  }) => {
+    const bodyHtml = buildReadablePresenceHtml({
+      readableDays: daysFilter,
+      shopName,
+      weekLabel,
+      planning,
+      config,
+      employeeIds,
+      employeeNameById,
+      filterRosterEmployeeId,
+      highlightEmployeeId
+    });
+    return {
+      doc: buildLandscapeHtmlDocument({ title, metaLines, bodyHtml }),
+      filename
+    };
+  };
+
   if (mode === 'readable') {
     const daysFilter =
       readableScope === 'day'
         ? readableDaysAll.filter((d) => d.day.index === currentDay)
         : readableDaysAll;
-    const bodyHtml = buildReadablePresenceHtml({ readableDays: daysFilter, shopName, weekLabel });
     const day = weekDays[currentDay] || weekDays[0];
-    const title =
-      readableScope === 'day'
-        ? `Équipe — ${shopName} — ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
-        : `Équipe — ${shopName} — semaine ${weekLabel}`;
-    const doc = buildLandscapeHtmlDocument({
-      title,
+
+    if (exportTarget === 'employees') {
+      const targets = employeeIds.filter(Boolean);
+      if (!targets.length) return { ok: false, reason: 'no-employees' };
+
+      const runChain = (idx) => {
+        if (idx >= targets.length) {
+          if (typeof onChainComplete === 'function') {
+            onChainComplete(targets.length);
+          }
+          return;
+        }
+        const employeeId = targets[idx];
+        const empName = employeeNameById.get(employeeId) || employeeId;
+        const empPart = sanitizeFilePart(empName);
+        const { doc, filename } = buildReadableDoc({
+          daysFilter,
+          filterRosterEmployeeId: employeeId,
+          highlightEmployeeId: employeeId,
+          title: `Équipe — ${empName} — ${shopName} — ${readableScope === 'day' ? day.weekday : `semaine ${weekLabel}`}`,
+          metaLines: [
+            `Employée : ${empName}`,
+            `Boutique : ${shopName}`,
+            readableScope === 'day'
+              ? `Jour : ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
+              : `Semaine : ${weekLabel}`,
+            'Votre ligne est surlignée dans la grille horaires.'
+          ],
+          filename:
+            readableScope === 'day'
+              ? `equipe_${empPart}_${shopPart}_${day.dayKey}.html`
+              : `equipe_${empPart}_${shopPart}_${weekPart}.html`
+        });
+        if (idx === 0) {
+          deliverLandscapeHtmlExport(doc, { filename, openPreview: true });
+        } else {
+          downloadLandscapeHtmlFile(doc, filename);
+        }
+        setTimeout(() => runChain(idx + 1), 450);
+      };
+      runChain(0);
+      return { ok: true, mode: 'employees-chain', count: targets.length };
+    }
+
+    const { doc, filename } = buildReadableDoc({
+      daysFilter,
+      title:
+        readableScope === 'day'
+          ? `Équipe — ${shopName} — ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
+          : `Équipe — ${shopName} — semaine ${weekLabel}`,
       metaLines: [
         `Boutique : ${shopName}`,
         readableScope === 'day'
           ? `Jour : ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
           : `Semaine : ${weekLabel}`,
-        'Vue lisible : prénom et horaires par jour.'
+        'Vue équipe complète : récap, croisements et grille horaires par jour.'
       ],
-      bodyHtml
-    });
-    deliverLandscapeHtmlExport(doc, {
       filename:
         readableScope === 'day'
-          ? `equipe_${shopPart}_${day.dayKey}.html`
-          : `equipe_${shopPart}_${weekPart}.html`,
-      openPreview: true
+          ? `equipe_boutique_${shopPart}_${day.dayKey}.html`
+          : `equipe_boutique_${shopPart}_${weekPart}.html`
     });
+    deliverLandscapeHtmlExport(doc, { filename, openPreview: true });
     return { ok: true };
   }
 

@@ -416,6 +416,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.138': [
     'Cartographie: vue equipe recommandee (carte/jour, prenom + horaires).',
     'Bloc « en boutique en meme temps » ; grille detaillee en option.'
+  ],
+  '3.10.139': [
+    'HTML cartographie: duree (h), grille planning par jour, export boutique ou 1 fichier/employe.'
   ]
 };
 
