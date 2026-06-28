@@ -1,7 +1,16 @@
 {
-  "version": "3.10.137",
+  "version": "3.10.138",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.138",
+      "date": "2026-05-29",
+      "changes": [
+        "Cartographie : nouvelle vue équipe (recommandée) — une carte par jour avec prénom + horaires consolidés.",
+        "Section « En boutique en même temps » pour voir qui se croise, sans grille créneau par créneau.",
+        "Grille détaillée conservée en option ; export HTML équipe par défaut."
+      ]
+    },
     {
       "version": "3.10.137",
       "date": "2026-05-29",

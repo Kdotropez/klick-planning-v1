@@ -1,6 +1,6 @@
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { getSlotEndTimeFormatted } from './slotDurationUtils';
+import { getSlotEndTimeFormatted, buildSlotRangeLines } from './slotDurationUtils';
 import { buildLandscapeHtmlDocument, deliverLandscapeHtmlExport, escapeHtml } from './htmlLandscapeExport';
 
 const normSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
@@ -115,6 +115,258 @@ export const buildPresenceDayStatuses = ({
       .filter(Boolean);
     return { ...day, entries };
   });
+
+const slotDurationCfg = (config) => ({
+  interval: config?.interval || 30,
+  endTime: config?.endTime
+});
+
+export const buildEmployeeDaySchedule = (planning, employeeId, day, config) => {
+  const dayData = planning?.[employeeId]?.[day.dayKey];
+  const status = isStatusDay(dayData);
+  if (status) {
+    return {
+      type: status === 'maladie' ? 'maladie' : 'conge',
+      ranges: [],
+      rangesLabel: status === 'maladie' ? 'Maladie' : 'Congé'
+    };
+  }
+  if (!Array.isArray(dayData)) {
+    return { type: 'repos', ranges: [], rangesLabel: 'Repos' };
+  }
+  const ranges = buildSlotRangeLines(
+    dayData,
+    config?.timeSlots || [],
+    slotDurationCfg(config)
+  );
+  if (!ranges.length) {
+    return { type: 'repos', ranges: [], rangesLabel: 'Repos' };
+  }
+  return { type: 'work', ranges, rangesLabel: ranges.join(' · ') };
+};
+
+/** Moments où 2+ personnes sont présentes (plages fusionnées). */
+export const buildTeamMomentsForDay = (matrix, dayKey) => {
+  const moments = [];
+  let current = null;
+
+  const flush = () => {
+    if (current && current.count >= 2) moments.push(current);
+    current = null;
+  };
+
+  matrix.forEach((row) => {
+    const cell = row.dayCells.find((c) => c.dayKey === dayKey);
+    const people = cell?.employees || [];
+    if (!people.length) {
+      flush();
+      return;
+    }
+    const ids = people
+      .map((p) => p.id)
+      .sort()
+      .join('|');
+    const [slotStart] = String(row.slotLabel).split('–').map((s) => s.trim());
+    const slotEnd = String(row.slotLabel).split('–').pop()?.trim() || slotStart;
+
+    if (current && current.ids === ids) {
+      current.end = slotEnd;
+      current.timeLabel = `${current.start} → ${current.end}`;
+    } else {
+      flush();
+      current = {
+        ids,
+        names: people.map((p) => p.name),
+        count: people.length,
+        start: slotStart,
+        end: slotEnd,
+        timeLabel: `${slotStart} → ${slotEnd}`
+      };
+    }
+  });
+  flush();
+  return moments;
+};
+
+export const buildReadablePresenceDays = ({
+  planning = {},
+  config = {},
+  employeeIds = [],
+  employeeNameById = new Map(),
+  weekDays = [],
+  matrix = []
+}) =>
+  weekDays.map((day) => {
+    const roster = employeeIds
+      .map((employeeId) => {
+        const name = employeeNameById.get(employeeId) || employeeId;
+        const schedule = buildEmployeeDaySchedule(planning, employeeId, day, config);
+        return { id: employeeId, name, ...schedule };
+      })
+      .sort((a, b) => {
+        const order = { work: 0, conge: 1, maladie: 2, repos: 3 };
+        const da = order[a.type] ?? 9;
+        const db = order[b.type] ?? 9;
+        if (da !== db) return da - db;
+        return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+      });
+
+    const workingCount = roster.filter((r) => r.type === 'work').length;
+    const teamMoments = buildTeamMomentsForDay(matrix, day.dayKey);
+
+    return {
+      day,
+      roster,
+      workingCount,
+      teamMoments
+    };
+  });
+
+const READABLE_STYLES = `
+  .readable-presence { display: flex; flex-direction: column; gap: 14px; }
+  .day-card {
+    border-radius: 12px;
+    border: 2px solid #cbd5e1;
+    overflow: hidden;
+    background: #fff;
+    page-break-inside: avoid;
+  }
+  .day-card-head {
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .day-card-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    text-transform: capitalize;
+  }
+  .day-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.65);
+  }
+  .roster-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .roster-table th {
+    text-align: left;
+    padding: 8px 14px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .roster-table td {
+    padding: 9px 14px;
+    border-top: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+  .roster-table tr:nth-child(even) td { background: #fafafa; }
+  .emp-name-cell { font-weight: 700; color: #0f172a; min-width: 120px; }
+  .hours-cell { color: #0f766e; font-weight: 600; }
+  .status-conge { color: #c2410c; font-weight: 700; }
+  .status-maladie { color: #dc2626; font-weight: 700; }
+  .status-repos { color: #94a3b8; font-style: italic; }
+  .team-block {
+    margin: 0 14px 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+  }
+  .team-block h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #065f46;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .team-line {
+    font-size: 12px;
+    color: #14532d;
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+  .team-line strong { color: #047857; }
+  .empty-day {
+    padding: 16px 14px;
+    color: #64748b;
+    font-size: 13px;
+    text-align: center;
+  }
+`;
+
+export const buildReadablePresenceHtml = ({ readableDays, shopName, weekLabel }) => {
+  const cards = readableDays
+    .map(({ day, roster, workingCount, teamMoments }) => {
+      const palette = day.palette;
+      const rosterRows = roster
+        .map((entry) => {
+          let hoursClass = 'hours-cell';
+          let label = escapeHtml(entry.rangesLabel);
+          if (entry.type === 'conge') {
+            hoursClass = 'status-conge';
+            label = 'Congé ☀️';
+          } else if (entry.type === 'maladie') {
+            hoursClass = 'status-maladie';
+            label = 'Maladie 🤒';
+          } else if (entry.type === 'repos') {
+            hoursClass = 'status-repos';
+          }
+          return `<tr>
+            <td class="emp-name-cell">${escapeHtml(entry.name)}</td>
+            <td class="${hoursClass}">${label}</td>
+          </tr>`;
+        })
+        .join('');
+
+      const teamHtml =
+        teamMoments.length > 0
+          ? `<div class="team-block">
+              <h3>En boutique en même temps</h3>
+              ${teamMoments
+                .map(
+                  (m) =>
+                    `<div class="team-line"><strong>${escapeHtml(m.timeLabel)}</strong> — ${escapeHtml(m.names.join(', '))}</div>`
+                )
+                .join('')}
+            </div>`
+          : '';
+
+      const body =
+        workingCount === 0 && roster.every((r) => r.type === 'repos')
+          ? '<div class="empty-day">Personne planifiée ce jour.</div>'
+          : `<table class="roster-table">
+              <thead><tr><th>Prénom</th><th>Horaires</th></tr></thead>
+              <tbody>${rosterRows}</tbody>
+            </table>${teamHtml}`;
+
+      return `<article class="day-card" style="border-color:${palette.border}">
+        <header class="day-card-head" style="background:${palette.header};color:${palette.text}">
+          <h2>${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'dd/MM/yyyy'))}</h2>
+          <span class="day-badge">${workingCount} en boutique</span>
+        </header>
+        ${body}
+      </article>`;
+    })
+    .join('');
+
+  return `<div class="schedule-sheet readable-presence">
+    <style>${READABLE_STYLES}</style>
+    ${cards}
+    <p class="presence-note">Vue équipe : une carte par jour, prénom + plages horaires. Section verte = moments où plusieurs personnes se croisent.</p>
+  </div>`;
+};
 
 const PRESENCE_MAP_STYLES = `
   .presence-export { margin-bottom: 16px; }
@@ -300,6 +552,7 @@ export const buildPresenceWeekLabel = (weekDays) => {
 
 export const exportPresenceMapHtml = ({
   mode = 'week',
+  readableScope = 'week',
   shopName = '',
   selectedWeek = '',
   mondayOfWeek,
@@ -317,6 +570,47 @@ export const exportPresenceMapHtml = ({
   const weekLabel = buildPresenceWeekLabel(weekDays);
   const shopPart = sanitizeFilePart(shopName);
   const weekPart = selectedWeek || weekDays[0].dayKey;
+
+  const readableDaysAll = buildReadablePresenceDays({
+    planning,
+    config,
+    employeeIds,
+    employeeNameById,
+    weekDays,
+    matrix
+  });
+
+  if (mode === 'readable') {
+    const daysFilter =
+      readableScope === 'day'
+        ? readableDaysAll.filter((d) => d.day.index === currentDay)
+        : readableDaysAll;
+    const bodyHtml = buildReadablePresenceHtml({ readableDays: daysFilter, shopName, weekLabel });
+    const day = weekDays[currentDay] || weekDays[0];
+    const title =
+      readableScope === 'day'
+        ? `Équipe — ${shopName} — ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
+        : `Équipe — ${shopName} — semaine ${weekLabel}`;
+    const doc = buildLandscapeHtmlDocument({
+      title,
+      metaLines: [
+        `Boutique : ${shopName}`,
+        readableScope === 'day'
+          ? `Jour : ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
+          : `Semaine : ${weekLabel}`,
+        'Vue lisible : prénom et horaires par jour.'
+      ],
+      bodyHtml
+    });
+    deliverLandscapeHtmlExport(doc, {
+      filename:
+        readableScope === 'day'
+          ? `equipe_${shopPart}_${day.dayKey}.html`
+          : `equipe_${shopPart}_${weekPart}.html`,
+      openPreview: true
+    });
+    return { ok: true };
+  }
 
   if (mode === 'day') {
     const day = weekDays[currentDay] || weekDays[0];

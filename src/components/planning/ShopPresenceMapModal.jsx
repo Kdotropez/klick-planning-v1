@@ -6,6 +6,7 @@ import {
   buildPresenceMatrix,
   buildPresenceDayStatuses,
   buildPresenceWeekLabel,
+  buildReadablePresenceDays,
   exportPresenceMapHtml
 } from '../../utils/presenceMapExport';
 
@@ -22,7 +23,8 @@ const ShopPresenceMapModal = ({
   currentDay = 0,
   highlightEmployeeId = ''
 }) => {
-  const [viewMode, setViewMode] = useState('week');
+  const [layoutMode, setLayoutMode] = useState('readable');
+  const [scopeMode, setScopeMode] = useState('week');
   const [onlyOverlaps, setOnlyOverlaps] = useState(false);
 
   const weekDays = useMemo(
@@ -48,9 +50,28 @@ const ShopPresenceMapModal = ({
     [weekDays, employeeIds, planning, employeeNameById]
   );
 
+  const readableDays = useMemo(() => {
+    if (!isOpen) return [];
+    return buildReadablePresenceDays({
+      planning,
+      config,
+      employeeIds,
+      employeeNameById,
+      weekDays,
+      matrix
+    });
+  }, [isOpen, planning, config, employeeIds, employeeNameById, weekDays, matrix]);
+
+  const visibleReadableDays = useMemo(() => {
+    if (scopeMode === 'day') {
+      return readableDays.filter((d) => d.day.index === currentDay);
+    }
+    return readableDays;
+  }, [readableDays, scopeMode, currentDay]);
+
   const visibleRows = useMemo(() => {
     let rows = matrix;
-    if (viewMode === 'day') {
+    if (scopeMode === 'day') {
       rows = matrix.map((row) => ({
         ...row,
         dayCells: row.dayCells.filter((cell) => cell.index === currentDay)
@@ -63,7 +84,7 @@ const ShopPresenceMapModal = ({
       });
     }
     return rows;
-  }, [matrix, viewMode, currentDay, onlyOverlaps]);
+  }, [matrix, scopeMode, currentDay, onlyOverlaps]);
 
   const overlapStats = useMemo(() => {
     let slotsWithOverlap = 0;
@@ -84,28 +105,24 @@ const ShopPresenceMapModal = ({
       config,
       employeeIds,
       employeeNameById,
-      currentDay
+      currentDay,
+      readableScope: scopeMode
     }),
-    [shopName, selectedWeek, mondayOfWeek, planning, config, employeeIds, employeeNameById, currentDay]
+    [shopName, selectedWeek, mondayOfWeek, planning, config, employeeIds, employeeNameById, currentDay, scopeMode]
   );
 
-  const handleExportWeek = useCallback(() => {
+  const handleExportReadable = useCallback(() => {
+    exportPresenceMapHtml({ ...exportArgs, mode: 'readable' });
+  }, [exportArgs]);
+
+  const handleExportWeekGrid = useCallback(() => {
     exportPresenceMapHtml({ ...exportArgs, mode: 'week' });
-  }, [exportArgs]);
-
-  const handleExportDays = useCallback(() => {
-    exportPresenceMapHtml({ ...exportArgs, mode: 'days' });
-  }, [exportArgs]);
-
-  const handleExportCurrentDay = useCallback(() => {
-    exportPresenceMapHtml({ ...exportArgs, mode: 'day' });
   }, [exportArgs]);
 
   if (!isOpen) return null;
 
-  const columns = viewMode === 'day'
-    ? weekDays.filter((day) => day.index === currentDay)
-    : weekDays;
+  const columns =
+    scopeMode === 'day' ? weekDays.filter((day) => day.index === currentDay) : weekDays;
 
   const hourColStyle = {
     position: 'sticky',
@@ -165,7 +182,7 @@ const ShopPresenceMapModal = ({
         <div
           style={{
             padding: '14px 18px',
-            background: 'linear-gradient(90deg, #0f4c75 0%, #1b4964 100%)',
+            background: 'linear-gradient(90deg, #0f766e 0%, #134e4a 100%)',
             color: '#fff',
             display: 'flex',
             justifyContent: 'space-between',
@@ -175,12 +192,14 @@ const ShopPresenceMapModal = ({
           }}
         >
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Cartographie présence boutique</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Cartographie équipe boutique</h2>
             <div style={{ marginTop: 4, fontSize: 13, opacity: 0.95 }}>
               {shopName} · {weekLabel}
             </div>
             <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
-              Qui est présent en même temps, créneau par créneau (jour × heure).
+              {layoutMode === 'readable'
+                ? 'Vue par jour : prénom + horaires. Plus simple à lire qu’une grille créneau par créneau.'
+                : 'Vue grille détaillée : qui est présente à chaque créneau horaire.'}
             </div>
           </div>
           <button
@@ -214,29 +233,48 @@ const ShopPresenceMapModal = ({
         >
           <button
             type="button"
-            onClick={() => setViewMode('week')}
-            style={toggleBtnStyle(viewMode === 'week')}
+            onClick={() => setLayoutMode('readable')}
+            style={toggleBtnStyle(layoutMode === 'readable', '#0f766e')}
           >
-            Semaine complète
+            Vue équipe (recommandée)
           </button>
           <button
             type="button"
-            onClick={() => setViewMode('day')}
-            style={toggleBtnStyle(viewMode === 'day')}
+            onClick={() => setLayoutMode('grid')}
+            style={toggleBtnStyle(layoutMode === 'grid', '#0f4c75')}
           >
-            Jour affiché ({currentDayInfo?.shortLabel || '—'})
+            Grille détaillée
           </button>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
-            <input
-              type="checkbox"
-              checked={onlyOverlaps}
-              onChange={(event) => setOnlyOverlaps(event.target.checked)}
-            />
-            Uniquement les chevauchements (2+ personnes)
-          </label>
-          <span style={{ fontSize: 12, color: '#64748b', marginLeft: 'auto' }}>
-            {overlapStats.slotsWithOverlap} créneau(x) avec chevauchement sur la semaine
-          </span>
+          <span style={{ width: 1, height: 24, background: '#cbd5e1', margin: '0 4px' }} />
+          <button
+            type="button"
+            onClick={() => setScopeMode('week')}
+            style={toggleBtnStyle(scopeMode === 'week', layoutMode === 'readable' ? '#0f766e' : '#0f4c75')}
+          >
+            Semaine
+          </button>
+          <button
+            type="button"
+            onClick={() => setScopeMode('day')}
+            style={toggleBtnStyle(scopeMode === 'day', layoutMode === 'readable' ? '#0f766e' : '#0f4c75')}
+          >
+            Jour ({currentDayInfo?.shortLabel || '—'})
+          </button>
+          {layoutMode === 'grid' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+              <input
+                type="checkbox"
+                checked={onlyOverlaps}
+                onChange={(event) => setOnlyOverlaps(event.target.checked)}
+              />
+              Chevauchements seulement (2+)
+            </label>
+          )}
+          {layoutMode === 'grid' && (
+            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 'auto' }}>
+              {overlapStats.slotsWithOverlap} créneau(x) à plusieurs
+            </span>
+          )}
         </div>
 
         <div
@@ -251,167 +289,326 @@ const ShopPresenceMapModal = ({
             flexShrink: 0
           }}
         >
-          <HtmlExportButton label="📱 HTML semaine" onClick={handleExportWeek} />
-          <HtmlExportButton label="📱 HTML 7 jours" onClick={handleExportDays} />
           <HtmlExportButton
-            label={`📱 HTML jour (${currentDayInfo?.shortLabel || '—'})`}
-            onClick={handleExportCurrentDay}
+            label={scopeMode === 'day' ? '📱 HTML équipe (jour)' : '📱 HTML équipe (semaine)'}
+            onClick={handleExportReadable}
           />
+          {layoutMode === 'grid' && (
+            <HtmlExportButton label="📱 HTML grille" onClick={handleExportWeekGrid} />
+          )}
         </div>
 
         <div
           style={{
             flex: 1,
             overflow: 'auto',
-            padding: '0 16px 16px',
-            position: 'relative'
+            padding: '12px 16px 16px',
+            position: 'relative',
+            background: layoutMode === 'readable' ? '#f1f5f9' : '#fff'
           }}
         >
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'separate',
-              borderSpacing: 0,
-              fontSize: 12,
-              minWidth: viewMode === 'week' ? 980 : 420
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={hourHeaderStyle}>Heure</th>
-                {columns.map((day) => {
-                  const isCurrent = day.index === currentDay;
-                  return (
-                    <th
-                      key={day.dayKey}
+          {layoutMode === 'readable' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {visibleReadableDays.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>Aucune donnée à afficher.</div>
+              ) : (
+                visibleReadableDays.map(({ day, roster, workingCount, teamMoments }) => (
+                  <article
+                    key={day.dayKey}
+                    style={{
+                      borderRadius: 12,
+                      border: `2px solid ${day.palette.border}`,
+                      overflow: 'hidden',
+                      background: '#fff',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                    }}
+                  >
+                    <header
                       style={{
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 5,
-                        border: `1px solid ${day.palette.border}`,
-                        padding: '8px 6px',
+                        padding: '12px 16px',
                         background: day.palette.header,
-                        textAlign: 'center',
-                        minWidth: viewMode === 'day' ? 220 : 120,
-                        textTransform: 'capitalize',
                         color: day.palette.text,
-                        boxShadow: isCurrent
-                          ? 'inset 0 -3px 0 #0f4c75, 0 2px 4px rgba(0,0,0,0.06)'
-                          : '0 2px 4px rgba(0,0,0,0.06)'
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'wrap'
                       }}
                     >
-                      <div style={{ fontWeight: 800 }}>{day.weekday}</div>
-                      <div style={{ fontSize: 11, opacity: 0.85 }}>{format(parseISO(day.dayKey), 'dd/MM')}</div>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.length === 0 ? (
-                <tr>
-                  <td colSpan={columns.length + 1} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
-                    Aucun créneau à afficher avec les filtres actuels.
-                  </td>
-                </tr>
-              ) : (
-                visibleRows.map((row) => (
-                  <tr key={row.slotIndex}>
-                    <td style={hourColStyle}>{row.slotLabel}</td>
-                    {row.dayCells
-                      .filter((cell) => viewMode === 'week' || cell.index === currentDay)
-                      .map((cell) => {
-                        const palette = cell.palette;
-                        const highlights = highlightEmployeeId
-                          ? cell.employees.some((employee) => employee.id === highlightEmployeeId)
-                          : false;
-                        return (
-                          <td
-                            key={`${row.slotIndex}-${cell.dayKey}`}
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: 16,
+                          fontWeight: 800,
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {day.weekday} {format(parseISO(day.dayKey), 'dd/MM/yyyy')}
+                      </h3>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '4px 12px',
+                          borderRadius: 999,
+                          background: 'rgba(255,255,255,0.55)'
+                        }}
+                      >
+                        {workingCount} en boutique
+                      </span>
+                    </header>
+
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                      <thead>
+                        <tr>
+                          <th
                             style={{
-                              border: `1px solid ${highlights ? '#2563eb' : palette.border}`,
-                              background: palette.cell,
-                              padding: '5px 6px',
-                              verticalAlign: 'top',
-                              minHeight: 36
+                              textAlign: 'left',
+                              padding: '8px 16px',
+                              background: '#f8fafc',
+                              color: '#64748b',
+                              fontSize: 11,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em'
                             }}
                           >
-                            {cell.employees.length === 0 ? (
-                              <span style={{ color: '#94a3b8' }}>—</span>
-                            ) : (
-                              cell.employees.map((employee) => (
-                                <div
-                                  key={employee.id}
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: employee.id === highlightEmployeeId ? 800 : 600,
-                                    color: palette.text,
-                                    lineHeight: 1.35,
-                                    marginBottom: 2
-                                  }}
-                                >
-                                  {employee.name}
-                                </div>
-                              ))
-                            )}
-                          </td>
-                        );
-                      })}
-                  </tr>
+                            Prénom
+                          </th>
+                          <th
+                            style={{
+                              textAlign: 'left',
+                              padding: '8px 16px',
+                              background: '#f8fafc',
+                              color: '#64748b',
+                              fontSize: 11,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em'
+                            }}
+                          >
+                            Horaires
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roster.map((entry) => {
+                          const highlighted = entry.id === highlightEmployeeId;
+                          let hoursStyle = { color: '#0f766e', fontWeight: 600 };
+                          let label = entry.rangesLabel;
+                          if (entry.type === 'conge') {
+                            hoursStyle = { color: '#c2410c', fontWeight: 700 };
+                            label = 'Congé ☀️';
+                          } else if (entry.type === 'maladie') {
+                            hoursStyle = { color: '#dc2626', fontWeight: 700 };
+                            label = 'Maladie 🤒';
+                          } else if (entry.type === 'repos') {
+                            hoursStyle = { color: '#94a3b8', fontStyle: 'italic' };
+                          }
+                          return (
+                            <tr key={entry.id}>
+                              <td
+                                style={{
+                                  padding: '10px 16px',
+                                  borderTop: '1px solid #e2e8f0',
+                                  fontWeight: highlighted ? 800 : 700,
+                                  color: '#0f172a'
+                                }}
+                              >
+                                {entry.name}
+                              </td>
+                              <td style={{ padding: '10px 16px', borderTop: '1px solid #e2e8f0', ...hoursStyle }}>
+                                {label}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {teamMoments.length > 0 && (
+                      <div
+                        style={{
+                          margin: '0 16px 14px',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          background: '#ecfdf5',
+                          border: '1px solid #6ee7b7'
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            color: '#065f46',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                            marginBottom: 8
+                          }}
+                        >
+                          En boutique en même temps
+                        </div>
+                        {teamMoments.map((moment) => (
+                          <div
+                            key={`${day.dayKey}-${moment.ids}-${moment.start}`}
+                            style={{ fontSize: 13, color: '#14532d', marginBottom: 4, lineHeight: 1.45 }}
+                          >
+                            <strong style={{ color: '#047857' }}>{moment.timeLabel}</strong>
+                            {' — '}
+                            {moment.names.join(', ')}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
                 ))
               )}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td
-                  style={{
-                    ...hourColStyle,
-                    fontWeight: 800,
-                    color: '#9a3412'
-                  }}
-                >
-                  Congés / maladie
-                </td>
-                {columns.map((day) => {
-                  const statusDay = dayStatuses.find((entry) => entry.dayKey === day.dayKey);
-                  return (
-                    <td
-                      key={`status-${day.dayKey}`}
-                      style={{
-                        border: `1px solid ${day.palette.border}`,
-                        background: day.palette.header,
-                        padding: '6px',
-                        verticalAlign: 'top',
-                        fontSize: 11,
-                        color: day.palette.text
-                      }}
-                    >
-                      {!statusDay?.entries?.length ? (
-                        <span style={{ color: '#94a3b8' }}>—</span>
-                      ) : (
-                        statusDay.entries.map((entry) => (
-                          <div key={entry.id} style={{ marginBottom: 3 }}>
-                            {entry.name} ({entry.status === 'maladie' ? '🤒' : '☀️'})
-                          </div>
-                        ))
-                      )}
+            </div>
+          ) : (
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'separate',
+                borderSpacing: 0,
+                fontSize: 12,
+                minWidth: scopeMode === 'week' ? 980 : 420
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={hourHeaderStyle}>Heure</th>
+                  {columns.map((day) => {
+                    const isCurrent = day.index === currentDay;
+                    return (
+                      <th
+                        key={day.dayKey}
+                        style={{
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 5,
+                          border: `1px solid ${day.palette.border}`,
+                          padding: '8px 6px',
+                          background: day.palette.header,
+                          textAlign: 'center',
+                          minWidth: scopeMode === 'day' ? 220 : 120,
+                          textTransform: 'capitalize',
+                          color: day.palette.text,
+                          boxShadow: isCurrent
+                            ? 'inset 0 -3px 0 #0f4c75, 0 2px 4px rgba(0,0,0,0.06)'
+                            : '0 2px 4px rgba(0,0,0,0.06)'
+                        }}
+                      >
+                        <div style={{ fontWeight: 800 }}>{day.weekday}</div>
+                        <div style={{ fontSize: 11, opacity: 0.85 }}>{format(parseISO(day.dayKey), 'dd/MM')}</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={columns.length + 1} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                      Aucun créneau à afficher avec les filtres actuels.
                     </td>
-                  );
-                })}
-              </tr>
-            </tfoot>
-          </table>
+                  </tr>
+                ) : (
+                  visibleRows.map((row) => (
+                    <tr key={row.slotIndex}>
+                      <td style={hourColStyle}>{row.slotLabel}</td>
+                      {row.dayCells
+                        .filter((cell) => scopeMode === 'week' || cell.index === currentDay)
+                        .map((cell) => {
+                          const palette = cell.palette;
+                          const highlights = highlightEmployeeId
+                            ? cell.employees.some((employee) => employee.id === highlightEmployeeId)
+                            : false;
+                          return (
+                            <td
+                              key={`${row.slotIndex}-${cell.dayKey}`}
+                              style={{
+                                border: `1px solid ${highlights ? '#2563eb' : palette.border}`,
+                                background: palette.cell,
+                                padding: '5px 6px',
+                                verticalAlign: 'top',
+                                minHeight: 36
+                              }}
+                            >
+                              {cell.employees.length === 0 ? (
+                                <span style={{ color: '#94a3b8' }}>—</span>
+                              ) : (
+                                cell.employees.map((employee) => (
+                                  <div
+                                    key={employee.id}
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: employee.id === highlightEmployeeId ? 800 : 600,
+                                      color: palette.text,
+                                      lineHeight: 1.35,
+                                      marginBottom: 2
+                                    }}
+                                  >
+                                    {employee.name}
+                                  </div>
+                                ))
+                              )}
+                            </td>
+                          );
+                        })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td
+                    style={{
+                      ...hourColStyle,
+                      fontWeight: 800,
+                      color: '#9a3412'
+                    }}
+                  >
+                    Congés / maladie
+                  </td>
+                  {columns.map((day) => {
+                    const statusDay = dayStatuses.find((entry) => entry.dayKey === day.dayKey);
+                    return (
+                      <td
+                        key={`status-${day.dayKey}`}
+                        style={{
+                          border: `1px solid ${day.palette.border}`,
+                          background: day.palette.header,
+                          padding: '6px',
+                          verticalAlign: 'top',
+                          fontSize: 11,
+                          color: day.palette.text
+                        }}
+                      >
+                        {!statusDay?.entries?.length ? (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        ) : (
+                          statusDay.entries.map((entry) => (
+                            <div key={entry.id} style={{ marginBottom: 3 }}>
+                              {entry.name} ({entry.status === 'maladie' ? '🤒' : '☀️'})
+                            </div>
+                          ))
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            </table>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const toggleBtnStyle = (active) => ({
+const toggleBtnStyle = (active, accent = '#0f4c75') => ({
   padding: '6px 12px',
   borderRadius: 8,
-  border: active ? '2px solid #0f4c75' : '1px solid #cbd5e1',
-  background: active ? '#0f4c75' : '#fff',
+  border: active ? `2px solid ${accent}` : '1px solid #cbd5e1',
+  background: active ? accent : '#fff',
   color: active ? '#fff' : '#334155',
   cursor: 'pointer',
   fontWeight: 700,

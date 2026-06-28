@@ -412,6 +412,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.137': [
     'Cartographie presence: export HTML semaine, HTML 7 jours et HTML jour affiche.',
     'Grille horaire journaliere par boutique, telechargement .html paysage mobile.'
+  ],
+  '3.10.138': [
+    'Cartographie: vue equipe recommandee (carte/jour, prenom + horaires).',
+    'Bloc « en boutique en meme temps » ; grille detaillee en option.'
   ]
 };
 
