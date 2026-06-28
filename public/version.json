@@ -1,7 +1,16 @@
 {
-  "version": "3.10.135",
+  "version": "3.10.136",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.136",
+      "date": "2026-05-29",
+      "changes": [
+        "Export horaires lisibles : congé et maladie uniquement sur la boutique maîtresse (plus sur les boutiques de remplacement).",
+        "Saisie congé/maladie : enregistrement sur la boutique maîtresse seulement, sans propagation vers les autres boutiques.",
+        "Récap employés et matrice semaine : même règle boutique maîtresse pour les absences."
+      ]
+    },
     {
       "version": "3.10.135",
       "date": "2026-05-29",

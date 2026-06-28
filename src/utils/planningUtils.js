@@ -292,6 +292,13 @@ export const getEmployeeMonthlySummaryData = (employee, selectedWeek, shops, con
   return { monthlyTotal, weeklySummaries };
 };
 
+/** Congé ou maladie (valeur string d'une cellule jour). */
+export const isAbsenceDayValue = (dayValue) => {
+  if (typeof dayValue !== 'string') return false;
+  const n = dayValue.toLowerCase();
+  return n.includes('maladie') || n.includes('congé') || n.includes('conge');
+};
+
 /** Indique si une cellule jour (créneaux ou statut) contient autre chose que du vide / grille neutre. */
 export const dayCellHasPlanningContent = (value) => {
   if (value === undefined || value === null) return false;

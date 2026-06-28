@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 import { exportRawBodyHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
 import 'jspdf-autotable';
 import { loadFromLocalStorage } from '../../utils/localStorage';
-import { isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
+import { getEmployeeMainShopId, isEmployeeVisibleForRecap } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 
 const normalizeSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
@@ -481,11 +481,13 @@ const WeeklyWorkMatrixModal = ({
             if (dayValue === undefined || dayValue === null) return;
 
             if (typeof dayValue === 'string') {
-              if (isCongeStatus(dayValue)) {
-                parts.push({ text: `${name} — Congé`, employeeId, name, type: 'conge', h: 0 });
-                return;
-              }
-              if (isMaladieStatus(dayValue)) {
+              if (isCongeStatus(dayValue) || isMaladieStatus(dayValue)) {
+                const mainShopId = getEmployeeMainShopId(planningData, employeeId);
+                if (mainShopId && String(shop.id) !== String(mainShopId)) return;
+                if (isCongeStatus(dayValue)) {
+                  parts.push({ text: `${name} — Congé`, employeeId, name, type: 'conge', h: 0 });
+                  return;
+                }
                 parts.push({ text: `${name} — Maladie`, employeeId, name, type: 'maladie', h: 0 });
                 return;
               }

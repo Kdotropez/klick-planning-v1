@@ -27,8 +27,8 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid } from '../../utils/planningDataManager';
-import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation } from '../../utils/planningUtils';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop } from '../../utils/planningDataManager';
+import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
@@ -2302,6 +2302,9 @@ const PlanningDisplay = ({
         const dayKey = format(dayDate, 'yyyy-MM-dd');
         const dayLabel = `${format(dayDate, 'EEEE', { locale: fr })} ${format(dayDate, 'dd/MM')}`;
         const entries = [];
+        const mainShopId = getEmployeeMainShopId(planningData, employeeId);
+        const shopRows = [];
+
         (planningData.shops || []).forEach((shop) => {
           if (!isEmployeeVisibleForRecap(planningData, employeeId, shop.id)) return;
           const monday = startOfWeek(dayDate, { weekStartsOn: 1 });
@@ -2311,7 +2314,34 @@ const PlanningDisplay = ({
           const dayValue = employeePlanning[dayKey];
           if (dayValue === undefined || dayValue === null) return;
           const cfg = shop.config || {};
+          shopRows.push({ shop, dayValue, cfg });
+        });
+
+        const workedThisDay = shopRows.some(({ shop, dayValue, cfg }) => {
+          if (typeof dayValue === 'string' && isAbsenceDayValue(dayValue)) return false;
+          if (!Array.isArray(dayValue) || !dayValue.some(normalizeSlot)) return false;
+          const ranges = buildSlotRangeLines(dayValue, cfg.timeSlots || config.timeSlots || [], {
+            interval: cfg.interval || config.interval || 30,
+            endTime: cfg.endTime ?? config.endTime,
+          });
+          return ranges.length > 0;
+        });
+
+        let absenceForMainShop = null;
+
+        shopRows.forEach(({ shop, dayValue, cfg }) => {
           if (typeof dayValue === 'string') {
+            if (isAbsenceDayValue(dayValue)) {
+              if (workedThisDay) return;
+              if (mainShopId && String(shop.id) === String(mainShopId)) {
+                entries.push({ shopId: shop.id, shopName: shop.name || shop.id, value: dayValue });
+              } else if (!mainShopId) {
+                entries.push({ shopId: shop.id, shopName: shop.name || shop.id, value: dayValue });
+              } else {
+                absenceForMainShop = dayValue;
+              }
+              return;
+            }
             entries.push({ shopId: shop.id, shopName: shop.name || shop.id, value: dayValue });
             return;
           }
@@ -2325,6 +2355,16 @@ const PlanningDisplay = ({
             }
           }
         });
+
+        if (!workedThisDay && entries.length === 0 && absenceForMainShop && mainShopId) {
+          const mainShop = (planningData.shops || []).find((s) => String(s.id) === String(mainShopId));
+          entries.push({
+            shopId: mainShopId,
+            shopName: mainShop?.name || mainShopId,
+            value: absenceForMainShop,
+          });
+        }
+
         entries.sort((a, b) =>
           (a.shopName || '').localeCompare(b.shopName || '', 'fr', { sensitivity: 'base' })
         );
@@ -3782,6 +3822,10 @@ const PlanningDisplay = ({
               }
               if (readOnly) { setLocalFeedback('🔒 Lecture seule'); return; }
               const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+              const absenceValue =
+                status === 'maladie' ? 'Maladie 🤒' : status === 'conge' ? 'Congé ☀️' : null;
+              const mainShopIdForEmployee =
+                getEmployeeMainShopId(planningData, employeeId) || String(selectedShop);
               setPlanning(prev => {
                 const updated = { ...prev };
                 if (!updated[employeeId]) updated[employeeId] = {};
@@ -3793,49 +3837,82 @@ const PlanningDisplay = ({
                   // none: réinitialiser les slots à false
                   updated[employeeId][dayKey] = Array(config.timeSlots.length).fill(false);
                 }
+                if (absenceValue && String(selectedShop) !== String(mainShopIdForEmployee)) {
+                  updated[employeeId][dayKey] = Array(config.timeSlots.length).fill(false);
+                }
                 // Sauvegarde immédiate
                 try {
                   setPlanningData((currentPlanning) => {
-                    // Toujours fusionner sur l'état courant
-                    let d = saveWeekPlanning(
-                      currentPlanning,
-                      selectedShop,
-                      validWeek,
-                      updated,
-                      localSelectedEmployees
-                    );
-                    // Ne pas propager le retrait (none) : sinon on écrase le même jour dans les autres
-                    // boutiques (Grimaud, etc.) et on peut vider le travail planifié ailleurs.
                     if (status === 'none') {
-                      return d;
+                      return saveWeekPlanning(
+                        currentPlanning,
+                        selectedShop,
+                        validWeek,
+                        updated,
+                        localSelectedEmployees
+                      );
                     }
-                    // Propager congé / maladie aux autres canWorkIn uniquement
-                    try {
-                      const employeeGlobal = (d.shops || [])
-                        .flatMap(s => s.employees || [])
-                        .find(e => e.id === employeeId);
-                      const otherShopIds = (employeeGlobal?.canWorkIn || [])
-                        .filter(id => id !== selectedShop);
-                      if (otherShopIds.length > 0) {
-                        otherShopIds.forEach(shopId => {
-                          const shop = (d.shops || []).find(s => s.id === shopId);
-                          if (!shop) return;
-                          const patch = {
-                            [employeeId]: {
-                              [dayKey]: status === 'maladie' ? 'Maladie 🤒' : 'Congé ☀️'
-                            }
-                          };
-                          d = saveWeekPlanning(
-                            d,
-                            shopId,
-                            validWeek,
-                            { ...(shop.weeks?.[validWeek]?.planning || {}), ...patch },
-                            shop.weeks?.[validWeek]?.selectedEmployees || []
-                          );
-                        });
-                      }
-                    } catch (e2) {
-                      console.warn('Propagation multi-boutiques ignorée:', e2);
+                    if (!absenceValue) {
+                      return saveWeekPlanning(
+                        currentPlanning,
+                        selectedShop,
+                        validWeek,
+                        updated,
+                        localSelectedEmployees
+                      );
+                    }
+                    let d = currentPlanning;
+                    const employeeGlobal = (d.shops || [])
+                      .flatMap(s => s.employees || [])
+                      .find(e => e.id === employeeId);
+                    const mainShopId = String(
+                      employeeGlobal?.mainShop ||
+                      determineEmployeeMainShop(d, employeeId) ||
+                      selectedShop
+                    );
+                    const mainShop = (d.shops || []).find(s => String(s.id) === mainShopId);
+                    const mainWp = mainShop?.weeks?.[validWeek]?.planning || {};
+                    d = saveWeekPlanning(
+                      d,
+                      mainShopId,
+                      validWeek,
+                      {
+                        ...mainWp,
+                        [employeeId]: {
+                          ...(mainWp[employeeId] || {}),
+                          [dayKey]: absenceValue
+                        }
+                      },
+                      mainShop?.weeks?.[validWeek]?.selectedEmployees || localSelectedEmployees
+                    );
+                    (employeeGlobal?.canWorkIn || []).forEach((shopId) => {
+                      if (String(shopId) === mainShopId) return;
+                      const shop = (d.shops || []).find(s => String(s.id) === String(shopId));
+                      if (!shop) return;
+                      const wp = shop.weeks?.[validWeek]?.planning || {};
+                      const dv = wp[employeeId]?.[dayKey];
+                      if (typeof dv !== 'string' || !isAbsenceDayValue(dv)) return;
+                      const empCopy = { ...(wp[employeeId] || {}) };
+                      delete empCopy[dayKey];
+                      const newWp = { ...wp };
+                      if (Object.keys(empCopy).length === 0) delete newWp[employeeId];
+                      else newWp[employeeId] = empCopy;
+                      d = saveWeekPlanning(
+                        d,
+                        shopId,
+                        validWeek,
+                        newWp,
+                        shop.weeks?.[validWeek]?.selectedEmployees || []
+                      );
+                    });
+                    if (String(selectedShop) !== mainShopId) {
+                      d = saveWeekPlanning(
+                        d,
+                        selectedShop,
+                        validWeek,
+                        updated,
+                        localSelectedEmployees
+                      );
                     }
                     return d;
                   });

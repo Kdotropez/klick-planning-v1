@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
+import { determineEmployeeMainShop, getEmployeeById } from '../../utils/planningDataManager';
 
 const normalizeSlotSelected = (value) =>
   value === true || value === 1 || value === '1' || value === 'true';
@@ -171,13 +172,18 @@ const EmployeeRecapCompact = ({
         });
 
         if (!workedThisDay) {
-          // Congés/maladies : boutique affichée uniquement (évite les statuts d'une autre boutique)
-          const currentShop = (planningData.shops || []).find((s) => s.id === selectedShop);
-          if (currentShop) {
+          // Congés/maladies : boutique maîtresse uniquement
+          const employee = getEmployeeById(planningData, employeeId);
+          const mainShopId =
+            employee?.mainShop || determineEmployeeMainShop(planningData, employeeId) || selectedShop;
+          const shopForAbsence = (planningData.shops || []).find(
+            (s) => String(s.id) === String(mainShopId)
+          );
+          if (shopForAbsence) {
             const weekPlanning =
-              planning && Object.keys(planning).length > 0
+              shopForAbsence.id === selectedShop && planning && Object.keys(planning).length > 0
                 ? planning
-                : currentShop.weeks?.[validWeek]?.planning;
+                : shopForAbsence.weeks?.[validWeek]?.planning;
             const dayData = weekPlanning?.[employeeId]?.[dayKey];
             if (isCongeDayValue(dayData)) hasConge = true;
             if (isMaladieDayValue(dayData)) hasMaladie = true;

@@ -3057,6 +3057,16 @@ export const determineEmployeeMainShop = (planningData, employeeId) => {
   return mainShop;
 };
 
+/** Boutique maîtresse d'un employé (mainShop explicite, sinon déduction automatique). */
+export const getEmployeeMainShopId = (planningData, employeeId) => {
+  const employee = getEmployeeById(planningData, employeeId);
+  if (employee?.mainShop != null && employee.mainShop !== '') {
+    return String(employee.mainShop);
+  }
+  const determined = determineEmployeeMainShop(planningData, employeeId);
+  return determined != null ? String(determined) : null;
+};
+
 // Fonction pour mettre à jour la boutique principale d'un employé
 export const updateEmployeeMainShop = (planningData, employeeId, mainShopId) => {
   return {

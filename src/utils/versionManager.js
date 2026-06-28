@@ -403,6 +403,11 @@ const VERSION_HIGHLIGHTS = {
   '3.10.135': [
     'Planning boutiques semaine: Exporter HTML = telechargement .html comme Exporter PDF.',
     'Export HTML: fichier telecharge + apercu paysage mobile.'
+  ],
+  '3.10.136': [
+    'Conge/maladie: uniquement sur la boutique maitresse (export horaires TXT/PDF/HTML).',
+    'Saisie conge: plus de propagation vers les boutiques de remplacement.',
+    'Recap employes et matrice semaine: absences filtrees par boutique maitresse.'
   ]
 };
 
