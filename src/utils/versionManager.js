@@ -408,6 +408,10 @@ const VERSION_HIGHLIGHTS = {
     'Conge/maladie: uniquement sur la boutique maitresse (export horaires TXT/PDF/HTML).',
     'Saisie conge: plus de propagation vers les boutiques de remplacement.',
     'Recap employes et matrice semaine: absences filtrees par boutique maitresse.'
+  ],
+  '3.10.137': [
+    'Cartographie presence: export HTML semaine, HTML 7 jours et HTML jour affiche.',
+    'Grille horaire journaliere par boutique, telechargement .html paysage mobile.'
   ]
 };
 

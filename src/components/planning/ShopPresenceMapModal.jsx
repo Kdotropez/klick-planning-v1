@@ -1,46 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { addDays, format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
-
-const normSlot = (value) => value === true || value === 1 || value === '1' || value === 'true';
-
-const DAY_PASTEL_COLORS = [
-  { header: '#fce7f3', cell: '#fdf2f8', border: '#f9a8d4', text: '#831843' },
-  { header: '#dbeafe', cell: '#eff6ff', border: '#93c5fd', text: '#1e3a8a' },
-  { header: '#d1fae5', cell: '#ecfdf5', border: '#6ee7b7', text: '#065f46' },
-  { header: '#fef3c7', cell: '#fffbeb', border: '#fcd34d', text: '#78350f' },
-  { header: '#e9d5ff', cell: '#f5f3ff', border: '#c4b5fd', text: '#5b21b6' },
-  { header: '#ffedd5', cell: '#fff7ed', border: '#fdba74', text: '#9a3412' },
-  { header: '#ccfbf1', cell: '#f0fdfa', border: '#5eead4', text: '#115e59' }
-];
-
-const getDayColor = (dayIndex) => DAY_PASTEL_COLORS[dayIndex % DAY_PASTEL_COLORS.length];
-
-const isStatusDay = (dayData) => {
-  if (dayData == null) return null;
-  if (typeof dayData === 'string') {
-    const normalized = dayData.toLowerCase();
-    if (normalized.includes('maladie')) return 'maladie';
-    if (normalized.includes('congé') || normalized.includes('conge')) return 'conge';
-    return 'status';
-  }
-  if (Array.isArray(dayData)) {
-    if (dayData.some((v) => v === 'M' || (typeof v === 'string' && v.toLowerCase().includes('maladie')))) {
-      return 'maladie';
-    }
-    if (
-      dayData.some(
-        (v) =>
-          v === 'C' ||
-          (typeof v === 'string' && (v.toLowerCase().includes('congé') || v.toLowerCase().includes('conge')))
-      )
-    ) {
-      return 'conge';
-    }
-  }
-  return null;
-};
+import React, { useMemo, useState, useCallback } from 'react';
+import { format, parseISO } from 'date-fns';
+import HtmlExportButton from '../common/HtmlExportButton';
+import {
+  buildPresenceWeekDays,
+  buildPresenceMatrix,
+  buildPresenceDayStatuses,
+  buildPresenceWeekLabel,
+  exportPresenceMapHtml
+} from '../../utils/presenceMapExport';
 
 const ShopPresenceMapModal = ({
   isOpen,
@@ -58,78 +25,28 @@ const ShopPresenceMapModal = ({
   const [viewMode, setViewMode] = useState('week');
   const [onlyOverlaps, setOnlyOverlaps] = useState(false);
 
-  const timeSlots = config?.timeSlots || [];
-  const durationCfg = { interval: config?.interval || 30, endTime: config?.endTime };
+  const weekDays = useMemo(
+    () => buildPresenceWeekDays(mondayOfWeek, selectedWeek),
+    [selectedWeek, mondayOfWeek]
+  );
 
-  const weekDays = useMemo(() => {
-    if (!selectedWeek) return [];
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = addDays(mondayOfWeek || parseISO(selectedWeek), index);
-      const palette = getDayColor(index);
-      return {
-        index,
-        dayKey: format(date, 'yyyy-MM-dd'),
-        weekday: format(date, 'EEEE', { locale: fr }),
-        shortLabel: format(date, 'EEE dd/MM', { locale: fr }),
-        palette
-      };
-    });
-  }, [selectedWeek, mondayOfWeek]);
-
-  const weekLabel = useMemo(() => {
-    if (!weekDays.length) return '';
-    const start = weekDays[0].dayKey;
-    const end = weekDays[6].dayKey;
-    return `${format(parseISO(start), 'd MMMM', { locale: fr })} → ${format(parseISO(end), 'd MMMM yyyy', { locale: fr })}`;
-  }, [weekDays]);
+  const weekLabel = useMemo(() => buildPresenceWeekLabel(weekDays), [weekDays]);
 
   const matrix = useMemo(() => {
-    if (!isOpen || !timeSlots.length || !weekDays.length) return [];
-
-    return timeSlots.map((slot, slotIndex) => {
-      const slotEnd = getSlotEndTimeFormatted(timeSlots, slotIndex, durationCfg);
-      const slotLabel = `${slot} – ${slotEnd}`;
-      const dayCells = weekDays.map((day) => {
-        const present = employeeIds
-          .filter((employeeId) => {
-            const dayData = planning?.[employeeId]?.[day.dayKey];
-            const status = isStatusDay(dayData);
-            if (status) return false;
-            return normSlot(dayData?.[slotIndex]);
-          })
-          .map((employeeId) => ({
-            id: employeeId,
-            name: employeeNameById.get(employeeId) || employeeId
-          }));
-
-        return {
-          ...day,
-          employees: present,
-          count: present.length
-        };
-      });
-
-      const maxCount = Math.max(0, ...dayCells.map((cell) => cell.count));
-      return { slotIndex, slotLabel, dayCells, maxCount };
+    if (!isOpen) return [];
+    return buildPresenceMatrix({
+      planning,
+      config,
+      employeeIds,
+      employeeNameById,
+      weekDays
     });
-  }, [isOpen, timeSlots, weekDays, employeeIds, planning, employeeNameById, durationCfg]);
+  }, [isOpen, config, weekDays, employeeIds, planning, employeeNameById]);
 
-  const dayStatuses = useMemo(() => {
-    return weekDays.map((day) => {
-      const entries = employeeIds
-        .map((employeeId) => {
-          const status = isStatusDay(planning?.[employeeId]?.[day.dayKey]);
-          if (!status) return null;
-          return {
-            id: employeeId,
-            name: employeeNameById.get(employeeId) || employeeId,
-            status
-          };
-        })
-        .filter(Boolean);
-      return { ...day, entries };
-    });
-  }, [weekDays, employeeIds, planning, employeeNameById]);
+  const dayStatuses = useMemo(
+    () => buildPresenceDayStatuses({ planning, employeeIds, employeeNameById, weekDays }),
+    [weekDays, employeeIds, planning, employeeNameById]
+  );
 
   const visibleRows = useMemo(() => {
     let rows = matrix;
@@ -140,7 +57,10 @@ const ShopPresenceMapModal = ({
       }));
     }
     if (onlyOverlaps) {
-      rows = rows.filter((row) => row.maxCount >= 2);
+      rows = rows.filter((row) => {
+        const maxCount = Math.max(0, ...row.dayCells.map((cell) => cell.count));
+        return maxCount >= 2;
+      });
     }
     return rows;
   }, [matrix, viewMode, currentDay, onlyOverlaps]);
@@ -154,6 +74,32 @@ const ShopPresenceMapModal = ({
     });
     return { slotsWithOverlap };
   }, [matrix]);
+
+  const exportArgs = useMemo(
+    () => ({
+      shopName,
+      selectedWeek,
+      mondayOfWeek,
+      planning,
+      config,
+      employeeIds,
+      employeeNameById,
+      currentDay
+    }),
+    [shopName, selectedWeek, mondayOfWeek, planning, config, employeeIds, employeeNameById, currentDay]
+  );
+
+  const handleExportWeek = useCallback(() => {
+    exportPresenceMapHtml({ ...exportArgs, mode: 'week' });
+  }, [exportArgs]);
+
+  const handleExportDays = useCallback(() => {
+    exportPresenceMapHtml({ ...exportArgs, mode: 'days' });
+  }, [exportArgs]);
+
+  const handleExportCurrentDay = useCallback(() => {
+    exportPresenceMapHtml({ ...exportArgs, mode: 'day' });
+  }, [exportArgs]);
 
   if (!isOpen) return null;
 
@@ -184,6 +130,8 @@ const ShopPresenceMapModal = ({
     padding: '8px 10px',
     boxShadow: '2px 2px 4px rgba(0,0,0,0.06)'
   };
+
+  const currentDayInfo = weekDays[currentDay];
 
   return (
     <div
@@ -276,7 +224,7 @@ const ShopPresenceMapModal = ({
             onClick={() => setViewMode('day')}
             style={toggleBtnStyle(viewMode === 'day')}
           >
-            Jour affiché ({weekDays[currentDay]?.shortLabel || '—'})
+            Jour affiché ({currentDayInfo?.shortLabel || '—'})
           </button>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
             <input
@@ -289,6 +237,26 @@ const ShopPresenceMapModal = ({
           <span style={{ fontSize: 12, color: '#64748b', marginLeft: 'auto' }}>
             {overlapStats.slotsWithOverlap} créneau(x) avec chevauchement sur la semaine
           </span>
+        </div>
+
+        <div
+          style={{
+            padding: '10px 16px',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            alignItems: 'center',
+            background: '#fff',
+            flexShrink: 0
+          }}
+        >
+          <HtmlExportButton label="📱 HTML semaine" onClick={handleExportWeek} />
+          <HtmlExportButton label="📱 HTML 7 jours" onClick={handleExportDays} />
+          <HtmlExportButton
+            label={`📱 HTML jour (${currentDayInfo?.shortLabel || '—'})`}
+            onClick={handleExportCurrentDay}
+          />
         </div>
 
         <div

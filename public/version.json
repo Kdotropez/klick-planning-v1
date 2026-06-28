@@ -1,7 +1,15 @@
 {
-  "version": "3.10.136",
+  "version": "3.10.137",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.137",
+      "date": "2026-05-29",
+      "changes": [
+        "Cartographie présence : export HTML semaine (grille jour × heure), export HTML 7 jours (une section par jour) et export HTML du jour affiché.",
+        "Fichiers HTML téléchargeables, lisibles en paysage sur mobile, avec congés/maladies en pied de grille."
+      ]
+    },
     {
       "version": "3.10.136",
       "date": "2026-05-29",
