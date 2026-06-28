@@ -104,6 +104,17 @@ const LANDSCAPE_STYLES = `
     vertical-align: top;
   }
   .schedule-sheet tr:nth-child(even) td { background: #f8fafc; }
+  .schedule-sheet.readable-presence .roster-table tr:nth-child(even) td {
+    background: #fff;
+  }
+  .schedule-sheet.readable-presence .planning-grid-export tr:nth-child(even) td,
+  .schedule-sheet.readable-presence .planning-grid-export tr:nth-child(odd) td {
+    background: unset;
+  }
+  .schedule-sheet.readable-presence .planning-grid-export .pg-slot-on {
+    background: #22c55e !important;
+    color: #fff !important;
+  }
   .schedule-sheet .subtotal td {
     background: #dcfce7 !important;
     font-weight: 700;

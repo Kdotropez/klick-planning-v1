@@ -369,7 +369,7 @@ const buildPlanningGridChunkHtml = ({
       const cells = [];
       for (let i = chunk.startIndex; i < chunk.endIndex; i += 1) {
         const on = normSlot(slots[i]);
-        cells.push(`<td class="pg-slot${on ? ' pg-slot-on' : ''}">${on ? '✓' : ''}</td>`);
+        cells.push(`<td class="pg-slot${on ? ' pg-slot-on' : ''}">${on ? '✓' : '&nbsp;'}</td>`);
       }
 
       return `<tr style="${rowStyle}">
@@ -473,10 +473,16 @@ export const PLANNING_GRID_CORE_CSS = `
   }
   .planning-grid-export .pg-slot {
     width: 26px; min-width: 26px; max-width: 26px;
-    background: #fff; color: #e2e8f0; font-size: 9px; line-height: 1;
+    background: #fff; color: transparent; font-size: 9px; line-height: 1;
     padding: 4px 0;
   }
-  .planning-grid-export .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; }
+  .planning-grid-export .pg-slot-on {
+    background: #22c55e !important;
+    color: #fff !important;
+    font-weight: 800;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .planning-grid-export .pg-status { font-size: 9px; padding: 4px 2px; }
 `;
 
@@ -498,14 +504,53 @@ export const PLANNING_GRID_MODAL_CSS = `
       font-size: 11px; overflow: visible;
     }
     .presence-modal-grids .planning-grid-export .pg-time { font-size: 10px; padding: 5px 2px; }
-    .presence-modal-grids .planning-grid-export .pg-slot { padding: 7px 0; }
+    .presence-modal-grids .planning-grid-export .pg-slot {
+      padding: 7px 0;
+      background: #fff !important;
+      color: transparent !important;
+    }
+    .presence-modal-grids .planning-grid-export .pg-slot-on {
+      background: #22c55e !important;
+      color: #fff !important;
+    }
+    .presence-modal-grids .planning-grid-export tbody tr:nth-child(even) td.pg-slot-on,
+    .presence-modal-grids .planning-grid-export tbody tr:nth-child(odd) td.pg-slot-on {
+      background: #22c55e !important;
+    }
     .presence-modal-grids .pg-scroll-hint { display: none; }
   }
 `;
 
 export const PLANNING_GRID_EXPORT_CSS = `
+  /* Neutralise les styles globaux .schedule-sheet (zebra, padding) qui effacent le vert */
+  .readable-presence .planning-grid-export {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+  .readable-presence .planning-grid-export th,
+  .readable-presence .planning-grid-export td {
+    border: 1px solid #94a3b8 !important;
+    border-bottom: 1px solid #94a3b8 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    text-align: center !important;
+  }
+  .readable-presence .planning-grid-export tbody tr:nth-child(even) td,
+  .readable-presence .planning-grid-export tbody tr:nth-child(odd) td {
+    background: unset;
+  }
+  .readable-presence .planning-grid-export thead th {
+    background: #cbd5e1 !important;
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    padding: 5px 2px !important;
+  }
+  .readable-presence .planning-grid-export .pg-corner {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+  }
   .readable-presence .pg-scroll { width: 100%; }
-  .readable-presence .planning-grid-export { width: 100%; min-width: 0; }
   .readable-presence .pg-col-name { width: 12%; min-width: 68px; }
   .readable-presence .pg-col-slot { width: auto; }
   .readable-presence .planning-grid-export .pg-corner,
@@ -517,11 +562,28 @@ export const PLANNING_GRID_EXPORT_CSS = `
   .readable-presence .planning-grid-export .pg-time {
     width: auto; min-width: 0; max-width: none;
     font-size: 10px; overflow: visible; white-space: nowrap;
-    padding: 5px 2px;
+    padding: 5px 2px !important;
+    background: #cbd5e1 !important;
+    color: #1e293b !important;
   }
   .readable-presence .planning-grid-export .pg-slot {
     width: auto; min-width: 0; max-width: none;
-    font-size: 11px; padding: 7px 0;
+    min-height: 26px;
+    font-size: 13px; line-height: 1;
+    padding: 6px 0 !important;
+    background: #ffffff !important;
+    color: transparent !important;
+  }
+  .readable-presence .planning-grid-export .pg-slot-on {
+    background: #22c55e !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .readable-presence .planning-grid-export .pg-status {
+    font-size: 10px !important;
+    padding: 6px 4px !important;
   }
   .readable-presence .pg-scroll-hint { display: none; }
 `;
@@ -627,10 +689,162 @@ const READABLE_STYLES = `
     font-size: 13px;
     text-align: center;
   }
+  .week-summary-block {
+    margin: 14px 8px 8px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 2px solid #6ee7b7;
+    background: #ecfdf5;
+    page-break-inside: avoid;
+  }
+  .week-summary-title {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #065f46;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .week-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .week-summary-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: #0f766e !important;
+    color: #fff !important;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .week-summary-table th:nth-child(2) { text-align: center; width: 120px; }
+  .week-summary-table td {
+    padding: 8px 12px;
+    border-top: 1px solid #d1fae5;
+    vertical-align: middle;
+  }
+  .week-summary-table .week-sum-name { font-weight: 700; color: #0f172a; white-space: nowrap; }
+  .week-summary-table .week-sum-hours {
+    text-align: center;
+    font-weight: 800;
+    color: #047857;
+    font-size: 14px;
+  }
+  .week-summary-table .week-sum-detail { color: #475569; font-size: 12px; }
+  .week-summary-table .week-sum-total td {
+    background: #dcfce7;
+    font-weight: 800;
+    color: #14532d;
+    border-top: 2px solid #6ee7b7;
+  }
+  .week-summary-table .week-sum-total .week-sum-hours { color: #14532d; }
 `;
+
+export const buildWeekHoursSummaryRows = ({
+  weekDays = [],
+  planning = {},
+  config = {},
+  employeeIds = [],
+  employeeNameById = new Map(),
+  filterEmployeeId = null
+}) => {
+  const ids = filterEmployeeId
+    ? employeeIds.filter((id) => String(id) === String(filterEmployeeId))
+    : employeeIds.filter(Boolean);
+
+  return ids
+    .map((employeeId) => {
+      const name = employeeNameById.get(employeeId) || employeeId;
+      let weekHours = 0;
+      let workDays = 0;
+      let congeDays = 0;
+      let maladieDays = 0;
+
+      weekDays.forEach((day) => {
+        const schedule = buildEmployeeDaySchedule(planning, employeeId, day, config);
+        if (schedule.type === 'work') {
+          weekHours += schedule.hours;
+          workDays += 1;
+        } else if (schedule.type === 'conge') {
+          congeDays += 1;
+        } else if (schedule.type === 'maladie') {
+          maladieDays += 1;
+        }
+      });
+
+      return {
+        id: employeeId,
+        name,
+        weekHours,
+        hoursLabel: formatWorkedHoursNbNotation(weekHours),
+        workDays,
+        congeDays,
+        maladieDays
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+};
+
+export const buildWeekHoursSummaryHtml = ({
+  rows = [],
+  weekLabel = '',
+  shopName = '',
+  filterEmployeeId = null
+}) => {
+  if (!rows.length || !weekLabel) return '';
+
+  const teamTotal = rows.reduce((sum, row) => sum + row.weekHours, 0);
+  const shopSuffix = filterEmployeeId ? '' : ` — ${escapeHtml(shopName)}`;
+
+  const bodyRows = rows
+    .map((row) => {
+      const extras = [];
+      if (row.congeDays) extras.push(`${row.congeDays} congé${row.congeDays > 1 ? 's' : ''}`);
+      if (row.maladieDays) extras.push(`${row.maladieDays} maladie`);
+      let detail = 'Repos';
+      if (row.weekHours > 0) {
+        detail = `${row.workDays} jour${row.workDays > 1 ? 's' : ''} travaillé${row.workDays > 1 ? 's' : ''}`;
+        if (extras.length) detail += ` · ${extras.join(' · ')}`;
+      } else if (extras.length) {
+        detail = extras.join(' · ');
+      }
+
+      return `<tr>
+        <td class="week-sum-name">${escapeHtml(row.name)}</td>
+        <td class="week-sum-hours">${escapeHtml(row.hoursLabel)}</td>
+        <td class="week-sum-detail">${escapeHtml(detail)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const totalRow =
+    !filterEmployeeId && rows.length > 1
+      ? `<tr class="week-sum-total">
+          <td>Total équipe</td>
+          <td class="week-sum-hours">${escapeHtml(formatWorkedHoursNbNotation(teamTotal))}</td>
+          <td class="week-sum-detail">${rows.filter((row) => row.weekHours > 0).length} personne(s) planifiée(s)</td>
+        </tr>`
+      : '';
+
+  return `<section class="week-summary-block">
+    <h2 class="week-summary-title">Récapitulatif heures — semaine ${escapeHtml(weekLabel)}${shopSuffix}</h2>
+    <table class="week-summary-table">
+      <thead>
+        <tr><th>Prénom</th><th>Total semaine (h)</th><th>Détail</th></tr>
+      </thead>
+      <tbody>${bodyRows}${totalRow}</tbody>
+    </table>
+  </section>`;
+};
 
 export const buildReadablePresenceHtml = ({
   readableDays,
+  weekDays = [],
   shopName,
   weekLabel,
   planning = {},
@@ -717,9 +931,24 @@ export const buildReadablePresenceHtml = ({
     })
     .join('');
 
+  const weekSummaryHtml = buildWeekHoursSummaryHtml({
+    rows: buildWeekHoursSummaryRows({
+      weekDays,
+      planning,
+      config,
+      employeeIds,
+      employeeNameById,
+      filterEmployeeId: filterRosterEmployeeId
+    }),
+    weekLabel,
+    shopName,
+    filterEmployeeId: filterRosterEmployeeId
+  });
+
   return `<div class="schedule-sheet readable-presence">
     <style>${READABLE_STYLES}</style>
     ${cards}
+    ${weekSummaryHtml}
     <p class="presence-note">Mode paysage obligatoire sur téléphone. Défilez verticalement entre les jours. Grilles en 2 blocs (matin / soir), tous les créneaux visibles sur la largeur de l'écran.</p>
   </div>`;
 };
@@ -948,6 +1177,7 @@ export const exportPresenceMapHtml = ({
   }) => {
     const bodyHtml = buildReadablePresenceHtml({
       readableDays: daysFilter,
+      weekDays,
       shopName,
       weekLabel,
       planning,

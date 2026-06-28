@@ -429,6 +429,12 @@ const VERSION_HIGHLIGHTS = {
   '3.10.142': [
     'HTML cartographie: paysage obligatoire, grille pleine largeur avec tous les creneaux visibles.',
     'Modale cartographie ordinateur: tableau recapitulatif compact, grille horaire agrandie et lisible.'
+  ],
+  '3.10.143': [
+    'HTML cartographie: cases vertes fiables (plus de blanc sur blanc), conflit CSS schedule-sheet corrige.'
+  ],
+  '3.10.144': [
+    'HTML cartographie: recapitulatif heures de la semaine en bas de page (total par fille + total equipe).'
   ]
 };
 

@@ -1,7 +1,23 @@
 {
-  "version": "3.10.142",
+  "version": "3.10.144",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.144",
+      "date": "2026-05-29",
+      "changes": [
+        "HTML cartographie : récapitulatif des heures de la semaine en bas (total par fille, détail jours/congés, total équipe).",
+        "Cases vertes fiables quand la fille travaille (correction CSS blanc sur blanc)."
+      ]
+    },
+    {
+      "version": "3.10.143",
+      "date": "2026-05-29",
+      "changes": [
+        "HTML cartographie : cases vertes quand la fille travaille (plus de blanc sur blanc ni alternance aléatoire).",
+        "Correction conflit CSS entre la grille planning et les styles globaux schedule-sheet."
+      ]
+    },
     {
       "version": "3.10.142",
       "date": "2026-05-29",
