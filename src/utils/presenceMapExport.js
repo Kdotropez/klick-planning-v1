@@ -310,6 +310,20 @@ const employeeHasGridRow = (planning, employeeId, dayKey, slotCount) => {
   return dayData.some(normSlot);
 };
 
+/** Prénom court pour la colonne grille (mobile) — nom complet dans le tableau récap au-dessus. */
+export const compactNameForMobileGrid = (name) => {
+  const s = String(name || '').trim();
+  if (!s) return '';
+  const first = s.split(/\s+/)[0];
+  if (first.length <= 6) return first;
+  return `${first.slice(0, 5)}.`;
+};
+
+const renderGridNameCell = (name, rowBg) => {
+  const short = compactNameForMobileGrid(name);
+  return `<td class="pg-name" style="background:${rowBg}" title="${escapeHtml(name)}">${escapeHtml(short)}</td>`;
+};
+
 const buildPlanningGridChunkHtml = ({
   chunk,
   timeSlots,
@@ -323,15 +337,10 @@ const buildPlanningGridChunkHtml = ({
 }) => {
   const sliceCount = chunk.endIndex - chunk.startIndex;
   const slotHeadersDe = [];
-  const slotHeadersA = [];
   for (let i = chunk.startIndex; i < chunk.endIndex; i += 1) {
     slotHeadersDe.push(escapeHtml(slotStartLabel(timeSlots[i])));
-    if (i < timeSlots.length - 1) {
-      slotHeadersA.push(escapeHtml(slotStartLabel(timeSlots[i + 1])));
-    } else {
-      slotHeadersA.push(escapeHtml(getSlotEndTimeFormatted(timeSlots, i, durationCfg)));
-    }
   }
+  const colgroup = `<colgroup><col class="pg-col-name" />${'<col class="pg-col-slot" />'.repeat(sliceCount)}</colgroup>`;
 
   const rows = gridEmployeeIds
     .map((employeeId) => {
@@ -341,15 +350,16 @@ const buildPlanningGridChunkHtml = ({
       const statusLabel = getDayStatusLabel(dayData);
       const rowBg = EMPLOYEE_ROW_COLORS[colorIdx % EMPLOYEE_ROW_COLORS.length];
       const highlighted = highlightEmployeeId && String(highlightEmployeeId) === String(employeeId);
-      const rowStyle = highlighted ? 'outline:3px solid #2563eb;outline-offset:-2px;' : '';
+      const rowStyle = highlighted ? 'outline:2px solid #2563eb;outline-offset:-1px;' : '';
 
       if (statusLabel) {
         const isMaladie = statusLabel.toLowerCase().includes('maladie');
         const statusBg = isMaladie ? '#fde8e8' : '#fff3e0';
+        const statusShort = isMaladie ? 'Mal.' : 'Congé';
         return `<tr style="${rowStyle}">
-          <td class="pg-name" style="background:${rowBg}">${escapeHtml(name)}</td>
-          <td class="pg-status" colspan="${sliceCount}" style="background:${statusBg};font-weight:700;text-align:center">
-            ${escapeHtml(statusLabel)}
+          ${renderGridNameCell(name, rowBg)}
+          <td class="pg-status" colspan="${sliceCount}" style="background:${statusBg};font-weight:700;text-align:center;font-size:9px">
+            ${escapeHtml(statusShort)}
           </td>
         </tr>`;
       }
@@ -362,7 +372,7 @@ const buildPlanningGridChunkHtml = ({
       }
 
       return `<tr style="${rowStyle}">
-        <td class="pg-name" style="background:${rowBg}">${escapeHtml(name)}</td>
+        ${renderGridNameCell(name, rowBg)}
         ${cells.join('')}
       </tr>`;
     })
@@ -372,19 +382,16 @@ const buildPlanningGridChunkHtml = ({
     <div class="pg-chunk-label">${escapeHtml(chunk.label)}</div>
     <div class="pg-scroll">
       <table class="planning-grid-export">
+        ${colgroup}
         <thead>
           <tr>
-            <th class="pg-corner">DE →</th>
+            <th class="pg-corner"></th>
             ${slotHeadersDe.map((h) => `<th class="pg-time">${h}</th>`).join('')}
-          </tr>
-          <tr>
-            <th class="pg-corner">À →</th>
-            ${slotHeadersA.map((h) => `<th class="pg-time">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="pg-scroll-hint">← Glisser pour voir tous les créneaux →</div>
+      <div class="pg-scroll-hint">← Glisser →</div>
     </div>
   </div>`;
 };
@@ -433,34 +440,64 @@ export const buildDayPlanningGridHtml = ({
 };
 
 export const PLANNING_GRID_SURFACE_CSS = `
-  .planning-grid-block { margin: 0 14px 14px; padding-top: 4px; }
-  .pg-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.04em; }
-  .pg-chunk { margin-bottom: 10px; }
-  .pg-chunk-label { font-size: 11px; font-weight: 700; color: #0f766e; margin: 6px 0 4px; padding: 4px 8px; background: #ecfdf5; border-radius: 6px; display: inline-block; }
-  .pg-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
-  .pg-scroll-hint { font-size: 10px; color: #64748b; text-align: center; padding: 5px 8px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
-  .pg-empty { font-size: 12px; color: #64748b; padding: 8px 0; margin: 0; }
-  .planning-grid-export { border-collapse: collapse; font-size: 10px; table-layout: auto; width: max-content; min-width: 100%; }
-  .planning-grid-export th, .planning-grid-export td { border: 1px solid #cbd5e1; padding: 4px 3px; text-align: center; vertical-align: middle; }
-  .planning-grid-export .pg-corner { background: #f1f5f9; font-weight: 700; color: #475569; min-width: 78px; font-size: 9px; position: sticky; left: 0; z-index: 2; }
-  .planning-grid-export .pg-time { background: #e2e8f0; font-weight: 600; color: #334155; font-size: 9px; min-width: 28px; white-space: nowrap; }
-  .planning-grid-export .pg-name { text-align: left; font-weight: 700; font-size: 10px; padding: 4px 6px; min-width: 78px; position: sticky; left: 0; z-index: 1; }
-  .planning-grid-export .pg-slot { background: #fff; color: #cbd5e1; min-width: 26px; width: 26px; }
-  .planning-grid-export .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; font-size: 11px; }
-  .planning-grid-export .pg-status { font-size: 11px; }
+  .planning-grid-block { margin: 0 8px 12px; padding-top: 2px; }
+  .pg-title { margin: 0 0 6px; font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.03em; }
+  .pg-chunk { margin-bottom: 8px; }
+  .pg-chunk-label { font-size: 10px; font-weight: 700; color: #0f766e; margin: 4px 0 3px; padding: 3px 6px; background: #ecfdf5; border-radius: 4px; display: inline-block; }
+  .pg-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+  .pg-scroll-hint { font-size: 9px; color: #64748b; text-align: center; padding: 3px 4px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+  .pg-empty { font-size: 11px; color: #64748b; padding: 6px 0; margin: 0; }
+  .planning-grid-export { border-collapse: collapse; table-layout: fixed; width: max-content; font-size: 9px; }
+  .pg-col-name { width: 40px; }
+  .pg-col-slot { width: 21px; }
+  .planning-grid-export th, .planning-grid-export td { border: 1px solid #cbd5e1; padding: 0; text-align: center; vertical-align: middle; }
+  .planning-grid-export .pg-corner,
+  .planning-grid-export .pg-name {
+    width: 40px; min-width: 40px; max-width: 40px;
+    font-weight: 700; font-size: 7px; line-height: 1.1;
+    padding: 2px 1px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis;
+    word-break: break-all; hyphens: auto;
+    position: sticky; left: 0; z-index: 2;
+    background-clip: padding-box;
+  }
+  .planning-grid-export .pg-corner { background: #f1f5f9; color: #64748b; z-index: 3; }
+  .planning-grid-export .pg-time {
+    width: 21px; min-width: 21px; max-width: 21px;
+    background: #e2e8f0; font-weight: 600; color: #334155;
+    font-size: 6px; line-height: 1.1; padding: 2px 0;
+    white-space: nowrap; overflow: hidden;
+  }
+  .planning-grid-export .pg-slot {
+    width: 21px; min-width: 21px; max-width: 21px;
+    background: #fff; color: #e2e8f0; font-size: 8px; line-height: 1;
+    padding: 3px 0;
+  }
+  .planning-grid-export .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; }
+  .planning-grid-export .pg-status { font-size: 9px; padding: 3px 2px; }
+  @media (max-width: 480px) {
+    .pg-col-name, .planning-grid-export .pg-corner, .planning-grid-export .pg-name {
+      width: 36px !important; min-width: 36px !important; max-width: 36px !important;
+      font-size: 6px;
+    }
+    .pg-col-slot, .planning-grid-export .pg-time, .planning-grid-export .pg-slot {
+      width: 19px !important; min-width: 19px !important; max-width: 19px !important;
+    }
+    .planning-grid-export .pg-time { font-size: 5px; }
+  }
 `;
 
 const READABLE_STYLES = `
-  .readable-presence { display: flex; flex-direction: column; gap: 14px; }
+  .readable-presence { display: flex; flex-direction: column; gap: 10px; }
   .day-card {
-    border-radius: 12px;
+    border-radius: 10px;
     border: 2px solid #cbd5e1;
     overflow: hidden;
     background: #fff;
     page-break-inside: avoid;
   }
   .day-card-head {
-    padding: 10px 14px;
+    padding: 8px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -495,12 +532,12 @@ const READABLE_STYLES = `
     letter-spacing: 0.03em;
   }
   .roster-table td {
-    padding: 9px 14px;
+    padding: 6px 8px;
     border-top: 1px solid #e2e8f0;
     vertical-align: middle;
+    font-size: 12px;
   }
-  .roster-table tr:nth-child(even) td { background: #fafafa; }
-  .emp-name-cell { font-weight: 700; color: #0f172a; min-width: 120px; }
+  .emp-name-cell { font-weight: 700; color: #0f172a; min-width: 0; max-width: 72px; font-size: 11px; }
   .hours-cell { color: #0f766e; font-weight: 600; }
   .status-conge { color: #c2410c; font-weight: 700; }
   .status-maladie { color: #dc2626; font-weight: 700; }

@@ -59,7 +59,7 @@ const LANDSCAPE_STYLES = `
   }
   .landscape-content {
     min-height: 100vh;
-    padding: 12px 16px 24px;
+    padding: 8px 6px 16px;
   }
   .doc-header {
     background: #fff;
@@ -81,7 +81,7 @@ const LANDSCAPE_STYLES = `
   .schedule-sheet {
     background: #fff;
     border-radius: 10px;
-    padding: 12px;
+    padding: 8px 6px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     overflow-x: auto;
   }

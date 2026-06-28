@@ -422,6 +422,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.140': [
     'HTML cartographie: mode portrait OK, grille en 2 blocs matin/soir, scroll horizontal.'
+  ],
+  '3.10.141': [
+    'Grille HTML mobile: prenoms compacts, colonnes serrees, plus de place perdue avant les creneaux.'
   ]
 };
 
