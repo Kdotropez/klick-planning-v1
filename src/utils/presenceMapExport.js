@@ -405,13 +405,17 @@ export const buildDayPlanningGridHtml = ({
   employeeIds = [],
   employeeNameById = new Map(),
   highlightEmployeeId = null,
-  useFullNames = false
+  useFullNames = false,
+  onlyEmployeeId = null
 }) => {
   const timeSlots = config?.timeSlots || [];
-  if (!timeSlots.length || !employeeIds.length) return '';
+  const scopedEmployeeIds = onlyEmployeeId
+    ? employeeIds.filter((id) => String(id) === String(onlyEmployeeId))
+    : employeeIds;
+  if (!timeSlots.length || !scopedEmployeeIds.length) return '';
 
   const durationCfg = slotDurationCfg(config);
-  const gridEmployeeIds = employeeIds.filter((id) =>
+  const gridEmployeeIds = scopedEmployeeIds.filter((id) =>
     employeeHasGridRow(planning, id, day.dayKey, timeSlots.length)
   );
   if (!gridEmployeeIds.length) {
@@ -427,7 +431,7 @@ export const buildDayPlanningGridHtml = ({
         durationCfg,
         gridEmployeeIds,
         employeeNameById,
-        employeeIdsForColor: employeeIds,
+        employeeIdsForColor: scopedEmployeeIds,
         day,
         planning,
         highlightEmployeeId,
@@ -743,6 +747,67 @@ const READABLE_STYLES = `
     border-top: 2px solid #6ee7b7;
   }
   .week-summary-table .week-sum-total .week-sum-hours { color: #14532d; }
+  .week-daily-block {
+    margin: 0 8px 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 2px solid #93c5fd;
+    background: #eff6ff;
+    page-break-inside: avoid;
+  }
+  .week-daily-title {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #1e3a8a;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .week-daily-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: #fff;
+    table-layout: auto;
+    min-width: 0 !important;
+  }
+  .week-daily-table th {
+    text-align: left;
+    padding: 8px 10px;
+    background: #1d4ed8 !important;
+    color: #fff !important;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .week-daily-table th.col-hours,
+  .week-daily-table td.col-hours {
+    text-align: center;
+    white-space: nowrap;
+    width: 72px;
+  }
+  .week-daily-table td {
+    padding: 7px 10px;
+    border-top: 1px solid #dbeafe;
+    vertical-align: middle;
+  }
+  .week-daily-table .wd-name { font-weight: 700; color: #0f172a; white-space: nowrap; }
+  .week-daily-table .wd-day { font-weight: 600; color: #334155; text-transform: capitalize; white-space: nowrap; }
+  .week-daily-table .wd-hours-label { color: #0f766e; font-weight: 600; }
+  .week-daily-table .wd-status-conge { color: #c2410c; font-weight: 700; }
+  .week-daily-table .wd-status-maladie { color: #dc2626; font-weight: 700; }
+  .week-daily-table .wd-status-repos { color: #94a3b8; font-style: italic; }
+  .week-daily-table .wd-total td {
+    background: #dbeafe;
+    font-weight: 800;
+    color: #1e3a8a;
+    border-top: 2px solid #93c5fd;
+  }
+  .week-recap-footer {
+    margin: 12px 8px 6px;
+    padding-top: 8px;
+    border-top: 3px solid #0f766e;
+  }
 `;
 
 export const buildWeekHoursSummaryRows = ({
@@ -832,12 +897,90 @@ export const buildWeekHoursSummaryHtml = ({
       : '';
 
   return `<section class="week-summary-block">
-    <h2 class="week-summary-title">Récapitulatif heures — semaine ${escapeHtml(weekLabel)}${shopSuffix}</h2>
+    <h2 class="week-summary-title">Total heures — semaine ${escapeHtml(weekLabel)}${shopSuffix}</h2>
     <table class="week-summary-table">
       <thead>
         <tr><th>Prénom</th><th>Total semaine (h)</th><th>Détail</th></tr>
       </thead>
       <tbody>${bodyRows}${totalRow}</tbody>
+    </table>
+  </section>`;
+};
+
+export const buildWeekDailyHoursDetailHtml = ({
+  weekDays = [],
+  planning = {},
+  config = {},
+  employeeIds = [],
+  employeeNameById = new Map(),
+  filterEmployeeId = null,
+  weekLabel = '',
+  shopName = ''
+}) => {
+  if (!weekDays.length || !weekLabel) return '';
+
+  const ids = filterEmployeeId
+    ? employeeIds.filter((id) => String(id) === String(filterEmployeeId))
+    : employeeIds.filter(Boolean);
+  if (!ids.length) return '';
+
+  const showNameColumn = !filterEmployeeId;
+  let weekTotal = 0;
+  const bodyRows = [];
+
+  weekDays.forEach((day) => {
+    ids.forEach((employeeId) => {
+      const name = employeeNameById.get(employeeId) || employeeId;
+      const schedule = buildEmployeeDaySchedule(planning, employeeId, day, config);
+      let hoursClass = 'wd-hours-label';
+      let label = schedule.rangesLabel;
+      let duration = schedule.type === 'work' ? schedule.hoursLabel || '—' : '—';
+
+      if (schedule.type === 'conge') {
+        hoursClass = 'wd-status-conge';
+        label = 'Congé ☀️';
+      } else if (schedule.type === 'maladie') {
+        hoursClass = 'wd-status-maladie';
+        label = 'Maladie 🤒';
+      } else if (schedule.type === 'repos') {
+        hoursClass = 'wd-status-repos';
+        label = 'Repos';
+      } else {
+        weekTotal += schedule.hours;
+      }
+
+      bodyRows.push(`<tr>
+        ${showNameColumn ? `<td class="wd-name">${escapeHtml(name)}</td>` : ''}
+        <td class="wd-day">${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'dd/MM'))}</td>
+        <td class="${hoursClass}">${escapeHtml(label)}</td>
+        <td class="col-hours">${escapeHtml(duration)}</td>
+      </tr>`);
+    });
+  });
+
+  const totalColspan = showNameColumn ? 3 : 2;
+  const titleSuffix = filterEmployeeId
+    ? ` — ${escapeHtml(employeeNameById.get(filterEmployeeId) || filterEmployeeId)}`
+    : ` — ${escapeHtml(shopName)}`;
+
+  return `<section class="week-daily-block">
+    <h2 class="week-daily-title">Récapitulatif horaire — semaine ${escapeHtml(weekLabel)}${titleSuffix}</h2>
+    <table class="week-daily-table">
+      <thead>
+        <tr>
+          ${showNameColumn ? '<th>Prénom</th>' : ''}
+          <th>Jour</th>
+          <th>Horaires</th>
+          <th class="col-hours">Durée (h)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows.join('')}
+        <tr class="wd-total">
+          <td colspan="${totalColspan}">Total semaine</td>
+          <td class="col-hours">${escapeHtml(formatWorkedHoursNbNotation(weekTotal))}</td>
+        </tr>
+      </tbody>
     </table>
   </section>`;
 };
@@ -854,6 +997,11 @@ export const buildReadablePresenceHtml = ({
   filterRosterEmployeeId = null,
   highlightEmployeeId = null
 }) => {
+  const isEmployeeOnlyExport = !!filterRosterEmployeeId;
+  const exportEmployeeIds = isEmployeeOnlyExport
+    ? employeeIds.filter((id) => String(id) === String(filterRosterEmployeeId))
+    : employeeIds;
+
   const cards = readableDays
     .map(({ day, roster, workingCount, teamMoments }, dayIndex) => {
       const palette = day.palette;
@@ -876,6 +1024,12 @@ export const buildReadablePresenceHtml = ({
           }
           const duration =
             entry.type === 'work' ? escapeHtml(entry.hoursLabel || '—') : '—';
+          if (isEmployeeOnlyExport) {
+            return `<tr>
+            <td class="${hoursClass}">${label}</td>
+            <td class="duration-cell">${duration}</td>
+          </tr>`;
+          }
           return `<tr>
             <td class="emp-name-cell">${escapeHtml(entry.name)}</td>
             <td class="${hoursClass}">${label}</td>
@@ -884,14 +1038,16 @@ export const buildReadablePresenceHtml = ({
         })
         .join('');
 
-      const visibleTeamMoments = filterRosterEmployeeId
-        ? teamMoments.filter((m) =>
-            (m.employeeIds || []).some((id) => String(id) === String(filterRosterEmployeeId))
-          )
-        : teamMoments;
+      const visibleTeamMoments = isEmployeeOnlyExport
+        ? []
+        : filterRosterEmployeeId
+          ? teamMoments.filter((m) =>
+              (m.employeeIds || []).some((id) => String(id) === String(filterRosterEmployeeId))
+            )
+          : teamMoments;
 
       const teamHtml =
-        visibleTeamMoments.length > 0
+        !isEmployeeOnlyExport && visibleTeamMoments.length > 0
           ? `<div class="team-block">
               <h3>En boutique en même temps</h3>
               ${visibleTeamMoments
@@ -907,16 +1063,33 @@ export const buildReadablePresenceHtml = ({
         day,
         planning,
         config,
-        employeeIds,
+        employeeIds: exportEmployeeIds,
         employeeNameById,
         highlightEmployeeId: highlightEmployeeId || filterRosterEmployeeId,
-        useFullNames: true
+        useFullNames: true,
+        onlyEmployeeId: filterRosterEmployeeId
       });
+
+      const personalEntry = visibleRoster[0];
+      const dayBadge = isEmployeeOnlyExport
+        ? personalEntry?.type === 'work'
+          ? `${personalEntry.hoursLabel || '—'} h ce jour`
+          : personalEntry?.type === 'conge'
+            ? 'Congé'
+            : personalEntry?.type === 'maladie'
+              ? 'Maladie'
+              : 'Repos'
+        : `${workingCount} en boutique`;
 
       const body =
         visibleRoster.length === 0
-          ? '<div class="empty-day">Personne planifiée ce jour.</div>'
-          : `<table class="roster-table">
+          ? '<div class="empty-day">Aucun horaire planifié ce jour.</div>'
+          : isEmployeeOnlyExport
+            ? `<table class="roster-table">
+              <thead><tr><th>Horaires</th><th>Durée (h)</th></tr></thead>
+              <tbody>${rosterRows}</tbody>
+            </table>${planningGridHtml}`
+            : `<table class="roster-table">
               <thead><tr><th>Prénom</th><th>Horaires</th><th>Durée (h)</th></tr></thead>
               <tbody>${rosterRows}</tbody>
             </table>${teamHtml}${planningGridHtml}`;
@@ -924,7 +1097,7 @@ export const buildReadablePresenceHtml = ({
       return `<article class="day-card" style="border-color:${palette.border}">
         <header class="day-card-head" style="background:${palette.header};color:${palette.text}">
           <h2>Jour ${dayIndex + 1} — ${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'dd/MM/yyyy'))}</h2>
-          <span class="day-badge">${workingCount} en boutique</span>
+          <span class="day-badge">${dayBadge}</span>
         </header>
         ${body}
       </article>`;
@@ -936,7 +1109,7 @@ export const buildReadablePresenceHtml = ({
       weekDays,
       planning,
       config,
-      employeeIds,
+      employeeIds: exportEmployeeIds,
       employeeNameById,
       filterEmployeeId: filterRosterEmployeeId
     }),
@@ -945,11 +1118,25 @@ export const buildReadablePresenceHtml = ({
     filterEmployeeId: filterRosterEmployeeId
   });
 
+  const weekDailyHtml = buildWeekDailyHoursDetailHtml({
+    weekDays,
+    planning,
+    config,
+    employeeIds: exportEmployeeIds,
+    employeeNameById,
+    filterEmployeeId: filterRosterEmployeeId,
+    weekLabel,
+    shopName
+  });
+
   return `<div class="schedule-sheet readable-presence">
     <style>${READABLE_STYLES}</style>
     ${cards}
-    ${weekSummaryHtml}
-    <p class="presence-note">Mode paysage obligatoire sur téléphone. Défilez verticalement entre les jours. Grilles en 2 blocs (matin / soir), tous les créneaux visibles sur la largeur de l'écran.</p>
+    <div class="week-recap-footer" id="recap-semaine">
+      ${weekDailyHtml}
+      ${isEmployeeOnlyExport ? '' : weekSummaryHtml}
+    </div>
+    <p class="presence-note">Mode paysage obligatoire sur téléphone. Défilez jusqu'en bas pour le récapitulatif horaire de la semaine.</p>
   </div>`;
 };
 
@@ -1225,7 +1412,7 @@ export const exportPresenceMapHtml = ({
             readableScope === 'day'
               ? `Jour : ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
               : `Semaine : ${weekLabel}`,
-            'Votre ligne est surlignée dans la grille horaires.'
+            'Planning personnel : vos horaires uniquement (grille + récap en bas de page).'
           ],
           filename:
             readableScope === 'day'

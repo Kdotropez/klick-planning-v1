@@ -435,6 +435,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.144': [
     'HTML cartographie: recapitulatif heures de la semaine en bas de page (total par fille + total equipe).'
+  ],
+  '3.10.145': [
+    'HTML cartographie: recap horaire jour par jour visible en bas, export employe sans les autres filles.'
   ]
 };
 

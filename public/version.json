@@ -1,7 +1,15 @@
 {
-  "version": "3.10.144",
+  "version": "3.10.145",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.145",
+      "date": "2026-05-29",
+      "changes": [
+        "HTML cartographie : récap horaire jour par jour en bas de page (visible, total semaine).",
+        "Export HTML par employée : uniquement ses horaires et sa grille, sans les autres."
+      ]
+    },
     {
       "version": "3.10.144",
       "date": "2026-05-29",

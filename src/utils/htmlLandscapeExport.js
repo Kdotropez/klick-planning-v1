@@ -115,6 +115,18 @@ const LANDSCAPE_STYLES = `
     background: #22c55e !important;
     color: #fff !important;
   }
+  .schedule-sheet.readable-presence .week-summary-block,
+  .schedule-sheet.readable-presence .week-daily-block,
+  .schedule-sheet.readable-presence .week-recap-footer {
+    display: block !important;
+    overflow: visible;
+    min-width: 0;
+  }
+  .schedule-sheet.readable-presence .week-summary-table,
+  .schedule-sheet.readable-presence .week-daily-table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
   .schedule-sheet .subtotal td {
     background: #dcfce7 !important;
     font-weight: 700;
