@@ -255,10 +255,25 @@ const ORIENTATION_SCRIPT = `
 })();
 `;
 
-export const buildLandscapeHtmlDocument = ({ title, bodyHtml, metaLines = [] }) => {
+export const buildLandscapeHtmlDocument = ({ title, bodyHtml, metaLines = [], allowPortrait = false }) => {
   const safeTitle = escapeHtml(title || 'Planning');
   const metaHtml = metaLines.length
     ? `<div class="meta">${metaLines.map((line) => escapeHtml(line)).join('<br>')}</div>`
+    : '';
+  const portraitBlockerHtml = allowPortrait
+    ? ''
+    : `<div class="portrait-blocker" id="portrait-blocker">
+    <div class="icon">📱↻</div>
+    <h1>Mode paysage requis</h1>
+    <p>Pour lire ce planning, tournez votre téléphone en <strong>mode paysage</strong> (horizontal).</p>
+  </div>`;
+  const portraitOkStyles = allowPortrait
+    ? `
+  .portrait-blocker { display: none !important; }
+  @media screen and (orientation: portrait) {
+    .landscape-content { display: block !important; }
+    .portrait-blocker { display: none !important; }
+  }`
     : '';
 
   return `<!DOCTYPE html>
@@ -267,14 +282,10 @@ export const buildLandscapeHtmlDocument = ({ title, bodyHtml, metaLines = [] }) 
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>${safeTitle}</title>
-  <style>${LANDSCAPE_STYLES}</style>
+  <style>${LANDSCAPE_STYLES}${portraitOkStyles}</style>
 </head>
 <body>
-  <div class="portrait-blocker" id="portrait-blocker">
-    <div class="icon">📱↻</div>
-    <h1>Mode paysage requis</h1>
-    <p>Pour lire ce planning, tournez votre téléphone en <strong>mode paysage</strong> (horizontal).</p>
-  </div>
+  ${portraitBlockerHtml}
   <div class="landscape-content">
     <div class="toolbar">
       <button type="button" onclick="window.print()">🖨️ Imprimer</button>

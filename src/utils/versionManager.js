@@ -419,6 +419,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.139': [
     'HTML cartographie: duree (h), grille planning par jour, export boutique ou 1 fichier/employe.'
+  ],
+  '3.10.140': [
+    'HTML cartographie: mode portrait OK, grille en 2 blocs matin/soir, scroll horizontal.'
   ]
 };
 

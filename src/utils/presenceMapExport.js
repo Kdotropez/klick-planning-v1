@@ -268,34 +268,78 @@ const getDayStatusLabel = (dayData) => {
   return null;
 };
 
-/** Grille type planning drag & drop pour un jour (employés × créneaux). */
-export const buildDayPlanningGridHtml = ({
-  day,
-  planning = {},
-  config = {},
-  employeeIds = [],
-  employeeNameById = new Map(),
-  highlightEmployeeId = null
-}) => {
-  const timeSlots = config?.timeSlots || [];
-  if (!timeSlots.length || !employeeIds.length) return '';
+const slotStartLabel = (slot) => (typeof slot === 'string' ? slot : slot?.start || '00:00');
 
-  const durationCfg = slotDurationCfg(config);
-  const slotHeadersDe = timeSlots.map((slot) => escapeHtml(typeof slot === 'string' ? slot : slot?.start || ''));
-  const slotHeadersA = timeSlots.map((slot, index) => {
-    if (index < timeSlots.length - 1) {
-      const next = timeSlots[index + 1];
-      return escapeHtml(typeof next === 'string' ? next : next?.start || '');
+const slotStartMinutes = (slot) => {
+  const [h, m] = slotStartLabel(slot).split(':').map((v) => parseInt(v, 10) || 0);
+  return h * 60 + m;
+};
+
+/** Découpe la grille en matin (avant 17h) et soir (à partir de 17h). */
+export const getTimeSlotGridChunks = (timeSlots, durationCfg, eveningStartMinutes = 17 * 60) => {
+  if (!timeSlots?.length) return [];
+  let splitIdx = timeSlots.findIndex((s) => slotStartMinutes(s) >= eveningStartMinutes);
+  if (splitIdx <= 0) splitIdx = Math.ceil(timeSlots.length / 2);
+  if (splitIdx >= timeSlots.length) {
+    return [
+      {
+        label: `${slotStartLabel(timeSlots[0])} → ${getSlotEndTimeFormatted(timeSlots, timeSlots.length - 1, durationCfg)}`,
+        startIndex: 0,
+        endIndex: timeSlots.length
+      }
+    ];
+  }
+  return [
+    {
+      label: `${slotStartLabel(timeSlots[0])} → ${getSlotEndTimeFormatted(timeSlots, splitIdx - 1, durationCfg)}`,
+      startIndex: 0,
+      endIndex: splitIdx
+    },
+    {
+      label: `${slotStartLabel(timeSlots[splitIdx])} → ${getSlotEndTimeFormatted(timeSlots, timeSlots.length - 1, durationCfg)}`,
+      startIndex: splitIdx,
+      endIndex: timeSlots.length
     }
-    return escapeHtml(getSlotEndTimeFormatted(timeSlots, index, durationCfg));
-  });
+  ];
+};
 
-  const rows = employeeIds
-    .map((employeeId, employeeIndex) => {
+const employeeHasGridRow = (planning, employeeId, dayKey, slotCount) => {
+  const dayData = planning?.[employeeId]?.[dayKey];
+  if (getDayStatusLabel(dayData)) return true;
+  if (!Array.isArray(dayData)) return false;
+  return dayData.some(normSlot);
+};
+
+const buildPlanningGridChunkHtml = ({
+  chunk,
+  timeSlots,
+  durationCfg,
+  gridEmployeeIds,
+  employeeNameById,
+  employeeIdsForColor,
+  day,
+  planning,
+  highlightEmployeeId
+}) => {
+  const sliceCount = chunk.endIndex - chunk.startIndex;
+  const slotHeadersDe = [];
+  const slotHeadersA = [];
+  for (let i = chunk.startIndex; i < chunk.endIndex; i += 1) {
+    slotHeadersDe.push(escapeHtml(slotStartLabel(timeSlots[i])));
+    if (i < timeSlots.length - 1) {
+      slotHeadersA.push(escapeHtml(slotStartLabel(timeSlots[i + 1])));
+    } else {
+      slotHeadersA.push(escapeHtml(getSlotEndTimeFormatted(timeSlots, i, durationCfg)));
+    }
+  }
+
+  const rows = gridEmployeeIds
+    .map((employeeId) => {
       const name = employeeNameById.get(employeeId) || employeeId;
+      const colorIdx = Math.max(0, employeeIdsForColor.indexOf(employeeId));
       const dayData = planning?.[employeeId]?.[day.dayKey];
       const statusLabel = getDayStatusLabel(dayData);
-      const rowBg = EMPLOYEE_ROW_COLORS[employeeIndex % EMPLOYEE_ROW_COLORS.length];
+      const rowBg = EMPLOYEE_ROW_COLORS[colorIdx % EMPLOYEE_ROW_COLORS.length];
       const highlighted = highlightEmployeeId && String(highlightEmployeeId) === String(employeeId);
       const rowStyle = highlighted ? 'outline:3px solid #2563eb;outline-offset:-2px;' : '';
 
@@ -304,41 +348,28 @@ export const buildDayPlanningGridHtml = ({
         const statusBg = isMaladie ? '#fde8e8' : '#fff3e0';
         return `<tr style="${rowStyle}">
           <td class="pg-name" style="background:${rowBg}">${escapeHtml(name)}</td>
-          <td class="pg-status" colspan="${timeSlots.length}" style="background:${statusBg};font-weight:700;text-align:center">
+          <td class="pg-status" colspan="${sliceCount}" style="background:${statusBg};font-weight:700;text-align:center">
             ${escapeHtml(statusLabel)}
           </td>
         </tr>`;
       }
 
       const slots = Array.isArray(dayData) ? dayData : Array(timeSlots.length).fill(false);
-      const cells = timeSlots
-        .map((_, slotIndex) => {
-          const on = normSlot(slots[slotIndex]);
-          return `<td class="pg-slot${on ? ' pg-slot-on' : ''}">${on ? '✓' : ''}</td>`;
-        })
-        .join('');
+      const cells = [];
+      for (let i = chunk.startIndex; i < chunk.endIndex; i += 1) {
+        const on = normSlot(slots[i]);
+        cells.push(`<td class="pg-slot${on ? ' pg-slot-on' : ''}">${on ? '✓' : ''}</td>`);
+      }
 
       return `<tr style="${rowStyle}">
         <td class="pg-name" style="background:${rowBg}">${escapeHtml(name)}</td>
-        ${cells}
+        ${cells.join('')}
       </tr>`;
     })
     .join('');
 
-  return `<div class="planning-grid-block">
-    <style>
-      .planning-grid-block .pg-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.04em; }
-      .planning-grid-block .pg-scroll { overflow-x: auto; }
-      .planning-grid-block .planning-grid-export { width: 100%; border-collapse: collapse; font-size: 9px; min-width: 640px; table-layout: fixed; }
-      .planning-grid-block .planning-grid-export th, .planning-grid-block .planning-grid-export td { border: 1px solid #cbd5e1; padding: 3px 2px; text-align: center; vertical-align: middle; }
-      .planning-grid-block .pg-corner { background: #f1f5f9; font-weight: 700; color: #475569; min-width: 72px; font-size: 9px; }
-      .planning-grid-block .pg-time { background: #e2e8f0; font-weight: 600; color: #334155; font-size: 8px; }
-      .planning-grid-block .pg-name { text-align: left; font-weight: 700; font-size: 10px; padding: 4px 6px; min-width: 72px; }
-      .planning-grid-block .pg-slot { background: #fff; color: #cbd5e1; }
-      .planning-grid-block .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; font-size: 10px; }
-      .planning-grid-block .pg-status { font-size: 11px; }
-    </style>
-    <h3 class="pg-title">Planning du jour (grille horaires)</h3>
+  return `<div class="pg-chunk">
+    <div class="pg-chunk-label">${escapeHtml(chunk.label)}</div>
     <div class="pg-scroll">
       <table class="planning-grid-export">
         <thead>
@@ -353,9 +384,71 @@ export const buildDayPlanningGridHtml = ({
         </thead>
         <tbody>${rows}</tbody>
       </table>
+      <div class="pg-scroll-hint">← Glisser pour voir tous les créneaux →</div>
     </div>
   </div>`;
 };
+
+/** Grille type planning drag & drop pour un jour (employés × créneaux), en 2 blocs horaires. */
+export const buildDayPlanningGridHtml = ({
+  day,
+  planning = {},
+  config = {},
+  employeeIds = [],
+  employeeNameById = new Map(),
+  highlightEmployeeId = null
+}) => {
+  const timeSlots = config?.timeSlots || [];
+  if (!timeSlots.length || !employeeIds.length) return '';
+
+  const durationCfg = slotDurationCfg(config);
+  const gridEmployeeIds = employeeIds.filter((id) =>
+    employeeHasGridRow(planning, id, day.dayKey, timeSlots.length)
+  );
+  if (!gridEmployeeIds.length) {
+    return '<div class="planning-grid-block"><p class="pg-empty">Aucun créneau planifié dans la grille ce jour.</p></div>';
+  }
+
+  const chunks = getTimeSlotGridChunks(timeSlots, durationCfg);
+  const chunksHtml = chunks
+    .map((chunk) =>
+      buildPlanningGridChunkHtml({
+        chunk,
+        timeSlots,
+        durationCfg,
+        gridEmployeeIds,
+        employeeNameById,
+        employeeIdsForColor: employeeIds,
+        day,
+        planning,
+        highlightEmployeeId
+      })
+    )
+    .join('');
+
+  return `<div class="planning-grid-block">
+    <h3 class="pg-title">Planning du jour (grille horaires)</h3>
+    ${chunksHtml}
+  </div>`;
+};
+
+export const PLANNING_GRID_SURFACE_CSS = `
+  .planning-grid-block { margin: 0 14px 14px; padding-top: 4px; }
+  .pg-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pg-chunk { margin-bottom: 10px; }
+  .pg-chunk-label { font-size: 11px; font-weight: 700; color: #0f766e; margin: 6px 0 4px; padding: 4px 8px; background: #ecfdf5; border-radius: 6px; display: inline-block; }
+  .pg-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+  .pg-scroll-hint { font-size: 10px; color: #64748b; text-align: center; padding: 5px 8px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+  .pg-empty { font-size: 12px; color: #64748b; padding: 8px 0; margin: 0; }
+  .planning-grid-export { border-collapse: collapse; font-size: 10px; table-layout: auto; width: max-content; min-width: 100%; }
+  .planning-grid-export th, .planning-grid-export td { border: 1px solid #cbd5e1; padding: 4px 3px; text-align: center; vertical-align: middle; }
+  .planning-grid-export .pg-corner { background: #f1f5f9; font-weight: 700; color: #475569; min-width: 78px; font-size: 9px; position: sticky; left: 0; z-index: 2; }
+  .planning-grid-export .pg-time { background: #e2e8f0; font-weight: 600; color: #334155; font-size: 9px; min-width: 28px; white-space: nowrap; }
+  .planning-grid-export .pg-name { text-align: left; font-weight: 700; font-size: 10px; padding: 4px 6px; min-width: 78px; position: sticky; left: 0; z-index: 1; }
+  .planning-grid-export .pg-slot { background: #fff; color: #cbd5e1; min-width: 26px; width: 26px; }
+  .planning-grid-export .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; font-size: 11px; }
+  .planning-grid-export .pg-status { font-size: 11px; }
+`;
 
 const READABLE_STYLES = `
   .readable-presence { display: flex; flex-direction: column; gap: 14px; }
@@ -434,71 +527,7 @@ const READABLE_STYLES = `
   }
   .team-line strong { color: #047857; }
   .duration-cell { color: #0f172a; font-weight: 700; text-align: center; white-space: nowrap; }
-  .planning-grid-block {
-    margin: 0 14px 14px;
-    padding-top: 4px;
-  }
-  .pg-title {
-    margin: 0 0 8px;
-    font-size: 12px;
-    font-weight: 800;
-    color: #334155;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .pg-scroll { overflow-x: auto; }
-  .planning-grid-export {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 9px;
-    min-width: 640px;
-    table-layout: fixed;
-  }
-  .planning-grid-export th,
-  .planning-grid-export td {
-    border: 1px solid #cbd5e1;
-    padding: 3px 2px;
-    text-align: center;
-    vertical-align: middle;
-  }
-  .planning-grid-export .pg-corner {
-    background: #f1f5f9;
-    font-weight: 700;
-    color: #475569;
-    min-width: 72px;
-    font-size: 9px;
-    position: sticky;
-    left: 0;
-    z-index: 1;
-  }
-  .planning-grid-export .pg-time {
-    background: #e2e8f0;
-    font-weight: 600;
-    color: #334155;
-    font-size: 8px;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    height: 52px;
-    padding: 2px;
-  }
-  .planning-grid-export .pg-name {
-    text-align: left;
-    font-weight: 700;
-    font-size: 10px;
-    padding: 4px 6px;
-    min-width: 72px;
-    position: sticky;
-    left: 0;
-    z-index: 1;
-  }
-  .planning-grid-export .pg-slot { background: #fff; color: #cbd5e1; }
-  .planning-grid-export .pg-slot-on {
-    background: #22c55e;
-    color: #fff;
-    font-weight: 800;
-    font-size: 10px;
-  }
-  .planning-grid-export .pg-status { font-size: 11px; }
+  ${PLANNING_GRID_SURFACE_CSS}
   .empty-day {
     padding: 16px 14px;
     color: #64748b;
@@ -597,7 +626,7 @@ export const buildReadablePresenceHtml = ({
   return `<div class="schedule-sheet readable-presence">
     <style>${READABLE_STYLES}</style>
     ${cards}
-    <p class="presence-note">Par jour : équipe (prénom, horaires, durée), croisements simultanés, puis grille horaires type planning.</p>
+    <p class="presence-note">Défilez verticalement entre les jours. Chaque grille horaire est en 2 parties (ex. 9h30→16h30 puis 17h00→23h30) avec barre de défilement latérale.</p>
   </div>`;
 };
 
@@ -835,7 +864,7 @@ export const exportPresenceMapHtml = ({
       highlightEmployeeId
     });
     return {
-      doc: buildLandscapeHtmlDocument({ title, metaLines, bodyHtml }),
+      doc: buildLandscapeHtmlDocument({ title, metaLines, bodyHtml, allowPortrait: true }),
       filename
     };
   };
@@ -901,7 +930,7 @@ export const exportPresenceMapHtml = ({
         readableScope === 'day'
           ? `Jour : ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
           : `Semaine : ${weekLabel}`,
-        'Vue équipe complète : récap, croisements et grille horaires par jour.'
+        'Vue équipe : défilez entre les jours. Grilles en 2 parties (matin / soir), barre de défilement horizontale.'
       ],
       filename:
         readableScope === 'day'

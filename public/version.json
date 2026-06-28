@@ -1,7 +1,16 @@
 {
-  "version": "3.10.139",
+  "version": "3.10.140",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.140",
+      "date": "2026-05-29",
+      "changes": [
+        "HTML cartographie équipe : lisible en mode portrait (plus de blocage paysage obligatoire).",
+        "Grille horaire du jour en 2 parties (matin jusqu'à 16h30, soir à partir de 17h) avec barre de défilement.",
+        "Lignes « Repos » masquées dans la grille ; styles consolidés (fichier HTML corrigé)."
+      ]
+    },
     {
       "version": "3.10.139",
       "date": "2026-05-29",

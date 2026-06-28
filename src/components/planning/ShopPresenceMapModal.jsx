@@ -8,7 +8,8 @@ import {
   buildPresenceWeekLabel,
   buildReadablePresenceDays,
   buildDayPlanningGridHtml,
-  exportPresenceMapHtml
+  exportPresenceMapHtml,
+  PLANNING_GRID_SURFACE_CSS
 } from '../../utils/presenceMapExport';
 
 const ShopPresenceMapModal = ({
@@ -321,6 +322,7 @@ const ShopPresenceMapModal = ({
         >
           {layoutMode === 'readable' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <style>{PLANNING_GRID_SURFACE_CSS}</style>
               {visibleReadableDays.length === 0 ? (
                 <div style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>Aucune donnée à afficher.</div>
               ) : (
