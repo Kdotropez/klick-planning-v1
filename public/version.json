@@ -1,13 +1,13 @@
 {
-  "version": "3.10.141",
+  "version": "3.10.142",
   "lastUpdate": "2026-05-29",
   "changelog": [
     {
-      "version": "3.10.141",
+      "version": "3.10.142",
       "date": "2026-05-29",
       "changes": [
-        "HTML cartographie mobile : colonne prénoms compacte (40px), prénoms abrégés, créneaux collés sans espace perdu.",
-        "Grille horaire : une seule ligne d'en-tête, colonnes fixes 21px, marges réduites pour téléphone."
+        "HTML cartographie : mode paysage obligatoire sur téléphone, grille pleine largeur avec tous les créneaux visibles.",
+        "Modale cartographie ordinateur : tableau récap compact (prénom + horaires côte à côte), grille agrandie."
       ]
     },
     {

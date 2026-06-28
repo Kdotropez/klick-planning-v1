@@ -375,18 +375,28 @@ const ShopPresenceMapModal = ({
                       </span>
                     </header>
 
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <table
+                      style={{
+                        width: 'auto',
+                        maxWidth: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: 14,
+                        tableLayout: 'auto'
+                      }}
+                    >
                       <thead>
                         <tr>
                           <th
                             style={{
                               textAlign: 'left',
-                              padding: '8px 16px',
+                              padding: '8px 14px 8px 16px',
                               background: '#f8fafc',
                               color: '#64748b',
                               fontSize: 11,
                               textTransform: 'uppercase',
-                              letterSpacing: '0.04em'
+                              letterSpacing: '0.04em',
+                              whiteSpace: 'nowrap',
+                              width: '1%'
                             }}
                           >
                             Prénom
@@ -394,7 +404,7 @@ const ShopPresenceMapModal = ({
                           <th
                             style={{
                               textAlign: 'left',
-                              padding: '8px 16px',
+                              padding: '8px 14px',
                               background: '#f8fafc',
                               color: '#64748b',
                               fontSize: 11,
@@ -407,13 +417,14 @@ const ShopPresenceMapModal = ({
                           <th
                             style={{
                               textAlign: 'center',
-                              padding: '8px 16px',
+                              padding: '8px 16px 8px 14px',
                               background: '#f8fafc',
                               color: '#64748b',
                               fontSize: 11,
                               textTransform: 'uppercase',
                               letterSpacing: '0.04em',
-                              width: 72
+                              whiteSpace: 'nowrap',
+                              width: '1%'
                             }}
                           >
                             Durée (h)
@@ -439,10 +450,12 @@ const ShopPresenceMapModal = ({
                             <tr key={entry.id}>
                               <td
                                 style={{
-                                  padding: '10px 16px',
+                                  padding: '10px 14px 10px 16px',
                                   borderTop: '1px solid #e2e8f0',
                                   fontWeight: highlighted ? 800 : 700,
-                                  color: '#0f172a'
+                                  color: '#0f172a',
+                                  whiteSpace: 'nowrap',
+                                  width: '1%'
                                 }}
                               >
                                 {entry.name}
@@ -452,11 +465,13 @@ const ShopPresenceMapModal = ({
                               </td>
                               <td
                                 style={{
-                                  padding: '10px 16px',
+                                  padding: '10px 16px 10px 14px',
                                   borderTop: '1px solid #e2e8f0',
                                   textAlign: 'center',
                                   fontWeight: 700,
-                                  color: '#0f172a'
+                                  color: '#0f172a',
+                                  whiteSpace: 'nowrap',
+                                  width: '1%'
                                 }}
                               >
                                 {duration}
@@ -503,6 +518,7 @@ const ShopPresenceMapModal = ({
                     )}
 
                     <div
+                      className="presence-modal-grids"
                       style={{ margin: '0 16px 14px', overflowX: 'auto' }}
                       dangerouslySetInnerHTML={{
                         __html: buildDayPlanningGridHtml({
@@ -511,7 +527,8 @@ const ShopPresenceMapModal = ({
                           config,
                           employeeIds,
                           employeeNameById,
-                          highlightEmployeeId
+                          highlightEmployeeId,
+                          useFullNames: true
                         })
                       }}
                     />

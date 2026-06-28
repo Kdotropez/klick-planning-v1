@@ -425,6 +425,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.141': [
     'Grille HTML mobile: prenoms compacts, colonnes serrees, plus de place perdue avant les creneaux.'
+  ],
+  '3.10.142': [
+    'HTML cartographie: paysage obligatoire, grille pleine largeur avec tous les creneaux visibles.',
+    'Modale cartographie ordinateur: tableau recapitulatif compact, grille horaire agrandie et lisible.'
   ]
 };
 

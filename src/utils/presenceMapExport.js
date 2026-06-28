@@ -319,9 +319,9 @@ export const compactNameForMobileGrid = (name) => {
   return `${first.slice(0, 5)}.`;
 };
 
-const renderGridNameCell = (name, rowBg) => {
-  const short = compactNameForMobileGrid(name);
-  return `<td class="pg-name" style="background:${rowBg}" title="${escapeHtml(name)}">${escapeHtml(short)}</td>`;
+const renderGridNameCell = (name, rowBg, useFullNames = false) => {
+  const display = useFullNames ? name : compactNameForMobileGrid(name);
+  return `<td class="pg-name" style="background:${rowBg}" title="${escapeHtml(name)}">${escapeHtml(display)}</td>`;
 };
 
 const buildPlanningGridChunkHtml = ({
@@ -333,7 +333,8 @@ const buildPlanningGridChunkHtml = ({
   employeeIdsForColor,
   day,
   planning,
-  highlightEmployeeId
+  highlightEmployeeId,
+  useFullNames = false
 }) => {
   const sliceCount = chunk.endIndex - chunk.startIndex;
   const slotHeadersDe = [];
@@ -357,7 +358,7 @@ const buildPlanningGridChunkHtml = ({
         const statusBg = isMaladie ? '#fde8e8' : '#fff3e0';
         const statusShort = isMaladie ? 'Mal.' : 'Congé';
         return `<tr style="${rowStyle}">
-          ${renderGridNameCell(name, rowBg)}
+          ${renderGridNameCell(name, rowBg, useFullNames)}
           <td class="pg-status" colspan="${sliceCount}" style="background:${statusBg};font-weight:700;text-align:center;font-size:9px">
             ${escapeHtml(statusShort)}
           </td>
@@ -372,7 +373,7 @@ const buildPlanningGridChunkHtml = ({
       }
 
       return `<tr style="${rowStyle}">
-        ${renderGridNameCell(name, rowBg)}
+        ${renderGridNameCell(name, rowBg, useFullNames)}
         ${cells.join('')}
       </tr>`;
     })
@@ -403,7 +404,8 @@ export const buildDayPlanningGridHtml = ({
   config = {},
   employeeIds = [],
   employeeNameById = new Map(),
-  highlightEmployeeId = null
+  highlightEmployeeId = null,
+  useFullNames = false
 }) => {
   const timeSlots = config?.timeSlots || [];
   if (!timeSlots.length || !employeeIds.length) return '';
@@ -428,7 +430,8 @@ export const buildDayPlanningGridHtml = ({
         employeeIdsForColor: employeeIds,
         day,
         planning,
-        highlightEmployeeId
+        highlightEmployeeId,
+        useFullNames
       })
     )
     .join('');
@@ -439,7 +442,7 @@ export const buildDayPlanningGridHtml = ({
   </div>`;
 };
 
-export const PLANNING_GRID_SURFACE_CSS = `
+export const PLANNING_GRID_CORE_CSS = `
   .planning-grid-block { margin: 0 8px 12px; padding-top: 2px; }
   .pg-title { margin: 0 0 6px; font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.03em; }
   .pg-chunk { margin-bottom: 8px; }
@@ -448,44 +451,82 @@ export const PLANNING_GRID_SURFACE_CSS = `
   .pg-scroll-hint { font-size: 9px; color: #64748b; text-align: center; padding: 3px 4px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
   .pg-empty { font-size: 11px; color: #64748b; padding: 6px 0; margin: 0; }
   .planning-grid-export { border-collapse: collapse; table-layout: fixed; width: max-content; font-size: 9px; }
-  .pg-col-name { width: 40px; }
-  .pg-col-slot { width: 21px; }
+  .pg-col-name { width: 56px; }
+  .pg-col-slot { width: 26px; }
   .planning-grid-export th, .planning-grid-export td { border: 1px solid #cbd5e1; padding: 0; text-align: center; vertical-align: middle; }
   .planning-grid-export .pg-corner,
   .planning-grid-export .pg-name {
-    width: 40px; min-width: 40px; max-width: 40px;
-    font-weight: 700; font-size: 7px; line-height: 1.1;
-    padding: 2px 1px; text-align: center;
+    width: 56px; min-width: 56px; max-width: 56px;
+    font-weight: 700; font-size: 9px; line-height: 1.15;
+    padding: 3px 2px; text-align: center;
     overflow: hidden; text-overflow: ellipsis;
-    word-break: break-all; hyphens: auto;
+    word-break: break-word;
     position: sticky; left: 0; z-index: 2;
     background-clip: padding-box;
   }
   .planning-grid-export .pg-corner { background: #f1f5f9; color: #64748b; z-index: 3; }
   .planning-grid-export .pg-time {
-    width: 21px; min-width: 21px; max-width: 21px;
+    width: 26px; min-width: 26px; max-width: 26px;
     background: #e2e8f0; font-weight: 600; color: #334155;
-    font-size: 6px; line-height: 1.1; padding: 2px 0;
-    white-space: nowrap; overflow: hidden;
+    font-size: 8px; line-height: 1.15; padding: 3px 1px;
+    white-space: nowrap; overflow: visible;
   }
   .planning-grid-export .pg-slot {
-    width: 21px; min-width: 21px; max-width: 21px;
-    background: #fff; color: #e2e8f0; font-size: 8px; line-height: 1;
-    padding: 3px 0;
+    width: 26px; min-width: 26px; max-width: 26px;
+    background: #fff; color: #e2e8f0; font-size: 9px; line-height: 1;
+    padding: 4px 0;
   }
   .planning-grid-export .pg-slot-on { background: #22c55e; color: #fff; font-weight: 800; }
-  .planning-grid-export .pg-status { font-size: 9px; padding: 3px 2px; }
-  @media (max-width: 480px) {
-    .pg-col-name, .planning-grid-export .pg-corner, .planning-grid-export .pg-name {
-      width: 36px !important; min-width: 36px !important; max-width: 36px !important;
-      font-size: 6px;
+  .planning-grid-export .pg-status { font-size: 9px; padding: 4px 2px; }
+`;
+
+export const PLANNING_GRID_MODAL_CSS = `
+  @media (min-width: 640px) {
+    .presence-modal-grids .pg-scroll { width: 100%; }
+    .presence-modal-grids .planning-grid-export { width: 100%; }
+    .presence-modal-grids .pg-col-name { width: 12%; min-width: 80px; }
+    .presence-modal-grids .pg-col-slot { width: auto; }
+    .presence-modal-grids .planning-grid-export .pg-corner,
+    .presence-modal-grids .planning-grid-export .pg-name {
+      width: auto; min-width: 80px; max-width: none;
+      font-size: 12px; overflow: visible; text-overflow: clip;
+      position: static;
     }
-    .pg-col-slot, .planning-grid-export .pg-time, .planning-grid-export .pg-slot {
-      width: 19px !important; min-width: 19px !important; max-width: 19px !important;
+    .presence-modal-grids .planning-grid-export .pg-time,
+    .presence-modal-grids .planning-grid-export .pg-slot {
+      width: auto; min-width: 28px; max-width: none;
+      font-size: 11px; overflow: visible;
     }
-    .planning-grid-export .pg-time { font-size: 5px; }
+    .presence-modal-grids .planning-grid-export .pg-time { font-size: 10px; padding: 5px 2px; }
+    .presence-modal-grids .planning-grid-export .pg-slot { padding: 7px 0; }
+    .presence-modal-grids .pg-scroll-hint { display: none; }
   }
 `;
+
+export const PLANNING_GRID_EXPORT_CSS = `
+  .readable-presence .pg-scroll { width: 100%; }
+  .readable-presence .planning-grid-export { width: 100%; min-width: 0; }
+  .readable-presence .pg-col-name { width: 12%; min-width: 68px; }
+  .readable-presence .pg-col-slot { width: auto; }
+  .readable-presence .planning-grid-export .pg-corner,
+  .readable-presence .planning-grid-export .pg-name {
+    width: auto; min-width: 68px; max-width: none;
+    font-size: 11px; line-height: 1.2; overflow: visible;
+    text-overflow: clip; position: static;
+  }
+  .readable-presence .planning-grid-export .pg-time {
+    width: auto; min-width: 0; max-width: none;
+    font-size: 10px; overflow: visible; white-space: nowrap;
+    padding: 5px 2px;
+  }
+  .readable-presence .planning-grid-export .pg-slot {
+    width: auto; min-width: 0; max-width: none;
+    font-size: 11px; padding: 7px 0;
+  }
+  .readable-presence .pg-scroll-hint { display: none; }
+`;
+
+export const PLANNING_GRID_SURFACE_CSS = `${PLANNING_GRID_CORE_CSS}${PLANNING_GRID_MODAL_CSS}`;
 
 const READABLE_STYLES = `
   .readable-presence { display: flex; flex-direction: column; gap: 10px; }
@@ -518,18 +559,32 @@ const READABLE_STYLES = `
     background: rgba(255,255,255,0.65);
   }
   .roster-table {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     border-collapse: collapse;
+    table-layout: auto;
     font-size: 13px;
   }
   .roster-table th {
     text-align: left;
-    padding: 8px 14px;
+    padding: 8px 12px;
     background: #f1f5f9;
     color: #475569;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+  .roster-table th:nth-child(1),
+  .roster-table td.emp-name-cell {
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 14px;
+  }
+  .roster-table th:nth-child(3),
+  .roster-table td.duration-cell {
+    white-space: nowrap;
+    width: 1%;
+    padding-left: 14px;
   }
   .roster-table td {
     padding: 6px 8px;
@@ -537,7 +592,7 @@ const READABLE_STYLES = `
     vertical-align: middle;
     font-size: 12px;
   }
-  .emp-name-cell { font-weight: 700; color: #0f172a; min-width: 0; max-width: 72px; font-size: 11px; }
+  .emp-name-cell { font-weight: 700; color: #0f172a; font-size: 12px; }
   .hours-cell { color: #0f766e; font-weight: 600; }
   .status-conge { color: #c2410c; font-weight: 700; }
   .status-maladie { color: #dc2626; font-weight: 700; }
@@ -564,7 +619,8 @@ const READABLE_STYLES = `
   }
   .team-line strong { color: #047857; }
   .duration-cell { color: #0f172a; font-weight: 700; text-align: center; white-space: nowrap; }
-  ${PLANNING_GRID_SURFACE_CSS}
+  ${PLANNING_GRID_CORE_CSS}
+  ${PLANNING_GRID_EXPORT_CSS}
   .empty-day {
     padding: 16px 14px;
     color: #64748b;
@@ -639,7 +695,8 @@ export const buildReadablePresenceHtml = ({
         config,
         employeeIds,
         employeeNameById,
-        highlightEmployeeId: highlightEmployeeId || filterRosterEmployeeId
+        highlightEmployeeId: highlightEmployeeId || filterRosterEmployeeId,
+        useFullNames: true
       });
 
       const body =
@@ -663,7 +720,7 @@ export const buildReadablePresenceHtml = ({
   return `<div class="schedule-sheet readable-presence">
     <style>${READABLE_STYLES}</style>
     ${cards}
-    <p class="presence-note">Défilez verticalement entre les jours. Chaque grille horaire est en 2 parties (ex. 9h30→16h30 puis 17h00→23h30) avec barre de défilement latérale.</p>
+    <p class="presence-note">Mode paysage obligatoire sur téléphone. Défilez verticalement entre les jours. Grilles en 2 blocs (matin / soir), tous les créneaux visibles sur la largeur de l'écran.</p>
   </div>`;
 };
 
@@ -901,7 +958,7 @@ export const exportPresenceMapHtml = ({
       highlightEmployeeId
     });
     return {
-      doc: buildLandscapeHtmlDocument({ title, metaLines, bodyHtml, allowPortrait: true }),
+      doc: buildLandscapeHtmlDocument({ title, metaLines, bodyHtml, allowPortrait: false }),
       filename
     };
   };
@@ -967,7 +1024,7 @@ export const exportPresenceMapHtml = ({
         readableScope === 'day'
           ? `Jour : ${day.weekday} ${format(parseISO(day.dayKey), 'dd/MM/yyyy')}`
           : `Semaine : ${weekLabel}`,
-        'Vue équipe : défilez entre les jours. Grilles en 2 parties (matin / soir), barre de défilement horizontale.'
+        'Vue équipe : mode paysage sur téléphone. Grilles matin / soir, tous les créneaux sur la largeur de l\'écran.'
       ],
       filename:
         readableScope === 'day'
