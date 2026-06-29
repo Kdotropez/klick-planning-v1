@@ -1,7 +1,14 @@
 {
-  "version": "3.10.147",
+  "version": "3.10.148",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.148",
+      "date": "2026-05-29",
+      "changes": [
+        "Bouton « Renommer » rétabli dans le récap employés sous le planning."
+      ]
+    },
     {
       "version": "3.10.147",
       "date": "2026-05-29",

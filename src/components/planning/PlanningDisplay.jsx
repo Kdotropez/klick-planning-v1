@@ -3985,6 +3985,7 @@ const PlanningDisplay = ({
         }}
         onHideEmployee={handleHideEmployee}
         onReactivateEmployee={handleShowEmployee}
+        onRenameEmployee={handleRenameEmployeeClick}
         isEmployeeHiddenInShop={(employeeId) => {
           const emp = currentShopEmployees?.find((e) => e.id === employeeId);
           return !!emp?.hiddenFrom;

@@ -446,6 +446,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.147': [
     'Noms employes: affichage boutique aligne sur le nom canonique (ex. VALOU sur Port Grimaud).',
     'Sync automatique des noms divergents entre boutiques au chargement du planning.'
+  ],
+  '3.10.148': [
+    'Bouton Renommer de retour dans le recap employes sous le planning.'
   ]
 };
 

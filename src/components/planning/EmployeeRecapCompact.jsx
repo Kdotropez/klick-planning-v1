@@ -72,6 +72,7 @@ const EmployeeRecapCompact = ({
   onOpenMonthlyRecap,
   onHideEmployee,
   onReactivateEmployee,
+  onRenameEmployee,
   isEmployeeHiddenInShop
 }) => {
   const monthlyHoursByEmployee = useMemo(() => {
@@ -311,6 +312,16 @@ const EmployeeRecapCompact = ({
                   >
                     Détail boutique
                   </button>
+                  {onRenameEmployee && (
+                    <button
+                      type="button"
+                      onClick={() => onRenameEmployee(employeeId, employeeName)}
+                      style={actionBtnStyle('#007bff')}
+                      title="Renommer l'employé (toutes les boutiques)"
+                    >
+                      Renommer
+                    </button>
+                  )}
                   {hidden ? (
                     <button type="button" onClick={() => onReactivateEmployee?.(employeeId)} style={actionBtnStyle('#28a745')}>
                       Réactiver
