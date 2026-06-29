@@ -442,6 +442,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.146': [
     'Deverrouillage superviseur: toutes les semaines passees en une fois pour la session.',
     'Noms employes harmonises entre boutiques et sauvegarde locale immediate au renommage.'
+  ],
+  '3.10.147': [
+    'Noms employes: affichage boutique aligne sur le nom canonique (ex. VALOU sur Port Grimaud).',
+    'Sync automatique des noms divergents entre boutiques au chargement du planning.'
   ]
 };
 

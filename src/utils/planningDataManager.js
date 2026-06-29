@@ -354,21 +354,73 @@ const generateTimeSlots = (interval, startTime, endTime) => {
 };
 
 // Gestion des employés
-export const pickEmployeeDisplayName = (nameA, nameB, employeeId) => {
-  const a = String(nameA || '').trim();
-  const b = String(nameB || '').trim();
-  if (!b) return a;
-  if (!a) return b;
-  if (a.toUpperCase() === b.toUpperCase()) return a;
+const looksLikeEmployeeIdAsName = (name, employeeId) => {
+  const n = String(name || '').trim().toLowerCase();
   const idKey = String(employeeId || '').trim().toLowerCase();
-  const looksLikeId = (name) => {
-    const n = String(name || '').trim().toLowerCase();
-    if (!n || !idKey) return false;
-    return n === idKey || idKey.includes(n) || n.includes(idKey);
-  };
-  if (looksLikeId(a) && !looksLikeId(b)) return b;
-  if (looksLikeId(b) && !looksLikeId(a)) return a;
-  return b.length >= a.length ? b : a;
+  if (!n || !idKey) return false;
+  return n === idKey || idKey.includes(n) || n.includes(idKey);
+};
+
+export const resolveEmployeeDisplayNameFromVariants = (planningData, employeeId, variants = []) => {
+  const names = variants
+    .map((v) => String(v?.name || '').trim())
+    .filter(Boolean);
+  if (names.length === 0) return '';
+  const uniqueUpper = new Set(names.map((n) => n.toUpperCase()));
+  if (uniqueUpper.size === 1) return names[0];
+
+  const nonIdNames = names.filter((n) => !looksLikeEmployeeIdAsName(n, employeeId));
+  const pool = nonIdNames.length > 0 ? nonIdNames : names;
+
+  const mainShopId = getEmployeeMainShopId(planningData, employeeId);
+  if (mainShopId) {
+    const mainVariant = variants.find((v) => String(v._shopId || v.shopId) === String(mainShopId));
+    const mainName = String(mainVariant?.name || '').trim();
+    if (mainName && !looksLikeEmployeeIdAsName(mainName, employeeId)) {
+      return mainName;
+    }
+  }
+
+  const freq = new Map();
+  pool.forEach((name) => {
+    const key = name.toUpperCase();
+    if (!freq.has(key)) freq.set(key, { count: 0, display: name });
+    freq.get(key).count += 1;
+  });
+  let best = pool[0];
+  let bestCount = 0;
+  freq.forEach(({ count, display }) => {
+    if (count > bestCount) {
+      bestCount = count;
+      best = display;
+    }
+  });
+  return best;
+};
+
+/** @deprecated Préférer resolveEmployeeDisplayNameFromVariants */
+export const pickEmployeeDisplayName = (nameA, nameB, employeeId) =>
+  resolveEmployeeDisplayNameFromVariants(
+    { shops: [] },
+    employeeId,
+    [{ name: nameA }, { name: nameB }]
+  );
+
+export const syncEmployeeNamesAcrossShops = (planningData, currentDate = new Date()) => {
+  const canonicalEmployees = getAllEmployees(planningData, currentDate);
+  const nameById = new Map(canonicalEmployees.map((emp) => [emp.id, emp.name]));
+  let changed = false;
+  const shops = (planningData.shops || []).map((shop) => ({
+    ...shop,
+    employees: (shop.employees || []).map((emp) => {
+      if (!emp?.id) return emp;
+      const canonicalName = nameById.get(emp.id);
+      if (!canonicalName || String(emp.name || '').trim() === canonicalName) return emp;
+      changed = true;
+      return { ...emp, name: canonicalName };
+    }),
+  }));
+  return changed ? { ...planningData, shops } : planningData;
 };
 
 export const renameEmployeeInPlanningData = (planningData, employeeId, newName) => {
@@ -2925,32 +2977,29 @@ export const getEmployeeById = (planningData, employeeId) => {
 };
 
 export const getAllEmployees = (planningData, currentDate = new Date()) => {
-  const employeesMap = new Map();
-  
-  planningData.shops.forEach(shop => {
-    shop.employees.forEach(emp => {
-      // Vérifier si l'employé n'est pas masqué pour la date actuelle
-      if (!isEmployeeHidden(emp, currentDate)) {
-        if (!employeesMap.has(emp.id)) {
-          employeesMap.set(emp.id, { ...emp });
-        } else {
-          const existing = employeesMap.get(emp.id);
-          const mergedCanWorkIn = [...new Set([...(existing.canWorkIn || []), ...(emp.canWorkIn || [])])];
-          const mainShop = existing.mainShop || emp.mainShop;
-          const displayName = pickEmployeeDisplayName(existing.name, emp.name, emp.id);
-          employeesMap.set(emp.id, {
-            ...existing,
-            ...emp,
-            name: displayName,
-            canWorkIn: mergedCanWorkIn,
-            mainShop
-          });
-        }
-      }
+  const variantsById = new Map();
+
+  (planningData.shops || []).forEach((shop) => {
+    (shop.employees || []).forEach((emp) => {
+      if (!emp?.id || isEmployeeHidden(emp, currentDate)) return;
+      if (!variantsById.has(emp.id)) variantsById.set(emp.id, []);
+      variantsById.get(emp.id).push({ ...emp, _shopId: shop.id });
     });
   });
-  
-  return Array.from(employeesMap.values());
+
+  return Array.from(variantsById.entries()).map(([employeeId, variants]) => {
+    const mergedCanWorkIn = [...new Set(variants.flatMap((v) => v.canWorkIn || []))];
+    const mainShop = variants.find((v) => v.mainShop)?.mainShop || variants[0]?.mainShop || null;
+    const displayName = resolveEmployeeDisplayNameFromVariants(planningData, employeeId, variants);
+    const base = { ...variants[0] };
+    delete base._shopId;
+    return {
+      ...base,
+      name: displayName,
+      canWorkIn: mergedCanWorkIn,
+      mainShop,
+    };
+  });
 };
 
 // Fonction utilitaire pour vérifier si un employé est en congés

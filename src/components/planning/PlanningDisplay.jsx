@@ -27,7 +27,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -1092,17 +1092,31 @@ const PlanningDisplay = ({
         dedupedShopEmployees.push(emp);
       });
 
-      // Conserver une vue globale pour les usages annexes, sans piloter l'affichage boutique avec canWorkIn
       const weekDate = parseISO(validWeek);
+      const syncedPlanningData = syncEmployeeNamesAcrossShops(freshPlanningData, weekDate);
+      if (syncedPlanningData !== freshPlanningData) {
+        freshPlanningData = syncedPlanningData;
+        try {
+          saveToLocalStorage('planningData', syncedPlanningData);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+
       const allEmployeesData = getAllEmployees(freshPlanningData, weekDate);
+      const canonicalNameById = new Map(allEmployeesData.map((emp) => [emp.id, emp.name]));
+      const dedupedWithCanonicalNames = dedupedShopEmployees.map((emp) => ({
+        ...emp,
+        name: canonicalNameById.get(emp.id) || emp.name,
+      }));
       setAllEmployees(allEmployeesData);
 
-      console.log('🏪 Employés visibles de la boutique actuelle:', dedupedShopEmployees);
+      console.log('🏪 Employés visibles de la boutique actuelle:', dedupedWithCanonicalNames);
 
-      const currentShopEmployeeIds = dedupedShopEmployees.map((emp) => emp.id);
+      const currentShopEmployeeIds = dedupedWithCanonicalNames.map((emp) => emp.id);
 
       // Mettre à jour les employés de la boutique actuelle
-      setCurrentShopEmployees(dedupedShopEmployees);
+      setCurrentShopEmployees(dedupedWithCanonicalNames);
       
       // 2. Récupérer le planning existant pour cette boutique/semaine
       console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek: validWeek, freshPlanningData });
