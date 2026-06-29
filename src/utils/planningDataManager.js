@@ -445,6 +445,25 @@ export const renameEmployeeInPlanningData = (planningData, employeeId, newName) 
   };
 };
 
+/** Noms réellement stockés par boutique (peuvent diverger de l'affichage harmonisé). */
+export const getEmployeeStoredNameVariants = (planningData, employeeId) => {
+  const names = new Set();
+  (planningData?.shops || []).forEach((shop) => {
+    const emp = (shop.employees || []).find((e) => e && String(e.id) === String(employeeId));
+    const name = String(emp?.name || '').trim();
+    if (name) names.add(name);
+  });
+  return Array.from(names);
+};
+
+export const employeeStoredNamesMatch = (planningData, employeeId, targetName) => {
+  const target = String(targetName || '').trim().toUpperCase();
+  if (!target) return false;
+  const variants = getEmployeeStoredNameVariants(planningData, employeeId);
+  if (variants.length === 0) return false;
+  return variants.every((name) => name.toUpperCase() === target);
+};
+
 export const addEmployee = (planningData, employee) => {
   const newEmployee = {
     id: `emp_${Date.now()}`,

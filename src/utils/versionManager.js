@@ -453,6 +453,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.149': [
     'Renommage: sauvegarde Supabase automatique + noms canoniques non ecrases par Port Grimaud.',
     'Chargement Supabase: harmonisation des noms employes entre boutiques.'
+  ],
+  '3.10.150': [
+    'Renommage: corrige VALEUR vers VALOU quand l ecran affichait deja le bon nom (noms stockes vs affiches).'
   ]
 };
 

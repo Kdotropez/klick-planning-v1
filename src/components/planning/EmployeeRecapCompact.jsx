@@ -315,7 +315,7 @@ const EmployeeRecapCompact = ({
                   {onRenameEmployee && (
                     <button
                       type="button"
-                      onClick={() => onRenameEmployee(employeeId, employeeName)}
+                      onClick={() => onRenameEmployee(employeeId)}
                       style={actionBtnStyle('#007bff')}
                       title="Renommer l'employé (toutes les boutiques)"
                     >

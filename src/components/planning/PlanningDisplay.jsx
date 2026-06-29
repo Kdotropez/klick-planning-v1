@@ -27,7 +27,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -799,21 +799,29 @@ const PlanningDisplay = ({
 
   // Suppression employé désactivée: handler retiré
 
-  const handleRenameEmployeeClick = useCallback(async (employeeId, currentName) => {
+  const handleRenameEmployeeClick = useCallback(async (employeeId) => {
     if (!employeeId) return;
     if (readOnly) {
       setLocalFeedback('🔒 Lecture seule — renommage impossible');
       return;
     }
-    const newName = window.prompt("Nouveau nom de l'employé:", currentName || '');
+    const storedNames = getEmployeeStoredNameVariants(planningData, employeeId);
+    const fallbackName = getAllEmployees(planningData).find((emp) => emp.id === employeeId)?.name || '';
+    const promptDefault = storedNames.length === 1 ? storedNames[0] : storedNames[0] || fallbackName;
+    const promptMessage = storedNames.length > 1
+      ? `Noms enregistrés (par boutique) : ${storedNames.join(' / ')}\n\nNouveau nom unique pour toutes les boutiques :`
+      : "Nouveau nom de l'employé:";
+    const newName = window.prompt(promptMessage, promptDefault);
     const trimmed = String(newName || '').trim();
-    if (!trimmed || trimmed === String(currentName || '').trim()) return;
+    if (!trimmed) return;
+    if (employeeStoredNamesMatch(planningData, employeeId, trimmed)) {
+      setLocalFeedback(`ℹ️ « ${trimmed} » est déjà enregistré partout en base.`);
+      return;
+    }
     try {
       let updatedSnapshot = null;
       setPlanningData((prev) => {
-        updatedSnapshot = syncEmployeeNamesAcrossShops(
-          renameEmployeeInPlanningData(prev, employeeId, trimmed)
-        );
+        updatedSnapshot = renameEmployeeInPlanningData(prev, employeeId, trimmed);
         try {
           saveToLocalStorage('planningData', updatedSnapshot);
         } catch (_) {
@@ -822,9 +830,7 @@ const PlanningDisplay = ({
         return updatedSnapshot;
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const payload = updatedSnapshot || syncEmployeeNamesAcrossShops(
-        renameEmployeeInPlanningData(planningData, employeeId, trimmed)
-      );
+      const payload = updatedSnapshot || renameEmployeeInPlanningData(planningData, employeeId, trimmed);
       try {
         const remoteResult = await saveCompletePlanningData(payload);
         if (remoteResult?.ok) {

@@ -1,7 +1,15 @@
 {
-  "version": "3.10.149",
+  "version": "3.10.150",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.150",
+      "date": "2026-05-29",
+      "changes": [
+        "Renommage : correction VALEUR → VALOU direct (compare les noms en base, pas l'affichage harmonisé).",
+        "Si plusieurs noms divergents entre boutiques, la boîte de dialogue les liste explicitement."
+      ]
+    },
     {
       "version": "3.10.149",
       "date": "2026-05-29",
