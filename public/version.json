@@ -1,7 +1,15 @@
 {
-  "version": "3.10.145",
+  "version": "3.10.146",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.146",
+      "date": "2026-05-29",
+      "changes": [
+        "Déverrouillage superviseur : toutes les semaines passées d'un coup (session), pas seulement la semaine affichée.",
+        "Renommage employée : nom synchronisé entre boutiques + sauvegarde locale immédiate (SAUVE SUPABASE pour les autres postes)."
+      ]
+    },
     {
       "version": "3.10.145",
       "date": "2026-05-29",

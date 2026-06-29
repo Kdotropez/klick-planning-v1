@@ -354,6 +354,38 @@ const generateTimeSlots = (interval, startTime, endTime) => {
 };
 
 // Gestion des employés
+export const pickEmployeeDisplayName = (nameA, nameB, employeeId) => {
+  const a = String(nameA || '').trim();
+  const b = String(nameB || '').trim();
+  if (!b) return a;
+  if (!a) return b;
+  if (a.toUpperCase() === b.toUpperCase()) return a;
+  const idKey = String(employeeId || '').trim().toLowerCase();
+  const looksLikeId = (name) => {
+    const n = String(name || '').trim().toLowerCase();
+    if (!n || !idKey) return false;
+    return n === idKey || idKey.includes(n) || n.includes(idKey);
+  };
+  if (looksLikeId(a) && !looksLikeId(b)) return b;
+  if (looksLikeId(b) && !looksLikeId(a)) return a;
+  return b.length >= a.length ? b : a;
+};
+
+export const renameEmployeeInPlanningData = (planningData, employeeId, newName) => {
+  const safeName = String(newName || '').trim();
+  if (!employeeId || !safeName) return planningData;
+  const normalizedId = String(employeeId);
+  return {
+    ...planningData,
+    shops: (planningData.shops || []).map((shop) => ({
+      ...shop,
+      employees: (shop.employees || []).map((emp) =>
+        emp && String(emp.id) === normalizedId ? { ...emp, name: safeName } : emp
+      )
+    }))
+  };
+};
+
 export const addEmployee = (planningData, employee) => {
   const newEmployee = {
     id: `emp_${Date.now()}`,
@@ -2900,13 +2932,19 @@ export const getAllEmployees = (planningData, currentDate = new Date()) => {
       // Vérifier si l'employé n'est pas masqué pour la date actuelle
       if (!isEmployeeHidden(emp, currentDate)) {
         if (!employeesMap.has(emp.id)) {
-          employeesMap.set(emp.id, emp);
+          employeesMap.set(emp.id, { ...emp });
         } else {
-          // Fusionner les boutiques autorisées et garder la boutique principale
           const existing = employeesMap.get(emp.id);
-          const mergedCanWorkIn = [...new Set([...existing.canWorkIn, ...emp.canWorkIn])];
-          const mainShop = existing.mainShop || emp.mainShop; // Garder la première boutique principale trouvée
-          employeesMap.set(emp.id, { ...existing, canWorkIn: mergedCanWorkIn, mainShop });
+          const mergedCanWorkIn = [...new Set([...(existing.canWorkIn || []), ...(emp.canWorkIn || [])])];
+          const mainShop = existing.mainShop || emp.mainShop;
+          const displayName = pickEmployeeDisplayName(existing.name, emp.name, emp.id);
+          employeesMap.set(emp.id, {
+            ...existing,
+            ...emp,
+            name: displayName,
+            canWorkIn: mergedCanWorkIn,
+            mainShop
+          });
         }
       }
     });

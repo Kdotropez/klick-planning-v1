@@ -438,6 +438,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.145': [
     'HTML cartographie: recap horaire jour par jour visible en bas, export employe sans les autres filles.'
+  ],
+  '3.10.146': [
+    'Deverrouillage superviseur: toutes les semaines passees en une fois pour la session.',
+    'Noms employes harmonises entre boutiques et sauvegarde locale immediate au renommage.'
   ]
 };
 

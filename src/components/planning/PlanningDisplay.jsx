@@ -27,7 +27,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -305,6 +305,7 @@ const PlanningDisplay = ({
   const [autoLockEnabled, setAutoLockEnabled] = useState(true);
   const [lastModifiedDay, setLastModifiedDay] = useState(null);
   const [sessionEditableWeeks, setSessionEditableWeeks] = useState(() => new Set());
+  const [sessionAllHistoricalUnlocked, setSessionAllHistoricalUnlocked] = useState(false);
   const [latestVisitedWeek, setLatestVisitedWeek] = useState(validWeek);
   
   // État pour forcer le rafraîchissement
@@ -343,35 +344,34 @@ const PlanningDisplay = ({
   const isHistoricalWeek = validWeek < todayKey;
   const isBeforeLatestVisitedWeek = validWeek < latestVisitedWeek;
   const isWeekFullyHistorical = weekEndKey < todayKey || isBeforeLatestVisitedWeek;
-  const isHistoricalWeekEditable = sessionEditableWeeks.has(validWeek);
-  const isWeekEditingLocked = isHistoricalWeek && !isHistoricalWeekEditable;
+  const isHistoricalWeekEditable = sessionAllHistoricalUnlocked || sessionEditableWeeks.has(validWeek);
+  const isWeekEditingLocked = (isHistoricalWeek || isBeforeLatestVisitedWeek) && !isHistoricalWeekEditable;
   const isWeekFullyLocked = isWeekFullyHistorical && !isHistoricalWeekEditable;
   const isPlanningDateLocked = useCallback((dayIndex) => {
+    if (sessionAllHistoricalUnlocked) return false;
     const dayKey = format(addDays(parseISO(validWeek), dayIndex), 'yyyy-MM-dd');
     return (isBeforeLatestVisitedWeek || dayKey < todayKey) && !sessionEditableWeeks.has(validWeek);
-  }, [isBeforeLatestVisitedWeek, sessionEditableWeeks, todayKey, validWeek]);
+  }, [isBeforeLatestVisitedWeek, sessionAllHistoricalUnlocked, sessionEditableWeeks, validWeek]);
   const requestHistoricalWeekUnlock = useCallback(() => {
-    const code = window.prompt('Code superviseur requis pour modifier les dates antérieures :');
+    const code = window.prompt('Code superviseur requis pour modifier les semaines passées :');
     if (code?.trim() !== SUPERVISOR_WEEK_UNLOCK_CODE) {
-      setLocalFeedback('🔒 Code incorrect : les dates antérieures restent verrouillées.');
+      setLocalFeedback('🔒 Code incorrect : les semaines passées restent verrouillées.');
       return;
     }
+    setSessionAllHistoricalUnlocked(true);
     setSessionEditableWeeks((prev) => {
       const next = new Set(prev);
       next.add(validWeek);
       return next;
     });
-    setLocalFeedback('🔓 Dates antérieures modifiables pour cette session uniquement.');
+    setLocalFeedback('🔓 Toutes les semaines passées sont modifiables pour cette session.');
   }, [validWeek]);
 
   const relockHistoricalWeek = useCallback(() => {
-    setSessionEditableWeeks((prev) => {
-      const next = new Set(prev);
-      next.delete(validWeek);
-      return next;
-    });
-    setLocalFeedback('🔒 Dates antérieures reverrouillées pour cette session.');
-  }, [validWeek]);
+    setSessionAllHistoricalUnlocked(false);
+    setSessionEditableWeeks(new Set());
+    setLocalFeedback('🔒 Semaines passées reverrouillées pour cette session.');
+  }, []);
 
   // Marché ambulant : corrige grille uniforme persistée + migre les coches (une fois au changement de boutique)
   useEffect(() => {
@@ -786,21 +786,19 @@ const PlanningDisplay = ({
   const handleRenameEmployeeClick = useCallback((employeeId, currentName) => {
     if (!employeeId) return;
     const newName = window.prompt("Nouveau nom de l'employé:", currentName || '');
-    if (!newName) return;
+    const trimmed = String(newName || '').trim();
+    if (!trimmed || trimmed === String(currentName || '').trim()) return;
     try {
-      setPlanningData(prev => {
-        const updated = {
-          ...prev,
-          shops: (prev.shops || []).map(shop => ({
-            ...shop,
-            employees: (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, name: newName } : emp
-            )
-          }))
-        };
+      setPlanningData((prev) => {
+        const updated = renameEmployeeInPlanningData(prev, employeeId, trimmed);
+        try {
+          saveToLocalStorage('planningData', updated);
+        } catch (_) {
+          /* ignore */
+        }
         return updated;
       });
-      setLocalFeedback('✏️ Nom employé mis à jour');
+      setLocalFeedback(`✏️ Nom mis à jour partout : ${trimmed} (pensez à SAUVE SUPABASE pour les autres postes)`);
     } catch (e) {
       console.error('Erreur renommage employé:', e);
       setLocalFeedback('❌ Erreur lors du renommage');
@@ -3749,7 +3747,7 @@ const PlanningDisplay = ({
 
         </div>
 
-        {isHistoricalWeek && (
+        {(isWeekEditingLocked || sessionAllHistoricalUnlocked || isBeforeLatestVisitedWeek) && (
           <div
             style={{
               display: 'flex',
@@ -3768,13 +3766,15 @@ const PlanningDisplay = ({
             <div>
               {isWeekEditingLocked
                 ? isBeforeLatestVisitedWeek
-                  ? '🔒 Semaine verrouillée : une semaine suivante a déjà été ouverte.'
+                  ? '🔒 Semaine verrouillée : une semaine plus récente a déjà été consultée.'
                   : isWeekFullyHistorical
                   ? '🔒 Semaine verrouillée : toutes les dates sont antérieures à aujourd’hui.'
                   : '🔒 Dates passées verrouillées : aujourd’hui et les jours futurs restent modifiables.'
-                : '🔓 Dates antérieures modifiables pour cette session uniquement.'}
+                : sessionAllHistoricalUnlocked
+                  ? '🔓 Toutes les semaines passées sont modifiables pour cette session.'
+                  : '🔓 Semaine affichée modifiable pour cette session.'}
               <div style={{ fontSize: '12px', fontWeight: 500, marginTop: '3px' }}>
-                Semaine affichée : {validWeek}. Les semaines précédentes et les dates passées sont protégées.
+                Code superviseur : déverrouille toutes les semaines passées (pas seulement la semaine affichée).
               </div>
             </div>
             <button
@@ -3790,7 +3790,7 @@ const PlanningDisplay = ({
                 fontWeight: 800
               }}
             >
-              {isWeekEditingLocked ? 'Déverrouiller avec code superviseur' : 'Reverrouiller les dates passées'}
+              {isWeekEditingLocked ? 'Déverrouiller toutes les semaines passées' : 'Reverrouiller les semaines passées'}
             </button>
           </div>
         )}
