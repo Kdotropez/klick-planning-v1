@@ -449,6 +449,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.148': [
     'Bouton Renommer de retour dans le recap employes sous le planning.'
+  ],
+  '3.10.149': [
+    'Renommage: sauvegarde Supabase automatique + noms canoniques non ecrases par Port Grimaud.',
+    'Chargement Supabase: harmonisation des noms employes entre boutiques.'
   ]
 };
 

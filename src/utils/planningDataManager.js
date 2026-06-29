@@ -372,15 +372,6 @@ export const resolveEmployeeDisplayNameFromVariants = (planningData, employeeId,
   const nonIdNames = names.filter((n) => !looksLikeEmployeeIdAsName(n, employeeId));
   const pool = nonIdNames.length > 0 ? nonIdNames : names;
 
-  const mainShopId = getEmployeeMainShopId(planningData, employeeId);
-  if (mainShopId) {
-    const mainVariant = variants.find((v) => String(v._shopId || v.shopId) === String(mainShopId));
-    const mainName = String(mainVariant?.name || '').trim();
-    if (mainName && !looksLikeEmployeeIdAsName(mainName, employeeId)) {
-      return mainName;
-    }
-  }
-
   const freq = new Map();
   pool.forEach((name) => {
     const key = name.toUpperCase();
@@ -395,6 +386,22 @@ export const resolveEmployeeDisplayNameFromVariants = (planningData, employeeId,
       best = display;
     }
   });
+
+  const tiedNames = [];
+  freq.forEach(({ count, display }, key) => {
+    if (count === bestCount) tiedNames.push({ key, display });
+  });
+  if (tiedNames.length <= 1) return best;
+
+  const mainShopId = getEmployeeMainShopId(planningData, employeeId);
+  if (mainShopId) {
+    const mainVariant = variants.find((v) => String(v._shopId || v.shopId) === String(mainShopId));
+    const mainName = String(mainVariant?.name || '').trim();
+    if (mainName) {
+      const tied = tiedNames.find((entry) => entry.key === mainName.toUpperCase());
+      if (tied) return tied.display;
+    }
+  }
   return best;
 };
 
@@ -677,6 +684,13 @@ export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
       preservedShopIds
     }
   };
+};
+
+export const normalizeCompletePlanningData = (planningData, currentDate = new Date()) => {
+  if (!planningData?.shops?.length) return planningData;
+  const { _mergeReport, ...rest } = planningData;
+  const synced = syncEmployeeNamesAcrossShops(rest, currentDate);
+  return _mergeReport ? { ...synced, _mergeReport } : synced;
 };
 
 /** Clés semaine à tester (lundi canonique + variantes fréquentes). */

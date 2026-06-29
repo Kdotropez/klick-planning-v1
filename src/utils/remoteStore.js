@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData, mergeCompletePlanningWithRemote } from './planningDataManager';
+import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData, mergeCompletePlanningWithRemote, normalizeCompletePlanningData } from './planningDataManager';
 
 // Outbox locale pour mode hybride (sauvegardes différées)
 const OUTBOX_KEY = 'remote_outbox_v1';
@@ -326,16 +326,16 @@ export const saveCompletePlanningData = async (completePlanningData, options = {
   }
   
   try {
-    let dataToSave = completePlanningData;
+    let dataToSave = normalizeCompletePlanningData(completePlanningData);
     let preservedShopIds = [];
 
     if (!replaceEntirely) {
       const remoteRow = await fetchRowData('complete_file', 'all_data');
       if (remoteRow && isCompletePlanningData(remoteRow)) {
-        const merged = mergeCompletePlanningWithRemote(completePlanningData, remoteRow);
+        const merged = mergeCompletePlanningWithRemote(dataToSave, remoteRow);
         preservedShopIds = merged._mergeReport?.preservedShopIds || [];
         const { _mergeReport, ...withoutReport } = merged;
-        dataToSave = withoutReport;
+        dataToSave = normalizeCompletePlanningData(withoutReport);
 
         if (preservedShopIds.length > 0) {
           console.warn(
@@ -811,7 +811,7 @@ export const loadCompletePlanningData = async () => {
       console.warn('⚠️ loadCompletePlanningData: échec lecture complete_file, on tente le fallback:', completeErr);
     }
     if (completeRow && isCompletePlanningData(completeRow.data)) {
-      const planningData = completeRow.data;
+      const planningData = normalizeCompletePlanningData(completeRow.data);
       console.log('✅ loadCompletePlanningData (complete_file) OK:', {
         shops: planningData.shops?.length || 0,
         version: planningData.version,
@@ -858,16 +858,8 @@ export const loadCompletePlanningData = async () => {
       console.warn('⚠️ Aucune ligne Supabase avec un backup complet valide (shops) trouvée.');
       return null;
     }
-    
-    console.log('✅ loadCompletePlanningData success:', {
-      shops: planningData.shops?.length || 0,
-      version: planningData.version,
-      dataKeys: Object.keys(planningData),
-      hasPlanning: !!planningData.planning,
-      planningKeys: planningData.planning ? Object.keys(planningData.planning) : []
-    });
-    
-    return planningData;
+
+    return normalizeCompletePlanningData(planningData);
   } catch (error) {
     console.error('❌ Exception dans loadCompletePlanningData:', error);
     return null;

@@ -1,7 +1,16 @@
 {
-  "version": "3.10.148",
+  "version": "3.10.149",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.149",
+      "date": "2026-05-29",
+      "changes": [
+        "Renommage employé : sauvegarde Supabase automatique (plus besoin de SAUVE SUPABASE après Renommer).",
+        "Correction affichage : le nom canonique n'est plus écrasé par la fiche Port Grimaud seule.",
+        "Chargement Supabase : harmonisation des noms divergents entre boutiques."
+      ]
+    },
     {
       "version": "3.10.148",
       "date": "2026-05-29",

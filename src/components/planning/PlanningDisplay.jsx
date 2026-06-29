@@ -616,21 +616,29 @@ const PlanningDisplay = ({
     return false;
   }, [selectedShop]);
 
-  // Mettre à jour les employés de la boutique actuelle avec logique spéciale pour Christine
+  // Mettre à jour les employés visibles (noms canoniques multi-boutiques)
   useEffect(() => {
     if (!planningData || !selectedShop) {
       setCurrentShopEmployees([]);
+      setAllEmployees([]);
       return;
     }
 
-    // Afficher uniquement les employés réellement présents dans la boutique courante.
-    // Cela évite les réapparitions fantômes via des anciennes liaisons canWorkIn.
-    const currentShopData = planningData.shops?.find((shop) => shop.id === selectedShop);
+    const weekDate = validWeek ? parseISO(validWeek) : new Date();
+    const syncedPlanningData = syncEmployeeNamesAcrossShops(planningData, weekDate);
+    if (syncedPlanningData !== planningData) {
+      try {
+        saveToLocalStorage('planningData', syncedPlanningData);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    const currentShopData = syncedPlanningData.shops?.find((shop) => shop.id === selectedShop);
     const visibleEmployeesInCurrentShop = (currentShopData?.employees || []).filter((emp) =>
       !!emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp)
     );
 
-    // Déduplication défensive par id en gardant la première occurrence visible.
     const deduped = [];
     const seen = new Set();
     visibleEmployeesInCurrentShop.forEach((emp) => {
@@ -639,9 +647,17 @@ const PlanningDisplay = ({
       deduped.push(emp);
     });
 
-    console.log(`Employés visibles pour ${selectedShop} (semaine ${selectedWeek}):`, deduped.map((emp) => emp.name));
-    setCurrentShopEmployees(deduped);
-  }, [planningData, selectedShop, selectedWeek, isEmployeeAssignedToCurrentShop]);
+    const allEmployeesData = getAllEmployees(syncedPlanningData, weekDate);
+    const canonicalNameById = new Map(allEmployeesData.map((emp) => [emp.id, emp.name]));
+    const dedupedWithCanonicalNames = deduped.map((emp) => ({
+      ...emp,
+      name: canonicalNameById.get(emp.id) || emp.name,
+    }));
+
+    setAllEmployees(allEmployeesData);
+    setCurrentShopEmployees(dedupedWithCanonicalNames);
+    console.log(`Employés visibles pour ${selectedShop} (semaine ${selectedWeek}):`, dedupedWithCanonicalNames.map((emp) => emp.name));
+  }, [planningData, selectedShop, selectedWeek, validWeek, isEmployeeAssignedToCurrentShop]);
 
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && validWeek ? getWeekPlanning(planningData, selectedShop, validWeek) : { planning: {}, selectedEmployees: [] };
@@ -783,27 +799,53 @@ const PlanningDisplay = ({
 
   // Suppression employé désactivée: handler retiré
 
-  const handleRenameEmployeeClick = useCallback((employeeId, currentName) => {
+  const handleRenameEmployeeClick = useCallback(async (employeeId, currentName) => {
     if (!employeeId) return;
+    if (readOnly) {
+      setLocalFeedback('🔒 Lecture seule — renommage impossible');
+      return;
+    }
     const newName = window.prompt("Nouveau nom de l'employé:", currentName || '');
     const trimmed = String(newName || '').trim();
     if (!trimmed || trimmed === String(currentName || '').trim()) return;
     try {
+      let updatedSnapshot = null;
       setPlanningData((prev) => {
-        const updated = renameEmployeeInPlanningData(prev, employeeId, trimmed);
+        updatedSnapshot = syncEmployeeNamesAcrossShops(
+          renameEmployeeInPlanningData(prev, employeeId, trimmed)
+        );
         try {
-          saveToLocalStorage('planningData', updated);
+          saveToLocalStorage('planningData', updatedSnapshot);
         } catch (_) {
           /* ignore */
         }
-        return updated;
+        return updatedSnapshot;
       });
-      setLocalFeedback(`✏️ Nom mis à jour partout : ${trimmed} (pensez à SAUVE SUPABASE pour les autres postes)`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const payload = updatedSnapshot || syncEmployeeNamesAcrossShops(
+        renameEmployeeInPlanningData(planningData, employeeId, trimmed)
+      );
+      try {
+        const remoteResult = await saveCompletePlanningData(payload);
+        if (remoteResult?.ok) {
+          if (remoteResult.planningData) {
+            setPlanningData(remoteResult.planningData);
+            saveToLocalStorage('planningData', remoteResult.planningData);
+          }
+          setLocalFeedback(`✏️ Nom mis à jour partout : ${trimmed} — sauvegardé dans Supabase`);
+        } else {
+          setLocalFeedback(`✏️ Nom mis à jour localement : ${trimmed} — échec Supabase, refaites SAUVE SUPABASE`);
+        }
+      } catch (saveError) {
+        console.error('Erreur sauvegarde Supabase du renommage:', saveError);
+        setLocalFeedback(`✏️ Nom mis à jour localement : ${trimmed} — échec Supabase, refaites SAUVE SUPABASE`);
+      }
+      setForceRefresh((prev) => prev + 1);
     } catch (e) {
       console.error('Erreur renommage employé:', e);
       setLocalFeedback('❌ Erreur lors du renommage');
     }
-  }, [setPlanningData]);
+  }, [planningData, readOnly, setPlanningData]);
 
   const HIDE_EMPLOYEE_SINCE_DATE = '2026-01-01';
 
@@ -1064,90 +1106,36 @@ const PlanningDisplay = ({
       planningDataKeys: planningData ? Object.keys(planningData) : 'null'
     });
     
-    if (selectedShop && validWeek) {
-      // ⚡ UTILISER les données FRAÎCHES depuis localStorage (sans modifier le state pour éviter la boucle)
-      let freshPlanningData = planningData;
-      try {
-        const storedData = JSON.parse(localStorage.getItem('planningData') || '{}');
-        if (storedData && storedData.shops && storedData.shops.length > 0) {
-          freshPlanningData = storedData;
-          console.log('🔄 Utilisation des données fraîches depuis localStorage');
-          console.log('📊 Données fraîches:', JSON.stringify(storedData.shops?.find(s => s.id === selectedShop)?.weeks?.[validWeek]?.planning || {}).substring(0, 200));
-        }
-      } catch (error) {
-        console.error('Erreur lecture localStorage:', error);
-      }
-      
-      // 1. Source unique et fiable: les employés de la boutique courante uniquement
-      // (évite les réapparitions "historique multi-boutiques" via canWorkIn).
+    if (selectedShop && validWeek && planningData?.shops?.length) {
+      const weekDate = parseISO(validWeek);
+      const freshPlanningData = syncEmployeeNamesAcrossShops(planningData, weekDate);
+
       const currentShopData = freshPlanningData.shops?.find((shop) => shop.id === selectedShop);
       const visibleShopEmployees = (currentShopData?.employees || []).filter((emp) =>
         !!emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp)
       );
-      const dedupedShopEmployees = [];
-      const seenShopIds = new Set();
-      visibleShopEmployees.forEach((emp) => {
-        if (!emp?.id || seenShopIds.has(emp.id)) return;
-        seenShopIds.add(emp.id);
-        dedupedShopEmployees.push(emp);
-      });
+      const currentShopEmployeeIds = Array.from(
+        new Set(visibleShopEmployees.map((emp) => emp.id).filter(Boolean))
+      );
 
-      const weekDate = parseISO(validWeek);
-      const syncedPlanningData = syncEmployeeNamesAcrossShops(freshPlanningData, weekDate);
-      if (syncedPlanningData !== freshPlanningData) {
-        freshPlanningData = syncedPlanningData;
-        try {
-          saveToLocalStorage('planningData', syncedPlanningData);
-        } catch (_) {
-          /* ignore */
-        }
-      }
-
-      const allEmployeesData = getAllEmployees(freshPlanningData, weekDate);
-      const canonicalNameById = new Map(allEmployeesData.map((emp) => [emp.id, emp.name]));
-      const dedupedWithCanonicalNames = dedupedShopEmployees.map((emp) => ({
-        ...emp,
-        name: canonicalNameById.get(emp.id) || emp.name,
-      }));
-      setAllEmployees(allEmployeesData);
-
-      console.log('🏪 Employés visibles de la boutique actuelle:', dedupedWithCanonicalNames);
-
-      const currentShopEmployeeIds = dedupedWithCanonicalNames.map((emp) => emp.id);
-
-      // Mettre à jour les employés de la boutique actuelle
-      setCurrentShopEmployees(dedupedWithCanonicalNames);
-      
-      // 2. Récupérer le planning existant pour cette boutique/semaine
-      console.log('🔍 Appel getWeekPlanning avec:', { selectedShop, selectedWeek: validWeek, freshPlanningData });
-      console.log('🔍 freshPlanningData.shops:', freshPlanningData.shops);
       const weekData = getWeekPlanning(freshPlanningData, selectedShop, validWeek);
       console.log('🔍 Résultat getWeekPlanning:', weekData);
-      console.log('🔍 weekData.planning:', weekData.planning);
-      console.log('🔍 weekData.selectedEmployees:', weekData.selectedEmployees);
-      
-      // Charger le planning depuis les données sauvegardées
+
       setPlanning(weekData.planning || {});
-      console.log('📥 Planning chargé depuis les données sauvegardées:', weekData.planning);
-      
-      // 3. Gérer les employés sélectionnés
+
       if (weekData.selectedEmployees && weekData.selectedEmployees.length > 0) {
-        // Si des employés étaient sauvegardés pour cette semaine, les filtrer pour la boutique actuelle
-        const validEmployees = weekData.selectedEmployees.filter(empId => currentShopEmployeeIds.includes(empId));
+        const validEmployees = weekData.selectedEmployees.filter((empId) => currentShopEmployeeIds.includes(empId));
         setLocalSelectedEmployees(validEmployees);
         setSelectedEmployees(validEmployees);
+      } else if (currentShopEmployeeIds.length > 0) {
+        setLocalSelectedEmployees(currentShopEmployeeIds);
+        setSelectedEmployees(currentShopEmployeeIds);
       } else {
-        // Si aucun employé n'était sauvegardé, sélectionner tous les employés de la boutique
-        if (currentShopEmployeeIds.length > 0) {
-          setLocalSelectedEmployees(currentShopEmployeeIds);
-          setSelectedEmployees(currentShopEmployeeIds);
-        } else {
-          setLocalSelectedEmployees([]);
-          setSelectedEmployees([]);
-        }
+        setLocalSelectedEmployees([]);
+        setSelectedEmployees([]);
       }
     }
-  }, [selectedShop, selectedWeek, validWeek, forceRefresh, isEmployeeAssignedToCurrentShop]); // Retiré planningData pour éviter le rechargement automatique
+  }, [selectedShop, selectedWeek, validWeek, forceRefresh, isEmployeeAssignedToCurrentShop, planningData?.shops?.length]);
 
   useEffect(() => {
     if (!selectedShop || !validWeek || !planningData?.shops?.length) return;
