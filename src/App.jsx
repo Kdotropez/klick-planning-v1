@@ -54,6 +54,7 @@ import {
   getSupabaseBackupDiagnostics
 } from './utils/remoteStore';
 import { isSupervisorOverrideCode } from './config/securityCodes';
+import { flushAllIncrementalSyncs } from './utils/planningSyncScheduler';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
 import {
@@ -561,6 +562,7 @@ const App = () => {
       const dataSnapshot = planningDataRef.current;
       let saveSucceeded = false;
       try {
+        await flushAllIncrementalSyncs();
         const saveResult = await saveCompletePlanningData(dataSnapshot);
         saveSucceeded = !!saveResult?.ok;
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
@@ -1489,6 +1491,7 @@ const App = () => {
 
     try {
       if (currentUser?.code && hasGlobalLock) {
+        await flushAllIncrementalSyncs();
         const saveResult = await saveCompletePlanningData(planningData);
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);

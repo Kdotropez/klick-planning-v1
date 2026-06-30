@@ -471,6 +471,12 @@ const VERSION_HIGHLIGHTS = {
     'Production: console/debugger retires du bundle, sourcemaps desactivees.',
     'Securite: code superviseur centralise (VITE_SUPERVISOR_OVERRIDE_CODE), RPC emergency_unlock + RLS locks.',
     'Renommage: comparaison des noms avec normalisation accents.'
+  ],
+  '3.10.154': [
+    'Sync incrementale Supabase: debounce 3s par boutique/semaine, complete_file toutes les 5 min.',
+    'SAUVE SUPABASE et fermeture session: flush immediat des syncs en attente.',
+    'Tests Vitest: noms employes et extractWeekPayload.',
+    'Base auth: authConfig.js (VITE_AUTH_MODE pour migration Supabase Auth future).'
   ]
 };
 
