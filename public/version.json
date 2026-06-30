@@ -1,7 +1,17 @@
 {
-  "version": "3.10.153",
+  "version": "3.10.154",
   "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.154",
+      "date": "2026-06-30",
+      "changes": [
+        "Sync incrémentale Supabase : debounce 3 s par boutique/semaine, complete_file toutes les 5 min.",
+        "SAUVE SUPABASE et fermeture : flush immédiat des syncs en attente.",
+        "Tests Vitest sur les noms employés et le scheduler de sync.",
+        "Base auth : authConfig.js (préparation VITE_AUTH_MODE=supabase)."
+      ]
+    },
     {
       "version": "3.10.153",
       "date": "2026-06-30",

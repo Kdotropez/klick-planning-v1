@@ -25,6 +25,7 @@ import { usePlanningLock } from '../../hooks/usePlanningLock';
 
 import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
+import { scheduleIncrementalWeekSync, flushAllIncrementalSyncs } from '@/utils/planningSyncScheduler';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import { addAuditLog } from '@/utils/auditLog';
 import {
@@ -1303,9 +1304,11 @@ const PlanningDisplay = ({
       if (selectedShop && validWeek && !readOnly) {
         try {
           // Toujours partir du planningData le plus récent (évite d'écraser d'autres boutiques avec un snapshot périmé)
-          setPlanningData((prevData) =>
-            saveWeekPlanning(prevData, selectedShop, validWeek, updatedPlanning, localSelectedEmployees)
-          );
+          setPlanningData((prevData) => {
+            const next = saveWeekPlanning(prevData, selectedShop, validWeek, updatedPlanning, localSelectedEmployees);
+            scheduleIncrementalWeekSync(next, selectedShop, validWeek);
+            return next;
+          });
           setHasUnsavedChanges(false); // Réinitialiser l'indicateur après sauvegarde
           console.log('💾 Sauvegarde automatique après modification');
         } catch (error) {
@@ -1355,6 +1358,8 @@ const PlanningDisplay = ({
     }
     try {
       if (selectedShop && validWeek) {
+        await flushAllIncrementalSyncs();
+
         // Forcer la sauvegarde des données actuelles en mémoire
         let updatedSnapshot;
         setPlanningData((prev) => {
@@ -1370,7 +1375,17 @@ const PlanningDisplay = ({
         
         // Sauvegarder d'abord la semaine courante (enregistrement visible par boutique/semaine)
         try {
-          const weekSaved = await saveRemotePlanning(updatedSnapshot, selectedShop, validWeek);
+          const shop = getShopById(updatedSnapshot, selectedShop);
+          const weekData = shop?.weeks?.[validWeek];
+          const weekPayload = weekData
+            ? {
+                planning: weekData.planning || {},
+                selectedEmployees: Array.isArray(weekData.selectedEmployees) ? weekData.selectedEmployees : []
+              }
+            : null;
+          const weekSaved = weekPayload
+            ? await saveRemotePlanning(weekPayload, selectedShop, validWeek)
+            : false;
           if (weekSaved) {
             console.log('✅ Sauvegarde semaine Supabase réussie');
             setLocalFeedback('💾 Semaine sauvegardée (Supabase)');

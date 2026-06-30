@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getValidUserCodes, pullUserCodesFromSupabase } from '../config/userCodes';
+import { isSecretCodesAuthMode } from '../config/authConfig';
 
 const UserIdentificationModal = ({
   onIdentification,
@@ -50,6 +51,12 @@ const UserIdentificationModal = ({
           `⛔ Planning déjà utilisé sur ${lockOwnerText || 'un autre poste'}. ` +
           `Réessayez dans ${lockCountdownSeconds} seconde(s).`
         );
+        setIsLoading(false);
+        return;
+      }
+
+      if (!isSecretCodesAuthMode()) {
+        setError('Mode Supabase Auth : non disponible sur cette version. Contactez l administrateur.');
         setIsLoading(false);
         return;
       }
