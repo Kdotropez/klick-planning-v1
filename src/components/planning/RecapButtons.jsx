@@ -3,7 +3,6 @@ import { format, addDays, startOfMonth, endOfMonth, isMonday, isWithinInterval, 
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
-import { loadFromLocalStorage } from '../../utils/localStorage';
 import { getAllEmployees, hideEmployee, showEmployee, isEmployeeHidden } from '../../utils/planningDataManager';
 import '../../assets/styles.css';
 
@@ -201,35 +200,20 @@ const RecapButtons = ({
     const shop = planningData.shops.find(s => s.id === shopId);
     if (!shop || !shop.config) return 0;
     
-    console.log(`Recherche données pour employé ${employee} dans boutique ${shopId}, semaine ${currentWeek}`);
-    console.log(`Boutique trouvée:`, shop);
-    console.log(`Semaines disponibles:`, Object.keys(shop.weeks || {}));
-    
     // Récupérer le planning de cette boutique pour cette semaine
     const weekData = shop.weeks?.[currentWeek];
-    console.log(`Données de semaine trouvées:`, weekData);
-    
     if (!weekData || !weekData.planning) {
-      console.log(`Aucune donnée trouvée pour la semaine ${currentWeek}`);
       return 0;
     }
-    
-    // Vérifier les données de l'employé spécifiquement
-    const employeeData = weekData.planning[employee];
-    console.log(`Données de l'employé ${employee} dans ${shopId}:`, employeeData);
     
     // Calculer les heures pour cette semaine dans cette boutique
     let totalHours = 0;
     for (let i = 0; i < 7; i++) {
       const dayDate = format(addDays(new Date(currentWeek), i), 'yyyy-MM-dd');
-      const employeeData = weekData.planning[employee];
-      const daySlots = employeeData?.[dayDate];
-      console.log(`Jour ${dayDate} pour ${employee} dans ${shopId}:`, daySlots);
       const hours = calculateEmployeeDailyHours(employee, dayDate, weekData.planning, shop.config);
       totalHours += hours;
     }
     
-    console.log(`Total heures calculé pour ${employee} dans ${shopId}: ${formatWorkedHoursForDisplay(totalHours)}`);
     return totalHours;
   };
 
@@ -238,22 +222,17 @@ const RecapButtons = ({
     if (!currentWeek || !planningData) return 0;
     
     const employeeShops = getEmployeeShops(employee);
-    console.log(`Calcul total multi-boutiques pour ${employee}:`, employeeShops);
-    
     if (employeeShops.length <= 1) {
       const weekHours = calculateEmployeeWeekHours(employee);
-      console.log(`Employé dans une seule boutique, heures: ${weekHours}`);
       return weekHours;
     }
     
     let totalHours = 0;
     employeeShops.forEach(shop => {
       const shopHours = calculateEmployeeShopHours(employee, shop.id);
-      console.log(`Heures dans ${shop.name}: ${shopHours}`);
       totalHours += shopHours;
     });
     
-    console.log(`Total multi-boutiques pour ${employee}: ${formatWorkedHoursForDisplay(totalHours)}`);
     return totalHours;
   };
 
@@ -261,17 +240,12 @@ const RecapButtons = ({
   const getEmployeeShops = (employee) => {
     if (!planningData || !currentWeek) return [];
     
-    console.log(`DEBUG - getEmployeeShops appelé avec employee: "${employee}"`);
-    console.log(`DEBUG - Type de employee:`, typeof employee);
-    console.log(`DEBUG - currentWeek: "${currentWeek}"`);
-    
     // Trouver l'ID de l'employé
     let employeeId = employee;
     const allEmployees = planningData.shops?.flatMap(shop => shop.employees || []) || [];
     const employeeData = allEmployees.find(emp => emp.name === employee || emp.id === employee);
     if (employeeData) {
       employeeId = employeeData.id;
-      console.log(`DEBUG - ID trouvé pour ${employee}: ${employeeId}`);
     }
     
     const employeeShops = new Map();
@@ -298,8 +272,7 @@ const RecapButtons = ({
       }
     });
     
-    console.log(`DEBUG - Boutiques trouvées pour ${employee}:`, Array.from(employeeShops.values()));
-    return Array.from(employeeShops.values());
+    return Array.from(employeeShops.entries()).map(([id, name]) => ({ id, name }));
   };
 
   // Calculer les heures hebdomadaires pour la boutique
@@ -385,13 +358,9 @@ const RecapButtons = ({
   
   return (
     <div className="recap-buttons" style={{ display: 'flex', flexDirection: 'row', overflowX: 'auto', justifyContent: 'center', gap: '12px', marginBottom: '15px' }}>
-      {console.log('DEBUG - allEmployees:', allEmployees)}
       {(allEmployees || []).map((employee, index) => {
         const employeeId = employee.id;
         const employeeName = employee?.name || employeeId;
-        
-        console.log(`DEBUG - Affichage recap pour employé: "${employeeId}" (${employeeName})`);
-        console.log(`DEBUG - employee object:`, employee);
         
         return (
                   <div
@@ -428,7 +397,6 @@ const RecapButtons = ({
                       <Button
               className="button-recap"
               onClick={() => {
-                console.log('Opening RecapModal for employee (day):', employeeId);
                 setShowRecapModal(employeeId);
               }}
               style={{
@@ -449,9 +417,6 @@ const RecapButtons = ({
                       <Button
               className="button-recap"
               onClick={() => {
-                console.log('Opening EmployeeWeeklyRecapModal for employee:', employeeId);
-                console.log('setShowEmployeeWeeklyRecap function:', typeof setShowEmployeeWeeklyRecap);
-                console.log('setSelectedEmployeeForWeeklyRecap function:', typeof setSelectedEmployeeForWeeklyRecap);
                 setSelectedEmployeeForWeeklyRecap(employeeId);
                 setShowEmployeeWeeklyRecap(true);
               }}
@@ -474,7 +439,6 @@ const RecapButtons = ({
             <Button
               className="button-recap"
               onClick={() => {
-                console.log('Opening RecapModal for employee (week):', employeeId + '_week');
                 setShowRecapModal(employeeId + '_week');
               }}
               style={{
@@ -494,30 +458,15 @@ const RecapButtons = ({
             </Button>
           )}
                      {(() => {
-             // Logique générale pour tous les employés multi-boutiques
-             // CORRECTION : Utiliser la date de la semaine sélectionnée pour le filtrage des employés masqués
-             const allEmployees = getAllEmployees(planningData, weekDate);
-             const employeeData = allEmployees.find(emp => emp.id === employeeId);
-             const isMultiShopEmployee = employeeData && employeeData.canWorkIn && employeeData.canWorkIn.length > 1;
-             
-             // Pour tous les employés, utiliser getEmployeeShops
              const employeeShops = getEmployeeShops(employeeId);
-             console.log(`DEBUG - employeeShops pour ${employeeId}:`, employeeShops);
-             console.log(`DEBUG - employeeShops.length:`, employeeShops.length);
-             
-             // Si l'employé n'est pas dans getAllEmployees mais a des heures dans plusieurs boutiques, le traiter comme multi-boutique
-             if (!employeeData && employeeShops.length > 1) {
-               console.log(`DEBUG - ${employeeId} n'est pas dans getAllEmployees mais a ${employeeShops.length} boutiques avec des heures`);
-             }
-             
-                          // Logique unifiée : si l'employé a des heures dans plusieurs boutiques, afficher les boutons séparés
+
+             // Logique unifiée : si l'employé a des heures dans plusieurs boutiques, afficher les boutons séparés
              if (employeeShops.length <= 1) {
               // Employé dans une seule boutique ou pas de données multi-boutiques
               return (
                 <Button
                   className="button-recap"
                   onClick={() => {
-                    console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeMonthHours(employeeId));
                     setSelectedEmployeeForMonthlyRecap(employeeId);
                     setShowEmployeeMonthlyRecap(true);
                   }}
@@ -541,15 +490,11 @@ const RecapButtons = ({
               // Employé dans plusieurs boutiques - afficher une ligne par boutique
               return (
                 <div style={{ width: '100%' }}>
-                  {employeeShops.map((shopName, shopIndex) => {
-                    const shopMeta = planningData?.shops?.find((s) => (s.name || s.id) === shopName);
-                    const shopIdForHours = shopMeta?.id;
-                    return (
+                  {employeeShops.map((shop, shopIndex) => (
                     <Button
-                      key={shopIdForHours || shopIndex}
+                      key={shop.id || shopIndex}
                       className="button-recap"
                       onClick={() => {
-                        console.log('Bouton MOIS RÉEL cliqué pour employé:', employeeId, 'Boutique:', shopName, 'Heures:', shopIdForHours ? calculateEmployeeShopHours(employeeId, shopIdForHours) : 0);
                         setSelectedEmployeeForMonthlyRecap(employeeId);
                         setShowEmployeeMonthlyRecap(true);
                       }}
@@ -567,14 +512,13 @@ const RecapButtons = ({
                       onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1565c0'}
                       onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#1e88e5'}
                     >
-                      {shopName}: {formatWorkedHoursForDisplay(shopIdForHours ? calculateEmployeeShopHours(employeeId, shopIdForHours) : 0)}
+                      {shop.name}: {formatWorkedHoursForDisplay(calculateEmployeeShopHours(employeeId, shop.id))}
                     </Button>
-                  );})}
+                  ))}
                   {/* Bouton total global séparé */}
                   <Button
                     className="button-recap"
                     onClick={() => {
-                      console.log('Bouton MOIS RÉEL TOTAL GLOBAL cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeTotalMultiShopHours(employeeId));
                       setSelectedEmployeeForMonthlyRecap(employeeId);
                       setShowEmployeeMonthlyRecap(true);
                     }}
@@ -602,7 +546,6 @@ const RecapButtons = ({
             <Button
               className="button-recap"
               onClick={() => {
-                console.log('Bouton MOIS CALENDAIRE cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeMonthHours(employeeId));
                 // Modale désactivée pour le moment
               }}
               style={{
@@ -624,7 +567,6 @@ const RecapButtons = ({
           <Button
             className="button-recap"
             onClick={() => {
-              console.log('Bouton MOIS DÉTAIL cliqué pour employé:', employeeId, 'Heures:', calculateEmployeeMonthHours(employeeId));
               setSelectedEmployeeForMonthlyDetail(employeeId);
               setShowEmployeeMonthlyDetail(true);
             }}
@@ -644,43 +586,45 @@ const RecapButtons = ({
                           MOIS DÉTAIL
           </Button>
           
-                               {/* Bouton de masquage/réactivation */}
-                     {(() => {
-                       console.log(`🚨 DEBUG - RENDU DU BOUTON MASQUER POUR ${employeeId}`);
-                       console.log(`DEBUG - Vérification masquage pour ${employeeId}:`, {
-                         employee: employee,
-                         isHidden: isEmployeeHidden(employee, new Date()),
-                         currentDate: new Date()
-                       });
-                       
-                       // Forcer l'affichage du bouton pour le test
-                       return (
-                         <div style={{ border: '2px solid red', padding: '2px', margin: '2px' }}>
-                           <Button
-                             className="button-recap"
-                             onClick={() => {
-                               console.log(`🚨 CLIC SUR MASQUER POUR ${employeeId}`);
-                               handleHideEmployee(employeeId);
-                             }}
-                             style={{
-                               backgroundColor: '#dc3545',
-                               color: '#fff',
-                               padding: '8px 16px',
-                               fontSize: '11px',
-                               width: '100%',
-                               whiteSpace: 'nowrap',
-                               overflow: 'hidden',
-                               textOverflow: 'ellipsis',
-                               border: '2px solid yellow'
-                             }}
-                             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#c82333'}
-                             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#dc3545'}
-                           >
-                             🚫 Masquer
-                           </Button>
-                         </div>
-                       );
-                     })()}
+          {isEmployeeHidden(employee, weekDate) ? (
+            <Button
+              className="button-recap"
+              onClick={() => handleShowEmployee(employeeId)}
+              style={{
+                backgroundColor: '#6c757d',
+                color: '#fff',
+                padding: '8px 16px',
+                fontSize: '11px',
+                width: '100%',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#5a6268'; }}
+              onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#6c757d'; }}
+            >
+              Réactiver
+            </Button>
+          ) : (
+            <Button
+              className="button-recap"
+              onClick={() => handleHideEmployee(employeeId)}
+              style={{
+                backgroundColor: '#dc3545',
+                color: '#fff',
+                padding: '8px 16px',
+                fontSize: '11px',
+                width: '100%',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#c82333'; }}
+              onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#dc3545'; }}
+            >
+              Masquer
+            </Button>
+          )}
         </div>
       );
       })}
@@ -707,7 +651,6 @@ const RecapButtons = ({
         <Button
           className="button-recap"
           onClick={() => {
-            console.log('Opening RecapModal for week');
             setShowRecapModal('week');
           }}
           style={{
@@ -729,7 +672,6 @@ const RecapButtons = ({
           <Button
             className="button-recap"
             onClick={() => {
-              console.log('Opening RecapModal for week');
               setShowRecapModal('week');
             }}
             style={{
@@ -752,7 +694,6 @@ const RecapButtons = ({
         <Button
           className="button-recap"
           onClick={() => {
-            console.log('Bouton MOIS GLOBAL cliqué, Heures:', calculateGlobalMonthHours());
             // Modale désactivée pour le moment
           }}
           style={{
@@ -773,7 +714,6 @@ const RecapButtons = ({
         <Button
           className="button-recap"
           onClick={() => {
-            console.log('Bouton MENSUEL DÉTAIL cliqué');
             // Modale désactivée pour le moment
           }}
           style={{
@@ -794,7 +734,6 @@ const RecapButtons = ({
         <Button
           className="button-recap"
           onClick={() => {
-            console.log('Bouton TOTAL SÉLECTIONNÉS cliqué, Heures:', calculateTotalSelectedEmployeesHours());
             // Modale désactivée pour le moment
           }}
           style={{
@@ -815,7 +754,6 @@ const RecapButtons = ({
         <Button
           className="button-recap"
           onClick={() => {
-            console.log('Bouton TOTAL BOUTIQUE cliqué, Heures:', calculateTotalShopEmployeesHours());
             // Modale désactivée pour le moment
           }}
           style={{
