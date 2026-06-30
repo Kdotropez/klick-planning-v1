@@ -461,6 +461,10 @@ const VERSION_HIGHLIGHTS = {
     'Sauvegarde JSON auto: plus de telechargement fichier toutes les 5 min (localStorage silencieux uniquement).',
     'Bouton JSON du menu: telechargement manuel explicite.',
     'Deconnexion inactivite 3 min: le compteur n est plus remis a zero a chaque modification du planning.'
+  ],
+  '3.10.152': [
+    'Verrou global Supabase: acquisition atomique via RPC (fallback legacy si migration SQL non appliquee).',
+    'Nettoyage depot: suppression des copies/backups versionnes et retrait de node_modules du suivi git.'
   ]
 };
 

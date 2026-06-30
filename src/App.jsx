@@ -643,7 +643,7 @@ const App = () => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const intervalId = setInterval(async () => {
-      const hbResult = await heartbeat(getLockHolderId(currentUser));
+      const hbResult = await heartbeat(getLockHolderId(currentUser), GLOBAL_LOCK_TTL_MS);
       if (hbResult?.ok) return;
 
       alert(

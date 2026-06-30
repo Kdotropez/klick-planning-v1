@@ -1,7 +1,16 @@
 {
-  "version": "3.10.151",
+  "version": "3.10.152",
   "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.152",
+      "date": "2026-06-30",
+      "changes": [
+        "Verrou global : acquisition atomique via RPC Supabase (avec repli legacy).",
+        "Migration SQL : supabase/migrations/20250630_global_lock_atomic.sql.",
+        "Dépôt allégé : 52 copies/backups supprimés, node_modules retiré du suivi Git."
+      ]
+    },
     {
       "version": "3.10.151",
       "date": "2026-06-30",
