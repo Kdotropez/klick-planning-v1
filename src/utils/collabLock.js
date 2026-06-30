@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { isSupervisorOverrideCode } from '../config/securityCodes';
 
 // API:
 // - initLockService({ url, key })
@@ -301,6 +302,24 @@ export const heartbeat = async (userId, ttlMs = 2 * 60 * 1000) => {
 export const forceRelease = async (userId) => {
   if (useSupabase) {
     try {
+      const { data, error } = await supabase.rpc('force_release_global_lock', {
+        p_user_id: userId
+      });
+      if (!error) {
+        return { ok: !!data || true };
+      }
+      if (!isRpcMissingError(error)) {
+        console.error('❌ Erreur force_release_global_lock RPC:', error);
+        return { ok: false };
+      }
+    } catch (error) {
+      if (!isRpcMissingError(error)) {
+        console.error('❌ Exception forceRelease RPC:', error);
+        return { ok: false };
+      }
+    }
+
+    try {
       const { error: notifyError } = await supabase
         .from('planning_locks')
         .upsert({
@@ -328,13 +347,29 @@ export const forceRelease = async (userId) => {
 };
 
 export const emergencyUnlock = async (userId, securityCode) => {
-  const adminOverrideCode = '2111';
-
-  if (securityCode !== adminOverrideCode) {
+  if (!isSupervisorOverrideCode(securityCode)) {
     return { ok: false, error: 'Code admin incorrect' };
   }
 
   if (useSupabase) {
+    try {
+      const { data, error } = await supabase.rpc('emergency_unlock_global_lock', {
+        p_security_code: String(securityCode || '').trim()
+      });
+      if (!error) {
+        return { ok: !!data };
+      }
+      if (!isRpcMissingError(error)) {
+        console.error('❌ Erreur emergency_unlock_global_lock RPC:', error);
+        return { ok: false, error: 'Erreur lors du déverrouillage' };
+      }
+    } catch (error) {
+      if (!isRpcMissingError(error)) {
+        console.error('❌ Exception emergency_unlock_global_lock RPC:', error);
+        return { ok: false, error: 'Exception lors du déverrouillage' };
+      }
+    }
+
     try {
       const { error } = await supabase
         .from('planning_locks')

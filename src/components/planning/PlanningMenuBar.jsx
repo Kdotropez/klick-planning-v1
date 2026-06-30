@@ -9,6 +9,7 @@ import HiddenEmployeesModal from './HiddenEmployeesModal';
 import AuditLogModal from './AuditLogModal';
 import { getHiddenEmployees } from '../../utils/planningDataManager';
 import { listAuditLogs, clearAuditLogs } from '../../utils/auditLog';
+import { isSupervisorOverrideCode } from '../../config/securityCodes';
 import '../../assets/styles.css';
 
 const PlanningMenuBar = ({
@@ -1097,7 +1098,7 @@ const PlanningMenuBar = ({
         onRefresh={() => setAuditEntries(listAuditLogs(500))}
         onClear={() => {
           const code = window.prompt('Confirmer le code superviseur pour vider le journal:');
-          if (code?.trim() !== '2111') {
+          if (!isSupervisorOverrideCode(code)) {
             alert('❌ Code incorrect.');
             return;
           }

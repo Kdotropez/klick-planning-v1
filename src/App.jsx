@@ -53,6 +53,7 @@ import {
   inspectShopWeekInventory,
   getSupabaseBackupDiagnostics
 } from './utils/remoteStore';
+import { isSupervisorOverrideCode } from './config/securityCodes';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
 import {
@@ -760,7 +761,7 @@ const App = () => {
 
     const unlockCode = window.prompt('Code de validation déverrouillage (admin):');
     if (!unlockCode) return false;
-    if (unlockCode.trim() !== '2111') {
+    if (!isSupervisorOverrideCode(unlockCode)) {
       alert('❌ Code admin invalide. Déverrouillage annulé.');
       return false;
     }

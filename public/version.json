@@ -1,7 +1,17 @@
 {
-  "version": "3.10.152",
+  "version": "3.10.153",
   "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.153",
+      "date": "2026-06-30",
+      "changes": [
+        "Performance : lazy-loading des modales lourdes, jsPDF chargé à la demande, bundles séparés.",
+        "Production : logs console retirés du build, sourcemaps désactivées.",
+        "Sécurité : code superviseur via VITE_SUPERVISOR_OVERRIDE_CODE, RPC emergency_unlock, RLS verrous.",
+        "Renommage : normalisation accents lors de la comparaison des noms stockés."
+      ]
+    },
     {
       "version": "3.10.152",
       "date": "2026-06-30",

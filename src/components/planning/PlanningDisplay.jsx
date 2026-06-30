@@ -1,32 +1,22 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { format, addDays, startOfWeek, parseISO, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { FaDownload, FaChevronDown, FaChevronUp, FaCog, FaChartBar, FaArrowLeft } from 'react-icons/fa';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStorage';
 import PlanningMenuBar from './PlanningMenuBar';
 import DayButtons from './DayButtons';
 import PlanningTable from './PlanningTable';
 import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
-import ShopWeekInsightsModal from './ShopWeekInsightsModal';
-import ShopPresenceMapModal from './ShopPresenceMapModal';
-import WeeklyWorkMatrixModal from './WeeklyWorkMatrixModal';
 import EmployeeRecapCompact from './EmployeeRecapCompact';
 import MonthlyRecapModals from './MonthlyRecapModals';
 import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
-
 import EmployeeMonthlyWeeklyModal from './EmployeeMonthlyWeeklyModal';
 import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
 import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
-import EmployeeMonthlyDetailModal from './EmployeeMonthlyDetailModal';
-import CopyPastePage from './CopyPastePage';
 import NotesModal from './NotesModal';
-import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
-import LabourInspectionModal from './LabourInspectionModal';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
@@ -43,6 +33,7 @@ import {
   canUserAccessShop,
   filterPlanningDataForUser
 } from '../../config/userCodes';
+import { getSupervisorOverrideCode } from '../../config/securityCodes';
 import {
   buildLandscapeHtmlDocument,
   escapeHtml,
@@ -51,13 +42,27 @@ import {
 } from '../../utils/htmlLandscapeExport';
 import '@/assets/styles.css';
 
+const ShopWeekInsightsModal = lazy(() => import('./ShopWeekInsightsModal'));
+const ShopPresenceMapModal = lazy(() => import('./ShopPresenceMapModal'));
+const WeeklyWorkMatrixModal = lazy(() => import('./WeeklyWorkMatrixModal'));
+const EmployeeMonthlyDetailModal = lazy(() => import('./EmployeeMonthlyDetailModal'));
+const CopyPastePage = lazy(() => import('./CopyPastePage'));
+const ShopStatsPage = lazy(() => import('./ShopStatsPage'));
+const LabourInspectionModal = lazy(() => import('./LabourInspectionModal'));
+
+const LazyPageFallback = () => (
+  <div style={{ padding: 24, textAlign: 'center', fontFamily: 'Roboto, sans-serif' }}>
+    Chargement…
+  </div>
+);
+
 const normalizeWeekKey = (dateString) => {
   const parsed = dateString && !isNaN(parseISO(dateString).getTime())
     ? parseISO(dateString)
     : new Date();
   return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 };
-const SUPERVISOR_WEEK_UNLOCK_CODE = ['2', '1', '1', '1'].join('');
+const SUPERVISOR_WEEK_UNLOCK_CODE = getSupervisorOverrideCode();
 
 const PlanningDisplay = ({ 
   planningData, 
@@ -2044,7 +2049,7 @@ const PlanningDisplay = ({
     copyWeekToWeek(sourceWeek, destinationWeek);
   }, [validWeek, copyWeekToWeek]);
 
-  const exportReadableSchedules = useCallback((forcedExportMode = null) => {
+  const exportReadableSchedules = useCallback(async (forcedExportMode = null) => {
     const planningData = userScopedPlanningData;
     try {
       if (!validWeek || !planningData?.shops?.length) {
@@ -3004,6 +3009,8 @@ const PlanningDisplay = ({
           );
         }
       } else if (normalizedExportMode === '2') {
+        const { default: jsPDF } = await import('jspdf');
+        await import('jspdf-autotable');
         if (audienceTrim === '3') {
           const runPdfChain = (idx) => {
             if (idx >= targetEmployeeIds.length) {
@@ -3133,32 +3140,36 @@ const PlanningDisplay = ({
   // Si la page copier-coller est active, afficher seulement cette page
   if (showCopyPastePage) {
     return (
-      <CopyPastePage
-        planningData={planningData}
-        setPlanningData={setPlanningData}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        liveWeekPlanning={planning}
-        isEmployeeAssignedToCurrentShop={isEmployeeAssignedToCurrentShop}
-        setSelectedWeek={setSelectedWeek}
-        setForceRefresh={setForceRefresh}
-        onBack={() => setShowCopyPastePage(false)}
-      />
+      <Suspense fallback={<LazyPageFallback />}>
+        <CopyPastePage
+          planningData={planningData}
+          setPlanningData={setPlanningData}
+          selectedShop={selectedShop}
+          selectedWeek={validWeek}
+          liveWeekPlanning={planning}
+          isEmployeeAssignedToCurrentShop={isEmployeeAssignedToCurrentShop}
+          setSelectedWeek={setSelectedWeek}
+          setForceRefresh={setForceRefresh}
+          onBack={() => setShowCopyPastePage(false)}
+        />
+      </Suspense>
     );
   }
 
   // Si la page des statistiques est active, afficher seulement cette page
   if (showShopStatsPage) {
     return (
-      <ShopStatsPage
-        planningData={planningData}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        config={config}
-        shops={shops}
-        employees={allEmployees}
-        onBack={() => setShowShopStatsPage(false)}
-      />
+      <Suspense fallback={<LazyPageFallback />}>
+        <ShopStatsPage
+          planningData={planningData}
+          selectedShop={selectedShop}
+          selectedWeek={validWeek}
+          config={config}
+          shops={shops}
+          employees={allEmployees}
+          onBack={() => setShowShopStatsPage(false)}
+        />
+      </Suspense>
     );
   }
 
@@ -4012,60 +4023,76 @@ const PlanningDisplay = ({
 
       
 
-      {/* Version 2 de la modale globale */}
-      <ShopWeekInsightsModal
-        isOpen={showShopWeekInsights}
-        onClose={() => setShowShopWeekInsights(false)}
-        planningData={userScopedPlanningData}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        planning={planning}
-        config={config}
-        currentShopEmployees={currentShopEmployees}
-        selectedEmployees={localSelectedEmployees}
-        shops={accessibleShops}
-        changeShop={changeShop}
-        changeMonth={changeMonth}
-        changeToSpecificWeek={changeToSpecificWeek}
-      />
+      {/* Modales chargées à la demande (code-splitting) */}
+      <Suspense fallback={null}>
+        <ShopWeekInsightsModal
+          isOpen={showShopWeekInsights}
+          onClose={() => setShowShopWeekInsights(false)}
+          planningData={userScopedPlanningData}
+          selectedShop={selectedShop}
+          selectedWeek={validWeek}
+          planning={planning}
+          config={config}
+          currentShopEmployees={currentShopEmployees}
+          selectedEmployees={localSelectedEmployees}
+          shops={accessibleShops}
+          changeShop={changeShop}
+          changeMonth={changeMonth}
+          changeToSpecificWeek={changeToSpecificWeek}
+        />
 
-      <ShopPresenceMapModal
-        isOpen={showPresenceMap}
-        onClose={() => setShowPresenceMap(false)}
-        shopName={currentShopLabel}
-        selectedWeek={validWeek}
-        mondayOfWeek={mondayOfWeek}
-        planning={planning}
-        config={config}
-        employeeIds={localSelectedEmployees}
-        employeeNameById={employeeNameById}
-        currentDay={currentDay}
-      />
+        <ShopPresenceMapModal
+          isOpen={showPresenceMap}
+          onClose={() => setShowPresenceMap(false)}
+          shopName={currentShopLabel}
+          selectedWeek={validWeek}
+          mondayOfWeek={mondayOfWeek}
+          planning={planning}
+          config={config}
+          employeeIds={localSelectedEmployees}
+          employeeNameById={employeeNameById}
+          currentDay={currentDay}
+        />
 
-      <WeeklyWorkMatrixModal
-        isOpen={showWeeklyWorkMatrix}
-        onClose={() => setShowWeeklyWorkMatrix(false)}
-        planningData={userScopedPlanningData}
-        selectedWeek={validWeek}
-        currentShopId={selectedShop}
-        currentWeekPlanning={planning}
-      />
+        <WeeklyWorkMatrixModal
+          isOpen={showWeeklyWorkMatrix}
+          onClose={() => setShowWeeklyWorkMatrix(false)}
+          planningData={userScopedPlanningData}
+          selectedWeek={validWeek}
+          currentShopId={selectedShop}
+          currentWeekPlanning={planning}
+        />
 
-      <LabourInspectionModal
-        isOpen={showLabourInspectionModal}
-        onClose={() => setShowLabourInspectionModal(false)}
-        planningData={planningData}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        currentPlanning={planning}
-        currentConfig={config}
-        activeEmployees={currentShopEmployees}
-        savedMetaByShop={planningData?.inspectionMetaByShop || {}}
-        onSaveMeta={handleSaveInspectionMeta}
-        onSaveEmployeeContractData={handleSaveInspectionEmployeeContractData}
-      />
+        <LabourInspectionModal
+          isOpen={showLabourInspectionModal}
+          onClose={() => setShowLabourInspectionModal(false)}
+          planningData={planningData}
+          selectedShop={selectedShop}
+          selectedWeek={validWeek}
+          currentPlanning={planning}
+          currentConfig={config}
+          activeEmployees={currentShopEmployees}
+          savedMetaByShop={planningData?.inspectionMetaByShop || {}}
+          onSaveMeta={handleSaveInspectionMeta}
+          onSaveEmployeeContractData={handleSaveInspectionEmployeeContractData}
+        />
 
-      
+        {showEmployeeMonthlyDetail && (
+          <EmployeeMonthlyDetailModal
+            showEmployeeMonthlyDetail={showEmployeeMonthlyDetail}
+            setShowEmployeeMonthlyDetail={setShowEmployeeMonthlyDetail}
+            config={config}
+            selectedShop={selectedShop}
+            selectedWeek={validWeek}
+            selectedEmployeeForMonthlyDetail={selectedEmployeeForMonthlyDetail}
+            shops={shops}
+            employees={currentShopEmployees}
+            planningData={planningData}
+            forceRefresh={modalForceRefresh}
+            onForceRefresh={() => setModalForceRefresh(prev => prev + 1)}
+          />
+        )}
+      </Suspense>
 
       {showMonthlyRecapModal && (
       <MonthlyRecapModals
@@ -4137,23 +4164,7 @@ const PlanningDisplay = ({
         />
       )}
 
-      {showEmployeeMonthlyDetail && (
-        <EmployeeMonthlyDetailModal
-          showEmployeeMonthlyDetail={showEmployeeMonthlyDetail}
-          setShowEmployeeMonthlyDetail={setShowEmployeeMonthlyDetail}
-          config={config}
-          selectedShop={selectedShop}
-          selectedWeek={validWeek}
-          selectedEmployeeForMonthlyDetail={selectedEmployeeForMonthlyDetail}
-          shops={shops}
-          employees={currentShopEmployees}
-          planningData={planningData}
-          forceRefresh={modalForceRefresh}
-          onForceRefresh={() => setModalForceRefresh(prev => prev + 1)}
-        />
-      )}
 
-      {/* Modale d'avertissement pour les données validées */}
       {showValidationWarning && (
         <div style={{
           position: 'fixed',
