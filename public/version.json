@@ -1,7 +1,16 @@
 {
-  "version": "3.10.150",
-  "lastUpdate": "2026-05-29",
+  "version": "3.10.151",
+  "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.151",
+      "date": "2026-06-30",
+      "changes": [
+        "Sauvegarde JSON auto : plus de téléchargement forcé toutes les 5 minutes (localStorage silencieux).",
+        "Bouton JSON : téléchargement manuel uniquement sur action utilisateur.",
+        "Déconnexion inactivité 3 min : le compteur n'est plus réinitialisé à chaque modification du planning."
+      ]
+    },
     {
       "version": "3.10.150",
       "date": "2026-05-29",

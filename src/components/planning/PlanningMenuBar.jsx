@@ -756,7 +756,7 @@ const PlanningMenuBar = ({
 
         <Button
           className="button-primary"
-          onClick={createAutoBackupJSON}
+          onClick={() => createAutoBackupJSON('manual')}
           style={{
             backgroundColor: '#20c997',
             color: '#fff',

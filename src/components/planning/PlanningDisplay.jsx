@@ -1577,7 +1577,7 @@ const PlanningDisplay = ({
     }
   }, [selectedShop, validWeek]);
 
-  // Fonction de sauvegarde automatique JSON
+  // Sauvegarde JSON : auto = localStorage silencieux ; manual = téléchargement fichier
   const createAutoBackupJSON = useCallback((type = 'auto') => {
     if (readOnly) {
       return;
@@ -1593,23 +1593,9 @@ const PlanningDisplay = ({
           selectedWeek: validWeek,
           currentPlanning: planning
         };
-        
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-          type: 'application/json'
-        });
-        
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `planning_${type === 'manual' ? 'manual' : 'auto'}_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        URL.revokeObjectURL(url);
+
+        const prefix = type === 'manual' ? 'json_manualbackup_' : 'json_autobackup_';
         try {
-          const prefix = type === 'manual' ? 'json_manualbackup_' : 'json_autobackup_';
           const key = `${prefix}${Date.now()}`;
           localStorage.setItem(key, JSON.stringify(exportData));
           const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix)).sort();
@@ -1619,12 +1605,26 @@ const PlanningDisplay = ({
           }
         } catch (_) {}
 
-        const msg = type === 'manual' ? '📦 Sauvegarde JSON manuelle créée' : '💾 Sauvegarde JSON automatique créée';
-        console.log(msg);
-        setLocalFeedback(msg);
+        if (type === 'manual') {
+          const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+            type: 'application/json'
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `planning_manual_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          setLocalFeedback('📦 Sauvegarde JSON manuelle créée');
+        }
       } catch (error) {
         console.error('Erreur lors de la sauvegarde JSON:', error);
-        setLocalFeedback('❌ Erreur lors de la sauvegarde JSON');
+        if (type === 'manual') {
+          setLocalFeedback('❌ Erreur lors de la sauvegarde JSON');
+        }
       }
     }
   }, [planningData, selectedShop, validWeek, planning, readOnly]);
