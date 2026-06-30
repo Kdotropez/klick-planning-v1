@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData, mergeCompletePlanningWithRemote, normalizeCompletePlanningData } from './planningDataManager';
+import { upsertPlanningRow } from './planningSupabaseRpc';
 
 // Outbox locale pour mode hybride (sauvegardes différées)
 const OUTBOX_KEY = 'remote_outbox_v1';
@@ -64,59 +65,7 @@ export const initRemoteOutbox = () => {
 
 const isReady = () => !!supabase;
 
-let planningUpsertRpcAvailable = null;
-
-const isPlanningUpsertRpcMissingError = (error) => {
-  const message = String(error?.message || error?.code || '').toLowerCase();
-  return (
-    message.includes('could not find the function') ||
-    message.includes('function public.upsert_planning_row') ||
-    message.includes('schema cache') ||
-    error?.code === 'PGRST202'
-  );
-};
-
-/** Upsert une ligne plannings — RPC SECURITY DEFINER avec repli direct. */
-const upsertPlanningRow = async (row) => {
-  const payload = {
-    shop_id: row.shop_id,
-    week_key: row.week_key,
-    data: row.data,
-    version: row.version ?? 1,
-    updated_at: row.updated_at || new Date().toISOString()
-  };
-
-  if (planningUpsertRpcAvailable !== false) {
-    try {
-      const { data, error } = await supabase.rpc('upsert_planning_row', {
-        p_shop_id: payload.shop_id,
-        p_week_key: payload.week_key,
-        p_data: payload.data,
-        p_version: payload.version
-      });
-      if (!error) {
-        planningUpsertRpcAvailable = true;
-        return { ok: data !== false, error: null };
-      }
-      if (isPlanningUpsertRpcMissingError(error)) {
-        planningUpsertRpcAvailable = false;
-      } else {
-        return { ok: false, error };
-      }
-    } catch (error) {
-      if (!isPlanningUpsertRpcMissingError(error)) {
-        return { ok: false, error };
-      }
-      planningUpsertRpcAvailable = false;
-    }
-  }
-
-  const { error } = await supabase
-    .from('plannings')
-    .upsert(payload, { onConflict: 'shop_id,week_key' });
-
-  return { ok: !error, error: error || null };
-};
+const upsertPlanningRowForStore = (row) => upsertPlanningRow(supabase, row);
 
 const isCompletePlanningData = (data) => {
   return !!(
@@ -438,7 +387,7 @@ export const saveCompletePlanningData = async (completePlanningData, options = {
       updated_at: new Date().toISOString()
     };
     
-    const { ok, error } = await upsertPlanningRow(rowWithTimestamp);
+    const { ok, error } = await upsertPlanningRowForStore(rowWithTimestamp);
     
     if (!ok) {
       console.error('❌ Erreur lors de l\'insertion:', error);
@@ -957,7 +906,7 @@ export const saveRemotePlanning = async (planningData, shopId, weekKey, isOutbox
     }
   };
 
-  const { ok, error } = await upsertPlanningRow({
+  const { ok, error } = await upsertPlanningRowForStore({
     shop_id: shopId,
     week_key: weekKey,
     data: dataWithMeta,

@@ -10,6 +10,7 @@ import {
 } from './planningUtils';
 import { loadXlsxPair } from './xlsxLoader';
 import { filterPlanningDataForUser } from '../config/userCodes';
+import { devLog } from './devLog';
 
 // Fonctions utilitaires pour le calcul des heures (créneaux à durées variables possibles)
 const getWorkTimesFromSlots = (timeSlots, slots, shopConfig = {}) => {
@@ -555,7 +556,7 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
 
 // Gestion des semaines
 export const saveWeekPlanning = (planningData, shopId, weekKey, planning, selectedEmployees) => {
-  console.log('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
+  devLog('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
 
   const normalizeSlotSelected = (value) =>
     value === true || value === 1 || value === '1' || value === 'true';
@@ -617,7 +618,7 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
     )
   };
 
-  console.log('🔧 saveWeekPlanning - Résultat:', result.shops.find(s => s.id === shopId)?.weeks[weekKey]);
+  devLog('🔧 saveWeekPlanning - Résultat:', result.shops.find(s => s.id === shopId)?.weeks[weekKey]);
 
   return result;
 };
