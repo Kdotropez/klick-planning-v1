@@ -456,6 +456,11 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.150': [
     'Renommage: corrige VALEUR vers VALOU quand l ecran affichait deja le bon nom (noms stockes vs affiches).'
+  ],
+  '3.10.151': [
+    'Sauvegarde JSON auto: plus de telechargement fichier toutes les 5 min (localStorage silencieux uniquement).',
+    'Bouton JSON du menu: telechargement manuel explicite.',
+    'Deconnexion inactivite 3 min: le compteur n est plus remis a zero a chaque modification du planning.'
   ]
 };
 

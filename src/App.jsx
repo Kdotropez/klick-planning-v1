@@ -200,6 +200,8 @@ const App = () => {
     }
   });
   const lastActivityRef = useRef(Date.now());
+  const planningDataRef = useRef(planningData);
+  const currentUserRef = useRef(currentUser);
   const inactivityCounterRef = useRef(null);
   const inactivityDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 });
   const interactionThrottleRef = useRef({ key: '', ts: 0 });
@@ -520,6 +522,14 @@ const App = () => {
   }, [mode, currentUser]);
 
   useEffect(() => {
+    planningDataRef.current = planningData;
+  }, [planningData]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
     if (!currentUser || !hasGlobalLock) {
       setShowInactivityCounter(false);
       return undefined;
@@ -546,9 +556,11 @@ const App = () => {
       clearInterval(intervalId);
       setShowInactivityCounter(false);
 
+      const userSnapshot = currentUserRef.current;
+      const dataSnapshot = planningDataRef.current;
       let saveSucceeded = false;
       try {
-        const saveResult = await saveCompletePlanningData(planningData);
+        const saveResult = await saveCompletePlanningData(dataSnapshot);
         saveSucceeded = !!saveResult?.ok;
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);
@@ -559,7 +571,9 @@ const App = () => {
       }
 
       try {
-        await releaseLock(getLockHolderId(currentUser));
+        if (userSnapshot) {
+          await releaseLock(getLockHolderId(userSnapshot));
+        }
       } catch (error) {
         console.error('❌ Erreur release lock après inactivité:', error);
       }
@@ -580,7 +594,7 @@ const App = () => {
       clearInterval(intervalId);
       activityEvents.forEach((evt) => window.removeEventListener(evt, onActivity));
     };
-  }, [currentUser, hasGlobalLock, planningData]);
+  }, [currentUser, hasGlobalLock]);
 
   useEffect(() => {
     if (lockCountdownSeconds <= 0) return undefined;
