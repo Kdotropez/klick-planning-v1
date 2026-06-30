@@ -12,17 +12,17 @@ import { createClient } from '@supabase/supabase-js';
 
 let supabase = null;
 let useSupabase = false;
+let rpcAvailable = null; // null = inconnu, true/false après premier appel
 
 export const initLockService = ({ url, key }) => {
-  console.log('🔧 initLockService appelé:', { url, key });
   if (url && key) {
     useSupabase = true;
-    // Initialisation du client Supabase
     supabase = createClient(url, key);
-    console.log('✅ Client Supabase initialisé');
+    rpcAvailable = null;
   } else {
     useSupabase = false;
     supabase = null;
+    rpcAvailable = false;
   }
 };
 
@@ -31,9 +31,60 @@ const forceReleaseKey = 'global_force_release';
 
 const nowIso = () => new Date().toISOString();
 
+const toTtlSeconds = (ttlMs) => Math.max(1, Math.ceil(Number(ttlMs || 0) / 1000));
+
+const rowToLock = (row) => {
+  if (!row) return null;
+  return {
+    shop_id: row.shop_id || 'GLOBAL',
+    week_key: row.week_key || 'GLOBAL',
+    user_id: row.user_id,
+    updated_at: row.updated_at,
+    created_at: row.created_at
+  };
+};
+
+const isRpcMissingError = (error) => {
+  const message = String(error?.message || error?.code || '').toLowerCase();
+  return (
+    message.includes('could not find the function') ||
+    message.includes('function public.acquire_global_lock') ||
+    message.includes('schema cache') ||
+    error?.code === 'PGRST202'
+  );
+};
+
+const acquireLockViaRpc = async (userId, ttlMs) => {
+  const { data, error } = await supabase.rpc('acquire_global_lock', {
+    p_user_id: userId,
+    p_ttl_seconds: toTtlSeconds(ttlMs)
+  });
+  if (error) return { error };
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    ok: !!row?.acquired,
+    lock: rowToLock(row)
+  };
+};
+
+const renewLockViaRpc = async (userId, ttlMs) => {
+  const { data, error } = await supabase.rpc('renew_global_lock', {
+    p_user_id: userId,
+    p_ttl_seconds: toTtlSeconds(ttlMs)
+  });
+  if (error) return { error, ok: false };
+  return { ok: !!data };
+};
+
+const releaseLockViaRpc = async (userId) => {
+  const { data, error } = await supabase.rpc('release_global_lock', {
+    p_user_id: userId
+  });
+  if (error) return { error, ok: false };
+  return { ok: !!data };
+};
+
 export const getLock = async () => {
-  console.log('🔍 getLock appelé (verrou global)');
-  
   if (useSupabase) {
     try {
       const { data, error } = await supabase
@@ -42,195 +93,214 @@ export const getLock = async () => {
         .eq('shop_id', 'GLOBAL')
         .eq('week_key', 'GLOBAL')
         .maybeSingle();
-      
+
       if (error) {
         console.error('❌ Erreur getLock Supabase:', error);
         return null;
       }
-      
-      console.log('🔍 getLock résultat Supabase:', data);
+
       return data;
     } catch (error) {
       console.error('❌ Exception getLock Supabase:', error);
       return null;
     }
-  } else {
-    try {
-      const raw = localStorage.getItem(globalLockKey);
-      const result = raw ? JSON.parse(raw) : null;
-      console.log('🔍 getLock résultat localStorage:', result);
-      return result;
-    } catch (error) {
-      console.error('❌ Erreur getLock localStorage:', error);
-      return null;
-    }
+  }
+
+  try {
+    const raw = localStorage.getItem(globalLockKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error('❌ Erreur getLock localStorage:', error);
+    return null;
   }
 };
 
-export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
-  console.log('🔒 acquireLock appelé (verrou global):', { userId, useSupabase });
-  
+const acquireLockLegacy = async (userId, ttlMs = 2 * 60 * 1000) => {
   const existing = await getLock();
-  console.log('🔒 Verrou existant:', existing);
-  
+
   if (existing) {
     const now = new Date();
     const lockTime = new Date(existing.updated_at || existing.created_at);
     const age = now - lockTime;
-    
-    // Si le verrou appartient déjà à cet utilisateur, le renouveler
+
     if (existing.user_id === userId) {
-      console.log('🔄 Renouvellement du verrou existant pour le même utilisateur');
       if (useSupabase) {
-        try {
-          const { data, error } = await supabase
-            .from('planning_locks')
-            .update({ updated_at: nowIso() })
-            .eq('shop_id', 'GLOBAL')
-            .eq('week_key', 'GLOBAL')
-            .eq('user_id', userId)
-            .select()
-            .single();
-          
-          if (error) {
-            console.error('❌ Erreur renouvellement verrou Supabase:', error);
-            return { ok: false, lock: existing };
-          }
-          console.log('✅ Verrou renouvelé avec Supabase');
-          return { ok: true, lock: data };
-        } catch (error) {
-          console.error('❌ Exception renouvellement verrou Supabase:', error);
-          return { ok: false, lock: existing };
-        }
-      } else {
-        existing.updated_at = nowIso();
-        localStorage.setItem(globalLockKey, JSON.stringify(existing));
-        console.log('✅ Verrou renouvelé avec localStorage');
-        return { ok: true, lock: existing };
+        const { data, error } = await supabase
+          .from('planning_locks')
+          .update({ updated_at: nowIso() })
+          .eq('shop_id', 'GLOBAL')
+          .eq('week_key', 'GLOBAL')
+          .eq('user_id', userId)
+          .select()
+          .single();
+
+        if (error) return { ok: false, lock: existing };
+        return { ok: true, lock: data };
       }
+
+      existing.updated_at = nowIso();
+      localStorage.setItem(globalLockKey, JSON.stringify(existing));
+      return { ok: true, lock: existing };
     }
-    
-    // Si le verrou est actif et appartient à un autre utilisateur
+
     if (age < ttlMs) {
-      console.log('❌ Verrou actif détenu par un autre utilisateur:', existing.user_id);
       return { ok: false, lock: existing };
     }
-    
-    // Si le verrou est expiré, le nettoyer avant d'en créer un nouveau
-    if (age >= ttlMs) {
-      console.log('🔓 Verrou expiré, nettoyage avant acquisition...');
-      await cleanupExpiredLocks(ttlMs);
-    }
+
+    await cleanupExpiredLocks(ttlMs);
   }
-  
-  const lock = { 
-    shop_id: 'GLOBAL', 
-    week_key: 'GLOBAL', 
-    user_id: userId, 
-    created_at: nowIso(), 
-    updated_at: nowIso() 
+
+  const lock = {
+    shop_id: 'GLOBAL',
+    week_key: 'GLOBAL',
+    user_id: userId,
+    created_at: nowIso(),
+    updated_at: nowIso()
   };
-  console.log('🔒 Nouveau verrou global à créer:', lock);
-  
+
   if (useSupabase) {
+    const { data, error } = await supabase
+      .from('planning_locks')
+      .upsert(lock, { onConflict: 'shop_id,week_key', ignoreDuplicates: false })
+      .select()
+      .single();
+
+    if (error) return { ok: false, lock: null };
+    return { ok: true, lock: data };
+  }
+
+  localStorage.setItem(globalLockKey, JSON.stringify(lock));
+  return { ok: true, lock };
+};
+
+export const acquireLock = async (userId, ttlMs = 2 * 60 * 1000) => {
+  if (useSupabase && rpcAvailable !== false) {
     try {
-      // Utiliser upsert pour éviter les conflits de clé unique
-      const { data, error } = await supabase
-        .from('planning_locks')
-        .upsert(lock, { 
-          onConflict: 'shop_id,week_key',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        console.error('❌ Erreur acquireLock Supabase:', error);
+      const rpcResult = await acquireLockViaRpc(userId, ttlMs);
+      if (rpcResult.error) {
+        if (isRpcMissingError(rpcResult.error)) {
+          rpcAvailable = false;
+          console.warn('⚠️ RPC acquire_global_lock indisponible, fallback legacy.');
+        } else {
+          console.error('❌ Erreur acquire_global_lock RPC:', rpcResult.error);
+          return { ok: false, lock: null };
+        }
+      } else {
+        rpcAvailable = true;
+        return { ok: rpcResult.ok, lock: rpcResult.lock };
+      }
+    } catch (error) {
+      if (isRpcMissingError(error)) {
+        rpcAvailable = false;
+        console.warn('⚠️ RPC acquire_global_lock indisponible, fallback legacy.');
+      } else {
+        console.error('❌ Exception acquire_global_lock RPC:', error);
         return { ok: false, lock: null };
       }
-      console.log('✅ Verrou global acquis avec Supabase:', data);
-      return { ok: true, lock: data };
-    } catch (error) {
-      console.error('❌ Exception acquireLock Supabase:', error);
-      return { ok: false, lock: null };
     }
-  } else {
-    localStorage.setItem(globalLockKey, JSON.stringify(lock));
-    console.log('✅ Verrou global acquis avec localStorage');
-    return { ok: true, lock };
   }
+
+  return acquireLockLegacy(userId, ttlMs);
 };
 
 export const releaseLock = async (userId) => {
-  console.log('🔓 releaseLock appelé (verrou global):', { userId, useSupabase });
-  
-  const existing = await getLock();
-  if (existing && existing.user_id !== userId) {
-    console.log('❌ Tentative de libération par un utilisateur non autorisé:', userId);
-    return { ok: false };
-  }
-  
-  if (useSupabase) {
+  if (useSupabase && rpcAvailable !== false) {
     try {
-      const { error } = await supabase
-        .from('planning_locks')
-        .delete()
-        .eq('shop_id', 'GLOBAL')
-        .eq('week_key', 'GLOBAL');
-      
-      if (error) {
-        console.error('❌ Erreur releaseLock Supabase:', error);
+      const rpcResult = await releaseLockViaRpc(userId);
+      if (rpcResult.error) {
+        if (isRpcMissingError(rpcResult.error)) {
+          rpcAvailable = false;
+        } else {
+          console.error('❌ Erreur release_global_lock RPC:', rpcResult.error);
+          return { ok: false };
+        }
+      } else {
+        rpcAvailable = true;
+        return { ok: rpcResult.ok || true };
+      }
+    } catch (error) {
+      if (!isRpcMissingError(error)) {
+        console.error('❌ Exception release_global_lock RPC:', error);
         return { ok: false };
       }
-      console.log('✅ Verrou global libéré avec Supabase');
-    } catch (error) {
-      console.error('❌ Exception releaseLock Supabase:', error);
+      rpcAvailable = false;
+    }
+  }
+
+  const existing = await getLock();
+  if (existing && existing.user_id !== userId) {
+    return { ok: false };
+  }
+
+  if (useSupabase) {
+    const { error } = await supabase
+      .from('planning_locks')
+      .delete()
+      .eq('shop_id', 'GLOBAL')
+      .eq('week_key', 'GLOBAL');
+
+    if (error) {
+      console.error('❌ Erreur releaseLock Supabase:', error);
       return { ok: false };
     }
   } else {
     localStorage.removeItem(globalLockKey);
-    console.log('✅ Verrou global libéré avec localStorage');
   }
-  
+
   return { ok: true };
 };
 
-export const heartbeat = async (userId) => {
-  const existing = await getLock();
-  if (!existing || existing.user_id !== userId) return { ok: false };
-  
-  existing.updated_at = nowIso();
-  
-  if (useSupabase) {
+export const heartbeat = async (userId, ttlMs = 2 * 60 * 1000) => {
+  if (useSupabase && rpcAvailable !== false) {
     try {
-      const { error } = await supabase
-        .from('planning_locks')
-        .update({ updated_at: existing.updated_at })
-        .eq('shop_id', 'GLOBAL')
-        .eq('week_key', 'GLOBAL');
-      
-      if (error) {
-        console.error('❌ Erreur heartbeat Supabase:', error);
-        return { ok: false };
+      const rpcResult = await renewLockViaRpc(userId, ttlMs);
+      if (rpcResult.error) {
+        if (isRpcMissingError(rpcResult.error)) {
+          rpcAvailable = false;
+        } else {
+          console.error('❌ Erreur renew_global_lock RPC:', rpcResult.error);
+          return { ok: false };
+        }
+      } else {
+        rpcAvailable = true;
+        return { ok: rpcResult.ok };
       }
     } catch (error) {
-      console.error('❌ Exception heartbeat Supabase:', error);
+      if (!isRpcMissingError(error)) {
+        console.error('❌ Exception renew_global_lock RPC:', error);
+        return { ok: false };
+      }
+      rpcAvailable = false;
+    }
+  }
+
+  const existing = await getLock();
+  if (!existing || existing.user_id !== userId) return { ok: false };
+
+  existing.updated_at = nowIso();
+
+  if (useSupabase) {
+    const { error } = await supabase
+      .from('planning_locks')
+      .update({ updated_at: existing.updated_at })
+      .eq('shop_id', 'GLOBAL')
+      .eq('week_key', 'GLOBAL')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('❌ Erreur heartbeat Supabase:', error);
       return { ok: false };
     }
   } else {
     localStorage.setItem(globalLockKey, JSON.stringify(existing));
   }
-  
+
   return { ok: true };
 };
 
-// Fonction pour forcer la libération du verrou global avec notification
 export const forceRelease = async (userId) => {
-  console.log('🔓 forceRelease appelé (verrou global):', { userId, useSupabase });
-  
   if (useSupabase) {
     try {
-      // Créer une notification de force release
       const { error: notifyError } = await supabase
         .from('planning_locks')
         .upsert({
@@ -241,75 +311,54 @@ export const forceRelease = async (userId) => {
           created_at: nowIso(),
           updated_at: nowIso()
         }, { onConflict: 'shop_id,week_key' });
-      
+
       if (notifyError) {
         console.error('❌ Erreur notification force release Supabase:', notifyError);
       }
-      
-      console.log('✅ Notification de force release envoyée');
+
       return { ok: true };
     } catch (error) {
       console.error('❌ Exception forceRelease Supabase:', error);
       return { ok: false };
     }
-  } else {
-    // Fallback localStorage
-    localStorage.setItem(forceReleaseKey, nowIso());
-    console.log('✅ Notification de force release envoyée avec localStorage');
-    return { ok: true };
   }
+
+  localStorage.setItem(forceReleaseKey, nowIso());
+  return { ok: true };
 };
 
-// Fonction de déverrouillage d'urgence avec code de sécurité
 export const emergencyUnlock = async (userId, securityCode) => {
-  console.log('🚨 emergencyUnlock appelé (verrou global):', { userId, hasSecurityCode: Boolean(securityCode), useSupabase });
-  
   const adminOverrideCode = '2111';
-  
-  console.log('🔐 Vérification du code override admin');
-  
+
   if (securityCode !== adminOverrideCode) {
-    console.log('❌ Code de sécurité incorrect');
     return { ok: false, error: 'Code admin incorrect' };
   }
-  
-  console.log('✅ Code de sécurité valide, déverrouillage d\'urgence...');
-  
+
   if (useSupabase) {
     try {
-      // Supprimer directement le verrou sans notification
       const { error } = await supabase
         .from('planning_locks')
         .delete()
         .eq('shop_id', 'GLOBAL')
         .eq('week_key', 'GLOBAL');
-      
+
       if (error) {
         console.error('❌ Erreur emergencyUnlock Supabase:', error);
         return { ok: false, error: 'Erreur lors du déverrouillage' };
       }
-      
-      console.log('✅ Déverrouillage d\'urgence réussi avec Supabase');
 
-      // Important: ne pas recréer un verrou spécial ici.
-      // Le prochain login (normal) reprendra le verrou proprement via acquireLock().
       return { ok: true };
-      
     } catch (error) {
       console.error('❌ Exception emergencyUnlock Supabase:', error);
       return { ok: false, error: 'Exception lors du déverrouillage' };
     }
-  } else {
-    // Fallback localStorage
-    localStorage.removeItem(globalLockKey);
-    localStorage.removeItem(forceReleaseKey);
-
-    console.log('✅ Déverrouillage d\'urgence réussi avec localStorage');
-    return { ok: true };
   }
+
+  localStorage.removeItem(globalLockKey);
+  localStorage.removeItem(forceReleaseKey);
+  return { ok: true };
 };
 
-// Fonction pour obtenir le code de sécurité actuel (pour affichage)
 export const getCurrentSecurityCode = () => {
   const now = new Date();
   const day = now.getDate().toString().padStart(2, '0');
@@ -317,7 +366,6 @@ export const getCurrentSecurityCode = () => {
   return day + month;
 };
 
-// Fonction pour vérifier les demandes de force release
 export const checkForceReleaseRequest = async (userId) => {
   if (useSupabase) {
     try {
@@ -328,45 +376,38 @@ export const checkForceReleaseRequest = async (userId) => {
         .eq('week_key', 'GLOBAL')
         .not('force_release_request', 'is', null)
         .maybeSingle();
-      
+
       if (error) {
         console.error('❌ Erreur checkForceReleaseRequest Supabase:', error);
         return null;
       }
-      
+
       if (data && data.force_release_request) {
-        console.log('🔓 Demande de force release détectée:', data.force_release_request);
-        
-        // Supprimer la notification après l'avoir lue
         await supabase
           .from('planning_locks')
           .update({ force_release_request: null })
           .eq('shop_id', 'GLOBAL')
           .eq('week_key', 'GLOBAL');
-        
+
         return data.force_release_request;
       }
-      
+
       return null;
     } catch (error) {
       console.error('❌ Exception checkForceReleaseRequest Supabase:', error);
       return null;
     }
-  } else {
-    // Fallback localStorage
-    const requestTime = localStorage.getItem(forceReleaseKey);
-    if (requestTime) {
-      localStorage.removeItem(forceReleaseKey);
-      return requestTime;
-    }
-    return null;
   }
+
+  const requestTime = localStorage.getItem(forceReleaseKey);
+  if (requestTime) {
+    localStorage.removeItem(forceReleaseKey);
+    return requestTime;
+  }
+  return null;
 };
 
-// Fonction pour nettoyer les verrous expirés
 export const cleanupExpiredLocks = async (ttlMs = 2 * 60 * 1000) => {
-  console.log('🧹 cleanupExpiredLocks appelé (verrou global)');
-  
   if (useSupabase) {
     try {
       const cutoff = new Date(Date.now() - ttlMs).toISOString();
@@ -376,49 +417,30 @@ export const cleanupExpiredLocks = async (ttlMs = 2 * 60 * 1000) => {
         .eq('shop_id', 'GLOBAL')
         .eq('week_key', 'GLOBAL')
         .lt('updated_at', cutoff);
-      
+
       if (error) {
         console.error('❌ Erreur cleanupExpiredLocks Supabase:', error);
-      } else {
-        console.log('✅ Nettoyage des verrous expirés Supabase terminé');
       }
     } catch (error) {
       console.error('❌ Exception cleanupExpiredLocks Supabase:', error);
     }
-  } else {
-    try {
-      let cleanedCount = 0;
-      const keys = Object.keys(localStorage);
-      const lockKeys = keys.filter(key => key.startsWith('lock_') || key === globalLockKey);
-      
-      for (const key of lockKeys) {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          try {
-            const lock = JSON.parse(raw);
-            const lockTime = new Date(lock.updated_at);
-            const age = Date.now() - lockTime.getTime();
-            
-            if (age >= ttlMs) {
-              localStorage.removeItem(key);
-              cleanedCount++;
-            }
-          } catch (e) {
-            localStorage.removeItem(key);
-            cleanedCount++;
-          }
-        }
+    return;
+  }
+
+  try {
+    const keys = Object.keys(localStorage).filter((key) => key.startsWith('lock_') || key === globalLockKey);
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const lock = JSON.parse(raw);
+        const age = Date.now() - new Date(lock.updated_at).getTime();
+        if (age >= ttlMs) localStorage.removeItem(key);
+      } catch {
+        localStorage.removeItem(key);
       }
-      
-      if (cleanedCount > 0) {
-        console.log(`✅ Nettoyage localStorage: ${cleanedCount} verrous expirés supprimés`);
-      }
-    } catch (error) {
-      console.error('❌ Erreur cleanupExpiredLocks localStorage:', error);
     }
+  } catch (error) {
+    console.error('❌ Erreur cleanupExpiredLocks localStorage:', error);
   }
 };
-
-
-
-
