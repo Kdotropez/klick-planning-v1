@@ -1,7 +1,7 @@
 {
   "name": "klick-planning",
   "private": false,
-  "version": "3.10.150",
+  "version": "3.10.154",
   "description": "Application de gestion de planning pour boutiques avec fonctionnalités avancées d'export et de récapitulatif",
   "author": "Nicolas Lefevre",
   "license": "UNLICENSED",
@@ -16,7 +16,9 @@
     "release:minor": "npm version minor -m \"chore(version): bump to v%s\" && npm run update-version-file && git push origin main --follow-tags",
     "release:major": "npm version major -m \"chore(version): bump to v%s\" && npm run update-version-file && git push origin main --follow-tags",
     "update-version-file": "node scripts/update-version.cjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.55.0",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.2",
-    "vite": "5.4.8"
+    "vite": "5.4.8",
+    "vitest": "^2.1.8"
   }
 }

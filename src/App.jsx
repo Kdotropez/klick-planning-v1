@@ -53,6 +53,8 @@ import {
   inspectShopWeekInventory,
   getSupabaseBackupDiagnostics
 } from './utils/remoteStore';
+import { isSupervisorOverrideCode } from './config/securityCodes';
+import { flushAllIncrementalSyncs } from './utils/planningSyncScheduler';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
 import {
@@ -200,6 +202,8 @@ const App = () => {
     }
   });
   const lastActivityRef = useRef(Date.now());
+  const planningDataRef = useRef(planningData);
+  const currentUserRef = useRef(currentUser);
   const inactivityCounterRef = useRef(null);
   const inactivityDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 });
   const interactionThrottleRef = useRef({ key: '', ts: 0 });
@@ -520,6 +524,14 @@ const App = () => {
   }, [mode, currentUser]);
 
   useEffect(() => {
+    planningDataRef.current = planningData;
+  }, [planningData]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
     if (!currentUser || !hasGlobalLock) {
       setShowInactivityCounter(false);
       return undefined;
@@ -546,9 +558,12 @@ const App = () => {
       clearInterval(intervalId);
       setShowInactivityCounter(false);
 
+      const userSnapshot = currentUserRef.current;
+      const dataSnapshot = planningDataRef.current;
       let saveSucceeded = false;
       try {
-        const saveResult = await saveCompletePlanningData(planningData);
+        await flushAllIncrementalSyncs();
+        const saveResult = await saveCompletePlanningData(dataSnapshot);
         saveSucceeded = !!saveResult?.ok;
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);
@@ -559,7 +574,9 @@ const App = () => {
       }
 
       try {
-        await releaseLock(getLockHolderId(currentUser));
+        if (userSnapshot) {
+          await releaseLock(getLockHolderId(userSnapshot));
+        }
       } catch (error) {
         console.error('❌ Erreur release lock après inactivité:', error);
       }
@@ -580,7 +597,7 @@ const App = () => {
       clearInterval(intervalId);
       activityEvents.forEach((evt) => window.removeEventListener(evt, onActivity));
     };
-  }, [currentUser, hasGlobalLock, planningData]);
+  }, [currentUser, hasGlobalLock]);
 
   useEffect(() => {
     if (lockCountdownSeconds <= 0) return undefined;
@@ -629,7 +646,7 @@ const App = () => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const intervalId = setInterval(async () => {
-      const hbResult = await heartbeat(getLockHolderId(currentUser));
+      const hbResult = await heartbeat(getLockHolderId(currentUser), GLOBAL_LOCK_TTL_MS);
       if (hbResult?.ok) return;
 
       alert(
@@ -746,7 +763,7 @@ const App = () => {
 
     const unlockCode = window.prompt('Code de validation déverrouillage (admin):');
     if (!unlockCode) return false;
-    if (unlockCode.trim() !== '2111') {
+    if (!isSupervisorOverrideCode(unlockCode)) {
       alert('❌ Code admin invalide. Déverrouillage annulé.');
       return false;
     }
@@ -1474,6 +1491,7 @@ const App = () => {
 
     try {
       if (currentUser?.code && hasGlobalLock) {
+        await flushAllIncrementalSyncs();
         const saveResult = await saveCompletePlanningData(planningData);
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);

@@ -62,4 +62,13 @@ backup_*/
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Backup / duplicate component copies (ne pas versionner)
+**/* - Copie*
+**/*.bak
+**/*.bak*
+**/*BACKUP*
+**/*AVANT-*
+**/*_backup_*.json
+src/utils/planning_auto_backup_*.json

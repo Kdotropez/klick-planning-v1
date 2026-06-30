@@ -456,6 +456,27 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.150': [
     'Renommage: corrige VALEUR vers VALOU quand l ecran affichait deja le bon nom (noms stockes vs affiches).'
+  ],
+  '3.10.151': [
+    'Sauvegarde JSON auto: plus de telechargement fichier toutes les 5 min (localStorage silencieux uniquement).',
+    'Bouton JSON du menu: telechargement manuel explicite.',
+    'Deconnexion inactivite 3 min: le compteur n est plus remis a zero a chaque modification du planning.'
+  ],
+  '3.10.152': [
+    'Verrou global Supabase: acquisition atomique via RPC (fallback legacy si migration SQL non appliquee).',
+    'Nettoyage depot: suppression des copies/backups versionnes et retrait de node_modules du suivi git.'
+  ],
+  '3.10.153': [
+    'Performance: lazy-loading modales lourdes, jsPDF a la demande, chunks separes (pdf/xlsx/supabase).',
+    'Production: console/debugger retires du bundle, sourcemaps desactivees.',
+    'Securite: code superviseur centralise (VITE_SUPERVISOR_OVERRIDE_CODE), RPC emergency_unlock + RLS locks.',
+    'Renommage: comparaison des noms avec normalisation accents.'
+  ],
+  '3.10.154': [
+    'Sync incrementale Supabase: debounce 3s par boutique/semaine, complete_file toutes les 5 min.',
+    'SAUVE SUPABASE et fermeture session: flush immediat des syncs en attente.',
+    'Tests Vitest: noms employes et extractWeekPayload.',
+    'Base auth: authConfig.js (VITE_AUTH_MODE pour migration Supabase Auth future).'
   ]
 };
 
