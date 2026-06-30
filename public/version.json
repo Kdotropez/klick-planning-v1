@@ -1,7 +1,15 @@
 {
-  "version": "3.10.160",
+  "version": "3.10.161",
   "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.161",
+      "date": "2026-06-30",
+      "changes": [
+        "🔄 Mise à jour automatique de la version",
+        "📝 Changelog à compléter manuellement"
+      ]
+    },
     {
       "version": "3.10.160",
       "date": "2026-06-30",

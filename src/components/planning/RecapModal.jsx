@@ -1,9 +1,7 @@
 import React from 'react';
 import { format, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import html2canvas from 'html2canvas';
+import { loadJsPdf, loadHtml2Canvas } from '../../utils/pdfLoader';
 import { loadXlsx } from '../../utils/xlsxLoader';
 import Button from '../common/Button';
 import HtmlExportButton from '../common/HtmlExportButton';
@@ -26,7 +24,6 @@ const RecapModal = ({
   shops // Prop shops requis pour multi-boutiques
 }) => {
   if (!showRecapModal) {
-    console.log('RecapModal: No modal to show, showRecapModal is null');
     return null;
   }
 
@@ -224,10 +221,8 @@ const RecapModal = ({
     });
   }
 
-  console.log('RecapModal: Generated recap data:', recapData);
-
-  const exportToPDF = () => {
-    console.log('RecapModal: Exporting to PDF for', { showRecapModal, employee });
+  const exportToPDF = async () => {
+    const jsPDF = await loadJsPdf();
     const doc = new jsPDF();
     doc.setFont('Helvetica', 'normal');
     const title = isWeekRecap
@@ -318,8 +313,9 @@ const RecapModal = ({
   };
 
   const exportAsImagePdf = async () => {
-    console.log('RecapModal: Starting PDF export as image');
     try {
+      const html2canvas = await loadHtml2Canvas();
+      const jsPDF = await loadJsPdf();
       const modalElement = document.querySelector('.modal-content');
       if (!modalElement) throw new Error('Contenu de la modale introuvable');
       const canvas = await html2canvas(modalElement, {

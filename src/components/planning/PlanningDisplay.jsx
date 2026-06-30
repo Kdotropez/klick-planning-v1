@@ -6,16 +6,8 @@ import { loadFromLocalStorage, saveToLocalStorage } from '../../utils/localStora
 import PlanningMenuBar from './PlanningMenuBar';
 import DayButtons from './DayButtons';
 import PlanningTable from './PlanningTable';
-import ResetModal from './ResetModal';
-import RecapModal from './RecapModal';
 import EmployeeRecapCompact from './EmployeeRecapCompact';
-import MonthlyRecapModals from './MonthlyRecapModals';
-import MonthlyDetailModal from './MonthlyDetailModal';
 import ValidationManager from './ValidationManager';
-import EmployeeMonthlyWeeklyModal from './EmployeeMonthlyWeeklyModal';
-import EmployeeMonthlyRecapModal from './EmployeeMonthlyRecapModal';
-import EmployeeWeeklyRecapModal from './EmployeeWeeklyRecapModal';
-import NotesModal from './NotesModal';
 import RecapButtonsModule from './RecapButtonsModule';
 import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
@@ -50,6 +42,13 @@ const EmployeeMonthlyDetailModal = lazy(() => import('./EmployeeMonthlyDetailMod
 const CopyPastePage = lazy(() => import('./CopyPastePage'));
 const ShopStatsPage = lazy(() => import('./ShopStatsPage'));
 const LabourInspectionModal = lazy(() => import('./LabourInspectionModal'));
+const RecapModal = lazy(() => import('./RecapModal'));
+const MonthlyRecapModals = lazy(() => import('./MonthlyRecapModals'));
+const EmployeeMonthlyWeeklyModal = lazy(() => import('./EmployeeMonthlyWeeklyModal'));
+const EmployeeMonthlyRecapModal = lazy(() => import('./EmployeeMonthlyRecapModal'));
+const EmployeeWeeklyRecapModal = lazy(() => import('./EmployeeWeeklyRecapModal'));
+const NotesModal = lazy(() => import('./NotesModal'));
+const ResetModal = lazy(() => import('./ResetModal'));
 
 const LazyPageFallback = () => (
   <div style={{ padding: 24, textAlign: 'center', fontFamily: 'Roboto, sans-serif' }}>
@@ -4015,7 +4014,8 @@ const PlanningDisplay = ({
       {/* TOUT LE RESTE - SOUS LE PLANNING */}
 
 
-      {/* Modales */}
+      {/* Modales (code-splitting) */}
+      <Suspense fallback={null}>
       <ResetModal
         show={showResetModal}
         onClose={() => setShowResetModal(false)}
@@ -4025,21 +4025,21 @@ const PlanningDisplay = ({
         employees={currentShopEmployees}
       />
 
+      {showRecapModal && (
       <RecapModal
-        show={showRecapModal !== null}
-        onClose={() => setShowRecapModal(null)}
-        recapType={showRecapModal}
-        employees={currentShopEmployees}
-        planning={planning}
+        showRecapModal={showRecapModal}
+        setShowRecapModal={setShowRecapModal}
         config={config}
-        currentWeek={validWeek}
-        currentShop={selectedShop}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        selectedEmployees={localSelectedEmployees}
+        planning={planning}
+        currentDay={currentDay}
+        days={days}
+        shops={accessibleShops}
       />
+      )}
 
-      
-
-      {/* Modales chargées à la demande (code-splitting) */}
-      <Suspense fallback={null}>
         <ShopWeekInsightsModal
           isOpen={showShopWeekInsights}
           onClose={() => setShowShopWeekInsights(false)}
@@ -4107,37 +4107,20 @@ const PlanningDisplay = ({
             onForceRefresh={() => setModalForceRefresh(prev => prev + 1)}
           />
         )}
-      </Suspense>
 
       {showMonthlyRecapModal && (
-      <MonthlyRecapModals
-        showMonthlyRecapModal={showMonthlyRecapModal}
-        setShowMonthlyRecapModal={setShowMonthlyRecapModal}
-        config={config}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        selectedEmployees={localSelectedEmployees}
-        shops={accessibleShops}
+        <MonthlyRecapModals
+          showMonthlyRecapModal={showMonthlyRecapModal}
+          setShowMonthlyRecapModal={setShowMonthlyRecapModal}
+          config={config}
+          selectedShop={selectedShop}
+          selectedWeek={validWeek}
+          selectedEmployees={localSelectedEmployees}
+          shops={accessibleShops}
           planningData={userScopedPlanningData}
-      />
+        />
       )}
 
-      {/* Temporairement désactivé pour éviter les problèmes d'affichage */}
-      {false && (
-      <MonthlyDetailModal
-        show={showMonthlyDetailModal}
-        onClose={() => setShowMonthlyDetailModal(false)}
-        planning={planning}
-        config={config}
-        currentWeek={validWeek}
-        currentShop={selectedShop}
-        employees={currentShopEmployees}
-      />
-      )}
-
-
-
-      {/* Modales temporairement désactivées pour éviter l'ouverture automatique */}
       {showEmployeeMonthlyWeeklyModal && (
         <EmployeeMonthlyWeeklyModal
           show={showEmployeeMonthlyWeeklyModal}
@@ -4179,6 +4162,18 @@ const PlanningDisplay = ({
         />
       )}
 
+      <NotesModal
+        showNotesModal={showNotesModal}
+        setShowNotesModal={setShowNotesModal}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        employees={currentShopEmployees}
+        planningData={planningData}
+        onSaveNotes={() => {
+          setFeedback('✅ Notes sauvegardées avec succès');
+        }}
+      />
+      </Suspense>
 
       {showValidationWarning && (
         <div style={{
@@ -4243,20 +4238,6 @@ const PlanningDisplay = ({
           </div>
         </div>
       )}
-
-      {/* Modale de notes */}
-      <NotesModal
-        showNotesModal={showNotesModal}
-        setShowNotesModal={setShowNotesModal}
-        selectedShop={selectedShop}
-        selectedWeek={validWeek}
-        employees={currentShopEmployees}
-        planningData={planningData}
-        onSaveNotes={(notes) => {
-          console.log('Notes sauvegardées:', notes);
-          setFeedback('✅ Notes sauvegardées avec succès');
-        }}
-      />
 
       {/* Page de Gestion Boutique */}
       {showGestionBoutique && (
