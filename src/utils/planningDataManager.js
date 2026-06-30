@@ -456,12 +456,20 @@ export const getEmployeeStoredNameVariants = (planningData, employeeId) => {
   return Array.from(names);
 };
 
+/** Normalise un nom employé pour comparaison (accents, casse, espaces). */
+export const normalizeEmployeeNameToken = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
 export const employeeStoredNamesMatch = (planningData, employeeId, targetName) => {
-  const target = String(targetName || '').trim().toUpperCase();
+  const target = normalizeEmployeeNameToken(targetName);
   if (!target) return false;
   const variants = getEmployeeStoredNameVariants(planningData, employeeId);
   if (variants.length === 0) return false;
-  return variants.every((name) => name.toUpperCase() === target);
+  return variants.every((name) => normalizeEmployeeNameToken(name) === target);
 };
 
 export const addEmployee = (planningData, employee) => {

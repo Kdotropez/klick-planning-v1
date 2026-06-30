@@ -465,6 +465,12 @@ const VERSION_HIGHLIGHTS = {
   '3.10.152': [
     'Verrou global Supabase: acquisition atomique via RPC (fallback legacy si migration SQL non appliquee).',
     'Nettoyage depot: suppression des copies/backups versionnes et retrait de node_modules du suivi git.'
+  ],
+  '3.10.153': [
+    'Performance: lazy-loading modales lourdes, jsPDF a la demande, chunks separes (pdf/xlsx/supabase).',
+    'Production: console/debugger retires du bundle, sourcemaps desactivees.',
+    'Securite: code superviseur centralise (VITE_SUPERVISOR_OVERRIDE_CODE), RPC emergency_unlock + RLS locks.',
+    'Renommage: comparaison des noms avec normalisation accents.'
   ]
 };
 

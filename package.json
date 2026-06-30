@@ -1,7 +1,7 @@
 {
   "name": "klick-planning",
   "private": false,
-  "version": "3.10.152",
+  "version": "3.10.153",
   "description": "Application de gestion de planning pour boutiques avec fonctionnalités avancées d'export et de récapitulatif",
   "author": "Nicolas Lefevre",
   "license": "UNLICENSED",
