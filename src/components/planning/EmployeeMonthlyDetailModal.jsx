@@ -3,7 +3,7 @@ import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'da
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../../utils/xlsxLoader';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import HtmlExportButton from '../common/HtmlExportButton';
@@ -522,7 +522,8 @@ const EmployeeMonthlyDetailModal = ({
     console.log('EmployeeMonthlyDetailModal: PDF exported successfully');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     console.log('EmployeeMonthlyDetailModal: Exporting to Excel');
     const data = [];
     

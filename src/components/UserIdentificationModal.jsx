@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getValidUserCodes, pullUserCodesFromSupabase } from '../config/userCodes';
-import { isSecretCodesAuthMode } from '../config/authConfig';
+import { isSecretCodesAuthMode, isSupabaseAuthMode, isGoogleOAuthEnabled } from '../config/authConfig';
+import { signInWithGoogle } from '../utils/supabaseAuth';
 
 const UserIdentificationModal = ({
   onIdentification,
@@ -37,6 +38,26 @@ const UserIdentificationModal = ({
     syncCodesFromCloud(false);
   }, []);
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setIsLoading(true);
+    try {
+      if (lockCountdownSeconds > 0) {
+        setError(
+          `⛔ Planning déjà utilisé sur ${lockOwnerText || 'un autre poste'}. ` +
+          `Réessayez dans ${lockCountdownSeconds} seconde(s).`
+        );
+        return;
+      }
+      await signInWithGoogle();
+    } catch (signInError) {
+      console.error('Erreur connexion Google:', signInError);
+      setError('❌ Connexion Google impossible. Vérifiez la configuration Supabase Auth.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -56,7 +77,7 @@ const UserIdentificationModal = ({
       }
 
       if (!isSecretCodesAuthMode()) {
-        setError('Mode Supabase Auth : non disponible sur cette version. Contactez l administrateur.');
+        setError('Utilisez la connexion Google ci-dessous.');
         setIsLoading(false);
         return;
       }
@@ -153,7 +174,7 @@ const UserIdentificationModal = ({
               textShadow: '0 4px 8px rgba(0,0,0,0.3)',
               letterSpacing: '2px'
             }}>
-              Identification Secrète
+              {isSupabaseAuthMode() ? 'Connexion' : 'Identification Secrète'}
             </h1>
             <p style={{
               fontSize: '1.1rem',
@@ -162,12 +183,39 @@ const UserIdentificationModal = ({
               opacity: '0.9',
               textShadow: '0 2px 4px rgba(0,0,0,0.2)'
             }}>
-              Veuillez saisir votre code secret
+              {isSupabaseAuthMode()
+                ? 'Connectez-vous avec votre compte Google'
+                : 'Veuillez saisir votre code secret'}
             </p>
           </div>
 
           {/* Formulaire */}
           <form onSubmit={handleSubmit} style={{ marginBottom: '30px' }}>
+            {isSupabaseAuthMode() && isGoogleOAuthEnabled() && (
+              <div style={{ marginBottom: '25px', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  disabled={isLoading || lockCountdownSeconds > 0}
+                  onClick={handleGoogleSignIn}
+                  style={{
+                    width: '100%',
+                    padding: '15px 20px',
+                    fontSize: '1.1rem',
+                    border: 'none',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    color: '#333',
+                    fontWeight: '600',
+                    cursor: (isLoading || lockCountdownSeconds > 0) ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+                  }}
+                >
+                  {isLoading ? '⏳ Redirection Google...' : '🔵 Continuer avec Google'}
+                </button>
+              </div>
+            )}
+
+            {isSecretCodesAuthMode() && (
             <div style={{ marginBottom: '25px' }}>
               <label style={{
                 display: 'block',
@@ -201,6 +249,7 @@ const UserIdentificationModal = ({
                 disabled={isLoading}
               />
             </div>
+            )}
 
             {/* Blocage temporaire multi-postes */}
             {lockCountdownSeconds > 0 && (
@@ -277,6 +326,7 @@ const UserIdentificationModal = ({
               </div>
             )}
 
+            {isSecretCodesAuthMode() && (
             <div style={{ marginBottom: '16px', textAlign: 'center' }}>
               <button
                 type="button"
@@ -296,13 +346,16 @@ const UserIdentificationModal = ({
                 {isSyncingCodes ? '⏳ Synchronisation des codes...' : '🔄 Synchroniser les codes cloud'}
               </button>
             </div>
+            )}
 
             {/* Boutons */}
             <div style={{
               display: 'flex',
               gap: '15px',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexWrap: 'wrap'
             }}>
+              {isSecretCodesAuthMode() && (
               <button
                 type="submit"
                 disabled={isLoading || !userCode.trim() || lockCountdownSeconds > 0}
@@ -342,6 +395,7 @@ const UserIdentificationModal = ({
                     ? `🔒 Attendre ${lockCountdownSeconds}s`
                     : '🚀 Se connecter'}
               </button>
+              )}
 
               <button
                 type="button"

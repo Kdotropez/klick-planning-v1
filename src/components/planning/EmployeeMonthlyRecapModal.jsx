@@ -3,7 +3,7 @@ import { format, addDays, startOfMonth, endOfMonth, startOfWeek, eachDayOfInterv
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../../utils/xlsxLoader';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import HtmlExportButton from '../common/HtmlExportButton';
@@ -273,7 +273,8 @@ const EmployeeMonthlyRecapModal = ({
     console.log('EmployeeMonthlyRecapModal: PDF exported successfully');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     console.log('EmployeeMonthlyRecapModal: Exporting to Excel');
     const weeks = getMonthWeeks(selectedWeek);
     

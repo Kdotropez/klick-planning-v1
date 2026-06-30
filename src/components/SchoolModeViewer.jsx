@@ -178,10 +178,10 @@ const SchoolModeViewer = ({ onBack }) => {
     downloadJson(schoolData, `mode_ecole_${safeName(fileName)}_${format(new Date(), 'yyyy-MM-dd_HHmm')}.json`);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!schoolData) return;
     const monthDate = referenceDate ? parseISO(referenceDate) : new Date();
-    const ok = exportPlanningToExcel(schoolData, { monthDate, isolatedMode: true });
+    const ok = await exportPlanningToExcel(schoolData, { monthDate, isolatedMode: true });
     setMessage(ok ? 'Export Excel du fichier école généré.' : 'Échec export Excel du fichier école.');
   };
 

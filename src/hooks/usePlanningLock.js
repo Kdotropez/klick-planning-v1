@@ -5,7 +5,8 @@ import { acquireLock, renewLock, releaseLock, emergencyTakeover, subscribeLock }
 const HEARTBEAT_SEC = 30;   // renouvelle toutes les 30 s (plus fréquent)
 const TTL_SEC       = 600;  // bail de 600 s (10 minutes - plus long)
 
-// Système de verrouillage DÉSACTIVÉ pour permettre le travail libre
+// Verrouillage par ressource (shop/week) — DÉSACTIVÉ.
+// Le verrou global actif est géré par collabLock.js dans App.jsx (planning_locks GLOBAL/GLOBAL).
 const LOCK_SYSTEM_DISABLED = true;
 
 export function usePlanningLock(resourceId, holderId) {

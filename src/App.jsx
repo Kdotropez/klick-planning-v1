@@ -55,6 +55,8 @@ import {
   initRemoteOutbox
 } from './utils/remoteStore';
 import { isSupervisorOverrideCode } from './config/securityCodes';
+import { isSupabaseAuthMode } from './config/authConfig';
+import { signOutSupabaseAuth, recoverOAuthSession } from './utils/supabaseAuth';
 import { flushAllIncrementalSyncs } from './utils/planningSyncScheduler';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -411,6 +413,26 @@ const App = () => {
     bootstrapFromSupabase();
   }, []);
 
+  // Reprise session OAuth (Google) après redirection Supabase Auth
+  useEffect(() => {
+    if (!isSupabaseAuthMode() || !isBootstrapComplete) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const oauthUser = await recoverOAuthSession();
+        if (cancelled || !oauthUser?.code) return;
+        if (currentUserRef.current?.code) return;
+        await handleUserIdentification(oauthUser);
+      } catch (error) {
+        console.error('Erreur reprise session OAuth:', error);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBootstrapComplete]);
+
   // Sauvegarder les données dans localStorage (après bootstrap Supabase, jamais avec un planning vide)
   useEffect(() => {
     if (!isBootstrapComplete) return;
@@ -590,6 +612,9 @@ const App = () => {
 
       localStorage.removeItem('current_user');
       localStorage.removeItem('user_id');
+      if (isSupabaseAuthMode()) {
+        await signOutSupabaseAuth();
+      }
       setCurrentUser(null);
       setHasGlobalLock(false);
       setMode('identification');
@@ -1520,6 +1545,9 @@ const App = () => {
       // Nettoyage session même si la fermeture de fenêtre est bloquée
       localStorage.removeItem('current_user');
       localStorage.removeItem('user_id');
+      if (isSupabaseAuthMode()) {
+        await signOutSupabaseAuth();
+      }
       setCurrentUser(null);
       setHasGlobalLock(false);
       setMode('identification');
@@ -1908,14 +1936,14 @@ const App = () => {
       };
 
       document.getElementById('export-month-cancel').onclick = cleanup;
-      document.getElementById('export-month-ok').onclick = () => {
+      document.getElementById('export-month-ok').onclick = async () => {
         const value = /** @type {HTMLInputElement} */(document.getElementById('export-month-input')).value;
         if (!value) { cleanup(); return; }
         const [y, m] = value.split('-').map(Number);
         const monthDate = new Date(y, m - 1, 1);
         cleanup();
         const exportUserCode = exportContext.userCode || currentUser?.code;
-        const ok = exportPlanningToExcel(planningData, {
+        const ok = await exportPlanningToExcel(planningData, {
           monthDate,
           userCode: exportUserCode,
           currentShopId: exportContext.currentShopId || selectedShop,

@@ -5,7 +5,7 @@ import { getSlotDurationMinutes, getSlotEndTimeFormatted } from '../../utils/slo
 import { formatWorkedHoursForDisplay } from '../../utils/planningUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../../utils/xlsxLoader';
 import Button from '../common/Button';
 import HtmlExportButton from '../common/HtmlExportButton';
 import { exportElementHtmlAsLandscape } from '../../utils/htmlLandscapeExport';
@@ -1099,7 +1099,8 @@ const GlobalDayViewModalV2 = ({
     }
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     const wsData = [
       ['Vue globale par jour', selectedShop],
       ['Semaine', globalStats.weekRange],

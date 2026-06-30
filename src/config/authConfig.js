@@ -1,9 +1,22 @@
 /**
  * Configuration auth — mode actuel : codes secrets locaux.
- * Futur : VITE_AUTH_MODE=supabase + Supabase Auth (migration progressive).
+ * Migration : VITE_AUTH_MODE=supabase + OAuth Google (Supabase Auth).
  */
-export const AUTH_MODE = String(import.meta.env.VITE_AUTH_MODE || 'secret_codes').trim();
+export const getAuthMode = () =>
+  String(import.meta.env.VITE_AUTH_MODE || 'secret_codes').trim();
 
-export const isSupabaseAuthMode = () => AUTH_MODE === 'supabase';
+/** @deprecated Préférer getAuthMode() — conservé pour compatibilité. */
+export const AUTH_MODE = getAuthMode();
+
+export const isSupabaseAuthMode = () => getAuthMode() === 'supabase';
 
 export const isSecretCodesAuthMode = () => !isSupabaseAuthMode();
+
+export const getOAuthProviders = () =>
+  String(import.meta.env.VITE_SUPABASE_OAUTH_PROVIDERS || 'google')
+    .split(',')
+    .map((provider) => provider.trim().toLowerCase())
+    .filter(Boolean);
+
+export const isGoogleOAuthEnabled = () =>
+  isSupabaseAuthMode() && getOAuthProviders().includes('google');

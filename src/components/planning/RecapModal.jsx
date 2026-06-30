@@ -4,7 +4,7 @@ import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../../utils/xlsxLoader';
 import Button from '../common/Button';
 import HtmlExportButton from '../common/HtmlExportButton';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
@@ -289,7 +289,8 @@ const RecapModal = ({
     console.log('RecapModal: PDF exported successfully');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     console.log('RecapModal: Exporting to Excel for', { showRecapModal, employee });
     const wsData = [
       ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives', 'Statut'],

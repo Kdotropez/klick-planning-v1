@@ -8,9 +8,7 @@ import {
   workedHoursNumericForExport,
   resolveEmployeePlanningSlice,
 } from './planningUtils';
-// Remplace xlsx standard par xlsx-js-style pour le formatage des cellules
-import * as XLSX from 'xlsx-js-style';
-import * as XLSXCore from 'xlsx';
+import { loadXlsxPair } from './xlsxLoader';
 import { filterPlanningDataForUser } from '../config/userCodes';
 
 // Fonctions utilitaires pour le calcul des heures (créneaux à durées variables possibles)
@@ -1032,10 +1030,10 @@ export const exportPlanningData = (planningData) => {
 };
 
 // Export Excel pour analyse détaillée par boutique et mois
-export const exportPlanningToExcel = (planningData, opts = {}) => {
+export const exportPlanningToExcel = async (planningData, opts = {}) => {
   try {
-    // Vérifier si XLSX est disponible
-    if (typeof XLSX === 'undefined') {
+    const { XLSX, XLSXCore } = await loadXlsxPair();
+    if (!XLSX?.utils) {
       console.error('XLSX non disponible, annulation de l\'export Excel');
       return false;
     }

@@ -3,7 +3,7 @@ import { format, addDays, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../../utils/xlsxLoader';
 import html2canvas from 'html2canvas';
 import Button from '../common/Button';
 import HtmlExportButton from '../common/HtmlExportButton';
@@ -274,7 +274,8 @@ const EmployeeWeeklyRecapModal = ({
     console.log('EmployeeWeeklyRecapModal: PDF exported successfully');
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    const XLSX = await loadXlsx();
     console.log('EmployeeWeeklyRecapModal: Exporting to Excel');
          const data = [];
      
