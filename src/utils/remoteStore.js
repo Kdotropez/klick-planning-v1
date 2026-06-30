@@ -887,96 +887,50 @@ export const loadRemotePlanning = async (shopId, weekKey) => {
 };
 
 export const saveRemotePlanning = async (planningData, shopId, weekKey, isOutboxFlush = false) => {
-  console.log('🔍 saveRemotePlanning called with:', { 
-    shopId, 
-    weekKey, 
-    hasData: !!planningData,
-    dataKeys: planningData ? Object.keys(planningData) : []
-  });
-  
   if (!isReady() || !planningData || !shopId || !weekKey) {
-    console.log('❌ saveRemotePlanning: not ready or missing params');
-    // Enqueue si manque Supabase seulement
     if (!isReady() && planningData && shopId && weekKey && !isOutboxFlush) {
-      enqueue({ id: generateId(), type: 'saveWeek', shopId, weekKey, data: planningData, attempt: 0, nextTryAt: 0, ts: Date.now() });
+      enqueue({
+        id: generateId(),
+        type: 'saveWeek',
+        shopId,
+        weekKey,
+        data: planningData,
+        attempt: 0,
+        nextTryAt: 0,
+        ts: Date.now()
+      });
     }
     return false;
   }
-  
-  const row = {
-    shop_id: shopId,
-    week_key: weekKey,
-    data: {
-      ...planningData,
-      _backupMeta: {
-        ...buildBackupMeta(),
-        shopId,
-        weekKey,
-        saveType: 'shop_week'
-      }
-    },
-    version: 1
+
+  const dataWithMeta = {
+    ...planningData,
+    _backupMeta: {
+      ...buildBackupMeta(),
+      shopId,
+      weekKey,
+      saveType: 'shop_week'
+    }
   };
-  
-  console.log('🔍 Attempting to save to Supabase:', row);
-  
-  // First, try to check if the record exists
-  const { data: existingData, error: checkError } = await supabase
+
+  const { error } = await supabase
     .from('plannings')
-    .select('shop_id, week_key')
-    .eq('shop_id', shopId)
-    .eq('week_key', weekKey)
-    .maybeSingle();
-    
-  console.log('🔍 Existing data check:', { existingData, checkError });
-  
-  let result;
-  if (existingData) {
-    // Update existing record
-    console.log('🔄 Updating existing record...');
-    result = await supabase
-      .from('plannings')
-      .update({
-        data: {
-          ...planningData,
-          _backupMeta: {
-            ...buildBackupMeta(),
-            shopId,
-            weekKey,
-            saveType: 'shop_week'
-          }
-        },
-        version: 1
-      })
-      .eq('shop_id', shopId)
-      .eq('week_key', weekKey);
-  } else {
-    // Insert new record
-    console.log('➕ Inserting new record...');
-    result = await supabase
-      .from('plannings')
-      .insert(row);
-  }
-  
-  const { data, error } = result;
-  
+    .upsert(
+      {
+        shop_id: shopId,
+        week_key: weekKey,
+        data: dataWithMeta,
+        version: 1,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'shop_id,week_key' }
+    );
+
   if (error) {
     console.error('❌ Supabase save error:', error.message, error);
     return false;
   }
-  
-  console.log('✅ saveRemotePlanning success, result:', { data, error });
-  
-  // Verify the save by reading back
-  const { data: verifyData, error: verifyError } = await supabase
-    .from('plannings')
-    .select('*')
-    .eq('shop_id', shopId)
-    .eq('week_key', weekKey)
-    .maybeSingle();
-    
-  console.log('🔍 Verification read:', { verifyData, verifyError });
-  
+
   return true;
 };
 

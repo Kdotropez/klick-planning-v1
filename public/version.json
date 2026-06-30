@@ -1,7 +1,17 @@
 {
-  "version": "3.10.155",
+  "version": "3.10.156",
   "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.156",
+      "date": "2026-06-30",
+      "changes": [
+        "RecapButtons : calcul mensuel employé multi-boutiques et total boutique sur le mois.",
+        "saveRemotePlanning : upsert unique (1 requête au lieu de 3).",
+        "IDs employés uniques via UUID (createEmployeeId).",
+        "Outbox Supabase initialisée au démarrage de l'app."
+      ]
+    },
     {
       "version": "3.10.155",
       "date": "2026-06-30",

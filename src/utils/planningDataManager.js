@@ -472,9 +472,20 @@ export const employeeStoredNamesMatch = (planningData, employeeId, targetName) =
   return variants.every((name) => normalizeEmployeeNameToken(name) === target);
 };
 
+export const createEmployeeId = () => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return `emp_${crypto.randomUUID()}`;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return `emp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+};
+
 export const addEmployee = (planningData, employee) => {
   const newEmployee = {
-    id: `emp_${Date.now()}`,
+    id: createEmployeeId(),
     name: employee.name,
     canWorkIn: employee.canWorkIn || [],
     mainShop: employee.mainShop || null // Boutique principale

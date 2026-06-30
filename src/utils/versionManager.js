@@ -482,6 +482,12 @@ const VERSION_HIGHLIGHTS = {
     'pushCompleteSyncNow: sauvegarde Supabase immediate pour renommage/masquage/reactivation employe.',
     'HiddenEmployeesModal: reactivation depuis la modale synchronisee Supabase (corrige bug local seul).',
     'CI GitHub Actions: npm test + npm run build sur chaque PR.'
+  ],
+  '3.10.156': [
+    'RecapButtons: calcul mensuel employe multi-boutiques et total boutique sur le mois complet.',
+    'saveRemotePlanning: upsert unique (3 requetes -> 1), sans relecture de verification.',
+    'createEmployeeId: UUID pour eviter les collisions emp_Date.now().',
+    'Outbox Supabase initialisee au demarrage App (plus seulement PlanningDisplay).'
   ]
 };
 

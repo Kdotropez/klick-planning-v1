@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, addDays, startOfMonth, endOfMonth, isMonday, isWithinInterval } from 'date-fns';
+import { format, addDays, startOfMonth, endOfMonth, isMonday, isWithinInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
@@ -119,13 +119,39 @@ const RecapButtons = ({
     return totalHours;
   };
 
-  // Calculer les heures mensuelles réelles pour un employé
+  // Calculer les heures mensuelles réelles pour un employé (toutes boutiques du mois)
   const calculateEmployeeMonthHours = (employee) => {
     if (!currentWeek || !planningData) return 0;
-    
-    // Pour l'instant, on utilise seulement la semaine actuelle
-    // TODO: Implémenter le calcul mensuel complet multi-boutiques
-    return calculateEmployeeWeekHours(employee);
+
+    const employeeId = typeof employee === 'string' ? employee : employee?.id;
+    if (!employeeId) return 0;
+
+    const monthWeekKeys = getMonthWeeks(currentWeek);
+    let totalHours = 0;
+
+    (planningData.shops || []).forEach((shop) => {
+      if (!shop?.config) return;
+      const belongsToShop = (shop.employees || []).some((emp) => emp?.id === employeeId);
+      if (!belongsToShop) return;
+
+      monthWeekKeys.forEach((weekKey) => {
+        const weekData = shop.weeks?.[weekKey];
+        if (!weekData?.planning?.[employeeId]) return;
+
+        const weekStart = parseISO(weekKey);
+        for (let i = 0; i < 7; i++) {
+          const dayKey = format(addDays(weekStart, i), 'yyyy-MM-dd');
+          totalHours += calculateEmployeeDailyHours(
+            employeeId,
+            dayKey,
+            weekData.planning,
+            shop.config
+          );
+        }
+      });
+    });
+
+    return totalHours;
   };
 
   // Calculer les heures mensuelles de la boutique actuelle
@@ -147,16 +173,12 @@ const RecapButtons = ({
     let totalMonthHours = 0;
     
     // Pour chaque semaine du mois
-    monthWeeks.forEach(weekStart => {
-      const weekKey = format(weekStart, 'yyyy-MM-dd');
-      
-      // Récupérer le planning de cette semaine pour cette boutique
+    monthWeeks.forEach((weekKey) => {
       const weekData = shop.weeks?.[weekKey];
       if (weekData && weekData.planning) {
-        // Pour chaque employé de cette boutique
+        const weekStart = parseISO(weekKey);
         shop.employees.forEach(employee => {
           if (weekData.planning[employee.id]) {
-            // Calculer les heures de cette semaine pour cet employé
             let weekHours = 0;
             for (let i = 0; i < 7; i++) {
               const dayDate = format(addDays(weekStart, i), 'yyyy-MM-dd');
@@ -294,12 +316,35 @@ const RecapButtons = ({
     return totalHours;
   };
 
-  // Calculer les heures mensuelles pour la boutique
+  // Calculer les heures mensuelles pour la boutique (employés sélectionnés)
   const calculateShopMonthHours = () => {
-    if (!currentWeek || !currentShop || !planning || !selectedEmployees) return 0;
-    // Pour l'instant, on utilise seulement la semaine actuelle
-    // TODO: Implémenter le calcul mensuel complet
-    return calculateShopWeekHours();
+    if (!currentWeek || !currentShop || !planningData || !selectedEmployees?.length) return 0;
+
+    const shop = planningData.shops.find((s) => s.id === currentShop);
+    if (!shop?.config) return 0;
+
+    const monthWeekKeys = getMonthWeeks(currentWeek);
+    let totalHours = 0;
+
+    selectedEmployees.forEach((employeeId) => {
+      monthWeekKeys.forEach((weekKey) => {
+        const weekData = shop.weeks?.[weekKey];
+        if (!weekData?.planning?.[employeeId]) return;
+
+        const weekStart = parseISO(weekKey);
+        for (let i = 0; i < 7; i++) {
+          const dayKey = format(addDays(weekStart, i), 'yyyy-MM-dd');
+          totalHours += calculateEmployeeDailyHours(
+            employeeId,
+            dayKey,
+            weekData.planning,
+            shop.config
+          );
+        }
+      });
+    });
+
+    return totalHours;
   };
 
   // Calculer le total des heures pour tous les employés sélectionnés

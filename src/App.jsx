@@ -51,7 +51,8 @@ import {
   findHistoricalBackupsWithShopWeek,
   getGlobalBackupTimeline,
   inspectShopWeekInventory,
-  getSupabaseBackupDiagnostics
+  getSupabaseBackupDiagnostics,
+  initRemoteOutbox
 } from './utils/remoteStore';
 import { isSupervisorOverrideCode } from './config/securityCodes';
 import { flushAllIncrementalSyncs } from './utils/planningSyncScheduler';
@@ -350,6 +351,12 @@ const App = () => {
 
       showVersionHighlightsOnce();
       
+      try {
+        initRemoteOutbox();
+      } catch (outboxError) {
+        console.warn('⚠️ initRemoteOutbox impossible:', outboxError);
+      }
+
       // Initialiser le vérificateur de version
       versionChecker.init().catch(error => {
         console.error('❌ Erreur initialisation VersionChecker:', error);
