@@ -51,8 +51,13 @@ import {
   findHistoricalBackupsWithShopWeek,
   getGlobalBackupTimeline,
   inspectShopWeekInventory,
-  getSupabaseBackupDiagnostics
+  getSupabaseBackupDiagnostics,
+  initRemoteOutbox
 } from './utils/remoteStore';
+import { isSupervisorOverrideCode } from './config/securityCodes';
+import { isSupabaseAuthMode } from './config/authConfig';
+import { signOutSupabaseAuth, recoverOAuthSession } from './utils/supabaseAuth';
+import { flushAllIncrementalSyncs } from './utils/planningSyncScheduler';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
 import {
@@ -200,6 +205,8 @@ const App = () => {
     }
   });
   const lastActivityRef = useRef(Date.now());
+  const planningDataRef = useRef(planningData);
+  const currentUserRef = useRef(currentUser);
   const inactivityCounterRef = useRef(null);
   const inactivityDragRef = useRef({ dragging: false, offsetX: 0, offsetY: 0 });
   const interactionThrottleRef = useRef({ key: '', ts: 0 });
@@ -346,6 +353,12 @@ const App = () => {
 
       showVersionHighlightsOnce();
       
+      try {
+        initRemoteOutbox();
+      } catch (outboxError) {
+        console.warn('⚠️ initRemoteOutbox impossible:', outboxError);
+      }
+
       // Initialiser le vérificateur de version
       versionChecker.init().catch(error => {
         console.error('❌ Erreur initialisation VersionChecker:', error);
@@ -399,6 +412,26 @@ const App = () => {
 
     bootstrapFromSupabase();
   }, []);
+
+  // Reprise session OAuth (Google) après redirection Supabase Auth
+  useEffect(() => {
+    if (!isSupabaseAuthMode() || !isBootstrapComplete) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const oauthUser = await recoverOAuthSession();
+        if (cancelled || !oauthUser?.code) return;
+        if (currentUserRef.current?.code) return;
+        await handleUserIdentification(oauthUser);
+      } catch (error) {
+        console.error('Erreur reprise session OAuth:', error);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBootstrapComplete]);
 
   // Sauvegarder les données dans localStorage (après bootstrap Supabase, jamais avec un planning vide)
   useEffect(() => {
@@ -520,6 +553,14 @@ const App = () => {
   }, [mode, currentUser]);
 
   useEffect(() => {
+    planningDataRef.current = planningData;
+  }, [planningData]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
     if (!currentUser || !hasGlobalLock) {
       setShowInactivityCounter(false);
       return undefined;
@@ -546,9 +587,12 @@ const App = () => {
       clearInterval(intervalId);
       setShowInactivityCounter(false);
 
+      const userSnapshot = currentUserRef.current;
+      const dataSnapshot = planningDataRef.current;
       let saveSucceeded = false;
       try {
-        const saveResult = await saveCompletePlanningData(planningData);
+        await flushAllIncrementalSyncs();
+        const saveResult = await saveCompletePlanningData(dataSnapshot);
         saveSucceeded = !!saveResult?.ok;
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);
@@ -559,13 +603,18 @@ const App = () => {
       }
 
       try {
-        await releaseLock(getLockHolderId(currentUser));
+        if (userSnapshot) {
+          await releaseLock(getLockHolderId(userSnapshot));
+        }
       } catch (error) {
         console.error('❌ Erreur release lock après inactivité:', error);
       }
 
       localStorage.removeItem('current_user');
       localStorage.removeItem('user_id');
+      if (isSupabaseAuthMode()) {
+        await signOutSupabaseAuth();
+      }
       setCurrentUser(null);
       setHasGlobalLock(false);
       setMode('identification');
@@ -580,7 +629,7 @@ const App = () => {
       clearInterval(intervalId);
       activityEvents.forEach((evt) => window.removeEventListener(evt, onActivity));
     };
-  }, [currentUser, hasGlobalLock, planningData]);
+  }, [currentUser, hasGlobalLock]);
 
   useEffect(() => {
     if (lockCountdownSeconds <= 0) return undefined;
@@ -629,7 +678,7 @@ const App = () => {
     if (!currentUser || !hasGlobalLock) return undefined;
 
     const intervalId = setInterval(async () => {
-      const hbResult = await heartbeat(getLockHolderId(currentUser));
+      const hbResult = await heartbeat(getLockHolderId(currentUser), GLOBAL_LOCK_TTL_MS);
       if (hbResult?.ok) return;
 
       alert(
@@ -746,7 +795,7 @@ const App = () => {
 
     const unlockCode = window.prompt('Code de validation déverrouillage (admin):');
     if (!unlockCode) return false;
-    if (unlockCode.trim() !== '2111') {
+    if (!isSupervisorOverrideCode(unlockCode)) {
       alert('❌ Code admin invalide. Déverrouillage annulé.');
       return false;
     }
@@ -1474,6 +1523,7 @@ const App = () => {
 
     try {
       if (currentUser?.code && hasGlobalLock) {
+        await flushAllIncrementalSyncs();
         const saveResult = await saveCompletePlanningData(planningData);
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);
@@ -1495,6 +1545,9 @@ const App = () => {
       // Nettoyage session même si la fermeture de fenêtre est bloquée
       localStorage.removeItem('current_user');
       localStorage.removeItem('user_id');
+      if (isSupabaseAuthMode()) {
+        await signOutSupabaseAuth();
+      }
       setCurrentUser(null);
       setHasGlobalLock(false);
       setMode('identification');
@@ -1883,14 +1936,14 @@ const App = () => {
       };
 
       document.getElementById('export-month-cancel').onclick = cleanup;
-      document.getElementById('export-month-ok').onclick = () => {
+      document.getElementById('export-month-ok').onclick = async () => {
         const value = /** @type {HTMLInputElement} */(document.getElementById('export-month-input')).value;
         if (!value) { cleanup(); return; }
         const [y, m] = value.split('-').map(Number);
         const monthDate = new Date(y, m - 1, 1);
         cleanup();
         const exportUserCode = exportContext.userCode || currentUser?.code;
-        const ok = exportPlanningToExcel(planningData, {
+        const ok = await exportPlanningToExcel(planningData, {
           monthDate,
           userCode: exportUserCode,
           currentShopId: exportContext.currentShopId || selectedShop,

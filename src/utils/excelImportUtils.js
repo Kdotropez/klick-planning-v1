@@ -1,12 +1,13 @@
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsxLoader';
 
 // Fonction pour lire un fichier Excel et retourner les données JSON brutes
 export const importCAFromExcel = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
+        const XLSX = await loadXlsx();
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         

@@ -8,10 +8,9 @@ import {
   workedHoursNumericForExport,
   resolveEmployeePlanningSlice,
 } from './planningUtils';
-// Remplace xlsx standard par xlsx-js-style pour le formatage des cellules
-import * as XLSX from 'xlsx-js-style';
-import * as XLSXCore from 'xlsx';
+import { loadXlsxPair } from './xlsxLoader';
 import { filterPlanningDataForUser } from '../config/userCodes';
+import { devLog } from './devLog';
 
 // Fonctions utilitaires pour le calcul des heures (créneaux à durées variables possibles)
 const getWorkTimesFromSlots = (timeSlots, slots, shopConfig = {}) => {
@@ -456,17 +455,36 @@ export const getEmployeeStoredNameVariants = (planningData, employeeId) => {
   return Array.from(names);
 };
 
+/** Normalise un nom employé pour comparaison (accents, casse, espaces). */
+export const normalizeEmployeeNameToken = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
 export const employeeStoredNamesMatch = (planningData, employeeId, targetName) => {
-  const target = String(targetName || '').trim().toUpperCase();
+  const target = normalizeEmployeeNameToken(targetName);
   if (!target) return false;
   const variants = getEmployeeStoredNameVariants(planningData, employeeId);
   if (variants.length === 0) return false;
-  return variants.every((name) => name.toUpperCase() === target);
+  return variants.every((name) => normalizeEmployeeNameToken(name) === target);
+};
+
+export const createEmployeeId = () => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return `emp_${crypto.randomUUID()}`;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return `emp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 };
 
 export const addEmployee = (planningData, employee) => {
   const newEmployee = {
-    id: `emp_${Date.now()}`,
+    id: createEmployeeId(),
     name: employee.name,
     canWorkIn: employee.canWorkIn || [],
     mainShop: employee.mainShop || null // Boutique principale
@@ -538,7 +556,7 @@ export const updateEmployeeShops = (planningData, employeeId, shopId, canWork) =
 
 // Gestion des semaines
 export const saveWeekPlanning = (planningData, shopId, weekKey, planning, selectedEmployees) => {
-  console.log('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
+  devLog('🔧 saveWeekPlanning appelé avec:', { shopId, weekKey, planning, selectedEmployees });
 
   const normalizeSlotSelected = (value) =>
     value === true || value === 1 || value === '1' || value === 'true';
@@ -600,7 +618,7 @@ export const saveWeekPlanning = (planningData, shopId, weekKey, planning, select
     )
   };
 
-  console.log('🔧 saveWeekPlanning - Résultat:', result.shops.find(s => s.id === shopId)?.weeks[weekKey]);
+  devLog('🔧 saveWeekPlanning - Résultat:', result.shops.find(s => s.id === shopId)?.weeks[weekKey]);
 
   return result;
 };
@@ -1013,10 +1031,10 @@ export const exportPlanningData = (planningData) => {
 };
 
 // Export Excel pour analyse détaillée par boutique et mois
-export const exportPlanningToExcel = (planningData, opts = {}) => {
+export const exportPlanningToExcel = async (planningData, opts = {}) => {
   try {
-    // Vérifier si XLSX est disponible
-    if (typeof XLSX === 'undefined') {
+    const { XLSX, XLSXCore } = await loadXlsxPair();
+    if (!XLSX?.utils) {
       console.error('XLSX non disponible, annulation de l\'export Excel');
       return false;
     }

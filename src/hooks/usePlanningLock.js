@@ -1,12 +1,12 @@
 // src/hooks/usePlanningLock.js
 import { useEffect, useRef, useState } from 'react';
 import { acquireLock, renewLock, releaseLock, emergencyTakeover, subscribeLock } from '../utils/lockService';
-import { saveCompletePlanningData } from '../utils/remoteStore';
 
 const HEARTBEAT_SEC = 30;   // renouvelle toutes les 30 s (plus fréquent)
 const TTL_SEC       = 600;  // bail de 600 s (10 minutes - plus long)
 
-// Système de verrouillage DÉSACTIVÉ pour permettre le travail libre
+// Verrouillage par ressource (shop/week) — DÉSACTIVÉ.
+// Le verrou global actif est géré par collabLock.js dans App.jsx (planning_locks GLOBAL/GLOBAL).
 const LOCK_SYSTEM_DISABLED = true;
 
 export function usePlanningLock(resourceId, holderId) {
@@ -15,20 +15,10 @@ export function usePlanningLock(resourceId, holderId) {
   const hbRef = useRef(null);
   const unsubRef = useRef(null);
 
-  // Si le système de verrouillage est désactivé, retourner directement le contrôle
-  if (LOCK_SYSTEM_DISABLED) {
-    return {
-      status: 'owner',
-      isOwner: true,
-      readOnly: false,
-      lockInfo: { holder: holderId, lease_token: 'disabled', expires_at: new Date(Date.now() + 3600000).toISOString() },
-      release: async () => { console.log('Système de verrouillage désactivé'); },
-      emergency: async () => { console.log('Système de verrouillage désactivé'); return true; }
-    };
-  }
-
-  // tentative d'acquisition au montage
+  // tentative d'acquisition au montage (hooks toujours appelés, même si système désactivé)
   useEffect(() => {
+    if (LOCK_SYSTEM_DISABLED) return undefined;
+
     let cancelled = false;
     (async () => {
       try {
@@ -133,6 +123,17 @@ export function usePlanningLock(resourceId, holderId) {
       return true;
     }
     return false;
+  }
+
+  if (LOCK_SYSTEM_DISABLED) {
+    return {
+      status: 'owner',
+      isOwner: true,
+      readOnly: false,
+      lockInfo: { holder: holderId, lease_token: 'disabled', expires_at: new Date(Date.now() + 3600000).toISOString() },
+      release: async () => {},
+      emergency: async () => true
+    };
   }
 
   const isOwner   = status === 'owner';

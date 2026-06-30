@@ -1,7 +1,104 @@
 {
-  "version": "3.10.150",
-  "lastUpdate": "2026-05-29",
+  "version": "3.10.161",
+  "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.161",
+      "date": "2026-06-30",
+      "changes": [
+        "🔄 Mise à jour automatique de la version",
+        "📝 Changelog à compléter manuellement"
+      ]
+    },
+    {
+      "version": "3.10.160",
+      "date": "2026-06-30",
+      "changes": [
+        "🔄 Mise à jour automatique de la version",
+        "📝 Changelog à compléter manuellement"
+      ]
+    },
+    {
+      "version": "3.10.159",
+      "date": "2026-06-30",
+      "changes": [
+        "🔄 Mise à jour automatique de la version",
+        "📝 Changelog à compléter manuellement"
+      ]
+    },
+    {
+      "version": "3.10.158",
+      "date": "2026-06-30",
+      "changes": [
+        "🔄 Mise à jour automatique de la version",
+        "📝 Changelog à compléter manuellement"
+      ]
+    },
+    {
+      "version": "3.10.157",
+      "date": "2026-06-30",
+      "changes": [
+        "🔄 Mise à jour automatique de la version",
+        "📝 Changelog à compléter manuellement"
+      ]
+    },
+    {
+      "version": "3.10.156",
+      "date": "2026-06-30",
+      "changes": [
+        "RecapButtons : calcul mensuel employé multi-boutiques et total boutique sur le mois.",
+        "saveRemotePlanning : upsert unique (1 requête au lieu de 3).",
+        "IDs employés uniques via UUID (createEmployeeId).",
+        "Outbox Supabase initialisée au démarrage de l'app."
+      ]
+    },
+    {
+      "version": "3.10.155",
+      "date": "2026-06-30",
+      "changes": [
+        "Sauvegarde Supabase immédiate pour renommage, masquage et réactivation employé (pushCompleteSyncNow).",
+        "Correction : réactivation depuis HiddenEmployeesModal synchronisée Supabase (avant : local seul).",
+        "CI GitHub Actions : tests Vitest + build Vite sur chaque PR."
+      ]
+    },
+    {
+      "version": "3.10.154",
+      "date": "2026-06-30",
+      "changes": [
+        "Sync incrémentale Supabase : debounce 3 s par boutique/semaine, complete_file toutes les 5 min.",
+        "SAUVE SUPABASE et fermeture : flush immédiat des syncs en attente.",
+        "Tests Vitest sur les noms employés et le scheduler de sync.",
+        "Base auth : authConfig.js (préparation VITE_AUTH_MODE=supabase)."
+      ]
+    },
+    {
+      "version": "3.10.153",
+      "date": "2026-06-30",
+      "changes": [
+        "Performance : lazy-loading des modales lourdes, jsPDF chargé à la demande, bundles séparés.",
+        "Production : logs console retirés du build, sourcemaps désactivées.",
+        "Sécurité : code superviseur via VITE_SUPERVISOR_OVERRIDE_CODE, RPC emergency_unlock, RLS verrous.",
+        "Renommage : normalisation accents lors de la comparaison des noms stockés."
+      ]
+    },
+    {
+      "version": "3.10.152",
+      "date": "2026-06-30",
+      "changes": [
+        "Verrou global : acquisition atomique via RPC Supabase (avec repli legacy).",
+        "Migration SQL : supabase/migrations/20250630_global_lock_atomic.sql.",
+        "Dépôt allégé : 52 copies/backups supprimés, node_modules retiré du suivi Git."
+      ]
+    },
+    {
+      "version": "3.10.151",
+      "date": "2026-06-30",
+      "changes": [
+        "Sauvegarde JSON auto : plus de téléchargement forcé toutes les 5 minutes (localStorage silencieux).",
+        "Bouton JSON : téléchargement manuel uniquement sur action utilisateur.",
+        "Déconnexion inactivité 3 min : le compteur n'est plus réinitialisé à chaque modification du planning."
+      ]
+    },
     {
       "version": "3.10.150",
       "date": "2026-05-29",
