@@ -25,7 +25,7 @@ import { usePlanningLock } from '../../hooks/usePlanningLock';
 
 import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
-import { scheduleIncrementalWeekSync, flushAllIncrementalSyncs } from '@/utils/planningSyncScheduler';
+import { scheduleIncrementalWeekSync, flushAllIncrementalSyncs, pushCompleteSyncNow } from '@/utils/planningSyncScheduler';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import { addAuditLog } from '@/utils/auditLog';
 import {
@@ -838,7 +838,7 @@ const PlanningDisplay = ({
       await new Promise((resolve) => setTimeout(resolve, 0));
       const payload = updatedSnapshot || renameEmployeeInPlanningData(planningData, employeeId, trimmed);
       try {
-        const remoteResult = await saveCompletePlanningData(payload);
+        const remoteResult = await pushCompleteSyncNow(payload);
         if (remoteResult?.ok) {
           if (remoteResult.planningData) {
             setPlanningData(remoteResult.planningData);
@@ -927,7 +927,7 @@ const PlanningDisplay = ({
                 // Sauvegarder dans Supabase
       try {
         console.log('💾 Sauvegarde du masquage dans Supabase...');
-        const remoteResult = await saveCompletePlanningData(updatedData);
+        const remoteResult = await pushCompleteSyncNow(updatedData);
         if (remoteResult?.ok) {
           if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
             setPlanningData(remoteResult.planningData);
@@ -1003,7 +1003,7 @@ const PlanningDisplay = ({
       // Sauvegarder dans Supabase
       try {
         console.log('💾 Sauvegarde de la réactivation dans Supabase...');
-        const remoteResult = await saveCompletePlanningData(updatedData);
+        const remoteResult = await pushCompleteSyncNow(updatedData);
         if (remoteResult?.ok) {
           if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
             setPlanningData(remoteResult.planningData);

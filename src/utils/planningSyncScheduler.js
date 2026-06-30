@@ -69,6 +69,19 @@ export const scheduleIncrementalCompleteSync = (planningData) => {
   }, COMPLETE_DEBOUNCE_MS);
 };
 
+/**
+ * Snapshot complete_file immédiat (renommage, masquage, réactivation employé).
+ */
+export const pushCompleteSyncNow = async (planningData) => {
+  if (!planningData) return { ok: false };
+  if (completeTimer) {
+    clearTimeout(completeTimer);
+    completeTimer = null;
+  }
+  pendingComplete = null;
+  return saveCompletePlanningData(planningData);
+};
+
 /** Flush immédiat (fermeture session, SAUVE SUPABASE, inactivité). */
 export const flushAllIncrementalSyncs = async () => {
   if (weekTimer) {

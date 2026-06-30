@@ -477,6 +477,11 @@ const VERSION_HIGHLIGHTS = {
     'SAUVE SUPABASE et fermeture session: flush immediat des syncs en attente.',
     'Tests Vitest: noms employes et extractWeekPayload.',
     'Base auth: authConfig.js (VITE_AUTH_MODE pour migration Supabase Auth future).'
+  ],
+  '3.10.155': [
+    'pushCompleteSyncNow: sauvegarde Supabase immediate pour renommage/masquage/reactivation employe.',
+    'HiddenEmployeesModal: reactivation depuis la modale synchronisee Supabase (corrige bug local seul).',
+    'CI GitHub Actions: npm test + npm run build sur chaque PR.'
   ]
 };
 

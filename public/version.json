@@ -1,7 +1,16 @@
 {
-  "version": "3.10.154",
+  "version": "3.10.155",
   "lastUpdate": "2026-06-30",
   "changelog": [
+    {
+      "version": "3.10.155",
+      "date": "2026-06-30",
+      "changes": [
+        "Sauvegarde Supabase immédiate pour renommage, masquage et réactivation employé (pushCompleteSyncNow).",
+        "Correction : réactivation depuis HiddenEmployeesModal synchronisée Supabase (avant : local seul).",
+        "CI GitHub Actions : tests Vitest + build Vite sur chaque PR."
+      ]
+    },
     {
       "version": "3.10.154",
       "date": "2026-06-30",

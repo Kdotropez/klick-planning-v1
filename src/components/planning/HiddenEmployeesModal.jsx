@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { pushCompleteSyncNow } from '../../utils/planningSyncScheduler';
 
 const HiddenEmployeesModal = ({ 
   isOpen, 
@@ -29,11 +30,10 @@ const HiddenEmployeesModal = ({
 
   if (!isOpen) return null;
 
-  const handleShowEmployee = (employeeId) => {
+  const handleShowEmployee = async (employeeId) => {
     if (!employeeId || !currentShop) return;
     
     try {
-      // Mettre à jour les données
       const updatedShops = planningData.shops.map(shop => ({
         ...shop,
         employees: shop.id !== currentShop
@@ -48,15 +48,17 @@ const HiddenEmployeesModal = ({
         shops: updatedShops
       };
       
-      // Sauvegarder dans localStorage
       localStorage.setItem('planningData', JSON.stringify(updatedData));
       
-      // Appeler la fonction de mise à jour
+      const remoteResult = await pushCompleteSyncNow(updatedData);
+      const dataToApply = remoteResult?.ok && remoteResult.planningData
+        ? remoteResult.planningData
+        : updatedData;
+      
       if (onEmployeeUpdate) {
-        onEmployeeUpdate(updatedData);
+        onEmployeeUpdate(dataToApply);
       }
       
-      // Fermer la modal
       onClose();
     } catch (e) {
       console.error('Erreur lors de la réactivation:', e);
@@ -126,8 +128,7 @@ const HiddenEmployeesModal = ({
       // Sauvegarder dans Supabase
       try {
         console.log('💾 Sauvegarde de la modification de date dans Supabase...');
-        const { saveCompletePlanningData } = await import('../../utils/remoteStore');
-        const remoteResult = await saveCompletePlanningData(updatedData);
+        const remoteResult = await pushCompleteSyncNow(updatedData);
         if (remoteResult?.ok) {
           console.log('✅ Date de masquage modifiée et sauvegardée dans Supabase');
           alert(`✅ Date de masquage modifiée pour "${employeeName}" : ${newHideDate}\n\nLa modification a été sauvegardée localement et dans Supabase.`);
