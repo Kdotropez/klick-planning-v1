@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { loadXlsx } from './xlsxLoader';
 
 // Convertir une date Excel en objet Date
 const convertExcelDate = (excelDate) => {
@@ -208,6 +208,7 @@ export const importCompleteDataFromExcel = async (file) => {
     
     // Lire le fichier Excel
     const arrayBuffer = await file.arrayBuffer();
+    const XLSX = await loadXlsx();
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
     
     // Obtenir la première feuille
