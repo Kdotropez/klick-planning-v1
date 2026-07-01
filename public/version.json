@@ -1,7 +1,14 @@
 {
-  "version": "3.10.150",
+  "version": "3.10.151",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.151",
+      "date": "2026-05-29",
+      "changes": [
+        "Sécurité sauvegarde : une semaine locale vide ne peut plus écraser des horaires déjà enregistrés sur Supabase."
+      ]
+    },
     {
       "version": "3.10.150",
       "date": "2026-05-29",

@@ -638,7 +638,23 @@ const mergeShopWeeksPreservingRemote = (localWeeks = {}, remoteWeeks = {}) => {
   const merged = { ...(remoteWeeks || {}) };
   Object.entries(localWeeks || {}).forEach(([weekKey, weekData]) => {
     if (weekHasLocalData(weekData)) {
-      merged[weekKey] = weekData;
+      const remoteWeek = remoteWeeks?.[weekKey];
+      const localPlanningCount = countWeekPlanningEntries(weekData);
+      const remotePlanningCount = countWeekPlanningEntries(remoteWeek);
+      // Ne jamais écraser des horaires Supabase par une semaine locale sans créneaux
+      // (ex. selectedEmployees seuls après ouverture d'une semaine vide sur un autre poste).
+      if (localPlanningCount === 0 && remotePlanningCount > 0) {
+        merged[weekKey] = {
+          ...remoteWeek,
+          ...weekData,
+          planning: remoteWeek.planning,
+          selectedEmployees: Array.isArray(weekData.selectedEmployees) && weekData.selectedEmployees.length > 0
+            ? weekData.selectedEmployees
+            : remoteWeek?.selectedEmployees
+        };
+      } else {
+        merged[weekKey] = weekData;
+      }
     } else if (!(weekKey in merged)) {
       merged[weekKey] = weekData;
     }

@@ -456,6 +456,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.150': [
     'Renommage: corrige VALEUR vers VALOU quand l ecran affichait deja le bon nom (noms stockes vs affiches).'
+  ],
+  '3.10.151': [
+    'Securite sauvegarde: ne plus ecraser des semaines avec horaires par une semaine locale vide.'
   ]
 };
 
