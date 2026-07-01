@@ -71,6 +71,7 @@ const EmployeeRecapCompact = ({
   onOpenMonthlyDetail,
   onOpenMonthlyRecap,
   onHideEmployee,
+  onArchiveEmployee,
   onReactivateEmployee,
   onRenameEmployee,
   isEmployeeHiddenInShop
@@ -327,9 +328,21 @@ const EmployeeRecapCompact = ({
                       Réactiver
                     </button>
                   ) : (
-                    <button type="button" onClick={() => onHideEmployee?.(employeeId)} style={actionBtnStyle('#dc3545')}>
-                      Masquer
-                    </button>
+                    <>
+                      <button type="button" onClick={() => onHideEmployee?.(employeeId)} style={actionBtnStyle('#dc3545')}>
+                        Masquer
+                      </button>
+                      {onArchiveEmployee && (
+                        <button
+                          type="button"
+                          onClick={() => onArchiveEmployee(employeeId)}
+                          style={actionBtnStyle('#6c757d')}
+                          title="Archiver définitivement — ne revient plus après synchronisation Supabase"
+                        >
+                          Archiver
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

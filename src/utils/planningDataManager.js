@@ -90,7 +90,49 @@ const calculateDayNightFromSlots = (timeSlots, slots, shopConfig = {}) => {
   return { t1: Number((minutesT1 / 60).toFixed(1)), t2: Number((minutesT2 / 60).toFixed(1)) };
 };
 
-// Fonctions de gestion des employés masqués
+// Fonctions de gestion des employés masqués / archivés
+export const getArchivedEmployeeIds = (planningData) => {
+  const ids = planningData?.archivedEmployeeIds;
+  if (!Array.isArray(ids)) return new Set();
+  return new Set(ids.map((id) => String(id)));
+};
+
+export const archiveEmployee = (planningData, employeeId, hideFromDate = '2026-01-01') => {
+  const id = String(employeeId);
+  const archivedIds = getArchivedEmployeeIds(planningData);
+  archivedIds.add(id);
+  let updated = hideEmployee(planningData, employeeId, hideFromDate, null);
+  updated = {
+    ...updated,
+    archivedEmployeeIds: Array.from(archivedIds),
+    shops: (updated.shops || []).map((shop) => ({
+      ...shop,
+      employees: (shop.employees || []).map((emp) =>
+        emp && String(emp.id) === id ? { ...emp, hiddenFrom: hideFromDate, archived: true } : emp
+      )
+    }))
+  };
+  return updated;
+};
+
+export const unarchiveEmployee = (planningData, employeeId) => {
+  const id = String(employeeId);
+  const archivedIds = getArchivedEmployeeIds(planningData);
+  archivedIds.delete(id);
+  let updated = showEmployee(planningData, employeeId, null);
+  updated = {
+    ...updated,
+    archivedEmployeeIds: Array.from(archivedIds),
+    shops: (updated.shops || []).map((shop) => ({
+      ...shop,
+      employees: (shop.employees || []).map((emp) =>
+        emp && String(emp.id) === id ? { ...emp, archived: false } : emp
+      )
+    }))
+  };
+  return updated;
+};
+
 export const hideEmployee = (planningData, employeeId, hideFromDate, shopId = null) => {
   console.log(`🔒 Masquage de l'employé ${employeeId} à partir du ${hideFromDate}${shopId ? ` (boutique: ${shopId})` : ''}`);
   
@@ -132,10 +174,8 @@ export const showEmployee = (planningData, employeeId, shopId = null) => {
 };
 
 export const isEmployeeHidden = (employee, weekDate) => {
-  // Nouveau comportement demandé:
-  // dès qu'un employé est masqué, il reste masqué jusqu'à réactivation explicite.
-  // "hiddenFrom" sert de marqueur persistant.
-  return !!employee?.hiddenFrom;
+  // Masqué ou archivé définitivement — reste invisible jusqu'à réactivation explicite.
+  return !!employee?.hiddenFrom || !!employee?.archived;
 };
 
 /**
@@ -621,15 +661,23 @@ const weekHasLocalData = (weekData) => {
   return countWeekPlanningEntries(weekData) > 0;
 };
 
-const mergeEmployeeLists = (localEmployees = [], remoteEmployees = []) => {
+const mergeEmployeeLists = (localEmployees = [], remoteEmployees = [], archivedIds = new Set()) => {
   const byId = new Map();
   (remoteEmployees || []).forEach((employee) => {
-    if (employee?.id != null) byId.set(String(employee.id), employee);
+    if (employee?.id == null) return;
+    const key = String(employee.id);
+    if (archivedIds.has(key)) return;
+    byId.set(key, employee);
   });
   (localEmployees || []).forEach((employee) => {
     if (employee?.id == null) return;
     const key = String(employee.id);
-    byId.set(key, { ...(byId.get(key) || {}), ...employee });
+    const merged = { ...(byId.get(key) || {}), ...employee };
+    if (archivedIds.has(key)) {
+      merged.hiddenFrom = merged.hiddenFrom || '2026-01-01';
+      merged.archived = true;
+    }
+    byId.set(key, merged);
   });
   return Array.from(byId.values());
 };
@@ -662,14 +710,14 @@ const mergeShopWeeksPreservingRemote = (localWeeks = {}, remoteWeeks = {}) => {
   return merged;
 };
 
-const mergeShopWithRemote = (localShop, remoteShop) => {
+const mergeShopWithRemote = (localShop, remoteShop, archivedIds = new Set()) => {
   if (!remoteShop) return localShop;
   if (!localShop) return remoteShop;
   return {
     ...remoteShop,
     ...localShop,
     config: { ...(remoteShop.config || {}), ...(localShop.config || {}) },
-    employees: mergeEmployeeLists(localShop.employees, remoteShop.employees),
+    employees: mergeEmployeeLists(localShop.employees, remoteShop.employees, archivedIds),
     weeks: mergeShopWeeksPreservingRemote(localShop.weeks, remoteShop.weeks)
   };
 };
@@ -682,6 +730,10 @@ const mergeShopWithRemote = (localShop, remoteShop) => {
 export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
   const localShops = Array.isArray(localData?.shops) ? localData.shops : [];
   const remoteShops = Array.isArray(remoteData?.shops) ? remoteData.shops : [];
+  const archivedIds = new Set([
+    ...getArchivedEmployeeIds(localData),
+    ...getArchivedEmployeeIds(remoteData)
+  ]);
   const remoteById = new Map(remoteShops.map((shop) => [String(shop.id), shop]));
   const seen = new Set();
   const preservedShopIds = [];
@@ -692,7 +744,7 @@ export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
     const shopId = String(localShop.id);
     seen.add(shopId);
     const remoteShop = remoteById.get(shopId);
-    mergedShops.push(mergeShopWithRemote(localShop, remoteShop));
+    mergedShops.push(mergeShopWithRemote(localShop, remoteShop, archivedIds));
   });
 
   remoteShops.forEach((remoteShop) => {
@@ -700,7 +752,13 @@ export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
     const shopId = String(remoteShop.id);
     if (seen.has(shopId)) return;
     preservedShopIds.push(shopId);
-    mergedShops.push(JSON.parse(JSON.stringify(remoteShop)));
+    const shopCopy = JSON.parse(JSON.stringify(remoteShop));
+    if (archivedIds.size > 0) {
+      shopCopy.employees = (shopCopy.employees || []).filter(
+        (emp) => emp?.id == null || !archivedIds.has(String(emp.id))
+      );
+    }
+    mergedShops.push(shopCopy);
     seen.add(shopId);
   });
 
@@ -711,12 +769,14 @@ export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
     ...remoteRest,
     ...localRest,
     version: localData?.version || remoteData?.version || '2.0',
+    archivedEmployeeIds: Array.from(archivedIds),
     shops: mergedShops,
     _mergeReport: {
       localShopsCount: localShops.length,
       remoteShopsCount: remoteShops.length,
       mergedShopsCount: mergedShops.length,
-      preservedShopIds
+      preservedShopIds,
+      archivedEmployeeCount: archivedIds.size
     }
   };
 };

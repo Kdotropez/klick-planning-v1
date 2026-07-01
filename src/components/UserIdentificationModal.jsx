@@ -6,7 +6,10 @@ const UserIdentificationModal = ({
   onCancel,
   lockCountdownSeconds = 0,
   lockOwnerText = '',
-  onEmergencyUnlock
+  onEmergencyUnlock,
+  isSupabaseStartupReady = true,
+  isBootstrapComplete = true,
+  startupInfo = ''
 }) => {
   const [userCode, setUserCode] = useState('');
   const [userName, setUserName] = useState('');
@@ -157,6 +160,31 @@ const UserIdentificationModal = ({
             }}>
               Veuillez saisir votre code secret
             </p>
+            {!isBootstrapComplete && (
+              <p style={{
+                marginTop: '14px',
+                padding: '10px 14px',
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                borderRadius: '8px',
+                fontSize: '0.95rem',
+                color: '#fff'
+              }}>
+                ⏳ Chargement des données en cours…
+              </p>
+            )}
+            {isBootstrapComplete && startupInfo && (
+              <p style={{
+                marginTop: '14px',
+                padding: '10px 14px',
+                backgroundColor: isSupabaseStartupReady ? 'rgba(40,167,69,0.35)' : 'rgba(255,193,7,0.35)',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                color: '#fff',
+                lineHeight: 1.4
+              }}>
+                {startupInfo}
+              </p>
+            )}
           </div>
 
           {/* Formulaire */}
@@ -191,7 +219,7 @@ const UserIdentificationModal = ({
                   transition: 'all 0.3s ease'
                 }}
                 autoFocus
-                disabled={isLoading}
+                disabled={isLoading || !isBootstrapComplete || !isSupabaseStartupReady}
               />
             </div>
 
@@ -298,7 +326,7 @@ const UserIdentificationModal = ({
             }}>
               <button
                 type="submit"
-                disabled={isLoading || !userCode.trim() || lockCountdownSeconds > 0}
+                disabled={isLoading || !userCode.trim() || lockCountdownSeconds > 0 || !isBootstrapComplete || !isSupabaseStartupReady}
                 style={{
                   padding: '15px 30px',
                   fontSize: '1.1rem',

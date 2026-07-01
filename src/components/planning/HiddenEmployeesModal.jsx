@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { unarchiveEmployee, isEmployeeHidden, getArchivedEmployeeIds } from '../../utils/planningDataManager';
 
 const HiddenEmployeesModal = ({ 
   isOpen, 
@@ -18,45 +19,35 @@ const HiddenEmployeesModal = ({
   // Récupérer la liste des employés masqués et tous les employés
   useEffect(() => {
     if (isOpen && planningData) {
+      const archivedIds = getArchivedEmployeeIds(planningData);
+      const hiddenMap = new Map();
+      (planningData.shops || []).forEach((shop) => {
+        (shop.employees || []).forEach((emp) => {
+          if (!emp?.id) return;
+          if (isEmployeeHidden(emp) || archivedIds.has(String(emp.id))) {
+            if (!hiddenMap.has(emp.id)) {
+              hiddenMap.set(emp.id, { ...emp, archived: archivedIds.has(String(emp.id)) || emp.archived });
+            }
+          }
+        });
+      });
+      setHiddenEmployees(Array.from(hiddenMap.values()));
       const currentShopData = planningData.shops?.find((shop) => shop.id === currentShop);
-      const shopEmployees = currentShopData?.employees || [];
-      const hidden = shopEmployees.filter((emp) => !!emp?.hiddenFrom);
-      const all = shopEmployees;
-      setHiddenEmployees(hidden);
-      setAllEmployees(all);
+      setAllEmployees(currentShopData?.employees || []);
     }
   }, [isOpen, planningData, currentDate, currentShop]);
 
   if (!isOpen) return null;
 
   const handleShowEmployee = (employeeId) => {
-    if (!employeeId || !currentShop) return;
-    
+    if (!employeeId) return;
+
     try {
-      // Mettre à jour les données
-      const updatedShops = planningData.shops.map(shop => ({
-        ...shop,
-        employees: shop.id !== currentShop
-          ? (shop.employees || [])
-          : (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
-            )
-      }));
-      
-      const updatedData = {
-        ...planningData,
-        shops: updatedShops
-      };
-      
-      // Sauvegarder dans localStorage
+      const updatedData = unarchiveEmployee(planningData, employeeId);
       localStorage.setItem('planningData', JSON.stringify(updatedData));
-      
-      // Appeler la fonction de mise à jour
       if (onEmployeeUpdate) {
         onEmployeeUpdate(updatedData);
       }
-      
-      // Fermer la modal
       onClose();
     } catch (e) {
       console.error('Erreur lors de la réactivation:', e);

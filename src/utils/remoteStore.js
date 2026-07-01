@@ -415,6 +415,10 @@ export const saveCompletePlanningData = async (completePlanningData, options = {
       );
     }
 
+    try {
+      localStorage.removeItem('planning_prefer_local_until_save');
+    } catch (_) {}
+
     const preservedShopNames = preservedShopIds.map((shopId) => {
       const shop = dataToSave.shops?.find((s) => String(s.id) === String(shopId));
       return shop?.name || shopId;

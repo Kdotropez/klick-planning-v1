@@ -38,7 +38,8 @@ import {
   getPlanningDataStats,
   validateTargetedMergeSafe,
   getShopWeekBrief,
-  getShopWeekBriefWithAliases
+  getShopWeekBriefWithAliases,
+  normalizeCompletePlanningData
 } from './utils/planningDataManager.js';
 import './App.css';
 import {
@@ -52,7 +53,8 @@ import {
   getGlobalBackupTimeline,
   inspectShopWeekInventory,
   getSupabaseBackupDiagnostics,
-  listShopWeekArchiveEntries
+  listShopWeekArchiveEntries,
+  listRemoteShops
 } from './utils/remoteStore';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -327,6 +329,19 @@ const App = () => {
     }
   };
 
+  const isValidPlanningPayload = (data) =>
+    !!(data && Array.isArray(data.shops) && data.shops.length > 0);
+
+  const loadLocalPlanningFallback = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('planningData') || 'null');
+      if (!isValidPlanningPayload(stored)) return null;
+      return normalizeCompletePlanningData(stored);
+    } catch (_) {
+      return null;
+    }
+  };
+
   // Charger la version commune depuis Supabase au démarrage
   useEffect(() => {
     const bootstrapFromSupabase = async () => {
@@ -359,41 +374,64 @@ const App = () => {
       setHasGlobalLock(false);
       setIsSupabaseStartupReady(false);
 
-      // Source de vérité obligatoire: Supabase au lancement.
-      const remoteData = await loadCompletePlanningData();
-      const isRemoteValid = !!(
-        remoteData &&
-        remoteData.version === '2.0' &&
-        Array.isArray(remoteData.shops) &&
-        remoteData.shops.length > 0
-      );
+      const localFallback = loadLocalPlanningFallback();
+      const preferLocalUntilSave = localStorage.getItem('planning_prefer_local_until_save') === '1';
 
-      if (isRemoteValid) {
-        setPlanningData(remoteData);
-        localStorage.setItem('planningData', JSON.stringify(remoteData));
+      // Source de vérité au lancement : repli JSON récent > Supabase > local ancien.
+      const remoteData = await loadCompletePlanningData();
+      const isRemoteValid = isValidPlanningPayload(remoteData);
+
+      if (preferLocalUntilSave && localFallback) {
+        setPlanningData(localFallback);
+        localStorage.setItem('planningData', JSON.stringify(localFallback));
+        setIsSupabaseStartupReady(true);
+        setMode('identification');
+        setRestoredInfo('📁 JSON restauré conservé (priorité locale jusqu’à la prochaine SAUVE SUPABASE).');
+        setFeedback('ℹ️ Votre JSON importé est actif — Supabase ignoré pour l’instant.');
+        console.log('✅ Bootstrap: priorité copie locale (import JSON récent).');
+      } else if (isRemoteValid) {
+        const normalized = normalizeCompletePlanningData(remoteData);
+        setPlanningData(normalized);
+        localStorage.setItem('planningData', JSON.stringify(normalized));
         setIsSupabaseStartupReady(true);
         setMode('identification');
         setRestoredInfo('☁️ Version commune Supabase chargée au démarrage.');
         console.log('✅ Bootstrap Supabase réussi: version commune appliquée.');
+      } else if (localFallback) {
+        setPlanningData(localFallback);
+        localStorage.setItem('planningData', JSON.stringify(localFallback));
+        setIsSupabaseStartupReady(true);
+        setMode('identification');
+        setRestoredInfo('📁 Version locale utilisée (Supabase indisponible ou invalide). Vous pouvez vous connecter et restaurer votre JSON.');
+        setFeedback('ℹ️ Supabase inaccessible — reprise sur la copie locale.');
+        console.warn('⚠️ Bootstrap Supabase invalide — repli sur localStorage.');
       } else {
-        // Sécurité: ne jamais partir d'une copie locale potentiellement obsolète.
         localStorage.removeItem('planningData');
         setPlanningData(createNewPlanningData());
         setIsSupabaseStartupReady(false);
         setMode('identification');
-        setRestoredInfo('⚠️ Aucune version commune Supabase disponible au lancement.');
-        setFeedback('❌ Connexion bloquée: impossible de charger la version commune Supabase.');
-        console.warn('⚠️ Bootstrap Supabase invalide/vide. Connexion bloquée.');
+        setRestoredInfo('⚠️ Aucune donnée Supabase ni locale. Importez un JSON depuis l’écran de démarrage après connexion admin.');
+        setFeedback('❌ Connexion bloquée: aucune donnée Supabase ni locale.');
+        console.warn('⚠️ Bootstrap: ni Supabase ni local valide.');
       }
       } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      // Sécurité: empêcher l'utilisation d'une copie locale non synchronisée.
-      localStorage.removeItem('planningData');
-      setPlanningData(createNewPlanningData());
-      setIsSupabaseStartupReady(false);
-      setMode('identification');
-      setRestoredInfo('⚠️ Supabase indisponible au démarrage.');
-      setFeedback('❌ Connexion bloquée: Supabase indisponible au lancement.');
+      const localFallback = loadLocalPlanningFallback();
+      if (localFallback) {
+        setPlanningData(localFallback);
+        localStorage.setItem('planningData', JSON.stringify(localFallback));
+        setIsSupabaseStartupReady(true);
+        setMode('identification');
+        setRestoredInfo('📁 Version locale utilisée (erreur Supabase au démarrage).');
+        setFeedback('ℹ️ Erreur Supabase — reprise sur la copie locale.');
+      } else {
+        localStorage.removeItem('planningData');
+        setPlanningData(createNewPlanningData());
+        setIsSupabaseStartupReady(false);
+        setMode('identification');
+        setRestoredInfo('⚠️ Supabase indisponible au démarrage.');
+        setFeedback('❌ Connexion bloquée: Supabase indisponible et aucune copie locale.');
+      }
       }
       setIsBootstrapComplete(true);
     };
@@ -1318,9 +1356,18 @@ const App = () => {
     setFeedback('⏳ Chargement des archives SAUVE SUPABASE (boutique/semaine)...');
 
     try {
+      const remoteShopIds = await listRemoteShops();
+      const archiveShopIds = remoteShopIds.filter(
+        (id) => id !== 'complete_file' && id !== 'backup_history' && id !== 'system_config'
+      );
+      const shopHint = archiveShopIds.length
+        ? `\n\nIDs boutique connus sur Supabase :\n${archiveShopIds.slice(0, 12).join(', ')}`
+        : '\n\n(Aucune ligne boutique/semaine enregistrée sur Supabase pour l’instant.)';
+
       const shopFilter = window.prompt(
-        'Filtrer par boutique (ID exact, ex. PORT_GRIMAUD ou SAINT_TROPEZ) ?\n\n' +
-          'Laissez vide pour TOUTES les boutiques :',
+        'Filtrer par boutique (ID exact, ex. CANNES ou PORT_GRIMAUD) ?\n\n' +
+          'Laissez VIDE pour TOUTES les boutiques.' +
+          shopHint,
         ''
       );
       if (shopFilter === null) {
@@ -1328,14 +1375,35 @@ const App = () => {
         return;
       }
 
-      const entries = await listShopWeekArchiveEntries({
-        shopId: String(shopFilter || '').trim() || null,
+      const trimmedFilter = String(shopFilter || '').trim();
+      let entries = await listShopWeekArchiveEntries({
+        shopId: trimmedFilter || null,
         limit: 400
       });
 
+      if (!entries.length && trimmedFilter) {
+        const retryAll = window.confirm(
+          `❌ Aucune archive pour le filtre « ${trimmedFilter} ».\n\n` +
+            `Essayer sans filtre (toutes les boutiques) ?`
+        );
+        if (retryAll) {
+          entries = await listShopWeekArchiveEntries({ shopId: null, limit: 400 });
+        }
+      }
+
       if (!entries.length) {
-        alert('❌ Aucune archive boutique/semaine trouvée sur Supabase pour ce filtre.');
-        setFeedback('❌ Aucune archive trouvée.');
+        const diagnostics = await getSupabaseBackupDiagnostics();
+        const diagnosticsBlock = formatDiagnosticsBlock(diagnostics);
+        alert(
+          '❌ Aucune archive boutique/semaine sur Supabase.\n\n' +
+            'Ce n’est pas forcément une perte totale : beaucoup de postes n’enregistrent que des ' +
+            'snapshots globaux (historique), pas des lignes par boutique.\n\n' +
+            '➡️ Utilisez plutôt 🕘 HISTORIQUE SUPABASE : chaque 💾 SAUVE SUPABASE y crée un snapshot complet.\n' +
+            'Cherchez une entrée d’HIER avec le nom de Maxime (avant votre restauration JSON).\n\n' +
+            'Si vous aviez filtré une boutique, vérifiez l’ID exact (souvent CANNES en majuscules).' +
+            diagnosticsBlock
+        );
+        setFeedback('❌ Pas d’archives boutique/semaine — essayez 🕘 HISTORIQUE SUPABASE.');
         return;
       }
 
@@ -1584,6 +1652,11 @@ const App = () => {
 
       setPlanningData(importedData);
       localStorage.setItem('planningData', JSON.stringify(importedData));
+      if (restoreInPlace) {
+        localStorage.setItem('planning_prefer_local_until_save', '1');
+      } else {
+        localStorage.removeItem('planning_prefer_local_until_save');
+      }
 
       const shopId = resolvePreferredShopId(currentUser, importedData);
       if (shopId) setSelectedShop(shopId);
@@ -2455,6 +2528,9 @@ const App = () => {
           lockCountdownSeconds={lockCountdownSeconds}
           lockOwnerText={lockOwnerText}
           onEmergencyUnlock={handleEmergencyUnlock}
+          isSupabaseStartupReady={isSupabaseStartupReady}
+          isBootstrapComplete={isBootstrapComplete}
+          startupInfo={restoredInfo}
         />
       </ErrorBoundary>
     );

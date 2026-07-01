@@ -27,7 +27,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch, hideEmployee, archiveEmployee, unarchiveEmployee } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -667,6 +667,16 @@ const PlanningDisplay = ({
       return total + Object.keys(employeePlanning).length;
     }, 0);
   }, []);
+
+  const filterPlanningForShopEmployees = useCallback((weekPlanning, allowedEmployeeIds) => {
+    if (!weekPlanning || typeof weekPlanning !== 'object') return {};
+    const allowed = new Set(allowedEmployeeIds || []);
+    const filtered = {};
+    Object.entries(weekPlanning).forEach(([empId, days]) => {
+      if (allowed.has(empId)) filtered[empId] = days;
+    });
+    return filtered;
+  }, []);
   
   // Fonction de verrouillage automatique lors du changement de jour
   const autoLockPreviousDay = useCallback((newDay) => {
@@ -760,13 +770,14 @@ const PlanningDisplay = ({
   // Inclure automatiquement tout nouvel employé de la boutique dans la sélection locale
   useEffect(() => {
     if (!currentShopEmployees || currentShopEmployees.length === 0) return;
-    
-    const currentIds = currentShopEmployees.map(emp => emp.id);
-    const missing = currentIds.filter(id => !localSelectedEmployees.includes(id));
-    
-    if (missing.length > 0) {
-      console.log('🔧 Ajout automatique des employés manquants:', missing);
-      setLocalSelectedEmployees(prev => [...prev, ...missing]);
+
+    const currentIds = currentShopEmployees.map((emp) => emp.id);
+    const allowed = new Set(currentIds);
+    const sanitized = localSelectedEmployees.filter((id) => allowed.has(id));
+    const missing = currentIds.filter((id) => !sanitized.includes(id));
+
+    if (missing.length > 0 || sanitized.length !== localSelectedEmployees.length) {
+      setLocalSelectedEmployees([...sanitized, ...missing]);
     }
   }, [currentShopEmployees, localSelectedEmployees]);
 
@@ -851,172 +862,118 @@ const PlanningDisplay = ({
 
   const HIDE_EMPLOYEE_SINCE_DATE = '2026-01-01';
 
-  // Fonction pour masquer un employé
+  const persistEmployeeStatusChange = useCallback(async (updatedData, successMessage, auditAction, auditDetails) => {
+    setPlanningData(updatedData);
+    localStorage.setItem('planningData', JSON.stringify(updatedData));
+    addAuditLog({
+      action: auditAction,
+      details: auditDetails,
+      userCode: currentUser?.code,
+      userName: currentUser?.name,
+      shopId: selectedShop,
+      shopName: planningData?.shops?.find((s) => s.id === selectedShop)?.name || selectedShop
+    });
+    try {
+      const remoteResult = await saveCompletePlanningData(updatedData);
+      if (remoteResult?.ok) {
+        if (remoteResult.planningData) {
+          setPlanningData(remoteResult.planningData);
+          saveToLocalStorage('planningData', remoteResult.planningData);
+        }
+        const preservedNote = remoteResult.preservedShopNames?.length
+          ? ` — boutiques conservées: ${remoteResult.preservedShopNames.join(', ')}`
+          : '';
+        setLocalFeedback(`${successMessage}${preservedNote}`);
+      } else {
+        setLocalFeedback(`${successMessage} (local seulement — échec Supabase)`);
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde Supabase employé:', error);
+      setLocalFeedback(`${successMessage} (local seulement — échec Supabase)`);
+    }
+  }, [setPlanningData, selectedShop, planningData, currentUser]);
+
+  // Fonction pour masquer un employé (toutes les boutiques)
   const handleHideEmployee = useCallback(async (employeeId) => {
     if (!employeeId || !selectedShop) return;
-    
-    // Trouver le nom de l'employé pour l'affichage
+
     const currentShopData = planningData?.shops?.find((shop) => shop.id === selectedShop);
     const employee = currentShopData?.employees?.find((emp) => emp.id === employeeId);
     const employeeName = employee?.name || employeeId;
-    const shopLabel = currentShopData?.name || selectedShop;
-    
-    // Demander confirmation avec une meilleure interface
+
     const confirmHide = window.confirm(
-      `Êtes-vous sûr de vouloir masquer l'employé "${employeeName}" ?\n\n` +
-      `🏪 Boutique concernée : ${shopLabel}\n\n` +
-      `⚠️ ATTENTION : L'employé sera masqué jusqu'à avis contraire (réactivation manuelle), avec référence depuis le 01/01/2026.\n\n` +
-      `✅ Pour le réactiver plus tard, utilisez le bouton "🔓 Réactiver" sur sa carte.`
+      `Masquer « ${employeeName} » sur TOUTES les boutiques ?\n\n` +
+      `Il restera invisible jusqu'à réactivation manuelle.\n\n` +
+      `Pour une suppression définitive (ne revient plus après sync), utilisez « Archiver ».`
     );
-    
     if (!confirmHide) return;
-    
-    // Date de référence fixe demandée pour le masquage persistant
+
     const hideFromDate = HIDE_EMPLOYEE_SINCE_DATE;
-    
     try {
-      // Mettre à jour l'état local
-      setPlanningData(prev => {
-        const updated = {
-          ...prev,
-          shops: (prev.shops || []).map(shop => ({
-            ...shop,
-            employees: shop.id !== selectedShop
-              ? (shop.employees || [])
-              : (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
-            )
-          }))
-        };
-        console.log('🔄 État local mis à jour avec hiddenFrom:', hideFromDate);
-        console.log('🔄 Nouvel état:', updated);
-        return updated;
-      });
-      
-      // Sauvegarder dans localStorage
-      const updatedData = JSON.parse(localStorage.getItem('planningData') || '{}');
-      const updatedShops = updatedData.shops.map(shop => ({
-        ...shop,
-        employees: shop.id !== selectedShop
-          ? (shop.employees || [])
-          : (shop.employees || []).map(emp =>
-          emp && emp.id === employeeId ? { ...emp, hiddenFrom: hideFromDate } : emp
-        )
-      }));
-      updatedData.shops = updatedShops;
-      localStorage.setItem('planningData', JSON.stringify(updatedData));
-      addAuditLog({
-        action: 'Masquage Employe',
-        details: `Employe ${employeeName} masque (reference ${HIDE_EMPLOYEE_SINCE_DATE}).`,
-        userCode: currentUser?.code,
-        userName: currentUser?.name,
-        shopId: selectedShop,
-        shopName: shopLabel
-      });
-                
-                // Sauvegarder dans Supabase
-      try {
-        console.log('💾 Sauvegarde du masquage dans Supabase...');
-        const remoteResult = await saveCompletePlanningData(updatedData);
-        if (remoteResult?.ok) {
-          if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
-            setPlanningData(remoteResult.planningData);
-            saveToLocalStorage('planningData', remoteResult.planningData);
-          }
-          console.log('✅ Masquage sauvegardé dans Supabase');
-          const preservedNote = remoteResult.preservedShopNames?.length
-            ? ` — boutiques conservées: ${remoteResult.preservedShopNames.join(', ')}`
-            : '';
-          setLocalFeedback(`🚫 Employé "${employeeName}" masqué dans ${shopLabel} (référence 01/01/2026) et sauvegardé dans Supabase${preservedNote}`);
-                } else {
-          console.log('❌ Échec sauvegarde Supabase du masquage');
-          setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement dans ${shopLabel} (référence 01/01/2026) mais échec sauvegarde Supabase`);
-        }
-      } catch (error) {
-        console.error('❌ Erreur sauvegarde Supabase du masquage:', error);
-        setLocalFeedback(`🚫 Employé "${employeeName}" masqué localement dans ${shopLabel} (référence 01/01/2026) mais échec sauvegarde Supabase`);
-      }
+      const updatedData = hideEmployee(planningData, employeeId, hideFromDate, null);
+      await persistEmployeeStatusChange(
+        updatedData,
+        `🚫 Employé « ${employeeName} » masqué (toutes boutiques)`,
+        'Masquage Employe',
+        `Employe ${employeeName} masque sur toutes les boutiques (reference ${HIDE_EMPLOYEE_SINCE_DATE}).`
+      );
     } catch (e) {
       console.error('Erreur masquage employé:', e);
       setLocalFeedback('❌ Erreur lors du masquage');
     }
-  }, [setPlanningData, planningData, selectedShop]);
+  }, [planningData, selectedShop, persistEmployeeStatusChange]);
 
-  // Fonction pour réactiver un employé
-  const handleShowEmployee = useCallback(async (employeeId) => {
+  const handleArchiveEmployee = useCallback(async (employeeId) => {
     if (!employeeId || !selectedShop) return;
-    
-    // Trouver le nom de l'employé pour l'affichage
+
     const currentShopData = planningData?.shops?.find((shop) => shop.id === selectedShop);
     const employee = currentShopData?.employees?.find((emp) => emp.id === employeeId);
     const employeeName = employee?.name || employeeId;
-    const shopLabel = currentShopData?.name || selectedShop;
-    
+
+    const confirmArchive = window.confirm(
+      `Archiver définitivement « ${employeeName} » ?\n\n` +
+      `✅ Masqué sur toutes les boutiques\n` +
+      `✅ Ne sera plus réintroduit depuis Supabase\n` +
+      `✅ Les plannings passés restent consultables\n\n` +
+      `Réactivation possible via « Employés masqués ».`
+    );
+    if (!confirmArchive) return;
+
     try {
-      // Mettre à jour l'état local
-      setPlanningData(prev => {
-        const updated = {
-          ...prev,
-          shops: (prev.shops || []).map(shop => ({
-            ...shop,
-            employees: shop.id !== selectedShop
-              ? (shop.employees || [])
-              : (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
-            )
-          }))
-        };
-        return updated;
-      });
-      
-      // Sauvegarder dans localStorage
-      const updatedData = JSON.parse(localStorage.getItem('planningData') || '{}');
-      const updatedShops = updatedData.shops.map(shop => ({
-        ...shop,
-        employees: shop.id !== selectedShop
-          ? (shop.employees || [])
-          : (shop.employees || []).map(emp =>
-          emp && emp.id === employeeId ? { ...emp, hiddenFrom: null } : emp
-        )
-      }));
-      updatedData.shops = updatedShops;
-      localStorage.setItem('planningData', JSON.stringify(updatedData));
-      addAuditLog({
-        action: 'Reactivation Employe',
-        details: `Employe ${employeeName} reactive.`,
-        userCode: currentUser?.code,
-        userName: currentUser?.name,
-        shopId: selectedShop,
-        shopName: shopLabel
-      });
-      
-      // Sauvegarder dans Supabase
-      try {
-        console.log('💾 Sauvegarde de la réactivation dans Supabase...');
-        const remoteResult = await saveCompletePlanningData(updatedData);
-        if (remoteResult?.ok) {
-          if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
-            setPlanningData(remoteResult.planningData);
-            saveToLocalStorage('planningData', remoteResult.planningData);
-          }
-          console.log('✅ Réactivation sauvegardée dans Supabase');
-          const preservedNote = remoteResult.preservedShopNames?.length
-            ? ` — boutiques conservées: ${remoteResult.preservedShopNames.join(', ')}`
-            : '';
-          setLocalFeedback(`🔓 Employé "${employeeName}" réactivé dans ${shopLabel} et sauvegardé dans Supabase${preservedNote}`);
-    } else {
-          console.log('❌ Échec sauvegarde Supabase de la réactivation');
-          setLocalFeedback(`🔓 Employé "${employeeName}" réactivé localement dans ${shopLabel} mais échec sauvegarde Supabase`);
-        }
-      } catch (error) {
-        console.error('❌ Erreur sauvegarde Supabase de la réactivation:', error);
-        setLocalFeedback(`🔓 Employé "${employeeName}" réactivé localement dans ${shopLabel} mais échec sauvegarde Supabase`);
-      }
+      const updatedData = archiveEmployee(planningData, employeeId, HIDE_EMPLOYEE_SINCE_DATE);
+      await persistEmployeeStatusChange(
+        updatedData,
+        `📦 Employé « ${employeeName} » archivé définitivement`,
+        'Archivage Employe',
+        `Employe ${employeeName} archive definitivement.`
+      );
+    } catch (e) {
+      console.error('Erreur archivage employé:', e);
+      setLocalFeedback('❌ Erreur lors de l\'archivage');
+    }
+  }, [planningData, selectedShop, persistEmployeeStatusChange]);
+
+  // Fonction pour réactiver un employé (toutes les boutiques)
+  const handleShowEmployee = useCallback(async (employeeId) => {
+    if (!employeeId || !selectedShop) return;
+
+    const currentShopData = planningData?.shops?.find((shop) => shop.id === selectedShop);
+    const employee = currentShopData?.employees?.find((emp) => emp.id === employeeId);
+    const employeeName = employee?.name || employeeId;
+
+    try {
+      const updatedData = unarchiveEmployee(planningData, employeeId);
+      await persistEmployeeStatusChange(
+        updatedData,
+        `🔓 Employé « ${employeeName} » réactivé (toutes boutiques)`,
+        'Reactivation Employe',
+        `Employe ${employeeName} reactive sur toutes les boutiques.`
+      );
     } catch (e) {
       console.error('Erreur réactivation employé:', e);
       setLocalFeedback('❌ Erreur lors de la réactivation');
     }
-  }, [setPlanningData, planningData, selectedShop]);
+  }, [planningData, selectedShop, persistEmployeeStatusChange]);
   
   // Mettre à jour le planning global
   useEffect(() => {
@@ -1107,8 +1064,11 @@ const PlanningDisplay = ({
       forceRefresh,
       planningDataKeys: planningData ? Object.keys(planningData) : 'null'
     });
-    
+
     if (selectedShop && validWeek && planningData?.shops?.length) {
+      const syncKey = `${selectedShop}:${validWeek}`;
+      initialPlanningSyncKeyRef.current = syncKey;
+
       const weekDate = parseISO(validWeek);
       const freshPlanningData = syncEmployeeNamesAcrossShops(planningData, weekDate);
 
@@ -1123,7 +1083,11 @@ const PlanningDisplay = ({
       const weekData = getWeekPlanning(freshPlanningData, selectedShop, validWeek);
       console.log('🔍 Résultat getWeekPlanning:', weekData);
 
-      setPlanning(weekData.planning || {});
+      const filteredPlanning = filterPlanningForShopEmployees(
+        weekData.planning || {},
+        currentShopEmployeeIds
+      );
+      setPlanning(filteredPlanning);
 
       if (weekData.selectedEmployees && weekData.selectedEmployees.length > 0) {
         const validEmployees = weekData.selectedEmployees.filter((empId) => currentShopEmployeeIds.includes(empId));
@@ -1137,15 +1101,20 @@ const PlanningDisplay = ({
         setSelectedEmployees([]);
       }
     }
-  }, [selectedShop, selectedWeek, validWeek, forceRefresh, isEmployeeAssignedToCurrentShop, planningData?.shops?.length]);
+  }, [
+    selectedShop,
+    selectedWeek,
+    validWeek,
+    forceRefresh,
+    planningData,
+    isEmployeeAssignedToCurrentShop,
+    filterPlanningForShopEmployees,
+    setSelectedEmployees
+  ]);
 
   useEffect(() => {
     if (!selectedShop || !validWeek || !planningData?.shops?.length) return;
     const syncKey = `${selectedShop}:${validWeek}`;
-    if (getPlanningEntryCount(planning) > 0) {
-      initialPlanningSyncKeyRef.current = syncKey;
-      return;
-    }
     if (initialPlanningSyncKeyRef.current === syncKey) return;
 
     const weekDataFromLoadedState = getWeekPlanning(planningData, selectedShop, validWeek);
@@ -1160,20 +1129,20 @@ const PlanningDisplay = ({
     const validSelectedEmployees = (weekDataFromLoadedState.selectedEmployees || [])
       .filter((empId) => currentShopEmployeeIds.includes(empId));
 
-    setPlanning(loadedPlanning);
+    setPlanning(filterPlanningForShopEmployees(loadedPlanning, currentShopEmployeeIds));
     initialPlanningSyncKeyRef.current = syncKey;
     if (validSelectedEmployees.length > 0) {
       setLocalSelectedEmployees(validSelectedEmployees);
       setSelectedEmployees(validSelectedEmployees);
     }
-    console.log('📥 Planning resynchronisé après chargement initial des données:', loadedPlanning);
+    console.log('📥 Planning resynchronisé après chargement initial des données');
   }, [
     selectedShop,
     validWeek,
     planningData,
-    planning,
     getPlanningEntryCount,
     isEmployeeAssignedToCurrentShop,
+    filterPlanningForShopEmployees,
     setSelectedEmployees
   ]);
 
@@ -3980,6 +3949,7 @@ const PlanningDisplay = ({
           setShowEmployeeMonthlyRecap(true);
         }}
         onHideEmployee={handleHideEmployee}
+        onArchiveEmployee={handleArchiveEmployee}
         onReactivateEmployee={handleShowEmployee}
         onRenameEmployee={handleRenameEmployeeClick}
         isEmployeeHiddenInShop={(employeeId) => {

@@ -465,6 +465,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.153': [
     'Bouton Restaurer JSON: ouvre le fichier .json (plus bouton inerte) + alertes de confirmation.'
+  ],
+  '3.10.154': [
+    'Demarrage: repli local si Supabase KO; JSON importe prioritaire jusqu a SAUVE SUPABASE.',
+    'Fix semaine/drag-drop; employes filtres strictement par boutique.'
   ]
 };
 

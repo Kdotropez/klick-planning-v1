@@ -498,7 +498,8 @@ const PlanningTable = ({
     const extra = (currentShopEmployees || [])
       .map((e) => e.id)
       .filter((id) => hasCongeOrMaladieThisDay(id) && !sel.includes(id));
-    return Array.from(new Set([...sel, ...extra]));
+    const shopEmployeeIds = new Set((currentShopEmployees || []).map((e) => e.id));
+    return Array.from(new Set([...sel, ...extra])).filter((id) => shopEmployeeIds.has(id));
   }, [selectedEmployees, planning, validWeek, currentDay, currentShopEmployees]);
 
   const weekHoursByEmployee = useMemo(() => {
