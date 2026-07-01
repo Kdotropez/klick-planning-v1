@@ -1,7 +1,15 @@
 {
-  "version": "3.10.151",
+  "version": "3.10.152",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.152",
+      "date": "2026-05-29",
+      "changes": [
+        "Historique élargi (300 snapshots) + nouveau bouton 📋 ARCHIVES SAUVE SUPABASE pour retrouver vos sauvegardes par boutique/semaine.",
+        "Les archives 💾 SAUVE SUPABASE (souvent signées avec votre nom) restent en base même quand les snapshots récents ne montrent que Maxime/Cannes."
+      ]
+    },
     {
       "version": "3.10.151",
       "date": "2026-05-29",

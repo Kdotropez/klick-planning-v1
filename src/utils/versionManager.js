@@ -459,6 +459,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.151': [
     'Securite sauvegarde: ne plus ecraser des semaines avec horaires par une semaine locale vide.'
+  ],
+  '3.10.152': [
+    'Historique: 300 snapshots + bouton ARCHIVES SAUVE SUPABASE pour retrouver les sauvegardes anciennes par boutique.'
   ]
 };
 

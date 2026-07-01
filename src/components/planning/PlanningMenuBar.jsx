@@ -37,6 +37,7 @@ const PlanningMenuBar = ({
   handleManualSave,
   handleRestoreFromSupabase,
   handleRestoreBackupFromHistory,
+  handleBrowseShopWeekArchives,
   handleRestoreShopWeekFromHistory,
   handleExploreBackupHistory,
   handleExitApplication,
@@ -408,6 +409,30 @@ const PlanningMenuBar = ({
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#5e35b1'}
           >
             🕘 HISTORIQUE SUPABASE
+          </Button>
+          )}
+
+          {can('canRestoreSupabase') && (
+          <Button
+            className="button-primary"
+            onClick={handleBrowseShopWeekArchives}
+            style={{
+              backgroundColor: '#00695c',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#004d40'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#00695c'}
+          >
+            📋 ARCHIVES SAUVE SUPABASE
           </Button>
           )}
 

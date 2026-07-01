@@ -51,7 +51,8 @@ import {
   findHistoricalBackupsWithShopWeek,
   getGlobalBackupTimeline,
   inspectShopWeekInventory,
-  getSupabaseBackupDiagnostics
+  getSupabaseBackupDiagnostics,
+  listShopWeekArchiveEntries
 } from './utils/remoteStore';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -948,7 +949,7 @@ const App = () => {
     setFeedback('⏳ Chargement de l’historique Supabase...');
 
     try {
-      const backups = await listCompletePlanningBackups(40);
+      const backups = await listCompletePlanningBackups(120);
       if (!backups || backups.length === 0) {
         alert('❌ Aucun historique de sauvegarde trouvé sur Supabase.');
         setFeedback('❌ Aucun historique de sauvegarde trouvé.');
@@ -957,13 +958,17 @@ const App = () => {
 
       const restorableBackups = backups.filter((item) => item.isRestorable !== false);
       const listForRestore = restorableBackups.length > 0 ? restorableBackups : backups;
+      const snapshotCount = listForRestore.filter((item) => item.isSnapshot || item.weekKey === 'current_complete_file').length;
+      const archiveCount = listForRestore.filter((item) => item.isLegacyRow).length;
 
-      const displayCount = Math.min(listForRestore.length, 25);
+      const displayCount = Math.min(listForRestore.length, 35);
       const lines = listForRestore.slice(0, displayCount).map((item, idx) => {
         const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : 'date inconnue';
-        const sourceLabel = item.weekKey === 'current_complete_file'
+        const sourceLabel = item.isLegacyRow
+          ? `📁 archive ${item.legacyShopId || item.savedByUser} — sem. enregistrée ${item.legacyWeekKey || '?'}`
+          : item.weekKey === 'current_complete_file'
           ? '★ VERSION ACTUELLE'
-          : 'snapshot historique complet';
+          : '📦 snapshot historique complet';
         const shopsLabel = item.shopsCount != null ? `${item.shopsCount} boutique(s)` : '—';
         const authorLabel = item.savedByUser || 'auteur inconnu';
         const deviceLabel = item.savedByDevice && item.savedByDevice !== 'poste inconnu'
@@ -973,18 +978,24 @@ const App = () => {
         return `${idx + 1}. ${whoLine}\n   ${dateText} — ${shopsLabel} — ${sourceLabel}`;
       });
 
-      const legacyNote = backups.some((item) => item.isLegacyRow)
-        ? '\n\nNote : les lignes « 1 boutique/semaine » ne restaurent pas toutes les boutiques. Utilisez un « snapshot historique complet » ou 🔍 CHERCHER HISTORIQUE pour une boutique précise.'
+      const legacyNote = archiveCount > 0
+        ? `\n\n📁 ${archiveCount} archive(s) boutique/semaine (💾 SAUVE SUPABASE) — vos sauvegardes personnelles plus anciennes sont souvent ici, pas dans les snapshots récents.`
         : '';
 
+      const retentionNote =
+        `\n\nℹ️ Les snapshots globaux récents (${snapshotCount} entrée(s) ci-dessus) ne conservent que les ~300 dernières sauvegardes complètes. ` +
+        `Les sauvegardes de Maxime/Cannes d'hier ont pu remplacer les snapshots plus anciens.`;
+
       const moreNote = listForRestore.length > displayCount
-        ? `\n\n… et ${listForRestore.length - displayCount} autre(s) sauvegarde(s). Entrez le numéro exact (1-${listForRestore.length}).`
+        ? `\n\n… et ${listForRestore.length - displayCount} autre(s) entrée(s). Entrez le numéro exact (1-${listForRestore.length}).`
         : '';
 
       const selected = window.prompt(
-        `Historique Supabase (${listForRestore.length} sauvegarde(s) complète(s)) :\n` +
-        `(auteur et poste indiqués pour chaque ligne)\n\n` +
-        `${lines.join('\n\n')}${moreNote}${legacyNote}\n\nEntrez le numéro à restaurer :`
+        `Historique Supabase (${listForRestore.length} entrée(s) récupérable(s)) :\n` +
+        `(auteur et poste indiqués — inclut archives boutique/semaine)\n\n` +
+        `${lines.join('\n\n')}${moreNote}${legacyNote}${retentionNote}\n\n` +
+        `Utilisez aussi 📋 ARCHIVES SAUVE SUPABASE pour parcourir toutes les sauvegardes par boutique.\n\n` +
+        `Entrez le numéro à restaurer :`
       );
 
       if (!selected) {
@@ -1001,7 +1012,7 @@ const App = () => {
 
       const chosen = listForRestore[parsedIndex];
       if (chosen.isRestorable === false) {
-        alert('❌ Cette entrée est une sauvegarde boutique/semaine, pas un fichier complet.\n\nUtilisez 🎯 RESTAURATION CIBLÉE ou 🔍 CHERCHER HISTORIQUE pour une boutique précise.');
+        alert('❌ Cette entrée ne contient pas de fichier planning complet.\n\nUtilisez 📋 ARCHIVES SAUVE SUPABASE ou 🎯 RESTAURATION CIBLÉE.');
         setFeedback('❌ Sauvegarde non restaurable en mode complet.');
         return;
       }
@@ -1292,6 +1303,114 @@ const App = () => {
       console.error('❌ Erreur exploration historique:', error);
       setFeedback(`❌ Erreur exploration historique: ${error.message}`);
       alert(`❌ Erreur exploration historique: ${error.message}`);
+    } finally {
+      isRestoringSupabaseRef.current = false;
+    }
+  };
+
+  const handleBrowseShopWeekArchives = async () => {
+    if (isRestoringSupabaseRef.current) {
+      setFeedback('⏳ Une opération est déjà en cours...');
+      return;
+    }
+
+    isRestoringSupabaseRef.current = true;
+    setFeedback('⏳ Chargement des archives SAUVE SUPABASE (boutique/semaine)...');
+
+    try {
+      const shopFilter = window.prompt(
+        'Filtrer par boutique (ID exact, ex. PORT_GRIMAUD ou SAINT_TROPEZ) ?\n\n' +
+          'Laissez vide pour TOUTES les boutiques :',
+        ''
+      );
+      if (shopFilter === null) {
+        setFeedback('ℹ️ Parcours des archives annulé.');
+        return;
+      }
+
+      const entries = await listShopWeekArchiveEntries({
+        shopId: String(shopFilter || '').trim() || null,
+        limit: 400
+      });
+
+      if (!entries.length) {
+        alert('❌ Aucune archive boutique/semaine trouvée sur Supabase pour ce filtre.');
+        setFeedback('❌ Aucune archive trouvée.');
+        return;
+      }
+
+      const displayCount = Math.min(entries.length, 40);
+      const lines = entries.slice(0, displayCount).map((item, idx) => {
+        const dateText = item.updatedAt ? new Date(item.updatedAt).toLocaleString('fr-FR') : '?';
+        const who = `${item.savedByUser || '?'} · ${item.savedByDevice || '?'}`;
+        const completeTag = item.isCompleteSnapshot ? `${item.shopsCount} boutique(s)` : 'format partiel';
+        return `${idx + 1}. ${dateText}\n   👤 ${who}\n   🏪 ${item.shopId} — sem. ${item.weekKey} — ${completeTag}`;
+      });
+
+      const moreNote = entries.length > displayCount
+        ? `\n\n… et ${entries.length - displayCount} autre(s) archive(s). Numéro 1-${entries.length}.`
+        : '';
+
+      const pick = window.prompt(
+        `📋 Archives 💾 SAUVE SUPABASE (${entries.length} entrée(s))\n` +
+          `Ce sont vos sauvegardes manuelles — souvent les seules traces des plannings d'il y a plusieurs jours.\n\n` +
+          `${lines.join('\n\n')}${moreNote}\n\nEntrez le numéro à restaurer (fichier complet) :`
+      );
+      if (!pick) {
+        setFeedback('ℹ️ Restauration archive annulée.');
+        return;
+      }
+
+      const pickIndex = Number.parseInt(pick, 10) - 1;
+      if (Number.isNaN(pickIndex) || pickIndex < 0 || pickIndex >= entries.length) {
+        alert('❌ Numéro invalide.');
+        return;
+      }
+
+      const chosen = entries[pickIndex];
+      const restoredData = await loadCompletePlanningBackupByWeekKey(chosen.restoreKey);
+      if (!restoredData?.shops?.length) {
+        alert('❌ Archive invalide ou vide.');
+        setFeedback('❌ Archive invalide.');
+        return;
+      }
+
+      const dateText = chosen.updatedAt ? new Date(chosen.updatedAt).toLocaleString('fr-FR') : '?';
+      const ok = window.confirm(
+        `Restaurer cette archive ?\n\n` +
+          `Date : ${dateText}\n` +
+          `Auteur : ${chosen.savedByUser} (${chosen.savedByDevice})\n` +
+          `Boutique enregistrée : ${chosen.shopId}\n` +
+          `Semaine tag : ${chosen.weekKey}\n` +
+          `Contenu : ${restoredData.shops.length} boutique(s)\n\n` +
+          `⚠️ Remplace le planning complet en mémoire. Ne cliquez pas SAUVE SUPABASE avant d'avoir vérifié vos semaines.`
+      );
+      if (!ok) {
+        setFeedback('ℹ️ Restauration archive annulée.');
+        return;
+      }
+
+      const currentUser = localStorage.getItem('current_user');
+      const userId = localStorage.getItem('user_id');
+      localStorage.clear();
+      if (currentUser) localStorage.setItem('current_user', currentUser);
+      if (userId) localStorage.setItem('user_id', userId);
+
+      setPlanningData(restoredData);
+      localStorage.setItem('planningData', JSON.stringify(restoredData));
+
+      const parsedUser = currentUser ? JSON.parse(currentUser) : null;
+      const restoredShopId = resolvePreferredShopId(parsedUser, restoredData);
+      setSelectedShop(restoredShopId);
+      setSelectedWeek(getCurrentWeekKey());
+      setMode('planning');
+
+      setFeedback(`✅ Archive restaurée (${dateText}) — vérifiez Port Grimaud / Saint-Tropez avant SAUVE SUPABASE.`);
+      alert(`✅ Archive restaurée (${dateText}).\n\nVérifiez vos semaines jusqu'au 5 juillet AVANT de sauvegarder.`);
+    } catch (error) {
+      console.error('❌ Erreur parcours archives:', error);
+      setFeedback(`❌ Erreur archives: ${error.message}`);
+      alert(`❌ Erreur archives: ${error.message}`);
     } finally {
       isRestoringSupabaseRef.current = false;
     }
@@ -2014,6 +2133,7 @@ const App = () => {
             onClearLocalStorage={handleClearLocalStorage}
             onRestoreFromSupabase={handleRestoreFromSupabase}
             onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
+            onBrowseShopWeekArchives={handleBrowseShopWeekArchives}
             onContinueWithLocalData={handleContinueWithLocalData}
             onOpenSchoolMode={handleOpenSchoolMode}
             hasLocalData={planningData && planningData.shops && planningData.shops.length > 0}
@@ -2276,6 +2396,7 @@ const App = () => {
               setFeedback={setFeedback}
               onRestoreFromSupabase={handleRestoreFromSupabase}
               onRestoreBackupFromHistory={handleRestoreBackupFromHistory}
+              onBrowseShopWeekArchives={handleBrowseShopWeekArchives}
               onRestoreShopWeekFromHistory={handleRestoreShopWeekFromHistory}
               onExploreBackupHistory={handleExploreBackupHistory}
               onExitApplication={handleExit}

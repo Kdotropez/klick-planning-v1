@@ -84,6 +84,7 @@ const PlanningDisplay = ({
   onDeleteEmployee,
   onRestoreFromSupabase,
   onRestoreBackupFromHistory,
+  onBrowseShopWeekArchives,
   onRestoreShopWeekFromHistory,
   onExploreBackupHistory,
   onExitApplication
@@ -3406,6 +3407,7 @@ const PlanningDisplay = ({
             diagnoseAndCleanLocks={diagnoseAndCleanLocks}
             handleRestoreFromSupabase={onRestoreFromSupabase}
             handleRestoreBackupFromHistory={onRestoreBackupFromHistory}
+            handleBrowseShopWeekArchives={onBrowseShopWeekArchives}
             handleRestoreShopWeekFromHistory={onRestoreShopWeekFromHistory}
             handleExploreBackupHistory={onExploreBackupHistory}
             handleExitApplication={onExitApplication}

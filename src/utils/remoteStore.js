@@ -83,7 +83,7 @@ const isCompletePlanningData = (data) => {
 const HISTORY_SHOP_ID = 'backup_history';
 const HISTORY_WEEK_PREFIX = 'h_';
 const LEGACY_HISTORY_WEEK_PREFIX = 'snapshot_';
-const HISTORY_MAX_ITEMS = 60;
+const HISTORY_MAX_ITEMS = 300;
 const CURRENT_COMPLETE_SENTINEL = 'current_complete_file';
 const LEGACY_PREFIX = 'legacy_row::';
 const DEVICE_ID_STORAGE_KEY = 'client_device_id';
@@ -442,11 +442,11 @@ export const saveHistorySnapshotWithStatus = async (completePlanningData) => {
   return ok ? { ok: true } : { ok: false, error: 'Insertion snapshot refusée (voir console)' };
 };
 
-export const listCompletePlanningBackups = async (limit = 50) => {
+export const listCompletePlanningBackups = async (limit = 100) => {
   if (!isReady()) return [];
 
   try {
-    const safeLimit = Math.max(1, Math.min(100, Number(limit) || 50));
+    const safeLimit = Math.max(1, Math.min(200, Number(limit) || 100));
     const items = [];
     const seen = new Set();
     const pushItem = (item) => {
@@ -493,33 +493,37 @@ export const listCompletePlanningBackups = async (limit = 50) => {
       });
     });
 
-    // 3) Lignes boutique/semaine — métadonnées seulement
-    if (items.length < safeLimit) {
-      const { data: legacyRows, error: legacyError } = await supabase
-        .from('plannings')
-        .select('shop_id,week_key,updated_at')
-        .neq('shop_id', 'system_config')
-        .neq('shop_id', HISTORY_SHOP_ID)
-        .neq('shop_id', 'complete_file')
-        .order('updated_at', { ascending: false })
-        .limit(safeLimit - items.length);
+    // 3) Archives boutique/semaine (💾 SAUVE SUPABASE) — souvent les seules traces des sauvegardes anciennes
+    const legacyLimit = Math.max(50, safeLimit);
+    const { data: legacyRows, error: legacyError } = await supabase
+      .from('plannings')
+      .select('shop_id,week_key,updated_at,data')
+      .neq('shop_id', 'system_config')
+      .neq('shop_id', HISTORY_SHOP_ID)
+      .neq('shop_id', 'complete_file')
+      .order('updated_at', { ascending: false })
+      .limit(legacyLimit);
 
-      if (legacyError) {
-        console.warn('⚠️ listCompletePlanningBackups legacy error:', legacyError.message);
-      } else {
-        (legacyRows || []).forEach((row) => {
-          if (!row?.shop_id || !row?.week_key) return;
-          pushItem({
-            weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
-            updatedAt: row.updated_at,
-            shopsCount: null,
-            savedByDevice: 'Sauvegarde semaine Supabase',
-            savedByUser: row.shop_id,
-            isLegacyRow: true,
-            isRestorable: false
-          });
+    if (legacyError) {
+      console.warn('⚠️ listCompletePlanningBackups legacy error:', legacyError.message);
+    } else {
+      (legacyRows || []).forEach((row) => {
+        if (!row?.shop_id || !row?.week_key) return;
+        const meta = extractBackupMetaFromData(row.data);
+        const shopsCount = Array.isArray(row.data?.shops) ? row.data.shops.length : null;
+        const isComplete = isCompletePlanningData(row.data);
+        pushItem({
+          weekKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`,
+          updatedAt: row.updated_at,
+          shopsCount,
+          savedByDevice: meta.savedByDevice || 'Sauvegarde semaine Supabase',
+          savedByUser: meta.savedByUser || row.shop_id,
+          isLegacyRow: true,
+          isRestorable: isComplete,
+          legacyShopId: row.shop_id,
+          legacyWeekKey: row.week_key
         });
-      }
+      });
     }
 
     items.sort((a, b) => {
@@ -528,9 +532,55 @@ export const listCompletePlanningBackups = async (limit = 50) => {
       return tb - ta;
     });
 
-    return items.slice(0, safeLimit);
+    return items.slice(0, Math.max(safeLimit, legacyLimit));
   } catch (error) {
     console.error('❌ Exception listCompletePlanningBackups:', error);
+    return [];
+  }
+};
+
+/** Toutes les archives 💾 SAUVE SUPABASE (boutique + semaine) — hors snapshots globaux. */
+export const listShopWeekArchiveEntries = async ({ shopId = null, limit = 400 } = {}) => {
+  if (!isReady()) return [];
+
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 400));
+  try {
+    let query = supabase
+      .from('plannings')
+      .select('shop_id,week_key,updated_at,data')
+      .neq('shop_id', 'system_config')
+      .neq('shop_id', HISTORY_SHOP_ID)
+      .neq('shop_id', 'complete_file')
+      .order('updated_at', { ascending: false })
+      .limit(safeLimit);
+
+    if (shopId) {
+      query = query.eq('shop_id', shopId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('⚠️ listShopWeekArchiveEntries:', error.message);
+      return [];
+    }
+
+    return (data || []).map((row) => {
+      const meta = extractBackupMetaFromData(row.data);
+      const shopsCount = Array.isArray(row.data?.shops) ? row.data.shops.length : 0;
+      const isComplete = isCompletePlanningData(row.data);
+      return {
+        shopId: row.shop_id,
+        weekKey: row.week_key,
+        updatedAt: row.updated_at,
+        savedByUser: meta.savedByUser || '?',
+        savedByDevice: meta.savedByDevice || '?',
+        shopsCount,
+        isCompleteSnapshot: isComplete,
+        restoreKey: `${LEGACY_PREFIX}${row.shop_id}::${row.week_key}`
+      };
+    });
+  } catch (error) {
+    console.error('❌ listShopWeekArchiveEntries:', error);
     return [];
   }
 };
