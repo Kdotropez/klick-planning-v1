@@ -377,26 +377,18 @@ const App = () => {
   // Charger la version commune depuis Supabase au démarrage
   useEffect(() => {
     const bootstrapFromSupabase = async () => {
-      let skipBootstrapComplete = false;
       try {
-      // Précharger les codes utilisateurs partagés pour l'écran de connexion
       pullUserCodesFromSupabase().catch((error) => {
         console.warn('⚠️ Préchargement des codes utilisateurs impossible:', error);
       });
 
-      // ⚡ VÉRIFICATION DE VERSION - FORCE LE VIDAGE DU CACHE SI NOUVELLE VERSION
       const versionChanged = checkVersion();
       logVersionInfo();
       
-      // Si la version a changé, on arrête ici car la page va se recharger
       if (versionChanged) {
-        skipBootstrapComplete = true;
         return;
       }
 
-      showVersionHighlightsOnce();
-      
-      // Initialiser le vérificateur de version
       versionChecker.init().catch(error => {
         console.error('❌ Erreur initialisation VersionChecker:', error);
       });
@@ -481,14 +473,24 @@ const App = () => {
         setFeedback('ℹ️ Supabase indisponible — import JSON après connexion.');
       }
       } finally {
-        if (!skipBootstrapComplete) {
-          setIsBootstrapComplete(true);
-        }
+        setIsBootstrapComplete(true);
       }
     };
 
     bootstrapFromSupabase();
   }, []);
+
+  useEffect(() => {
+    if (!isBootstrapComplete) return;
+    const timer = setTimeout(() => {
+      try {
+        showVersionHighlightsOnce();
+      } catch (error) {
+        console.warn('Nouveautés version:', error);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [isBootstrapComplete]);
 
   // Sauvegarder les données dans localStorage (après bootstrap Supabase, jamais avec un planning vide)
   useEffect(() => {
@@ -780,13 +782,12 @@ const App = () => {
     console.log('🆔 Utilisateur identifié:', user);
 
     if (!isSupabaseStartupReady) {
-      alert(
-        '❌ Connexion bloquée.\n\n' +
+      const message =
         'La version commune Supabase n a pas été chargée au démarrage.\n' +
-        'Relancez lorsque Supabase est disponible.'
-      );
+        'Relancez lorsque Supabase est disponible.';
+      alert(`❌ Connexion bloquée.\n\n${message}`);
       setFeedback('❌ Connexion bloquée: version commune Supabase non chargée.');
-      return;
+      return { ok: false, message: '❌ Connexion bloquée (données non prêtes).' };
     }
 
     const lockResult = await acquireGlobalLockForUser(user);
@@ -797,20 +798,20 @@ const App = () => {
         const ownerText = formatLockOwner(lockResult.lock);
         const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
         startLockCountdown(remainingSeconds ?? Math.ceil(GLOBAL_LOCK_TTL_MS / 1000), ownerText);
-        return;
+        return {
+          ok: false,
+          message: `⛔ Planning utilisé sur ${ownerText || 'un autre poste'}. Attendez ${remainingSeconds ?? '?'} s.`
+        };
       }
-      alert(
-        '❌ Connexion impossible.\n\n' +
-          'Fermez les autres onglets Klick-planning sur ce poste et réessayez.\n\n' +
-          'Si Supabase est hors ligne, rechargez la page (Ctrl+F5) puis reconnectez-vous.'
-      );
+      const failMsg =
+        'Fermez les autres onglets Klick-planning sur ce poste et réessayez.';
+      alert(`❌ Connexion impossible.\n\n${failMsg}`);
       setFeedback('❌ Connexion interrompue — réessayez.');
-      return;
+      return { ok: false, message: `❌ ${failMsg}` };
     }
 
     const enrichedUser = enrichUserSession(user, planningData?.shops || []);
 
-    // Session locale persistée uniquement après validation du verrou global
     localStorage.setItem('current_user', JSON.stringify(enrichedUser));
     localStorage.setItem('user_id', `user_${enrichedUser.code}_${Date.now()}`);
 
@@ -825,10 +826,11 @@ const App = () => {
       setSelectedShop(preferredShopId);
     }
     setSelectedWeek(getCurrentWeekKey());
-    setMode(planningData?.shops?.length > 0 ? 'planning' : 'main-startup');
+    const hasPlanning = (planningData?.shops?.length || 0) > 0;
+    setMode(hasPlanning ? 'planning' : 'startup');
     setFeedback(
       lockResult.offline
-        ? `👋 Bienvenue ${enrichedUser.name} ! Mode hors ligne — utilisez 🔄 Restaurer JSON.`
+        ? `👋 Bienvenue ${enrichedUser.name} ! Mode hors ligne — 📁 Importer un planning ou 🔄 Restaurer JSON.`
         : `👋 Bienvenue ${enrichedUser.name} !`
     );
     addAuditLog({
@@ -839,6 +841,7 @@ const App = () => {
       shopId: preferredShopId,
       shopName: getShopNameById(preferredShopId, planningData)
     });
+    return { ok: true };
   };
 
   const handleEmergencyUnlock = async () => {

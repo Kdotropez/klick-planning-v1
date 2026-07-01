@@ -39,13 +39,25 @@ const UserIdentificationModal = ({
     syncCodesFromCloud(false);
   }, []);
 
+  const resolveUserFromCodeInput = (inputCode, userCodes) => {
+    const trimmed = String(inputCode || '').trim();
+    if (!trimmed) return null;
+    if (userCodes[trimmed]) return { code: trimmed, info: userCodes[trimmed] };
+    const lower = trimmed.toLowerCase();
+    for (const [code, info] of Object.entries(userCodes)) {
+      if (code.toLowerCase() === lower) return { code, info };
+      if (String(info?.secretCode || '').toLowerCase() === lower) return { code, info };
+      if (String(info?.name || '').toLowerCase() === lower) return { code, info };
+    }
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      // Charger les codes partagés Supabase avant vérification
       await syncCodesFromCloud(false);
 
       if (lockCountdownSeconds > 0) {
@@ -53,34 +65,31 @@ const UserIdentificationModal = ({
           `⛔ Planning déjà utilisé sur ${lockOwnerText || 'un autre poste'}. ` +
           `Réessayez dans ${lockCountdownSeconds} seconde(s).`
         );
-        setIsLoading(false);
         return;
       }
 
-      // Vérifier le code secret utilisateur
       const userCodes = getValidUserCodes();
-      const userInfo = userCodes[userCode];
-      
-      if (!userInfo) {
-        setError('❌ Code secret invalide. Veuillez vérifier votre code.');
-        setIsLoading(false);
+      const resolved = resolveUserFromCodeInput(userCode, userCodes);
+
+      if (!resolved) {
+        setError('❌ Code secret invalide. Essayez Nicolas, Maxime, Cannes ou Tropez (codes par défaut si Supabase est hors ligne).');
         return;
       }
 
-      // Créer l'objet utilisateur
       const user = {
-        code: userCode,
-        name: userInfo.name,
-        role: userInfo.role,
+        code: resolved.code,
+        name: resolved.info.name,
+        role: resolved.info.role,
         loginTime: new Date().toISOString(),
         sessionId: 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9)
       };
 
       console.log('🆔 Utilisateur identifié:', user);
 
-      // Appeler la fonction de callback (la persistance est gérée dans App après validation du verrou)
-      onIdentification(user);
-
+      const result = await onIdentification(user);
+      if (result?.ok === false) {
+        setError(result.message || '❌ Connexion refusée. Réessayez.');
+      }
     } catch (error) {
       console.error('Erreur lors de l\'identification:', error);
       setError('❌ Erreur lors de l\'identification. Veuillez réessayer.');

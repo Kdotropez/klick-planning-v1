@@ -478,6 +478,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.157': [
     'Connexion mode hors ligne: verrou local si Supabase KO — le programme s ouvre sans attendre Supabase.'
+  ],
+  '3.10.158': [
+    'Fix blocage connexion: timeout codes Supabase, ecran demarrage direct, codes Nicolas/Maxime locaux.'
   ]
 };
 

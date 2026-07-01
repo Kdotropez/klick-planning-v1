@@ -164,7 +164,7 @@ export const getValidUserCodes = () => getCodes();
 export const pullUserCodesFromSupabase = async () => {
   if (!supabase) return getCodes();
 
-  try {
+  const fetchRemote = async () => {
     const { data, error } = await supabase
       .from('plannings')
       .select('data')
@@ -183,6 +183,18 @@ export const pullUserCodesFromSupabase = async () => {
     }
 
     return setCodes(remoteCodes);
+  };
+
+  try {
+    return await Promise.race([
+      fetchRemote(),
+      new Promise((resolve) => {
+        setTimeout(() => {
+          console.warn('⚠️ Timeout sync codes Supabase — codes locaux utilisés.');
+          resolve(getCodes());
+        }, 4000);
+      })
+    ]);
   } catch (error) {
     console.warn('⚠️ Erreur pullUserCodesFromSupabase:', error);
     return getCodes();
