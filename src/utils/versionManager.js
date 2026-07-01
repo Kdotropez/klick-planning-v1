@@ -469,6 +469,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.154': [
     'Demarrage: repli local si Supabase KO; JSON importe prioritaire jusqu a SAUVE SUPABASE.',
     'Fix semaine/drag-drop; employes filtres strictement par boutique.'
+  ],
+  '3.10.155': [
+    'CSP Vercel: autorise Supabase + vercel.live; connexion possible en mode hors ligne si Supabase CORS/reseau.'
   ]
 };
 

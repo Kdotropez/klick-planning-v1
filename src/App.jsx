@@ -408,11 +408,13 @@ const App = () => {
       } else {
         localStorage.removeItem('planningData');
         setPlanningData(createNewPlanningData());
-        setIsSupabaseStartupReady(false);
+        setIsSupabaseStartupReady(true);
         setMode('identification');
-        setRestoredInfo('⚠️ Aucune donnée Supabase ni locale. Importez un JSON depuis l’écran de démarrage après connexion admin.');
-        setFeedback('❌ Connexion bloquée: aucune donnée Supabase ni locale.');
-        console.warn('⚠️ Bootstrap: ni Supabase ni local valide.');
+        setRestoredInfo(
+          '⚠️ Supabase inaccessible (réseau ou CORS). Vous pouvez vous connecter et utiliser 🔄 Restaurer JSON — pas de SAUVE SUPABASE tant que Supabase ne répond pas.'
+        );
+        setFeedback('ℹ️ Mode hors ligne : import JSON possible après connexion.');
+        console.warn('⚠️ Bootstrap: ni Supabase ni local — mode hors ligne activé.');
       }
       } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
@@ -427,10 +429,10 @@ const App = () => {
       } else {
         localStorage.removeItem('planningData');
         setPlanningData(createNewPlanningData());
-        setIsSupabaseStartupReady(false);
+        setIsSupabaseStartupReady(true);
         setMode('identification');
-        setRestoredInfo('⚠️ Supabase indisponible au démarrage.');
-        setFeedback('❌ Connexion bloquée: Supabase indisponible et aucune copie locale.');
+        setRestoredInfo('⚠️ Erreur Supabase au démarrage. Connexion possible en mode hors ligne (import JSON).');
+        setFeedback('ℹ️ Supabase indisponible — import JSON après connexion.');
       }
       }
       setIsBootstrapComplete(true);
