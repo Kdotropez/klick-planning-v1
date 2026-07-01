@@ -1,7 +1,15 @@
 {
-  "version": "3.10.156",
+  "version": "3.10.157",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.157",
+      "date": "2026-05-29",
+      "changes": [
+        "Mode hors ligne : connexion possible sans Supabase (verrou local, pas de blocage après le code secret).",
+        "Heartbeat Supabase désactivé en session hors ligne pour éviter l’expulsion automatique."
+      ]
+    },
     {
       "version": "3.10.156",
       "date": "2026-05-29",

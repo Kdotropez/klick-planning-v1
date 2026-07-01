@@ -475,6 +475,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.156': [
     'Demarrage: timeout Supabase 10s — plus de blocage infini sur « Chargement des donnees en cours ».'
+  ],
+  '3.10.157': [
+    'Connexion mode hors ligne: verrou local si Supabase KO — le programme s ouvre sans attendre Supabase.'
   ]
 };
 

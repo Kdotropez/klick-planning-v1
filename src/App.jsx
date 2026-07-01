@@ -182,6 +182,7 @@ const App = () => {
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
   const [isSupabaseStartupReady, setIsSupabaseStartupReady] = useState(false);
   const [isBootstrapComplete, setIsBootstrapComplete] = useState(false);
+  const [supabaseSessionOffline, setSupabaseSessionOffline] = useState(false);
   const [inactivityCounterPosition, setInactivityCounterPosition] = useState(() => {
     try {
       const raw = localStorage.getItem('ui_inactivity_counter_position');
@@ -313,20 +314,43 @@ const App = () => {
       return { ok: false, reason: 'invalid-user' };
     }
 
-    if (!initGlobalLock()) {
-      return { ok: false, reason: 'supabase-config' };
+    const holderId = getLockHolderId(user);
+    const hasSupabaseConfig = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_KEY);
+
+    if (hasSupabaseConfig) {
+      initGlobalLock();
+      try {
+        await withTimeout(cleanupExpiredLocks(GLOBAL_LOCK_TTL_MS), 5000, 'Nettoyage verrous Supabase');
+        const result = await withTimeout(
+          acquireLock(holderId, GLOBAL_LOCK_TTL_MS),
+          8000,
+          'Acquisition verrou Supabase'
+        );
+        if (result?.ok) {
+          return { ok: true, offline: false };
+        }
+        if (result?.lock && result.lock.user_id !== holderId) {
+          return { ok: false, reason: 'locked-by-other', lock: result.lock };
+        }
+      } catch (error) {
+        console.warn('⚠️ Verrou Supabase indisponible, repli verrou local:', error);
+      }
     }
 
+    initLockService({ url: null, key: null });
     try {
-      await cleanupExpiredLocks(GLOBAL_LOCK_TTL_MS);
-      const result = await acquireLock(getLockHolderId(user), GLOBAL_LOCK_TTL_MS);
-      return result?.ok
-        ? { ok: true }
-        : { ok: false, reason: 'locked-by-other', lock: result?.lock || null };
+      const localResult = await acquireLock(holderId, GLOBAL_LOCK_TTL_MS);
+      if (localResult?.ok) {
+        return { ok: true, offline: true };
+      }
+      if (localResult?.lock && localResult.lock.user_id !== holderId) {
+        return { ok: false, reason: 'locked-by-other', lock: localResult.lock };
+      }
     } catch (error) {
-      console.error('❌ Erreur acquisition verrou global:', error);
-      return { ok: false, reason: 'lock-error' };
+      console.error('❌ Erreur verrou local:', error);
     }
+
+    return { ok: false, reason: 'lock-error' };
   };
 
   const isValidPlanningPayload = (data) =>
@@ -692,7 +716,7 @@ const App = () => {
   }, [currentUser, hasGlobalLock]);
 
   useEffect(() => {
-    if (!currentUser || !hasGlobalLock) return undefined;
+    if (!currentUser || !hasGlobalLock || supabaseSessionOffline) return undefined;
 
     const intervalId = setInterval(async () => {
       const hbResult = await heartbeat(getLockHolderId(currentUser));
@@ -711,7 +735,7 @@ const App = () => {
     }, GLOBAL_HEARTBEAT_MS);
 
     return () => clearInterval(intervalId);
-  }, [currentUser, hasGlobalLock]);
+  }, [currentUser, hasGlobalLock, supabaseSessionOffline]);
 
   useEffect(() => {
     document.body.classList.toggle('high-contrast-mode', highContrastMode);
@@ -767,12 +791,20 @@ const App = () => {
 
     const lockResult = await acquireGlobalLockForUser(user);
     if (!lockResult.ok) {
-      // Nettoyage défensif: aucune session locale ne doit rester si le verrou est refusé
-      localStorage.removeItem('current_user');
-      localStorage.removeItem('user_id');
-      const ownerText = formatLockOwner(lockResult.lock);
-      const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
-      startLockCountdown(remainingSeconds ?? Math.ceil(GLOBAL_LOCK_TTL_MS / 1000), ownerText);
+      if (lockResult.reason === 'locked-by-other') {
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('user_id');
+        const ownerText = formatLockOwner(lockResult.lock);
+        const remainingSeconds = getLockRemainingSeconds(lockResult.lock);
+        startLockCountdown(remainingSeconds ?? Math.ceil(GLOBAL_LOCK_TTL_MS / 1000), ownerText);
+        return;
+      }
+      alert(
+        '❌ Connexion impossible.\n\n' +
+          'Fermez les autres onglets Klick-planning sur ce poste et réessayez.\n\n' +
+          'Si Supabase est hors ligne, rechargez la page (Ctrl+F5) puis reconnectez-vous.'
+      );
+      setFeedback('❌ Connexion interrompue — réessayez.');
       return;
     }
 
@@ -784,6 +816,7 @@ const App = () => {
 
     setCurrentUser(enrichedUser);
     setHasGlobalLock(true);
+    setSupabaseSessionOffline(!!lockResult.offline);
     resetInactivityTimer();
     setLockCountdownSeconds(0);
     setLockOwnerText('');
@@ -793,7 +826,11 @@ const App = () => {
     }
     setSelectedWeek(getCurrentWeekKey());
     setMode(planningData?.shops?.length > 0 ? 'planning' : 'main-startup');
-    setFeedback(`👋 Bienvenue ${enrichedUser.name} !`);
+    setFeedback(
+      lockResult.offline
+        ? `👋 Bienvenue ${enrichedUser.name} ! Mode hors ligne — utilisez 🔄 Restaurer JSON.`
+        : `👋 Bienvenue ${enrichedUser.name} !`
+    );
     addAuditLog({
       action: 'Connexion',
       details: `Connexion utilisateur validee. Boutiques autorisees: ${(enrichedUser.allowedShopIds || []).join(', ') || 'aucune'}.`,
