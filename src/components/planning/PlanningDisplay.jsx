@@ -87,6 +87,7 @@ const PlanningDisplay = ({
   onBrowseShopWeekArchives,
   onRestoreShopWeekFromHistory,
   onExploreBackupHistory,
+  onMergeShopFromJson,
   onExitApplication
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
@@ -3379,6 +3380,7 @@ const PlanningDisplay = ({
             handleBrowseShopWeekArchives={onBrowseShopWeekArchives}
             handleRestoreShopWeekFromHistory={onRestoreShopWeekFromHistory}
             handleExploreBackupHistory={onExploreBackupHistory}
+            handleMergeShopFromJson={onMergeShopFromJson}
             handleExitApplication={onExitApplication}
           currentUser={currentUser}
           // Nouveaux props pour les boutons déplacés

@@ -1,7 +1,15 @@
 {
-  "version": "3.10.158",
+  "version": "3.10.159",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.159",
+      "date": "2026-05-29",
+      "changes": [
+        "Nouveau bouton 🏪 FUSIONNER BOUTIQUE : ajoute une boutique depuis un JSON sans toucher aux autres.",
+        "Alerte avant restauration Supabase complète si la sauvegarde ne contient qu’une boutique (ex. Sainte-Maxime seule)."
+      ]
+    },
     {
       "version": "3.10.158",
       "date": "2026-05-29",

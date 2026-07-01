@@ -40,6 +40,7 @@ const PlanningMenuBar = ({
   handleBrowseShopWeekArchives,
   handleRestoreShopWeekFromHistory,
   handleExploreBackupHistory,
+  handleMergeShopFromJson,
   handleExitApplication,
   // Modules
   onOpenShopStats,
@@ -457,6 +458,31 @@ const PlanningMenuBar = ({
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#3949ab'}
           >
             🎯 RESTAURATION CIBLÉE
+          </Button>
+          )}
+
+          {can('canRestoreSupabase') && handleMergeShopFromJson && (
+          <Button
+            className="button-primary"
+            onClick={handleMergeShopFromJson}
+            style={{
+              backgroundColor: '#6a1b9a',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#4a148c'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6a1b9a'}
+            title="Ajoute une boutique depuis un fichier JSON sans effacer les autres (ex. Sainte-Maxime depuis le PC de Maxime)"
+          >
+            🏪 FUSIONNER BOUTIQUE
           </Button>
           )}
 

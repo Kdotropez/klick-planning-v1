@@ -481,6 +481,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.158': [
     'Fix blocage connexion: timeout codes Supabase, ecran demarrage direct, codes Nicolas/Maxime locaux.'
+  ],
+  '3.10.159': [
+    'Fusion boutique depuis JSON: recuperer Sainte-Maxime sans effacer les autres boutiques.',
+    'Alerte avant restauration Supabase complete si la sauvegarde contient moins de boutiques.'
   ]
 };
 

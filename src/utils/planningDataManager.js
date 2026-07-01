@@ -869,6 +869,53 @@ export const getRawWeekPlanningForShop = (planningData, shopId, weekKey) => {
   };
 };
 
+/** Fusionne toute une boutique depuis une sauvegarde sans toucher aux autres boutiques. */
+export const mergeShopFromBackup = (currentData, backupData, shopId) => {
+  if (!currentData?.shops?.length) {
+    throw new Error('Planning actuel invalide');
+  }
+  if (!backupData?.shops?.length) {
+    throw new Error('Sauvegarde source invalide');
+  }
+
+  const backupShop = backupData.shops.find((s) => String(s.id) === String(shopId));
+  if (!backupShop) {
+    throw new Error(`Boutique "${shopId}" introuvable dans la sauvegarde`);
+  }
+
+  const archivedIds = new Set([
+    ...getArchivedEmployeeIds(currentData),
+    ...getArchivedEmployeeIds(backupData)
+  ]);
+  const backupWeeks = JSON.parse(JSON.stringify(backupShop.weeks || {}));
+  const currentShopIndex = currentData.shops.findIndex((s) => String(s.id) === String(shopId));
+
+  let mergedShops;
+  if (currentShopIndex < 0) {
+    mergedShops = [...currentData.shops, JSON.parse(JSON.stringify(backupShop))];
+  } else {
+    mergedShops = currentData.shops.map((shop) => {
+      if (String(shop.id) !== String(shopId)) return shop;
+      return {
+        ...shop,
+        name: backupShop.name || shop.name,
+        canWorkIn: Array.isArray(backupShop.canWorkIn) ? [...backupShop.canWorkIn] : shop.canWorkIn,
+        config: { ...(shop.config || {}), ...(backupShop.config || {}) },
+        employees: mergeEmployeeLists(backupShop.employees, shop.employees, archivedIds),
+        weeks: {
+          ...(shop.weeks || {}),
+          ...backupWeeks
+        }
+      };
+    });
+  }
+
+  return {
+    ...currentData,
+    shops: mergedShops
+  };
+};
+
 /** Fusionne une boutique + semaine depuis une sauvegarde sans toucher aux autres boutiques. */
 export const mergeShopWeekFromBackup = (currentData, backupData, shopId, weekKey) => {
   if (!currentData?.shops?.length) {

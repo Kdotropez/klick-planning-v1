@@ -34,6 +34,7 @@ import {
   exportPlanningToExcel,
   importPlanningData,
   mergeShopWeekFromBackup,
+  mergeShopFromBackup,
   listShopWeeksWithData,
   getPlanningDataStats,
   validateTargetedMergeSafe,
@@ -92,6 +93,7 @@ const normalizeToken = (value) =>
 
 const App = () => {
   const isRestoringSupabaseRef = useRef(false);
+  const mergeShopJsonInputRef = useRef(null);
   // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
   const GLOBAL_LOCK_TTL_MS = 90 * 1000;
   const GLOBAL_HEARTBEAT_MS = 20 * 1000;
@@ -988,6 +990,12 @@ const App = () => {
         if (showStartupAlert) alert(message);
         return;
       }
+
+      const currentBeforeRestore = await loadCompleteBasePlanningData();
+      if (currentBeforeRestore && !confirmIfPartialRestoreWillEraseShops(currentBeforeRestore, restoredData)) {
+        setFeedback('ℹ️ Restauration annulée — vos boutiques actuelles sont conservées.');
+        return;
+      }
       
       // ⚡ CLEAR TOTAL DE TOUT LE LOCALSTORAGE (sauf l'utilisateur connecté)
       console.log('🧹 NETTOYAGE COMPLET du localStorage avant restauration...');
@@ -1128,6 +1136,12 @@ const App = () => {
         return;
       }
 
+      const currentBeforeRestore = await loadCompleteBasePlanningData();
+      if (currentBeforeRestore && !confirmIfPartialRestoreWillEraseShops(currentBeforeRestore, restoredData)) {
+        setFeedback('ℹ️ Restauration historique annulée — boutiques conservées.');
+        return;
+      }
+
       const currentUser = localStorage.getItem('current_user');
       const userId = localStorage.getItem('user_id');
       localStorage.clear();
@@ -1207,6 +1221,32 @@ const App = () => {
     }
     if (!baseData?.shops?.length) baseData = planningData;
     return baseData?.shops?.length ? baseData : null;
+  };
+
+  const confirmIfPartialRestoreWillEraseShops = (currentData, restoredData) => {
+    if (!currentData?.shops?.length || !restoredData?.shops?.length) return true;
+
+    const before = getPlanningDataStats(currentData);
+    const after = getPlanningDataStats(restoredData);
+    if (after.shopsCount >= before.shopsCount) return true;
+
+    const restoredIds = new Set(restoredData.shops.map((s) => String(s.id)));
+    const lostShops = (currentData.shops || [])
+      .filter((s) => s?.id && !restoredIds.has(String(s.id)))
+      .map((s) => s.name || s.id);
+
+    if (lostShops.length === 0) return true;
+
+    return window.confirm(
+      `⚠️ ATTENTION — restauration COMPLÈTE dangereuse\n\n` +
+        `Cette sauvegarde ne contient que ${after.shopsCount} boutique(s) ` +
+        `(vous en avez ${before.shopsCount} actuellement).\n\n` +
+        `Boutiques qui DISPARAÎTRONT :\n${lostShops.map((n) => `• ${n}`).join('\n')}\n\n` +
+        `Pour ajouter UNE boutique sans effacer les autres :\n` +
+        `→ 🏪 FUSIONNER BOUTIQUE (fichier JSON ou export 💾 JSON)\n` +
+        `→ 🎯 RESTAURATION CIBLÉE (semaine par semaine)\n\n` +
+        `OK = remplacer TOUT quand même\nAnnuler = garder vos boutiques actuelles`
+    );
   };
 
   const formatBackupMatchLine = (match, idx) => {
@@ -1525,6 +1565,12 @@ const App = () => {
         return;
       }
 
+      const currentBeforeRestore = await loadCompleteBasePlanningData();
+      if (currentBeforeRestore && !confirmIfPartialRestoreWillEraseShops(currentBeforeRestore, restoredData)) {
+        setFeedback('ℹ️ Restauration archive annulée — boutiques conservées.');
+        return;
+      }
+
       const currentUser = localStorage.getItem('current_user');
       const userId = localStorage.getItem('user_id');
       localStorage.clear();
@@ -1747,6 +1793,113 @@ const App = () => {
 
   // Alias pour handleImportData (utilisé dans certains composants)
   const handleImportData = handleImportPlanning;
+
+  const handleMergeShopFromJson = () => {
+    mergeShopJsonInputRef.current?.click();
+  };
+
+  const handleMergeShopJsonFileSelected = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      setFeedback('⏳ Lecture du fichier source...');
+      const sourceData = await importPlanningData(file);
+      const sourceShops = (sourceData.shops || []).filter((s) => s?.id);
+      if (!sourceShops.length) {
+        throw new Error('Le fichier ne contient aucune boutique.');
+      }
+
+      const baseData = await loadCompleteBasePlanningData();
+      if (!baseData) {
+        throw new Error('Planning actuel introuvable. Importez d’abord vos boutiques principales (🔄 Restaurer JSON).');
+      }
+
+      const shopLines = sourceShops.map((s, idx) => {
+        const weekCount = listShopWeeksWithData(sourceData, s.id).length;
+        return `${idx + 1}. ${s.name || s.id} (${weekCount} semaine(s) avec horaires)`;
+      });
+
+      const shopPick = window.prompt(
+        `🏪 Fusionner UNE boutique depuis ${file.name}\n\n` +
+          `Votre planning actuel : ${baseData.shops.length} boutique(s).\n` +
+          `Les autres boutiques ne seront PAS modifiées.\n\n` +
+          `${shopLines.join('\n')}\n\nNuméro de la boutique à fusionner :`
+      );
+      if (!shopPick) {
+        setFeedback('ℹ️ Fusion boutique annulée.');
+        return;
+      }
+
+      const shopIdx = Number.parseInt(shopPick, 10) - 1;
+      if (Number.isNaN(shopIdx) || shopIdx < 0 || shopIdx >= sourceShops.length) {
+        alert('❌ Numéro de boutique invalide.');
+        return;
+      }
+
+      const pickedShop = sourceShops[shopIdx];
+      const sourceWeeks = listShopWeeksWithData(sourceData, pickedShop.id);
+      const confirmMsg =
+        `Confirmer la fusion ?\n\n` +
+        `Source : ${file.name}\n` +
+        `Boutique : ${pickedShop.name || pickedShop.id}\n` +
+        `Semaines avec horaires : ${sourceWeeks.length}\n\n` +
+        `Vos autres boutiques (Port Grimaud, Saint-Tropez, etc.) restent intactes.`;
+
+      if (!window.confirm(confirmMsg)) {
+        setFeedback('ℹ️ Fusion boutique annulée.');
+        return;
+      }
+
+      const beforeStats = getPlanningDataStats(baseData);
+      const mergedData = mergeShopFromBackup(baseData, sourceData, pickedShop.id);
+      const afterStats = getPlanningDataStats(mergedData);
+      const shrinkWarnings = validateTargetedMergeSafe(beforeStats, afterStats, pickedShop.id);
+
+      if (shrinkWarnings.length > 0) {
+        alert(
+          '❌ Fusion refusée : des données seraient perdues.\n\n' +
+            shrinkWarnings.join('\n') +
+            '\n\nAucune modification enregistrée.'
+        );
+        setFeedback('❌ Fusion boutique annulée (perte de données détectée).');
+        return;
+      }
+
+      setPlanningData(mergedData);
+      localStorage.setItem('planningData', JSON.stringify(mergedData));
+      setSelectedShop(pickedShop.id);
+      if (sourceWeeks.length > 0) {
+        setSelectedWeek(sourceWeeks[sourceWeeks.length - 1].weekKey);
+      }
+      setMode('planning');
+
+      setFeedback(
+        `✅ ${pickedShop.name || pickedShop.id} fusionnée (${sourceWeeks.length} semaine(s)). ` +
+          `Exportez un JSON de secours avant SAUVE SUPABASE.`
+      );
+      alert(
+        `✅ Boutique « ${pickedShop.name || pickedShop.id} » fusionnée.\n\n` +
+          `${afterStats.shopsCount} boutique(s) au total, ${afterStats.weeksByShop[String(pickedShop.id)] || 0} semaine(s) pour cette boutique.\n\n` +
+          `Vérifiez le planning puis exportez un JSON de secours (💾 JSON).`
+      );
+
+      addAuditLog({
+        action: 'Fusion boutique JSON',
+        details: `Boutique ${pickedShop.name || pickedShop.id} depuis ${file.name}`,
+        userCode: currentUser?.code,
+        userName: currentUser?.name,
+        shopId: pickedShop.id,
+        shopName: pickedShop.name || pickedShop.id
+      });
+    } catch (error) {
+      const message = error?.message || String(error);
+      console.error('❌ Erreur fusion boutique:', error);
+      setFeedback(`❌ Erreur fusion boutique: ${message}`);
+      alert(`❌ Erreur fusion boutique:\n\n${message}`);
+    }
+  };
 
   const handleExit = async () => {
     if (!window.confirm('Êtes-vous sûr de vouloir quitter l\'application ?')) return;
@@ -2559,8 +2712,16 @@ const App = () => {
               onBrowseShopWeekArchives={handleBrowseShopWeekArchives}
               onRestoreShopWeekFromHistory={handleRestoreShopWeekFromHistory}
               onExploreBackupHistory={handleExploreBackupHistory}
+              onMergeShopFromJson={handleMergeShopFromJson}
               onExitApplication={handleExit}
             />
+          <input
+            ref={mergeShopJsonInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={handleMergeShopJsonFileSelected}
+          />
           <CopyrightNotice />
         </div>
         {/* <LicenseModal
