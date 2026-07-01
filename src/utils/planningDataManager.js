@@ -793,10 +793,11 @@ export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
   };
 };
 
-export const normalizeCompletePlanningData = (planningData, currentDate = new Date()) => {
+export const normalizeCompletePlanningData = (planningData, currentDate = new Date(), options = {}) => {
   if (!planningData?.shops?.length) return planningData;
+  const { skipEmployeeSync = false } = options;
   const { _mergeReport, ...rest } = planningData;
-  const synced = syncEmployeeNamesAcrossShops(rest, currentDate);
+  const synced = skipEmployeeSync ? rest : syncEmployeeNamesAcrossShops(rest, currentDate);
   return _mergeReport ? { ...synced, _mergeReport } : synced;
 };
 

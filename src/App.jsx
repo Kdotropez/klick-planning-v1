@@ -97,6 +97,9 @@ const App = () => {
   const isRestoringSupabaseRef = useRef(false);
   const mergeShopJsonInputRef = useRef(null);
   const heartbeatFailCountRef = useRef(0);
+  const bootstrapBackgroundSyncRef = useRef(false);
+  const BOOTSTRAP_REMOTE_TIMEOUT_MS = 5000;
+  const BOOTSTRAP_BACKGROUND_TIMEOUT_MS = 20000;
   // TTL verrou global (allongé pour limiter les déconnexions pendant SAUVE SUPABASE)
   const GLOBAL_LOCK_TTL_MS = 3 * 60 * 1000;
   const GLOBAL_HEARTBEAT_MS = 25 * 1000;
@@ -381,6 +384,36 @@ const App = () => {
 
   // Charger la version commune depuis Supabase au démarrage
   useEffect(() => {
+    const applyPlanningPayload = (payload, { persist = true } = {}) => {
+      const normalized = normalizeCompletePlanningData(payload);
+      setPlanningData(normalized);
+      if (persist) {
+        localStorage.setItem('planningData', JSON.stringify(normalized));
+      }
+      return normalized;
+    };
+
+    const syncRemotePlanningInBackground = () => {
+      if (bootstrapBackgroundSyncRef.current) return;
+      bootstrapBackgroundSyncRef.current = true;
+
+      withTimeout(
+        loadCompletePlanningData({ skipNormalize: true }),
+        BOOTSTRAP_BACKGROUND_TIMEOUT_MS,
+        'Sync Supabase arrière-plan'
+      )
+        .then((remoteData) => {
+          if (!isValidPlanningPayload(remoteData)) return;
+          applyPlanningPayload(remoteData);
+          setRestoredInfo('☁️ Planning synchronisé depuis Supabase.');
+          setIsSupabaseStartupReady(true);
+          console.log('✅ Sync Supabase arrière-plan terminée.');
+        })
+        .catch((error) => {
+          console.warn('⚠️ Sync Supabase arrière-plan impossible:', error);
+        });
+    };
+
     const bootstrapFromSupabase = async () => {
       try {
       pullUserCodesFromSupabase().catch((error) => {
@@ -398,81 +431,92 @@ const App = () => {
         console.error('❌ Erreur initialisation VersionChecker:', error);
       });
 
-      // Au lancement/rechargement, forcer une nouvelle identification.
       localStorage.removeItem('current_user');
       localStorage.removeItem('user_id');
       setCurrentUser(null);
       setHasGlobalLock(false);
       setIsSupabaseStartupReady(false);
+      setMode('identification');
 
       const localFallback = loadLocalPlanningFallback();
       const preferLocalUntilSave = localStorage.getItem('planning_prefer_local_until_save') === '1';
 
-      let remoteData = null;
-      if (!(preferLocalUntilSave && localFallback)) {
-        try {
-          remoteData = await withTimeout(
-            loadCompletePlanningData(),
-            10000,
-            'Chargement Supabase au démarrage'
-          );
-        } catch (bootstrapLoadError) {
-          console.warn('⚠️ Bootstrap Supabase timeout ou erreur réseau:', bootstrapLoadError);
-          remoteData = null;
-        }
+      const openReady = (info, feedback, ready = true) => {
+        setIsSupabaseStartupReady(ready);
+        setIsBootstrapComplete(true);
+        setRestoredInfo(info);
+        if (feedback) setFeedback(feedback);
+      };
+
+      // Ouverture rapide : copie locale immédiate, Supabase en arrière-plan
+      if (localFallback && preferLocalUntilSave) {
+        applyPlanningPayload(localFallback);
+        openReady(
+          '📁 JSON restauré conservé (priorité locale jusqu’à la prochaine SAUVE SUPABASE).',
+          'ℹ️ Votre JSON importé est actif — Supabase ignoré pour l’instant.'
+        );
+        console.log('✅ Bootstrap: priorité copie locale (import JSON récent).');
+        return;
       }
 
-      const isRemoteValid = isValidPlanningPayload(remoteData);
+      if (localFallback) {
+        applyPlanningPayload(localFallback, { persist: false });
+        openReady(
+          '📁 Ouverture rapide (copie locale). Synchronisation Supabase en cours…',
+          'ℹ️ Connexion possible — mise à jour cloud en arrière-plan.'
+        );
+        console.log('✅ Bootstrap rapide: localStorage, sync cloud différée.');
+        syncRemotePlanningInBackground();
+        return;
+      }
 
-      if (preferLocalUntilSave && localFallback) {
-        setPlanningData(localFallback);
-        localStorage.setItem('planningData', JSON.stringify(localFallback));
-        setIsSupabaseStartupReady(true);
-        setMode('identification');
-        setRestoredInfo('📁 JSON restauré conservé (priorité locale jusqu’à la prochaine SAUVE SUPABASE).');
-        setFeedback('ℹ️ Votre JSON importé est actif — Supabase ignoré pour l’instant.');
-        console.log('✅ Bootstrap: priorité copie locale (import JSON récent).');
-      } else if (isRemoteValid) {
-        const normalized = normalizeCompletePlanningData(remoteData);
-        setPlanningData(normalized);
-        localStorage.setItem('planningData', JSON.stringify(normalized));
-        setIsSupabaseStartupReady(true);
-        setMode('identification');
-        setRestoredInfo('☁️ Version commune Supabase chargée au démarrage.');
+      // Pas de copie locale : afficher l'écran tout de suite, charger Supabase (max 5 s)
+      setIsBootstrapComplete(true);
+      setRestoredInfo('⏳ Chargement Supabase…');
+      setFeedback('ℹ️ Chargement du planning depuis le cloud…');
+
+      let remoteData = null;
+      try {
+        remoteData = await withTimeout(
+          loadCompletePlanningData({ skipNormalize: true }),
+          BOOTSTRAP_REMOTE_TIMEOUT_MS,
+          'Chargement Supabase au démarrage'
+        );
+      } catch (bootstrapLoadError) {
+        console.warn('⚠️ Bootstrap Supabase timeout ou erreur réseau:', bootstrapLoadError);
+        remoteData = null;
+      }
+
+      if (isValidPlanningPayload(remoteData)) {
+        applyPlanningPayload(remoteData);
+        openReady('☁️ Version commune Supabase chargée au démarrage.');
         console.log('✅ Bootstrap Supabase réussi: version commune appliquée.');
-      } else if (localFallback) {
-        setPlanningData(localFallback);
-        localStorage.setItem('planningData', JSON.stringify(localFallback));
-        setIsSupabaseStartupReady(true);
-        setMode('identification');
-        setRestoredInfo('📁 Version locale utilisée (Supabase indisponible ou invalide). Vous pouvez vous connecter et restaurer votre JSON.');
-        setFeedback('ℹ️ Supabase inaccessible — reprise sur la copie locale.');
-        console.warn('⚠️ Bootstrap Supabase invalide — repli sur localStorage.');
       } else {
         localStorage.removeItem('planningData');
         setPlanningData(createNewPlanningData());
-        setIsSupabaseStartupReady(true);
-        setMode('identification');
-        setRestoredInfo(
-          '⚠️ Supabase inaccessible (réseau ou CORS). Vous pouvez vous connecter et utiliser 🔄 Restaurer JSON — pas de SAUVE SUPABASE tant que Supabase ne répond pas.'
+        openReady(
+          '⚠️ Supabase inaccessible ou trop lent. Import JSON possible après connexion.',
+          'ℹ️ Mode hors ligne : import JSON possible après connexion.'
         );
-        setFeedback('ℹ️ Mode hors ligne : import JSON possible après connexion.');
-        console.warn('⚠️ Bootstrap: ni Supabase ni local — mode hors ligne activé.');
+        console.warn('⚠️ Bootstrap: Supabase KO — mode hors ligne.');
+        syncRemotePlanningInBackground();
       }
       } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      const localFallback = loadLocalPlanningFallback();
-      if (localFallback) {
-        setPlanningData(localFallback);
-        localStorage.setItem('planningData', JSON.stringify(localFallback));
+      const localFallbackOnError = loadLocalPlanningFallback();
+      if (localFallbackOnError) {
+        applyPlanningPayload(localFallbackOnError);
         setIsSupabaseStartupReady(true);
+        setIsBootstrapComplete(true);
         setMode('identification');
         setRestoredInfo('📁 Version locale utilisée (erreur Supabase au démarrage).');
         setFeedback('ℹ️ Erreur Supabase — reprise sur la copie locale.');
+        syncRemotePlanningInBackground();
       } else {
         localStorage.removeItem('planningData');
         setPlanningData(createNewPlanningData());
         setIsSupabaseStartupReady(true);
+        setIsBootstrapComplete(true);
         setMode('identification');
         setRestoredInfo('⚠️ Erreur Supabase au démarrage. Connexion possible en mode hors ligne (import JSON).');
         setFeedback('ℹ️ Supabase indisponible — import JSON après connexion.');

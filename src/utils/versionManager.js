@@ -492,6 +492,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.161': [
     'SAUVE SUPABASE employes: fusion limitee a leur boutique — PG/STT/Cavalaire preserves.',
     'Sauvegarde annulee si le cloud Supabase est illisible (evite ecrasement des autres boutiques).'
+  ],
+  '3.10.162': [
+    'Demarrage rapide: ouverture immediate avec copie locale, sync Supabase en arriere-plan.',
+    'Requete Supabase allégée au boot; timeout reduit a 5 s si pas de copie locale.'
   ]
 };
 

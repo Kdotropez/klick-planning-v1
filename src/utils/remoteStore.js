@@ -879,7 +879,8 @@ export const getSupabaseBackupDiagnostics = async () => {
 };
 
 // Fonction pour charger le fichier complet de planning
-export const loadCompletePlanningData = async () => {
+export const loadCompletePlanningData = async (options = {}) => {
+  const { skipNormalize = false } = options;
   console.log('🔍 loadCompletePlanningData called');
   
   if (!isReady()) {
@@ -888,10 +889,9 @@ export const loadCompletePlanningData = async () => {
   }
   
   try {
-    // 1) Essayer de charger la ligne de backup complète dédiée
     const { data: completeRow, error: completeErr } = await supabase
       .from('plannings')
-      .select('*')
+      .select('data,updated_at')
       .eq('shop_id', 'complete_file')
       .eq('week_key', 'all_data')
       .maybeSingle();
@@ -899,26 +899,25 @@ export const loadCompletePlanningData = async () => {
       console.warn('⚠️ loadCompletePlanningData: échec lecture complete_file, on tente le fallback:', completeErr);
     }
     if (completeRow && isCompletePlanningData(completeRow.data)) {
-      const planningData = normalizeCompletePlanningData(completeRow.data);
+      const planningData = skipNormalize
+        ? completeRow.data
+        : normalizeCompletePlanningData(completeRow.data);
       console.log('✅ loadCompletePlanningData (complete_file) OK:', {
         shops: planningData.shops?.length || 0,
         version: planningData.version,
-        dataKeys: Object.keys(planningData),
-        hasPlanning: !!planningData.planning,
-        planningKeys: planningData.planning ? Object.keys(planningData.planning) : []
+        updatedAt: completeRow.updated_at
       });
       return planningData;
     }
     if (completeRow && completeRow.data && !isCompletePlanningData(completeRow.data)) {
       console.warn('⚠️ complete_file trouvé mais invalide (pas de shops), fallback multi-lignes...');
     }
-    // 2) Fallback léger: récupérer seulement les métadonnées (évite timeout JSON volumineux)
     const { data: latestRows, error: latestErr } = await supabase
       .from('plannings')
       .select('shop_id,week_key,updated_at')
       .neq('shop_id', 'system_config')
       .order('updated_at', { ascending: false })
-      .limit(25);
+      .limit(8);
     if (latestErr) {
       console.error('❌ Erreur lors du chargement (fallback):', latestErr);
       return null;
@@ -947,7 +946,7 @@ export const loadCompletePlanningData = async () => {
       return null;
     }
 
-    return normalizeCompletePlanningData(planningData);
+    return skipNormalize ? planningData : normalizeCompletePlanningData(planningData);
   } catch (error) {
     console.error('❌ Exception dans loadCompletePlanningData:', error);
     return null;

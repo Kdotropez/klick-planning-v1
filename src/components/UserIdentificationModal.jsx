@@ -36,7 +36,10 @@ const UserIdentificationModal = ({
   };
 
   useEffect(() => {
-    syncCodesFromCloud(false);
+    const timer = setTimeout(() => {
+      syncCodesFromCloud(false);
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   const resolveUserFromCodeInput = (inputCode, userCodes) => {
@@ -58,8 +61,6 @@ const UserIdentificationModal = ({
     setIsLoading(true);
 
     try {
-      await syncCodesFromCloud(false);
-
       if (lockCountdownSeconds > 0) {
         setError(
           `⛔ Planning déjà utilisé sur ${lockOwnerText || 'un autre poste'}. ` +
