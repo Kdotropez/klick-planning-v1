@@ -727,6 +727,18 @@ const mergeShopWithRemote = (localShop, remoteShop, archivedIds = new Set()) => 
  * - les boutiques absentes du poste local sont conservées (ex. Cavalaire)
  * - pour une boutique présente des deux côtés, les semaines locales écrasent le remote si elles ont des données
  */
+/**
+ * Limite la contribution locale à la fusion (employés : une seule boutique).
+ * Les autres boutiques viennent entièrement du cloud Supabase.
+ */
+export const restrictLocalDataForMerge = (localData, allowedShopIds) => {
+  if (!localData?.shops?.length || !allowedShopIds?.length) return localData;
+  const allowed = new Set(allowedShopIds.map(String));
+  const filteredShops = localData.shops.filter((shop) => allowed.has(String(shop.id)));
+  if (!filteredShops.length) return localData;
+  return { ...localData, shops: filteredShops };
+};
+
 export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
   const localShops = Array.isArray(localData?.shops) ? localData.shops : [];
   const remoteShops = Array.isArray(remoteData?.shops) ? remoteData.shops : [];

@@ -74,6 +74,7 @@ import {
   enrichUserSession,
   filterShopsForUser,
   canUserAccessShop,
+  getSaveMergeOptionsForUser,
   checkUserPermission
 } from './config/userCodes';
 
@@ -644,7 +645,10 @@ const App = () => {
 
       let saveSucceeded = false;
       try {
-        const saveResult = await saveCompletePlanningData(planningData);
+        const saveResult = await saveCompletePlanningData(
+          planningData,
+          getSaveMergeOptionsForUser(currentUser)
+        );
         saveSucceeded = !!saveResult?.ok;
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);
@@ -1971,7 +1975,10 @@ const App = () => {
 
     try {
       if (currentUser?.code && hasGlobalLock) {
-        const saveResult = await saveCompletePlanningData(planningData);
+        const saveResult = await saveCompletePlanningData(
+          planningData,
+          getSaveMergeOptionsForUser(currentUser)
+        );
         if (saveResult?.ok && saveResult.preservedShopIds?.length && saveResult.planningData) {
           setPlanningData(saveResult.planningData);
           localStorage.setItem('planningData', JSON.stringify(saveResult.planningData));

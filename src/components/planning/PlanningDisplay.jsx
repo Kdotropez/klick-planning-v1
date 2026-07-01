@@ -42,7 +42,8 @@ import {
   checkUserPermission,
   filterShopsForUser,
   canUserAccessShop,
-  filterPlanningDataForUser
+  filterPlanningDataForUser,
+  getSaveMergeOptionsForUser
 } from '../../config/userCodes';
 import {
   buildLandscapeHtmlDocument,
@@ -1355,9 +1356,12 @@ const PlanningDisplay = ({
         // Puis sauvegarde du fichier complet (backup) avec les données fraîches
         try { 
           console.log('🔄 Sauvegarde complète avec données fraîches...');
-          const remoteResult = await saveCompletePlanningData(updatedSnapshot);
+          const remoteResult = await saveCompletePlanningData(
+            updatedSnapshot,
+            getSaveMergeOptionsForUser(currentUser)
+          );
           if (remoteResult?.ok) {
-            if (remoteResult.preservedShopIds?.length && remoteResult.planningData) {
+            if (remoteResult.planningData) {
               setPlanningData(remoteResult.planningData);
               saveToLocalStorage('planningData', remoteResult.planningData);
             }
@@ -1376,7 +1380,11 @@ const PlanningDisplay = ({
             });
           } else {
             console.log('❌ Échec sauvegarde complète Supabase');
-            setLocalFeedback('❌ Échec sauvegarde complète');
+            const failMsg = remoteResult?.message || 'Échec sauvegarde complète — vos autres boutiques n\'ont pas été modifiées sur Supabase.';
+            setLocalFeedback(`❌ ${failMsg}`);
+            if (remoteResult?.reason === 'remote_unavailable') {
+              alert(`❌ ${failMsg}`);
+            }
           }
         } catch (error) {
           console.error('❌ Erreur sauvegarde complète Supabase:', error);

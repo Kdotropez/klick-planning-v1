@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData, mergeCompletePlanningWithRemote, normalizeCompletePlanningData } from './planningDataManager';
+import { getShopWeekBrief, getShopWeekBriefWithAliases, listShopWeeksWithData, mergeCompletePlanningWithRemote, normalizeCompletePlanningData, restrictLocalDataForMerge } from './planningDataManager';
 
 // Outbox locale pour mode hybride (sauvegardes différées)
 const OUTBOX_KEY = 'remote_outbox_v1';
@@ -279,6 +279,19 @@ const fetchRowData = async (shopId, weekKey) => {
   return data?.data || null;
 };
 
+const fetchCompleteRemoteWithRetry = async (attempts = 3) => {
+  for (let i = 0; i < attempts; i += 1) {
+    const remoteRow = await fetchRowData('complete_file', 'all_data');
+    if (remoteRow && isCompletePlanningData(remoteRow)) {
+      return remoteRow;
+    }
+    if (i < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 600 * (i + 1)));
+    }
+  }
+  return null;
+};
+
 // Fonction pour nettoyer et resauvegarder les données avec la bonne structure
 export const cleanAndResaveData = async () => {
   console.log('🧹 Nettoyage et resauvegarde des données...');
@@ -311,45 +324,66 @@ export const cleanAndResaveData = async () => {
 
 // Fonction pour sauvegarder le fichier complet de planning
 export const saveCompletePlanningData = async (completePlanningData, options = {}) => {
-  const { replaceEntirely = false } = options;
+  const { replaceEntirely = false, allowedShopIds = null } = options;
 
   console.log('🔍 saveCompletePlanningData called with:', { 
     hasData: !!completePlanningData,
     dataKeys: completePlanningData ? Object.keys(completePlanningData) : [],
     shopsCount: completePlanningData?.shops?.length || 0,
-    replaceEntirely
+    replaceEntirely,
+    allowedShopIds
   });
   
   if (!isReady() || !completePlanningData) {
     console.log('❌ saveCompletePlanningData: not ready or missing data');
-    return { ok: false };
+    return { ok: false, reason: 'not_ready' };
   }
   
   try {
     let dataToSave = normalizeCompletePlanningData(completePlanningData);
     let preservedShopIds = [];
+    let mergeApplied = false;
 
     if (!replaceEntirely) {
-      const remoteRow = await fetchRowData('complete_file', 'all_data');
-      if (remoteRow && isCompletePlanningData(remoteRow)) {
-        const merged = mergeCompletePlanningWithRemote(dataToSave, remoteRow);
-        preservedShopIds = merged._mergeReport?.preservedShopIds || [];
-        const { _mergeReport, ...withoutReport } = merged;
-        dataToSave = normalizeCompletePlanningData(withoutReport);
+      const remoteRow = await fetchCompleteRemoteWithRetry(3);
+      if (!remoteRow) {
+        console.error('❌ Fusion Supabase impossible : version cloud introuvable.');
+        return {
+          ok: false,
+          reason: 'remote_unavailable',
+          message:
+            'Impossible de lire le planning sur Supabase. Sauvegarde ANNULÉE pour protéger Port Grimaud, Saint-Tropez et les autres boutiques. Réessayez dans quelques minutes ou exportez un JSON local.'
+        };
+      }
 
-        if (preservedShopIds.length > 0) {
-          console.warn(
-            `🛡️ Fusion Supabase: ${preservedShopIds.length} boutique(s) absente(s) du poste local conservée(s):`,
-            preservedShopIds.join(', ')
-          );
-        }
+      const localForMerge = Array.isArray(allowedShopIds) && allowedShopIds.length > 0
+        ? restrictLocalDataForMerge(dataToSave, allowedShopIds)
+        : dataToSave;
+
+      const merged = mergeCompletePlanningWithRemote(localForMerge, remoteRow);
+      preservedShopIds = merged._mergeReport?.preservedShopIds || [];
+      const { _mergeReport, ...withoutReport } = merged;
+      dataToSave = normalizeCompletePlanningData(withoutReport);
+      mergeApplied = true;
+
+      if (preservedShopIds.length > 0) {
+        console.warn(
+          `🛡️ Fusion Supabase: ${preservedShopIds.length} boutique(s) conservée(s) depuis le cloud:`,
+          preservedShopIds.join(', ')
+        );
+      }
+      if (allowedShopIds?.length) {
+        console.log(
+          `🛡️ Sauvegarde limitée aux boutique(s) autorisée(s): ${allowedShopIds.join(', ')}`
+        );
       }
     }
 
     const backupMeta = {
       ...buildBackupMeta(dataToSave),
-      mergeApplied: !replaceEntirely,
+      mergeApplied: mergeApplied || !replaceEntirely,
       preservedShopIds,
+      allowedShopIds: allowedShopIds || [],
       localShopsCount: completePlanningData?.shops?.length || 0,
       mergedShopsCount: dataToSave?.shops?.length || 0
     };

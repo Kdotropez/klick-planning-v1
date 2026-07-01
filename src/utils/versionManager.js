@@ -488,6 +488,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.160': [
     'Verrou global: tolerance reseau Supabase, plus de deconnexion brutale au SAUVE SUPABASE.'
+  ],
+  '3.10.161': [
+    'SAUVE SUPABASE employes: fusion limitee a leur boutique — PG/STT/Cavalaire preserves.',
+    'Sauvegarde annulee si le cloud Supabase est illisible (evite ecrasement des autres boutiques).'
   ]
 };
 

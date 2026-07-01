@@ -1,7 +1,15 @@
 {
-  "version": "3.10.160",
+  "version": "3.10.161",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.161",
+      "date": "2026-05-29",
+      "changes": [
+        "Maxime/Cannes : SAUVE SUPABASE ne fusionne que leur boutique — Port Grimaud, Saint-Tropez et Cavalaire restent intacts.",
+        "Sauvegarde refusée si Supabase ne répond pas (plus d’écrasement du fichier complet par erreur)."
+      ]
+    },
     {
       "version": "3.10.160",
       "date": "2026-05-29",

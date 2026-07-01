@@ -18,17 +18,20 @@ const DEFAULT_USER_CODES = {
   Cannes: {
     name: 'Cannes',
     role: 'employee',
-    secretCode: 'Cannes'
+    secretCode: 'Cannes',
+    allowedShopIds: ['CANNES']
   },
   Maxime: {
     name: 'Maxime',
     role: 'employee',
-    secretCode: 'Maxime'
+    secretCode: 'Maxime',
+    allowedShopIds: ['SAINTE_MAXIME']
   },
   Tropez: {
     name: 'Tropez',
     role: 'employee',
-    secretCode: 'Tropez'
+    secretCode: 'Tropez',
+    allowedShopIds: ['SAINT_TROPEZ']
   }
 };
 
@@ -409,6 +412,15 @@ export const filterPlanningDataForUser = (userCode, planningData) => {
     ...planningData,
     shops: allowedShops
   };
+};
+
+/** Options de fusion Supabase : les employés ne poussent que leur(s) boutique(s) autorisée(s). */
+export const getSaveMergeOptionsForUser = (user) => {
+  if (!user?.code) return {};
+  if (canUserAccessAllShops(user.code)) return {};
+  const allowedShopIds = normalizeShopIds(user.allowedShopIds);
+  if (!allowedShopIds.length) return {};
+  return { allowedShopIds };
 };
 
 // Fonction pour obtenir les informations d'un utilisateur (sans le code secret)
