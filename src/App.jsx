@@ -342,9 +342,18 @@ const App = () => {
     }
   };
 
+  const withTimeout = (promise, ms, label = 'operation') =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
+      })
+    ]);
+
   // Charger la version commune depuis Supabase au démarrage
   useEffect(() => {
     const bootstrapFromSupabase = async () => {
+      let skipBootstrapComplete = false;
       try {
       // Précharger les codes utilisateurs partagés pour l'écran de connexion
       pullUserCodesFromSupabase().catch((error) => {
@@ -357,6 +366,7 @@ const App = () => {
       
       // Si la version a changé, on arrête ici car la page va se recharger
       if (versionChanged) {
+        skipBootstrapComplete = true;
         return;
       }
 
@@ -377,8 +387,20 @@ const App = () => {
       const localFallback = loadLocalPlanningFallback();
       const preferLocalUntilSave = localStorage.getItem('planning_prefer_local_until_save') === '1';
 
-      // Source de vérité au lancement : repli JSON récent > Supabase > local ancien.
-      const remoteData = await loadCompletePlanningData();
+      let remoteData = null;
+      if (!(preferLocalUntilSave && localFallback)) {
+        try {
+          remoteData = await withTimeout(
+            loadCompletePlanningData(),
+            10000,
+            'Chargement Supabase au démarrage'
+          );
+        } catch (bootstrapLoadError) {
+          console.warn('⚠️ Bootstrap Supabase timeout ou erreur réseau:', bootstrapLoadError);
+          remoteData = null;
+        }
+      }
+
       const isRemoteValid = isValidPlanningPayload(remoteData);
 
       if (preferLocalUntilSave && localFallback) {
@@ -435,7 +457,11 @@ const App = () => {
         setFeedback('ℹ️ Supabase indisponible — import JSON après connexion.');
       }
       }
-      setIsBootstrapComplete(true);
+      } finally {
+        if (!skipBootstrapComplete) {
+          setIsBootstrapComplete(true);
+        }
+      }
     };
 
     bootstrapFromSupabase();

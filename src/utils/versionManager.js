@@ -472,6 +472,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.155': [
     'CSP Vercel: autorise Supabase + vercel.live; connexion possible en mode hors ligne si Supabase CORS/reseau.'
+  ],
+  '3.10.156': [
+    'Demarrage: timeout Supabase 10s — plus de blocage infini sur « Chargement des donnees en cours ».'
   ]
 };
 
