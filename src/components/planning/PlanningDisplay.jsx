@@ -441,25 +441,19 @@ const PlanningDisplay = ({
   };
 
   const handleImportClick = () => {
-    // Créer un input file caché pour l'import
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json';
+    input.accept = '.json,application/json';
     input.style.display = 'none';
-    
     input.onchange = (event) => {
       const file = event.target.files?.[0];
       if (file && onImport) {
         onImport(file);
-        setLocalFeedback('📥 Fichier importé avec succès');
-      } else {
-        setLocalFeedback('❌ Erreur lors de l\'import');
       }
+      setTimeout(() => input.remove(), 0);
     };
-    
     document.body.appendChild(input);
     input.click();
-    document.body.removeChild(input);
   };
 
   const handleFileChange = (event) => {
@@ -664,6 +658,7 @@ const PlanningDisplay = ({
   const weekData = selectedShop && validWeek ? getWeekPlanning(planningData, selectedShop, validWeek) : { planning: {}, selectedEmployees: [] };
   const [planning, setPlanning] = useState(weekData.planning || {});
   const initialPlanningSyncKeyRef = useRef('');
+  const jsonRestoreInputRef = useRef(null);
 
   const getPlanningEntryCount = useCallback((weekPlanning) => {
     if (!weekPlanning || typeof weekPlanning !== 'object') return 0;
@@ -1522,61 +1517,66 @@ const PlanningDisplay = ({
     }
   }, []);
 
-  // Fonction pour restaurer les données de sauvegarde
+  const handleJsonRestoreFile = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!onImport) {
+      alert('❌ Restauration JSON indisponible.');
+      setLocalFeedback('❌ Restauration JSON indisponible.');
+      return;
+    }
+    try {
+      await onImport(file, { restoreInPlace: true });
+    } catch (error) {
+      console.error('Erreur restauration JSON:', error);
+      setLocalFeedback(`❌ ${error?.message || 'Erreur restauration JSON'}`);
+    }
+  }, [onImport]);
+
   const restoreFromBackup = useCallback(() => {
-    if (selectedShop && validWeek) {
-      const backupKeys = Object.keys(localStorage).filter(key => 
-        key.startsWith(`backup_${selectedShop}_${validWeek}_`)
+    const localJsonKeys = Object.keys(localStorage).filter((key) =>
+      key.startsWith('json_manualbackup_') ||
+      key.startsWith('json_autobackup_') ||
+      key.startsWith('planning_auto_backup_') ||
+      key.startsWith('planning_manual_backup_')
+    );
+
+    if (localJsonKeys.length > 0) {
+      const useLocal = window.confirm(
+        `Restaurer un fichier JSON depuis votre ordinateur ?\n\n` +
+          `OK = choisir un fichier .json\n` +
+          `Annuler = utiliser la dernière sauvegarde JSON locale (${localJsonKeys.length} trouvée(s) dans le navigateur)`
       );
-      
-      if (backupKeys.length > 0) {
-        // Prendre la sauvegarde la plus récente
-        const latestBackupKey = backupKeys.sort().pop();
-        const backupData = localStorage.getItem(latestBackupKey);
-        
-        if (backupData) {
-          try {
-            const restoredPlanning = JSON.parse(backupData);
-            setPlanning(restoredPlanning);
-            setLocalFeedback(`🔄 Données restaurées depuis: ${latestBackupKey}`);
-            console.log('🔄 Restauration depuis:', latestBackupKey);
-          } catch (error) {
-            console.error('Erreur lors de la restauration:', error);
-            setLocalFeedback('❌ Erreur lors de la restauration des données');
+      if (!useLocal) {
+        const latestKey = localJsonKeys.sort().pop();
+        try {
+          const raw = localStorage.getItem(latestKey);
+          const parsed = JSON.parse(raw || '{}');
+          if (!parsed?.shops?.length) {
+            throw new Error('Sauvegarde locale vide ou invalide');
           }
-        }
-      } else {
-        // Chercher dans toutes les sauvegardes disponibles
-        const allBackupKeys = Object.keys(localStorage).filter(key => 
-          key.startsWith('backup_')
-        );
-        
-        if (allBackupKeys.length > 0) {
-          const latestBackupKey = allBackupKeys.sort().pop();
-          const backupData = localStorage.getItem(latestBackupKey);
-          
-          if (backupData) {
-            try {
-              const restoredPlanning = JSON.parse(backupData);
-              setPlanning(restoredPlanning);
-              setLocalFeedback(`🔄 Données restaurées depuis: ${latestBackupKey}`);
-              console.log('🔄 Restauration depuis:', latestBackupKey);
-            } catch (error) {
-              console.error('Erreur lors de la restauration:', error);
-              setLocalFeedback('❌ Erreur lors de la restauration des données');
-            }
+          if (!window.confirm(`Restaurer la sauvegarde locale « ${latestKey} » ?\n\n${parsed.shops.length} boutique(s)`)) {
+            return;
           }
-        } else {
-          setLocalFeedback(
-            '❌ Aucune micro-sauvegarde créneau (backup_*) dans localStorage. ' +
-            'Pour restaurer toutes les boutiques : 📁 Importer un JSON ou 🕘 HISTORIQUE SUPABASE.'
-          );
+          setPlanningData(parsed);
+          localStorage.setItem('planningData', JSON.stringify(parsed));
+          setForceRefresh((prev) => prev + 1);
+          setLocalFeedback(`✅ JSON local restauré (${latestKey})`);
+          alert(`✅ Planning restauré depuis la sauvegarde locale.\n\n${parsed.shops.length} boutique(s).`);
+          return;
+        } catch (error) {
+          alert(`❌ Sauvegarde locale invalide : ${error.message}`);
         }
       }
-    } else {
-      setLocalFeedback('❌ Veuillez sélectionner une boutique et une semaine');
     }
-  }, [selectedShop, validWeek]);
+
+    if (jsonRestoreInputRef.current) {
+      jsonRestoreInputRef.current.click();
+    } else {
+      alert('❌ Sélecteur de fichier indisponible. Utilisez 📥 Importer les données.');
+    }
+  }, [setPlanningData]);
 
   // Fonction de sauvegarde automatique JSON
   const createAutoBackupJSON = useCallback((type = 'auto') => {
@@ -4421,6 +4421,14 @@ const PlanningDisplay = ({
 
 
 
+
+      <input
+        ref={jsonRestoreInputRef}
+        type="file"
+        accept=".json,application/json"
+        onChange={handleJsonRestoreFile}
+        style={{ display: 'none' }}
+      />
 
     </div>
   );

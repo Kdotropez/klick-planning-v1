@@ -775,7 +775,7 @@ const PlanningMenuBar = ({
           onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e55a00'}
           onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#fd7e14'}
         >
-          🔄 Restaurer
+          🔄 Restaurer JSON
         </Button>
         )}
 

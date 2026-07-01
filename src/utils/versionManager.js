@@ -462,6 +462,9 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.152': [
     'Historique: 300 snapshots + bouton ARCHIVES SAUVE SUPABASE pour retrouver les sauvegardes anciennes par boutique.'
+  ],
+  '3.10.153': [
+    'Bouton Restaurer JSON: ouvre le fichier .json (plus bouton inerte) + alertes de confirmation.'
   ]
 };
 

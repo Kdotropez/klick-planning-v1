@@ -1563,25 +1563,45 @@ const App = () => {
     setLicenseError('');
   };
 
-  const handleImportPlanning = async (file) => {
+  const handleImportPlanning = async (file, options = {}) => {
+    const restoreInPlace = options?.restoreInPlace === true;
     try {
+      setFeedback('⏳ Import du fichier JSON en cours...');
       const importedData = await importPlanningData(file);
-      setPlanningData(importedData);
-      
 
-      
-      // Sélectionner la première boutique par défaut
-      if (importedData.shops && importedData.shops.length > 0) {
-        setSelectedShop(resolvePreferredShopId(currentUser, importedData));
+      const shopCount = importedData.shops?.length || 0;
+      if (shopCount === 0) {
+        throw new Error('Le fichier ne contient aucune boutique.');
       }
-      
-      // Aller à la sélection de semaine (comportement d'origine qui fonctionnait)
-      setMode('week-selection');
-      setFeedback('Import réussi ! Veuillez sélectionner une semaine.');
-      
 
+      const confirmMsg = restoreInPlace
+        ? `Restaurer ce fichier JSON ?\n\n${shopCount} boutique(s) — ${file.name}\n\n⚠️ Remplace le planning actuel.`
+        : `Importer ${file.name} ?\n\n${shopCount} boutique(s) trouvée(s).`;
+      if (!window.confirm(confirmMsg)) {
+        setFeedback('ℹ️ Import annulé.');
+        return;
+      }
+
+      setPlanningData(importedData);
+      localStorage.setItem('planningData', JSON.stringify(importedData));
+
+      const shopId = resolvePreferredShopId(currentUser, importedData);
+      if (shopId) setSelectedShop(shopId);
+
+      if (restoreInPlace) {
+        setSelectedWeek(getCurrentWeekKey());
+        setMode('planning');
+        setFeedback(`✅ JSON restauré : ${shopCount} boutique(s) — ${file.name}`);
+        alert(`✅ Planning restauré depuis ${file.name}\n\n${shopCount} boutique(s). Vérifiez vos semaines avant SAUVE SUPABASE.`);
+      } else {
+        setMode('week-selection');
+        setFeedback('✅ Import réussi — sélectionnez une semaine.');
+        alert(`✅ Import réussi (${shopCount} boutique(s)). Sélectionnez une semaine.`);
+      }
     } catch (error) {
-      setFeedback(`Erreur d'import : ${error.message}`);
+      const message = error?.message || String(error);
+      setFeedback(`❌ Erreur d'import : ${message}`);
+      alert(`❌ Impossible de restaurer le JSON :\n\n${message}`);
     }
   };
 
