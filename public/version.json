@@ -1,7 +1,15 @@
 {
-  "version": "3.10.159",
+  "version": "3.10.160",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.160",
+      "date": "2026-05-29",
+      "changes": [
+        "Verrou global plus tolérant : moins de déconnexions intempestives pendant SAUVE SUPABASE.",
+        "Renouvellement du verrou automatique avant chaque sauvegarde."
+      ]
+    },
     {
       "version": "3.10.159",
       "date": "2026-05-29",

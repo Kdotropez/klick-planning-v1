@@ -207,7 +207,8 @@ export const heartbeat = async (userId) => {
         .from('planning_locks')
         .update({ updated_at: existing.updated_at })
         .eq('shop_id', 'GLOBAL')
-        .eq('week_key', 'GLOBAL');
+        .eq('week_key', 'GLOBAL')
+        .eq('user_id', userId);
       
       if (error) {
         console.error('❌ Erreur heartbeat Supabase:', error);

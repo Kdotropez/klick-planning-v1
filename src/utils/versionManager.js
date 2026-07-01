@@ -485,6 +485,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.159': [
     'Fusion boutique depuis JSON: recuperer Sainte-Maxime sans effacer les autres boutiques.',
     'Alerte avant restauration Supabase complete si la sauvegarde contient moins de boutiques.'
+  ],
+  '3.10.160': [
+    'Verrou global: tolerance reseau Supabase, plus de deconnexion brutale au SAUVE SUPABASE.'
   ]
 };
 

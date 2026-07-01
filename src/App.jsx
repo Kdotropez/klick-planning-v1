@@ -64,6 +64,7 @@ import {
   acquireLock,
   releaseLock,
   heartbeat,
+  getLock,
   cleanupExpiredLocks,
   emergencyUnlock
 } from './utils/collabLock';
@@ -94,9 +95,10 @@ const normalizeToken = (value) =>
 const App = () => {
   const isRestoringSupabaseRef = useRef(false);
   const mergeShopJsonInputRef = useRef(null);
-  // TTL court pour récupérer rapidement la main après fermeture/coupure d'un autre poste
-  const GLOBAL_LOCK_TTL_MS = 90 * 1000;
-  const GLOBAL_HEARTBEAT_MS = 20 * 1000;
+  const heartbeatFailCountRef = useRef(0);
+  // TTL verrou global (allongé pour limiter les déconnexions pendant SAUVE SUPABASE)
+  const GLOBAL_LOCK_TTL_MS = 3 * 60 * 1000;
+  const GLOBAL_HEARTBEAT_MS = 25 * 1000;
   const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
 
   // Fonctions de licence intégrées (Vercel-compatible)
@@ -722,20 +724,83 @@ const App = () => {
   useEffect(() => {
     if (!currentUser || !hasGlobalLock || supabaseSessionOffline) return undefined;
 
-    const intervalId = setInterval(async () => {
-      const hbResult = await heartbeat(getLockHolderId(currentUser));
-      if (hbResult?.ok) return;
+    const holderId = getLockHolderId(currentUser);
 
-      alert(
-        'La session a perdu le verrou global (ou un autre poste a repris la main).\n\n' +
-        'Vous allez être redirigé vers l’identification.'
-      );
-      localStorage.removeItem('current_user');
-      localStorage.removeItem('user_id');
-      setCurrentUser(null);
-      setHasGlobalLock(false);
-      setMode('identification');
-      setFeedback('❌ Session verrouillée perdue. Veuillez vous reconnecter.');
+    const intervalId = setInterval(async () => {
+      try {
+        const lock = await getLock();
+
+        if (lock?.user_id && lock.user_id !== holderId) {
+          heartbeatFailCountRef.current = 0;
+          alert(
+            'La session a perdu le verrou global (un autre poste a repris la main).\n\n' +
+            'Vous allez être redirigé vers l’identification.'
+          );
+          localStorage.removeItem('current_user');
+          localStorage.removeItem('user_id');
+          setCurrentUser(null);
+          setHasGlobalLock(false);
+          setMode('identification');
+          setFeedback('❌ Session verrouillée perdue. Veuillez vous reconnecter.');
+          return;
+        }
+
+        const hbResult = await heartbeat(holderId);
+        if (hbResult?.ok) {
+          heartbeatFailCountRef.current = 0;
+          return;
+        }
+
+        initGlobalLock();
+        const renew = await acquireLock(holderId, GLOBAL_LOCK_TTL_MS);
+        if (renew?.ok) {
+          heartbeatFailCountRef.current = 0;
+          return;
+        }
+
+        if (renew?.lock?.user_id && renew.lock.user_id !== holderId) {
+          heartbeatFailCountRef.current = 0;
+          alert(
+            'La session a perdu le verrou global (un autre poste a repris la main).\n\n' +
+            'Vous allez être redirigé vers l’identification.'
+          );
+          localStorage.removeItem('current_user');
+          localStorage.removeItem('user_id');
+          setCurrentUser(null);
+          setHasGlobalLock(false);
+          setMode('identification');
+          setFeedback('❌ Session verrouillée perdue. Veuillez vous reconnecter.');
+          return;
+        }
+
+        heartbeatFailCountRef.current += 1;
+        if (heartbeatFailCountRef.current < 4) {
+          console.warn(
+            `⚠️ Heartbeat verrou en échec (${heartbeatFailCountRef.current}/3) — nouvel essai…`
+          );
+          return;
+        }
+
+        alert(
+          'Impossible de maintenir le verrou global (Supabase instable).\n\n' +
+          'Vos données locales sont conservées. Reconnectez-vous et réessayez SAUVE SUPABASE.\n\n' +
+          'Fermez les autres onglets Klick-planning avant de vous reconnecter.'
+        );
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('user_id');
+        setCurrentUser(null);
+        setHasGlobalLock(false);
+        setMode('identification');
+        setFeedback('❌ Verrou global perdu (réseau). Reconnectez-vous.');
+        heartbeatFailCountRef.current = 0;
+      } catch (error) {
+        heartbeatFailCountRef.current += 1;
+        console.warn('⚠️ Erreur heartbeat verrou:', error);
+        if (heartbeatFailCountRef.current >= 4) {
+          setFeedback('⚠️ Supabase instable — verrou non confirmé. Évitez SAUVE SUPABASE ou reconnectez-vous.');
+          heartbeatFailCountRef.current = 0;
+        }
+      }
     }, GLOBAL_HEARTBEAT_MS);
 
     return () => clearInterval(intervalId);

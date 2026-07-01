@@ -35,6 +35,7 @@ import { usePlanningLock } from '../../hooks/usePlanningLock';
 
 import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
 import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
+import { heartbeat } from '../../utils/collabLock';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import { addAuditLog } from '@/utils/auditLog';
 import {
@@ -1316,6 +1317,15 @@ const PlanningDisplay = ({
     }
     try {
       if (selectedShop && validWeek) {
+        if (currentUser?.code) {
+          const holderId = `${currentUser.code}::${currentUser.sessionId || currentUser.loginTime || 'local'}`;
+          try {
+            await heartbeat(holderId);
+          } catch (lockError) {
+            console.warn('⚠️ Renouvellement verrou avant sauvegarde:', lockError);
+          }
+        }
+
         // Forcer la sauvegarde des données actuelles en mémoire
         let updatedSnapshot;
         setPlanningData((prev) => {
