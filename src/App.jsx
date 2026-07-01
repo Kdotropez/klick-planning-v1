@@ -456,7 +456,6 @@ const App = () => {
         setRestoredInfo('⚠️ Erreur Supabase au démarrage. Connexion possible en mode hors ligne (import JSON).');
         setFeedback('ℹ️ Supabase indisponible — import JSON après connexion.');
       }
-      }
       } finally {
         if (!skipBootstrapComplete) {
           setIsBootstrapComplete(true);
