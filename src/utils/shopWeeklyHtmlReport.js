@@ -33,6 +33,59 @@ export const DEFAULT_SHOP_REPORT_ALERT = {
 };
 
 export const SHOP_REPORT_ALERT_STORAGE_KEY = 'shopHtmlReportAlertPrefs';
+export const SHOP_REPORT_SECTIONS_STORAGE_KEY = 'shopHtmlReportSectionPrefs';
+
+export const SHOP_REPORT_SECTION_DEFS = [
+  { id: 'legend', label: 'Légende des couleurs', group: 'Synthèse' },
+  { id: 'alerts', label: 'Panneau alertes sous-effectif', group: 'Synthèse' },
+  { id: 'weekPanorama', label: 'Panorama semaine (7 jours côte à côte)', group: 'Vue semaine' },
+  { id: 'weekMatrix', label: 'Matrice effectif (créneau × jour)', group: 'Vue semaine' },
+  { id: 'overview', label: 'Tableau synthèse par employé', group: 'Vue semaine' },
+  { id: 'dayBlocks', label: 'Détail jour par jour (en-têtes + badges)', group: 'Détail par jour' },
+  { id: 'dayGantt', label: 'Cartographie Gantt (barres horaires)', group: 'Détail par jour', nested: true },
+  { id: 'dayHeatmap', label: 'Heatmap effectif du jour', group: 'Détail par jour', nested: true },
+  { id: 'dayTeamOverlap', label: 'Qui se croise en même temps', group: 'Détail par jour', nested: true },
+  { id: 'dayPlanningGrid', label: 'Grille planning (cases vertes)', group: 'Détail par jour', nested: true },
+  { id: 'dayTable', label: 'Tableau horaire détaillé', group: 'Détail par jour', nested: true }
+];
+
+export const DEFAULT_SHOP_REPORT_SECTIONS = SHOP_REPORT_SECTION_DEFS.reduce(
+  (acc, def) => ({ ...acc, [def.id]: true }),
+  {}
+);
+
+export const loadShopReportSectionPrefs = () => {
+  try {
+    const raw = localStorage.getItem(SHOP_REPORT_SECTIONS_STORAGE_KEY);
+    if (raw) return { ...DEFAULT_SHOP_REPORT_SECTIONS, ...JSON.parse(raw) };
+  } catch (_) {
+    /* ignore */
+  }
+  return { ...DEFAULT_SHOP_REPORT_SECTIONS };
+};
+
+export const saveShopReportSectionPrefs = (sections) => {
+  try {
+    localStorage.setItem(SHOP_REPORT_SECTIONS_STORAGE_KEY, JSON.stringify(sections));
+  } catch (_) {
+    /* ignore */
+  }
+};
+
+const normalizeSectionOptions = (sectionOptions = {}) => {
+  const merged = { ...DEFAULT_SHOP_REPORT_SECTIONS, ...sectionOptions };
+  if (!merged.dayBlocks) {
+    merged.dayGantt = false;
+    merged.dayHeatmap = false;
+    merged.dayTeamOverlap = false;
+    merged.dayPlanningGrid = false;
+    merged.dayTable = false;
+  }
+  return merged;
+};
+
+export const hasAnyShopReportSection = (sectionOptions) =>
+  Object.values(normalizeSectionOptions(sectionOptions)).some(Boolean);
 
 export const loadShopReportAlertPrefs = () => {
   try {
@@ -847,9 +900,11 @@ export const buildShopWeeklyReportBodyHtml = ({
   planning = {},
   config = {},
   employees = [],
-  alertOptions = DEFAULT_SHOP_REPORT_ALERT
+  alertOptions = DEFAULT_SHOP_REPORT_ALERT,
+  sectionOptions = DEFAULT_SHOP_REPORT_SECTIONS
 }) => {
   const opts = normalizeAlertOptions(alertOptions);
+  const sections = normalizeSectionOptions(sectionOptions);
   const employeeIds = employees.map((e) => e.id);
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
   const matrix = buildPresenceMatrix({
@@ -904,7 +959,8 @@ export const buildShopWeeklyReportBodyHtml = ({
     }
   });
 
-  const dayBlocks = readableDays.map(({ day, roster, workingCount, teamMoments }, dayIndex) => {
+  const dayBlocks = sections.dayBlocks
+    ? readableDays.map(({ day, roster, workingCount, teamMoments }, dayIndex) => {
     const palette = getDayColor(day.index);
     const congeCount = roster.filter((r) => r.type === 'conge').length;
     const maladieCount = roster.filter((r) => r.type === 'maladie').length;
@@ -924,17 +980,35 @@ export const buildShopWeeklyReportBodyHtml = ({
       )
       .join('');
 
-    const ganttHtml = buildDayGanttHtml(day, planning, config, employeeIds, nameById);
-    const heatmapHtml = buildCoverageHeatmapHtml(coverageCells, opts);
-    const teamHtml = buildTeamMomentsHtml(teamMoments);
-    const gridHtml = buildDayPlanningGridHtml({
-      day,
-      planning,
-      config,
-      employeeIds,
-      employeeNameById: nameById,
-      useFullNames: true
-    });
+    const ganttHtml = sections.dayGantt
+      ? `<div class="carto-section">
+        <h3 class="carto-title">🗺️ Cartographie horaire — qui est là quand</h3>
+        ${buildDayGanttHtml(day, planning, config, employeeIds, nameById)}
+      </div>`
+      : '';
+
+    const heatmapHtml = sections.dayHeatmap
+      ? `<div class="carto-section">
+        <h3 class="carto-title">📊 Effectif par créneau</h3>
+        <p class="carto-muted" style="margin:0 0 8px">Orange = 1 personne seule · Vert = 2+ personnes ensemble</p>
+        ${buildCoverageHeatmapHtml(coverageCells, opts)}
+      </div>`
+      : '';
+
+    const teamHtml = sections.dayTeamOverlap
+      ? `<div class="carto-section">${buildTeamMomentsHtml(teamMoments)}</div>`
+      : '';
+
+    const gridHtml = sections.dayPlanningGrid
+      ? buildDayPlanningGridHtml({
+          day,
+          planning,
+          config,
+          employeeIds,
+          employeeNameById: nameById,
+          useFullNames: true
+        })
+      : '';
 
     const detailRows = roster
       .filter((r) => r.type === 'work')
@@ -952,13 +1026,21 @@ export const buildShopWeeklyReportBodyHtml = ({
       })
       .join('');
 
-    const detailTable =
-      detailRows.length > 0
+    const detailTable = sections.dayTable
+      ? detailRows.length > 0
         ? `<table class="day-detail-table">
             <thead><tr><th>Employé</th><th>Entrée</th><th>Pause</th><th>Retour</th><th>Sortie</th><th>Heures</th></tr></thead>
             <tbody>${detailRows}</tbody>
           </table>`
-        : '<div class="day-empty">Personne en horaires de travail ce jour.</div>';
+        : '<div class="day-empty">Personne en horaires de travail ce jour.</div>'
+      : '';
+
+    const detailSection = sections.dayTable
+      ? `<div class="carto-section">
+          <h3 class="carto-title">📝 Tableau horaire détaillé</h3>
+          ${detailTable}
+        </div>`
+      : '';
 
     return `<section class="day-block" id="jour-${dayIndex + 1}">
       <div class="day-block-header" style="background:${palette.header};color:${palette.text};border-color:${palette.border}">
@@ -971,28 +1053,14 @@ export const buildShopWeeklyReportBodyHtml = ({
       </div>
 
       ${statusChips ? `<div class="carto-section"><div class="status-list">${statusChips}</div></div>` : ''}
-
-      <div class="carto-section">
-        <h3 class="carto-title">🗺️ Cartographie horaire — qui est là quand</h3>
-        ${ganttHtml}
-      </div>
-
-      <div class="carto-section">
-        <h3 class="carto-title">📊 Effectif par créneau (survolez / imprimez pour le détail)</h3>
-        <p class="carto-muted" style="margin:0 0 8px">Orange = 1 personne seule · Vert = 2+ personnes ensemble</p>
-        ${heatmapHtml}
-      </div>
-
-      <div class="carto-section">${teamHtml}</div>
-
+      ${ganttHtml}
+      ${heatmapHtml}
+      ${teamHtml}
       ${gridHtml ? `<div class="carto-section">${gridHtml}</div>` : ''}
-
-      <div class="carto-section">
-        <h3 class="carto-title">📝 Tableau horaire détaillé</h3>
-        ${detailTable}
-      </div>
+      ${detailSection}
     </section>`;
-  });
+  })
+    : [];
 
   const shopWeekTotal = Array.from(weekTotalsByEmployee.values()).reduce((s, h) => s + h, 0);
   const activeCount = overviewRows.length;
@@ -1015,36 +1083,40 @@ export const buildShopWeeklyReportBodyHtml = ({
     opts
   );
 
-  return `<div class="schedule-sheet readable-presence shop-report">
-    <style>${SHOP_REPORT_EXTRA_STYLES}</style>
-
-    <div class="legend">
+  const legendHtml = sections.legend
+    ? `<div class="legend">
       <span class="legend-item"><span class="legend-swatch" style="background:#fed7aa"></span> 1 seul(e) — créneau à surveiller</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#bbf7d0"></span> 2 personnes</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#86efac"></span> 3+ personnes</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span> Barre horaire employé (Gantt)</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#fef2f2;border:2px solid #dc2626"></span> Alerte sous-effectif</span>
-    </div>
+    </div>`
+    : '';
 
-    ${alertsPanelHtml}
+  const alertsHtml = sections.alerts ? alertsPanelHtml : '';
 
-    <div class="week-section">
+  const panoramaSection = sections.weekPanorama
+    ? `<div class="week-section">
       <h2 class="section-title">🗓️ Panorama semaine — 7 jours côte à côte</h2>
       <p style="margin:0 0 10px;color:#64748b;font-size:13px">
         Une ligne par employé : horaires de chaque jour en un coup d'œil.
       </p>
       ${weekPanoramaHtml}
-    </div>
+    </div>`
+    : '';
 
-    <div class="week-section">
+  const matrixSection = sections.weekMatrix
+    ? `<div class="week-section">
       <h2 class="section-title">📊 Matrice effectif semaine (créneau × jour)</h2>
       <p style="margin:0 0 10px;color:#64748b;font-size:13px">
         Alerte si effectif &lt; ${opts.minStaff} entre ${escapeHtml(opts.alertFrom)} et ${escapeHtml(opts.alertTo)} (bordure rouge).
       </p>
       ${weekMatrixHtml}
-    </div>
+    </div>`
+    : '';
 
-    <h2 class="section-title">Vue d'ensemble — ${escapeHtml(shopName)}</h2>
+  const overviewSection = sections.overview
+    ? `<h2 class="section-title">Vue d'ensemble — ${escapeHtml(shopName)}</h2>
     <p style="margin:0 0 10px;color:#64748b;font-size:13px">
       ${activeCount} employé(s) avec des heures · Total semaine : <strong>${escapeHtml(formatWorkedHoursForDisplay(shopWeekTotal))}</strong>
     </p>
@@ -1059,13 +1131,26 @@ export const buildShopWeeklyReportBodyHtml = ({
       <tbody>
         ${overviewRows.length ? overviewRows.join('') : '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:16px">Aucune heure enregistrée cette semaine.</td></tr>'}
       </tbody>
-    </table>
+    </table>`
+    : '';
 
-    <h2 class="section-title">Cartographie semaine — présence et chevauchements</h2>
+  const dayBlocksSection =
+    sections.dayBlocks && dayBlocks.length
+      ? `<h2 class="section-title">Cartographie semaine — présence et chevauchements</h2>
     <p style="margin:0 0 12px;color:#64748b;font-size:13px">
-      Pour chaque jour : barres horaires superposées (qui se croise), heatmap d'effectif, moments communs et grille planning.
+      Détail jour par jour selon les options cochées à l'export.
     </p>
-    ${dayBlocks.join('')}
+    ${dayBlocks.join('')}`
+      : '';
+
+  return `<div class="schedule-sheet readable-presence shop-report">
+    <style>${SHOP_REPORT_EXTRA_STYLES}</style>
+    ${legendHtml}
+    ${alertsHtml}
+    ${panoramaSection}
+    ${matrixSection}
+    ${overviewSection}
+    ${dayBlocksSection}
   </div>`;
 };
 
@@ -1074,10 +1159,15 @@ export const exportShopWeeklyHtmlReport = ({
   shopId,
   selectedWeek,
   openPreview = true,
-  alertOptions = DEFAULT_SHOP_REPORT_ALERT
+  alertOptions = DEFAULT_SHOP_REPORT_ALERT,
+  sectionOptions = DEFAULT_SHOP_REPORT_SECTIONS
 }) => {
   if (!planningData?.shops?.length || !shopId || !selectedWeek) {
     return { ok: false, reason: 'missing-data' };
+  }
+  const sections = normalizeSectionOptions(sectionOptions);
+  if (!hasAnyShopReportSection(sections)) {
+    return { ok: false, reason: 'no-sections' };
   }
   const shop = planningData.shops.find((s) => String(s.id) === String(shopId));
   if (!shop) return { ok: false, reason: 'shop-not-found' };
@@ -1098,7 +1188,8 @@ export const exportShopWeeklyHtmlReport = ({
     planning,
     config,
     employees,
-    alertOptions: normalizeAlertOptions(alertOptions)
+    alertOptions: normalizeAlertOptions(alertOptions),
+    sectionOptions: sections
   });
 
   const opts = normalizeAlertOptions(alertOptions);

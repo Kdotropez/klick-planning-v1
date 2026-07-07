@@ -7,8 +7,15 @@ import {
   collectShopReportEmployees,
   loadShopReportAlertPrefs,
   saveShopReportAlertPrefs,
-  DEFAULT_SHOP_REPORT_ALERT
+  loadShopReportSectionPrefs,
+  saveShopReportSectionPrefs,
+  SHOP_REPORT_SECTION_DEFS,
+  DEFAULT_SHOP_REPORT_ALERT,
+  DEFAULT_SHOP_REPORT_SECTIONS,
+  hasAnyShopReportSection
 } from '../../utils/shopWeeklyHtmlReport';
+
+const NESTED_DAY_KEYS = ['dayGantt', 'dayHeatmap', 'dayTeamOverlap', 'dayPlanningGrid', 'dayTable'];
 
 const ShopWeeklyHtmlReportModal = ({
   isOpen,
@@ -23,14 +30,16 @@ const ShopWeeklyHtmlReportModal = ({
   const [minStaff, setMinStaff] = useState(String(DEFAULT_SHOP_REPORT_ALERT.minStaff));
   const [alertFrom, setAlertFrom] = useState(DEFAULT_SHOP_REPORT_ALERT.alertFrom);
   const [alertTo, setAlertTo] = useState(DEFAULT_SHOP_REPORT_ALERT.alertTo);
+  const [sections, setSections] = useState({ ...DEFAULT_SHOP_REPORT_SECTIONS });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    const prefs = loadShopReportAlertPrefs();
-    setMinStaff(String(prefs.minStaff));
-    setAlertFrom(prefs.alertFrom);
-    setAlertTo(prefs.alertTo);
+    const alertPrefs = loadShopReportAlertPrefs();
+    setMinStaff(String(alertPrefs.minStaff));
+    setAlertFrom(alertPrefs.alertFrom);
+    setAlertTo(alertPrefs.alertTo);
+    setSections(loadShopReportSectionPrefs());
     if (selectedShop) setTargetShopId(selectedShop);
   }, [isOpen, selectedShop]);
 
@@ -42,6 +51,15 @@ const ShopWeeklyHtmlReportModal = ({
       })),
     [shops]
   );
+
+  const sectionGroups = useMemo(() => {
+    const groups = new Map();
+    SHOP_REPORT_SECTION_DEFS.forEach((def) => {
+      if (!groups.has(def.group)) groups.set(def.group, []);
+      groups.get(def.group).push(def);
+    });
+    return [...groups.entries()];
+  }, []);
 
   const weekLabel = useMemo(() => {
     if (!selectedWeek) return '';
@@ -72,16 +90,48 @@ const ShopWeeklyHtmlReportModal = ({
     return { teamSize: employees.length, withHours };
   }, [planningData, targetShopId, selectedWeek]);
 
+  const selectedCount = useMemo(
+    () => SHOP_REPORT_SECTION_DEFS.filter((def) => sections[def.id]).length,
+    [sections]
+  );
+
+  const toggleSection = (id, checked) => {
+    setSections((prev) => {
+      const next = { ...prev, [id]: checked };
+      if (id === 'dayBlocks' && !checked) {
+        NESTED_DAY_KEYS.forEach((key) => {
+          next[key] = false;
+        });
+      }
+      const def = SHOP_REPORT_SECTION_DEFS.find((d) => d.id === id);
+      if (def?.nested && checked) {
+        next.dayBlocks = true;
+      }
+      return next;
+    });
+  };
+
+  const setAllSections = (value) => {
+    setSections(
+      SHOP_REPORT_SECTION_DEFS.reduce((acc, def) => ({ ...acc, [def.id]: value }), {})
+    );
+  };
+
   if (!isOpen) return null;
 
   const handleExport = async () => {
     if (!targetShopId || !selectedWeek) return;
+    if (!hasAnyShopReportSection(sections)) {
+      onFeedback?.('❌ Cochez au moins une section à inclure dans le HTML.');
+      return;
+    }
     const alertOptions = {
       minStaff: parseInt(minStaff, 10) || DEFAULT_SHOP_REPORT_ALERT.minStaff,
       alertFrom,
       alertTo
     };
     saveShopReportAlertPrefs(alertOptions);
+    saveShopReportSectionPrefs(sections);
     setBusy(true);
     try {
       const result = exportShopWeeklyHtmlReport({
@@ -89,11 +139,14 @@ const ShopWeeklyHtmlReportModal = ({
         shopId: targetShopId,
         selectedWeek,
         openPreview: true,
-        alertOptions
+        alertOptions,
+        sectionOptions: sections
       });
       if (result?.ok) {
-        onFeedback?.('✅ Rapport HTML boutique généré (téléchargement + aperçu).');
+        onFeedback?.(`✅ Rapport HTML généré (${selectedCount} section(s)).`);
         onClose?.();
+      } else if (result?.reason === 'no-sections') {
+        onFeedback?.('❌ Aucune section sélectionnée.');
       } else {
         onFeedback?.('❌ Impossible de générer le rapport (données manquantes).');
       }
@@ -113,6 +166,17 @@ const ShopWeeklyHtmlReportModal = ({
     border: '1px solid #cbd5e1',
     boxSizing: 'border-box'
   };
+
+  const checkboxLabelStyle = (nested) => ({
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: nested ? 12 : 13,
+    marginBottom: 6,
+    marginLeft: nested ? 16 : 0,
+    color: nested && !sections.dayBlocks ? '#94a3b8' : '#334155',
+    cursor: 'pointer'
+  });
 
   return (
     <div
@@ -135,8 +199,8 @@ const ShopWeeklyHtmlReportModal = ({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(560px, 100%)',
-          maxHeight: '90vh',
+          width: 'min(600px, 100%)',
+          maxHeight: '92vh',
           overflow: 'auto',
           background: '#fff',
           borderRadius: 12,
@@ -181,10 +245,81 @@ const ShopWeeklyHtmlReportModal = ({
             }}
           >
             <legend style={{ fontWeight: 700, fontSize: 13, padding: '0 6px' }}>
+              📄 Sections à inclure dans le HTML ({selectedCount}/{SHOP_REPORT_SECTION_DEFS.length})
+            </legend>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setAllSections(true)}
+                style={{
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #99f6e4',
+                  background: '#f0fdfa',
+                  cursor: 'pointer'
+                }}
+              >
+                Tout cocher
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllSections(false)}
+                style={{
+                  fontSize: 11,
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  cursor: 'pointer'
+                }}
+              >
+                Tout décocher
+              </button>
+            </div>
+            {sectionGroups.map(([groupName, defs]) => (
+              <div key={groupName} style={{ marginBottom: 12 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: '#0f766e',
+                    marginBottom: 6
+                  }}
+                >
+                  {groupName}
+                </div>
+                {defs.map((def) => (
+                  <label key={def.id} style={checkboxLabelStyle(def.nested)}>
+                    <input
+                      type="checkbox"
+                      checked={!!sections[def.id]}
+                      disabled={def.nested && !sections.dayBlocks && def.id !== 'dayBlocks'}
+                      onChange={(e) => toggleSection(def.id, e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>{def.label}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </fieldset>
+
+          <fieldset
+            style={{
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '12px 14px',
+              margin: '0 0 16px'
+            }}
+          >
+            <legend style={{ fontWeight: 700, fontSize: 13, padding: '0 6px' }}>
               ⚠️ Alerte sous-effectif
             </legend>
             <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
-              Créneaux signalés en rouge si moins de personnes que le minimum, dans la plage horaire choisie.
+              Utilisée si panneau alertes, matrice semaine ou heatmap jour est coché.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <label style={{ fontSize: 12 }}>
@@ -219,30 +354,11 @@ const ShopWeeklyHtmlReportModal = ({
             </div>
           </fieldset>
 
-          <div
-            style={{
-              background: '#f0fdfa',
-              border: '1px solid #99f6e4',
-              borderRadius: 8,
-              padding: '12px 14px',
-              fontSize: 13,
-              color: '#134e4a',
-              lineHeight: 1.5,
-              marginBottom: 16
-            }}
-          >
-            <strong>Contenu du rapport :</strong>
-            <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
-              <li>Panorama 7 jours : une ligne par employé</li>
-              <li>Matrice créneau × jour + alertes sous-effectif</li>
-              <li>Cartographie Gantt, heatmap et croisements par jour</li>
-            </ul>
-            {previewStats && (
-              <p style={{ margin: '10px 0 0' }}>
-                {previewStats.teamSize} employé(s) affecté(s) · {previewStats.withHours} avec horaires cette semaine
-              </p>
-            )}
-          </div>
+          {previewStats && (
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: '#64748b' }}>
+              {previewStats.teamSize} employé(s) affecté(s) · {previewStats.withHours} avec horaires cette semaine
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <Button className="button-retour" onClick={onClose} disabled={busy}>
@@ -251,7 +367,7 @@ const ShopWeeklyHtmlReportModal = ({
             <Button
               className="button-primary"
               onClick={handleExport}
-              disabled={busy || !targetShopId}
+              disabled={busy || !targetShopId || selectedCount === 0}
               style={{ backgroundColor: '#0f766e' }}
             >
               {busy ? 'Génération…' : '📱 Générer le HTML'}

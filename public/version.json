@@ -1,7 +1,15 @@
 {
-  "version": "3.10.165",
+  "version": "3.10.166",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.166",
+      "date": "2026-05-29",
+      "changes": [
+        "Rapport équipe HTML : choix des sections à inclure (cases à cocher, tout cocher/décocher, préférences mémorisées).",
+        "Export allégé possible : panorama seul, matrice seule, ou détail jour sans grille/Gantt."
+      ]
+    },
     {
       "version": "3.10.165",
       "date": "2026-05-29",

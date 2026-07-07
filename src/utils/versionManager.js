@@ -509,6 +509,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.165': [
     'Rapport equipe HTML: panorama 7 jours + matrice creneau/jour.',
     'Alerte sous-effectif configurable (min pers. + plage horaire), memorisee localement.'
+  ],
+  '3.10.166': [
+    'Rapport equipe HTML: cases a cocher pour choisir les sections a imprimer.',
+    'Preferences sections memorisees; export partiel (panorama, matrice, detail jour...).'
   ]
 };
 
