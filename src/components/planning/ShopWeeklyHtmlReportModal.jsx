@@ -1,8 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { addDays, format, parseISO, startOfWeek, endOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Button from '../common/Button';
-import { exportShopWeeklyHtmlReport, collectShopReportEmployees } from '../../utils/shopWeeklyHtmlReport';
+import {
+  exportShopWeeklyHtmlReport,
+  collectShopReportEmployees,
+  loadShopReportAlertPrefs,
+  saveShopReportAlertPrefs,
+  DEFAULT_SHOP_REPORT_ALERT
+} from '../../utils/shopWeeklyHtmlReport';
 
 const ShopWeeklyHtmlReportModal = ({
   isOpen,
@@ -14,7 +20,19 @@ const ShopWeeklyHtmlReportModal = ({
   onFeedback
 }) => {
   const [targetShopId, setTargetShopId] = useState(selectedShop || '');
+  const [minStaff, setMinStaff] = useState(String(DEFAULT_SHOP_REPORT_ALERT.minStaff));
+  const [alertFrom, setAlertFrom] = useState(DEFAULT_SHOP_REPORT_ALERT.alertFrom);
+  const [alertTo, setAlertTo] = useState(DEFAULT_SHOP_REPORT_ALERT.alertTo);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const prefs = loadShopReportAlertPrefs();
+    setMinStaff(String(prefs.minStaff));
+    setAlertFrom(prefs.alertFrom);
+    setAlertTo(prefs.alertTo);
+    if (selectedShop) setTargetShopId(selectedShop);
+  }, [isOpen, selectedShop]);
 
   const shopOptions = useMemo(
     () =>
@@ -58,13 +76,20 @@ const ShopWeeklyHtmlReportModal = ({
 
   const handleExport = async () => {
     if (!targetShopId || !selectedWeek) return;
+    const alertOptions = {
+      minStaff: parseInt(minStaff, 10) || DEFAULT_SHOP_REPORT_ALERT.minStaff,
+      alertFrom,
+      alertTo
+    };
+    saveShopReportAlertPrefs(alertOptions);
     setBusy(true);
     try {
       const result = exportShopWeeklyHtmlReport({
         planningData,
         shopId: targetShopId,
         selectedWeek,
-        openPreview: true
+        openPreview: true,
+        alertOptions
       });
       if (result?.ok) {
         onFeedback?.('✅ Rapport HTML boutique généré (téléchargement + aperçu).');
@@ -78,6 +103,15 @@ const ShopWeeklyHtmlReportModal = ({
     } finally {
       setBusy(false);
     }
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 10px',
+    fontSize: 14,
+    borderRadius: 8,
+    border: '1px solid #cbd5e1',
+    boxSizing: 'border-box'
   };
 
   return (
@@ -101,11 +135,12 @@ const ShopWeeklyHtmlReportModal = ({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(520px, 100%)',
+          width: 'min(560px, 100%)',
+          maxHeight: '90vh',
+          overflow: 'auto',
           background: '#fff',
           borderRadius: 12,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
-          overflow: 'hidden'
+          boxShadow: '0 20px 50px rgba(0,0,0,0.2)'
         }}
       >
         <div
@@ -128,14 +163,7 @@ const ShopWeeklyHtmlReportModal = ({
           <select
             value={targetShopId}
             onChange={(e) => setTargetShopId(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              fontSize: 14,
-              borderRadius: 8,
-              border: '1px solid #cbd5e1',
-              marginBottom: 16
-            }}
+            style={{ ...inputStyle, marginBottom: 16 }}
           >
             {shopOptions.map((opt) => (
               <option key={opt.id} value={opt.id}>
@@ -143,6 +171,53 @@ const ShopWeeklyHtmlReportModal = ({
               </option>
             ))}
           </select>
+
+          <fieldset
+            style={{
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: '12px 14px',
+              margin: '0 0 16px'
+            }}
+          >
+            <legend style={{ fontWeight: 700, fontSize: 13, padding: '0 6px' }}>
+              ⚠️ Alerte sous-effectif
+            </legend>
+            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+              Créneaux signalés en rouge si moins de personnes que le minimum, dans la plage horaire choisie.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <label style={{ fontSize: 12 }}>
+                Minimum requis
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={minStaff}
+                  onChange={(e) => setMinStaff(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 4 }}
+                />
+              </label>
+              <label style={{ fontSize: 12 }}>
+                De (heure)
+                <input
+                  type="time"
+                  value={alertFrom}
+                  onChange={(e) => setAlertFrom(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 4 }}
+                />
+              </label>
+              <label style={{ fontSize: 12 }}>
+                À (heure)
+                <input
+                  type="time"
+                  value={alertTo}
+                  onChange={(e) => setAlertTo(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 4 }}
+                />
+              </label>
+            </div>
+          </fieldset>
 
           <div
             style={{
@@ -158,9 +233,9 @@ const ShopWeeklyHtmlReportModal = ({
           >
             <strong>Contenu du rapport :</strong>
             <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
-              <li>Tableau synthèse : qui travaille chaque jour + total semaine</li>
-              <li>Détail par jour : entrée, pause, sortie, heures</li>
-              <li>Bandeau « Présents » pour voir l'équipe en un coup d'œil</li>
+              <li>Panorama 7 jours : une ligne par employé</li>
+              <li>Matrice créneau × jour + alertes sous-effectif</li>
+              <li>Cartographie Gantt, heatmap et croisements par jour</li>
             </ul>
             {previewStats && (
               <p style={{ margin: '10px 0 0' }}>

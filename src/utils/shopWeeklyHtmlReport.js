@@ -16,8 +16,7 @@ import {
 } from './presenceMapExport';
 import { buildSlotRangeLines, getSlotEndTimeFormatted } from './slotDurationUtils';
 import {
-  formatWorkedHoursForDisplay,
-  formatWorkedHoursNbNotation
+  formatWorkedHoursForDisplay
 } from './planningUtils';
 import { isEmployeeAssignedToShop, isEmployeeHidden } from './planningDataManager';
 
@@ -26,6 +25,52 @@ const normSlot = (v) => v === true || v === 1 || v === '1' || v === 'true';
 const BAR_COLORS = [
   '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#ea580c'
 ];
+
+export const DEFAULT_SHOP_REPORT_ALERT = {
+  minStaff: 2,
+  alertFrom: '18:00',
+  alertTo: '21:00'
+};
+
+export const SHOP_REPORT_ALERT_STORAGE_KEY = 'shopHtmlReportAlertPrefs';
+
+export const loadShopReportAlertPrefs = () => {
+  try {
+    const raw = localStorage.getItem(SHOP_REPORT_ALERT_STORAGE_KEY);
+    if (raw) return { ...DEFAULT_SHOP_REPORT_ALERT, ...JSON.parse(raw) };
+  } catch (_) {
+    /* ignore */
+  }
+  return { ...DEFAULT_SHOP_REPORT_ALERT };
+};
+
+export const saveShopReportAlertPrefs = (prefs) => {
+  try {
+    localStorage.setItem(SHOP_REPORT_ALERT_STORAGE_KEY, JSON.stringify(prefs));
+  } catch (_) {
+    /* ignore */
+  }
+};
+
+const normalizeAlertOptions = (alertOptions = {}) => ({
+  minStaff: Math.max(1, parseInt(alertOptions.minStaff, 10) || DEFAULT_SHOP_REPORT_ALERT.minStaff),
+  alertFrom: alertOptions.alertFrom || DEFAULT_SHOP_REPORT_ALERT.alertFrom,
+  alertTo: alertOptions.alertTo || DEFAULT_SHOP_REPORT_ALERT.alertTo
+});
+
+const slotOverlapsWindow = (slotStartMin, slotEndMin, windowStartMin, windowEndMin) =>
+  slotStartMin < windowEndMin && slotEndMin > windowStartMin;
+
+const isCoverageCellUnderStaffed = (cell, alertOptions) => {
+  const opts = normalizeAlertOptions(alertOptions);
+  const fromMin = timeToMinutes(opts.alertFrom);
+  const toMin = timeToMinutes(opts.alertTo);
+  const startMin = timeToMinutes(cell.slot);
+  const endMin = timeToMinutes(cell.slotEnd);
+  if (fromMin == null || toMin == null || startMin == null || endMin == null) return false;
+  if (!slotOverlapsWindow(startMin, endMin, fromMin, toMin)) return false;
+  return cell.count > 0 && cell.count < opts.minStaff;
+};
 
 const sanitizeFilePart = (value) =>
   String(value || 'boutique')
@@ -189,7 +234,7 @@ const buildDayGanttHtml = (day, planning, config, employeeIds, nameById) => {
   </div>`;
 };
 
-const buildCoverageHeatmapHtml = (coverageCells) => {
+const buildCoverageHeatmapHtml = (coverageCells, alertOptions = null) => {
   const activeCells = coverageCells.filter((c) => c.count > 0);
   if (!activeCells.length) {
     return '<p class="carto-empty">Aucun créneau couvert ce jour.</p>';
@@ -200,7 +245,9 @@ const buildCoverageHeatmapHtml = (coverageCells) => {
     .map((cell) => {
       if (cell.count === 0) return '';
       const title = cell.names.length ? `${cell.label} : ${cell.names.join(', ')}` : cell.label;
-      return `<div class="cov-cell ${coverageLevelClass(cell.count)}" title="${escapeHtml(title)}">
+      const alertClass =
+        alertOptions && isCoverageCellUnderStaffed(cell, alertOptions) ? ' cov-alert' : '';
+      return `<div class="cov-cell ${coverageLevelClass(cell.count)}${alertClass}" title="${escapeHtml(title)}">
         <span class="cov-time">${escapeHtml(cell.slot)}</span>
         <span class="cov-count">${cell.count}</span>
       </div>`;
@@ -235,6 +282,161 @@ const buildTeamMomentsHtml = (teamMoments) => {
           `<div class="team-line"><strong>${escapeHtml(m.timeLabel)}</strong> — ${escapeHtml(m.names.join(' · '))} <span class="team-count">(${m.count} pers.)</span></div>`
       )
       .join('')}
+  </div>`;
+};
+
+const collectWeekAlerts = (weekDays, planning, config, employeeIds, nameById, alertOptions) => {
+  const alerts = [];
+  weekDays.forEach((day) => {
+    buildDayCoverageCells(day, planning, config, employeeIds, nameById).forEach((cell) => {
+      if (!isCoverageCellUnderStaffed(cell, alertOptions)) return;
+      alerts.push({
+        dayKey: day.dayKey,
+        dayShort: day.shortLabel,
+        dayWeekday: day.weekday,
+        ...cell
+      });
+    });
+  });
+  return alerts;
+};
+
+const buildAlertsPanelHtml = (alerts, alertOptions, shopName) => {
+  const opts = normalizeAlertOptions(alertOptions);
+  if (!alerts.length) {
+    return `<div class="alert-panel alert-panel-ok">
+      <h3>✅ Effectif — fenêtre ${escapeHtml(opts.alertFrom)} → ${escapeHtml(opts.alertTo)}</h3>
+      <p>Aucun créneau actif sous ${opts.minStaff} personne(s) dans cette plage pour <strong>${escapeHtml(shopName)}</strong>.</p>
+    </div>`;
+  }
+  const rows = alerts
+    .map(
+      (a) =>
+        `<tr class="alert-row">
+          <td>${escapeHtml(a.dayWeekday)} ${escapeHtml(format(parseISO(a.dayKey), 'dd/MM'))}</td>
+          <td><strong>${escapeHtml(a.label)}</strong></td>
+          <td class="alert-count">${a.count} pers.</td>
+          <td>${escapeHtml(a.names.join(' · ') || '—')}</td>
+        </tr>`
+    )
+    .join('');
+  return `<div class="alert-panel alert-panel-warn">
+    <h3>⚠️ Sous-effectif — moins de ${opts.minStaff} personne(s) entre ${escapeHtml(opts.alertFrom)} et ${escapeHtml(opts.alertTo)}</h3>
+    <p>${alerts.length} créneau(x) à surveiller cette semaine.</p>
+    <table class="alert-table">
+      <thead><tr><th>Jour</th><th>Créneau</th><th>Effectif</th><th>Présents</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+};
+
+const buildWeekEmployeePanoramaHtml = (weekDays, planning, config, employeeIds, nameById) => {
+  const headDays = weekDays
+    .map((day) => {
+      const palette = getDayColor(day.index);
+      return `<div class="wp-day-head" style="background:${palette.header};color:${palette.text};border-color:${palette.border}">${escapeHtml(day.shortLabel)}</div>`;
+    })
+    .join('');
+
+  const rows = employeeIds
+    .map((empId) => {
+      let hasWork = false;
+      const cells = weekDays.map((day) => {
+        const schedule = buildEmployeeDaySchedule(planning, empId, day, config);
+        const palette = getDayColor(day.index);
+        if (schedule.type === 'work') {
+          hasWork = true;
+          return `<div class="wp-cell wp-work" style="background:${palette.cell};border-color:${palette.border}">
+            <span class="wp-ranges">${escapeHtml(schedule.rangesLabel)}</span>
+            <span class="wp-hours">${escapeHtml(schedule.hoursLabel)}</span>
+          </div>`;
+        }
+        if (schedule.type === 'conge') {
+          return `<div class="wp-cell wp-conge">Congé</div>`;
+        }
+        if (schedule.type === 'maladie') {
+          return `<div class="wp-cell wp-maladie">Mal.</div>`;
+        }
+        return `<div class="wp-cell wp-off">—</div>`;
+      });
+      if (!hasWork) return '';
+      const color = BAR_COLORS[employeeIds.indexOf(empId) % BAR_COLORS.length];
+      return `<div class="wp-row">
+        <div class="wp-name" style="border-left:4px solid ${color}">${escapeHtml(nameById.get(empId) || empId)}</div>
+        ${cells.join('')}
+      </div>`;
+    })
+    .filter(Boolean)
+    .join('');
+
+  if (!rows) {
+    return '<p class="carto-empty">Aucun horaire sur la semaine.</p>';
+  }
+
+  return `<div class="week-panorama">
+    <div class="wp-row wp-head">
+      <div class="wp-name">Employé</div>
+      ${headDays}
+    </div>
+    ${rows}
+  </div>`;
+};
+
+const buildWeekCoverageMatrixHtml = (weekDays, planning, config, employeeIds, nameById, alertOptions) => {
+  const timeSlots = config?.timeSlots || [];
+  if (!timeSlots.length) return '';
+
+  const dayCoverage = weekDays.map((day) =>
+    buildDayCoverageCells(day, planning, config, employeeIds, nameById)
+  );
+
+  const activeSlotIndexes = new Set();
+  dayCoverage.forEach((cells) => {
+    cells.forEach((cell, idx) => {
+      if (cell.count > 0) activeSlotIndexes.add(idx);
+    });
+  });
+
+  const slotIndexes = [...activeSlotIndexes].sort((a, b) => a - b);
+  if (!slotIndexes.length) {
+    return '<p class="carto-empty">Aucun créneau couvert sur la semaine.</p>';
+  }
+
+  const headDays = weekDays
+    .map((day) => {
+      const palette = getDayColor(day.index);
+      return `<th style="background:${palette.header} !important;color:${palette.text} !important">${escapeHtml(day.shortLabel)}</th>`;
+    })
+    .join('');
+
+  const bodyRows = slotIndexes
+    .map((slotIdx) => {
+      const sample = dayCoverage[0][slotIdx];
+      const timeLabel = sample?.label || timeSlots[slotIdx];
+      const cells = dayCoverage
+        .map((dayCells, dayIndex) => {
+          const cell = dayCells[slotIdx];
+          if (!cell || cell.count === 0) {
+            return `<td class="wcm-empty">·</td>`;
+          }
+          const alertClass =
+            isCoverageCellUnderStaffed(cell, alertOptions) ? ' wcm-alert' : '';
+          const title = cell.names.join(', ');
+          return `<td class="wcm-cell ${coverageLevelClass(cell.count)}${alertClass}" title="${escapeHtml(title)}">
+            <span class="wcm-count">${cell.count}</span>
+          </td>`;
+        })
+        .join('');
+      return `<tr><td class="wcm-time">${escapeHtml(timeLabel)}</td>${cells}</tr>`;
+    })
+    .join('');
+
+  return `<div class="week-matrix-wrap">
+    <table class="week-coverage-matrix">
+      <thead><tr><th>Horaire</th>${headDays}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+    <p class="carto-muted" style="margin:8px 0 0">Lecture : chiffre = personnes en boutique · bordure rouge = sous-effectif (alerte)</p>
   </div>`;
 };
 
@@ -476,6 +678,153 @@ const SHOP_REPORT_EXTRA_STYLES = `
   }
   .shop-report .status-chip.conge { background: #ffedd5; color: #c2410c; }
   .shop-report .status-chip.maladie { background: #fee2e2; color: #dc2626; }
+  .shop-report .cov-cell.cov-alert {
+    box-shadow: 0 0 0 2px #dc2626 inset;
+    animation: pulse-alert 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-alert {
+    0%, 100% { box-shadow: 0 0 0 2px #dc2626 inset; }
+    50% { box-shadow: 0 0 0 3px #ef4444 inset; }
+  }
+  .shop-report .alert-panel {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    page-break-inside: avoid;
+  }
+  .shop-report .alert-panel-ok {
+    background: #ecfdf5;
+    border: 2px solid #6ee7b7;
+    color: #065f46;
+  }
+  .shop-report .alert-panel-warn {
+    background: #fef2f2;
+    border: 2px solid #fca5a5;
+    color: #991b1b;
+  }
+  .shop-report .alert-panel h3 { margin: 0 0 6px; font-size: 14px; }
+  .shop-report .alert-panel p { margin: 0 0 8px; font-size: 12px; }
+  .shop-report .alert-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .shop-report .alert-table th {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    padding: 6px 8px !important;
+    text-align: left;
+  }
+  .shop-report .alert-table td {
+    padding: 6px 8px;
+    border-top: 1px solid #fecaca;
+    vertical-align: top;
+  }
+  .shop-report .alert-count { font-weight: 800; white-space: nowrap; }
+  .shop-report .week-panorama {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .shop-report .wp-row {
+    display: grid;
+    grid-template-columns: 108px repeat(7, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid #e2e8f0;
+  }
+  .shop-report .wp-row.wp-head { border-top: none; background: #f8fafc; }
+  .shop-report .wp-name {
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid #e2e8f0;
+  }
+  .shop-report .wp-day-head {
+    padding: 8px 4px;
+    font-size: 10px;
+    font-weight: 800;
+    text-align: center;
+    border-right: 1px solid rgba(0,0,0,0.06);
+    border-bottom: 2px solid;
+  }
+  .shop-report .wp-cell {
+    padding: 6px 4px;
+    min-height: 44px;
+    font-size: 9px;
+    line-height: 1.25;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .shop-report .wp-ranges { font-weight: 700; color: #0f766e; }
+  .shop-report .wp-hours { font-size: 8px; color: #64748b; margin-top: 2px; }
+  .shop-report .wp-conge { background: #fff7ed; color: #c2410c; font-weight: 700; }
+  .shop-report .wp-maladie { background: #fef2f2; color: #dc2626; font-weight: 700; }
+  .shop-report .wp-off { background: #f8fafc; color: #cbd5e1; }
+  .shop-report .week-matrix-wrap {
+    overflow-x: auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    padding: 4px;
+  }
+  .shop-report .week-coverage-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 520px;
+  }
+  .shop-report .week-coverage-matrix th {
+    padding: 8px 6px !important;
+    text-align: center !important;
+    font-size: 10px !important;
+  }
+  .shop-report .week-coverage-matrix .wcm-time {
+    font-weight: 700;
+    white-space: nowrap;
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    padding: 6px 8px !important;
+    font-size: 10px !important;
+  }
+  .shop-report .week-coverage-matrix .wcm-cell {
+    text-align: center;
+    padding: 6px 4px !important;
+    min-width: 36px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .shop-report .week-coverage-matrix .wcm-empty {
+    text-align: center;
+    color: #cbd5e1;
+    background: #fafafa !important;
+  }
+  .shop-report .week-coverage-matrix .wcm-count {
+    font-weight: 800;
+    font-size: 13px;
+  }
+  .shop-report .week-coverage-matrix .wcm-alert {
+    box-shadow: inset 0 0 0 2px #dc2626;
+  }
+  .shop-report .week-section {
+    margin: 18px 0;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    page-break-inside: avoid;
+  }
 `;
 
 export const collectShopReportEmployees = (shop, planningData, weekDate) => {
@@ -497,8 +846,10 @@ export const buildShopWeeklyReportBodyHtml = ({
   weekDays = [],
   planning = {},
   config = {},
-  employees = []
+  employees = [],
+  alertOptions = DEFAULT_SHOP_REPORT_ALERT
 }) => {
+  const opts = normalizeAlertOptions(alertOptions);
   const employeeIds = employees.map((e) => e.id);
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
   const matrix = buildPresenceMatrix({
@@ -574,7 +925,7 @@ export const buildShopWeeklyReportBodyHtml = ({
       .join('');
 
     const ganttHtml = buildDayGanttHtml(day, planning, config, employeeIds, nameById);
-    const heatmapHtml = buildCoverageHeatmapHtml(coverageCells);
+    const heatmapHtml = buildCoverageHeatmapHtml(coverageCells, opts);
     const teamHtml = buildTeamMomentsHtml(teamMoments);
     const gridHtml = buildDayPlanningGridHtml({
       day,
@@ -646,6 +997,24 @@ export const buildShopWeeklyReportBodyHtml = ({
   const shopWeekTotal = Array.from(weekTotalsByEmployee.values()).reduce((s, h) => s + h, 0);
   const activeCount = overviewRows.length;
 
+  const weekAlerts = collectWeekAlerts(weekDays, planning, config, employeeIds, nameById, opts);
+  const alertsPanelHtml = buildAlertsPanelHtml(weekAlerts, opts, shopName);
+  const weekPanoramaHtml = buildWeekEmployeePanoramaHtml(
+    weekDays,
+    planning,
+    config,
+    employeeIds,
+    nameById
+  );
+  const weekMatrixHtml = buildWeekCoverageMatrixHtml(
+    weekDays,
+    planning,
+    config,
+    employeeIds,
+    nameById,
+    opts
+  );
+
   return `<div class="schedule-sheet readable-presence shop-report">
     <style>${SHOP_REPORT_EXTRA_STYLES}</style>
 
@@ -654,6 +1023,25 @@ export const buildShopWeeklyReportBodyHtml = ({
       <span class="legend-item"><span class="legend-swatch" style="background:#bbf7d0"></span> 2 personnes</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#86efac"></span> 3+ personnes</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span> Barre horaire employé (Gantt)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#fef2f2;border:2px solid #dc2626"></span> Alerte sous-effectif</span>
+    </div>
+
+    ${alertsPanelHtml}
+
+    <div class="week-section">
+      <h2 class="section-title">🗓️ Panorama semaine — 7 jours côte à côte</h2>
+      <p style="margin:0 0 10px;color:#64748b;font-size:13px">
+        Une ligne par employé : horaires de chaque jour en un coup d'œil.
+      </p>
+      ${weekPanoramaHtml}
+    </div>
+
+    <div class="week-section">
+      <h2 class="section-title">📊 Matrice effectif semaine (créneau × jour)</h2>
+      <p style="margin:0 0 10px;color:#64748b;font-size:13px">
+        Alerte si effectif &lt; ${opts.minStaff} entre ${escapeHtml(opts.alertFrom)} et ${escapeHtml(opts.alertTo)} (bordure rouge).
+      </p>
+      ${weekMatrixHtml}
     </div>
 
     <h2 class="section-title">Vue d'ensemble — ${escapeHtml(shopName)}</h2>
@@ -685,7 +1073,8 @@ export const exportShopWeeklyHtmlReport = ({
   planningData,
   shopId,
   selectedWeek,
-  openPreview = true
+  openPreview = true,
+  alertOptions = DEFAULT_SHOP_REPORT_ALERT
 }) => {
   if (!planningData?.shops?.length || !shopId || !selectedWeek) {
     return { ok: false, reason: 'missing-data' };
@@ -708,9 +1097,11 @@ export const exportShopWeeklyHtmlReport = ({
     weekDays,
     planning,
     config,
-    employees
+    employees,
+    alertOptions: normalizeAlertOptions(alertOptions)
   });
 
+  const opts = normalizeAlertOptions(alertOptions);
   const title = `Équipe — ${shopName} — semaine du ${weekLabel}`;
   const doc = buildLandscapeHtmlDocument({
     title,
@@ -719,8 +1110,8 @@ export const exportShopWeeklyHtmlReport = ({
     metaLines: [
       `Boutique : ${shopName}`,
       `Semaine : ${weekLabel}`,
-      `Généré le : ${new Date().toLocaleString('fr-FR')}`,
-      'Cartographie : barres horaires + effectif par créneau + croisements.'
+      `Alerte : moins de ${opts.minStaff} pers. entre ${opts.alertFrom} et ${opts.alertTo}`,
+      `Généré le : ${new Date().toLocaleString('fr-FR')}`
     ]
   });
 

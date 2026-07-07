@@ -505,6 +505,10 @@ const VERSION_HIGHLIGHTS = {
   '3.10.164': [
     'Rapport equipe HTML: cartographie Gantt, heatmap effectif/croisements, en-tetes lisibles.',
     'Alerte creneaux seul(e) en boutique dans le rapport HTML.'
+  ],
+  '3.10.165': [
+    'Rapport equipe HTML: panorama 7 jours + matrice creneau/jour.',
+    'Alerte sous-effectif configurable (min pers. + plage horaire), memorisee localement.'
   ]
 };
 
