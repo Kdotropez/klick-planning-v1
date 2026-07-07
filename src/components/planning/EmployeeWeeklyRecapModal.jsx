@@ -82,29 +82,154 @@ const EmployeeWeeklyRecapModal = ({
 
   const employeePlanning = getEmployeePlanning();
 
-  const getDayWorkContext = (dayIndex) => {
-    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+  const formatShopDisplayName = (shop) =>
+    shop?.name?.replace(/[-_]/g, ' ').toUpperCase() || shop?.name || '-';
 
-    if (planningData?.shops) {
-      for (const shop of planningData.shops) {
-        const dayPlanning =
-          shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap]?.[day];
-        if (Array.isArray(dayPlanning) && dayPlanning.some(isSelectedSlot)) {
-          return {
-            shopConfig: shop.config || config,
-            dayPlanning,
-            shopName: shop.name?.replace(/[-_]/g, ' ').toUpperCase() || shop.name || '-'
-          };
-        }
+  const computeWorkHoursFromDayPlanning = (dayPlanning, shopConfig, employeeId, dayKey) => {
+    const timeSlots = shopConfig?.timeSlots || [];
+
+    if (typeof dayPlanning === 'string') {
+      return {
+        status: dayPlanning,
+        entry: null,
+        pause: null,
+        return: null,
+        exit: null,
+        hours: 0,
+        isOff: true
+      };
+    }
+
+    if (!Array.isArray(dayPlanning) || !timeSlots.length || dayPlanning.every((slot) => !isSelectedSlot(slot))) {
+      return null;
+    }
+
+    const selectedSlots = [];
+    for (let i = 0; i < dayPlanning.length; i++) {
+      if (isSelectedSlot(dayPlanning[i]) && timeSlots[i]) {
+        selectedSlots.push({ index: i, time: timeSlots[i] });
       }
     }
 
-    return {
-      shopConfig: config,
-      dayPlanning: employeePlanning[day],
-      shopName: '-'
-    };
+    if (selectedSlots.length === 0) return null;
+
+    selectedSlots.sort((a, b) => a.index - b.index);
+
+    const entry = selectedSlots[0].time;
+    const lastSlotIndex = selectedSlots[selectedSlots.length - 1].index;
+    const exit = getSlotEndTimeFormatted(timeSlots, lastSlotIndex, shopConfig);
+
+    let pause = null;
+    let returnTime = null;
+
+    for (let i = 0; i < selectedSlots.length - 1; i++) {
+      const currentIndex = selectedSlots[i].index;
+      const nextIndex = selectedSlots[i + 1].index;
+      if (nextIndex > currentIndex + 1) {
+        pause = getSlotEndTimeFormatted(timeSlots, currentIndex, shopConfig);
+        returnTime = timeSlots[nextIndex];
+        break;
+      }
+    }
+
+    const hours = calculateEmployeeDailyHours(
+      employeeId,
+      dayKey,
+      { [employeeId]: { [dayKey]: dayPlanning } },
+      shopConfig
+    );
+
+    return { entry, pause, return: returnTime, exit, hours, status: null, isOff: false };
   };
+
+  /** Toutes les plages travaillées du jour (une entrée par boutique). */
+  const getDayWorkSegments = (dayIndex) => {
+    const dayKey = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
+    const segments = [];
+
+    if (!planningData?.shops?.length) {
+      const fallback = employeePlanning[dayKey];
+      const computed = computeWorkHoursFromDayPlanning(
+        fallback,
+        config,
+        selectedEmployeeForWeeklyRecap,
+        dayKey
+      );
+      if (computed) {
+        segments.push({ shopName: '-', ...computed });
+      }
+      return segments;
+    }
+
+    for (const shop of planningData.shops) {
+      const dayPlanning =
+        shop.weeks?.[selectedWeek]?.planning?.[selectedEmployeeForWeeklyRecap]?.[dayKey];
+      if (dayPlanning === undefined || dayPlanning === null) continue;
+
+      const computed = computeWorkHoursFromDayPlanning(
+        dayPlanning,
+        shop.config || config,
+        selectedEmployeeForWeeklyRecap,
+        dayKey
+      );
+      if (!computed) continue;
+
+      segments.push({
+        shopName: formatShopDisplayName(shop),
+        ...computed
+      });
+    }
+
+    return segments;
+  };
+
+  const getDayName = (dayIndex) => {
+    const day = addDays(mondayOfWeek, dayIndex);
+    return format(day, 'EEEE', { locale: fr });
+  };
+
+  const buildWeekDisplayRows = () => {
+    const rows = [];
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      const dayName = getDayName(dayIndex);
+      const dayDate = format(addDays(mondayOfWeek, dayIndex), 'dd/MM', { locale: fr });
+      const segments = getDayWorkSegments(dayIndex);
+
+      if (!segments.length) {
+        rows.push({
+          key: `day-${dayIndex}-empty`,
+          dayLabel: `${dayName} ${dayDate}`,
+          shopName: '-',
+          status: null,
+          isOff: false,
+          entry: null,
+          pause: null,
+          return: null,
+          exit: null,
+          hours: 0
+        });
+        continue;
+      }
+
+      segments.forEach((segment, segmentIndex) => {
+        rows.push({
+          key: `day-${dayIndex}-shop-${segmentIndex}`,
+          dayLabel: segmentIndex === 0 ? `${dayName} ${dayDate}` : `↳ ${dayName} ${dayDate}`,
+          shopName: segment.shopName,
+          status: segment.status || null,
+          isOff: !!segment.isOff,
+          entry: segment.entry,
+          pause: segment.pause,
+          return: segment.return,
+          exit: segment.exit,
+          hours: segment.hours || 0
+        });
+      });
+    }
+    return rows;
+  };
+
+  const weekDisplayRows = buildWeekDisplayRows();
 
   const calculateDayHours = (dayIndex) => {
     const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
@@ -143,81 +268,10 @@ const EmployeeWeeklyRecapModal = ({
     return totalHours;
   };
 
-  // Obtenir les noms des jours
-  const getDayName = (dayIndex) => {
-    const day = addDays(mondayOfWeek, dayIndex);
-    return format(day, 'EEEE', { locale: fr });
-  };
-
   // Obtenir la date formatée
   const getDayDate = (dayIndex) => {
     const day = addDays(mondayOfWeek, dayIndex);
     return format(day, 'd MMMM yyyy', { locale: fr });
-  };
-
-  // Vérifier si un créneau est sélectionné (tolérant aux statuts chaîne)
-  // Obtenir le statut du jour ("Maladie 🤒" / "Congé ☀️" / null)
-  const getDayStatus = (dayIndex) => {
-    const day = format(addDays(mondayOfWeek, dayIndex), 'yyyy-MM-dd');
-    const dayPlanning = employeePlanning[day];
-    if (typeof dayPlanning === 'string') return dayPlanning;
-            if (!Array.isArray(dayPlanning) || dayPlanning.every(slot => !slot)) return null;
-    return null;
-  };
-
-  // Obtenir la boutique où l'employé a travaillé un jour donné
-  const getDayShop = (dayIndex) => getDayWorkContext(dayIndex).shopName;
-
-  // Jour sans heures (zéro) s'il a un statut ou aucun créneau
-  const isDayOff = (dayIndex) => getDayStatus(dayIndex) !== null;
-
-  // Calculer les heures de travail pour un jour
-  const calculateWorkHours = (dayIndex) => {
-    const status = getDayStatus(dayIndex);
-    if (status) return { entry: null, pause: null, return: null, exit: null, hours: 0 };
-
-    const { shopConfig, dayPlanning } = getDayWorkContext(dayIndex);
-    const timeSlots = shopConfig?.timeSlots || [];
-
-    if (!Array.isArray(dayPlanning) || !timeSlots.length || dayPlanning.every((slot) => !isSelectedSlot(slot))) {
-      return { entry: null, pause: null, return: null, exit: null, hours: 0 };
-    }
-
-    const selectedSlots = [];
-    for (let i = 0; i < dayPlanning.length; i++) {
-      if (isSelectedSlot(dayPlanning[i]) && timeSlots[i]) {
-        selectedSlots.push({
-          index: i,
-          time: timeSlots[i]
-        });
-      }
-    }
-
-    if (selectedSlots.length === 0) {
-      return { entry: null, pause: null, return: null, exit: null, hours: 0 };
-    }
-
-    selectedSlots.sort((a, b) => a.index - b.index);
-
-    const entry = selectedSlots[0].time;
-    const lastSlotIndex = selectedSlots[selectedSlots.length - 1].index;
-    const exit = getSlotEndTimeFormatted(timeSlots, lastSlotIndex, shopConfig);
-
-    let pause = null;
-    let returnTime = null;
-
-    for (let i = 0; i < selectedSlots.length - 1; i++) {
-      const currentIndex = selectedSlots[i].index;
-      const nextIndex = selectedSlots[i + 1].index;
-
-      if (nextIndex > currentIndex + 1) {
-        pause = getSlotEndTimeFormatted(timeSlots, currentIndex, shopConfig);
-        returnTime = timeSlots[nextIndex];
-        break;
-      }
-    }
-
-    return { entry, pause, return: returnTime, exit, hours: calculateDayHours(dayIndex) };
   };
 
   const exportToPDF = () => {
@@ -230,27 +284,19 @@ const EmployeeWeeklyRecapModal = ({
     doc.text(`Vue multi-boutiques - Boutique principale: ${selectedShop}`, 10, 30);
     
          const columns = ['Jour', 'Boutique', 'ENTRÉE', 'PAUSE', 'RETOUR', 'SORTIE', 'Heures effectives', 'Nb (h)'];
-     const body = [];
-
-     for (let i = 0; i < 7; i++) {
-       const dayName = getDayName(i);
-       const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
-       const status = getDayStatus(i);
-       const isOff = !!status;
-       const workHours = calculateWorkHours(i);
-       const dayH = isOff ? 0 : workHours.hours;
-
-       body.push([
-         `${dayName} ${dayDate}`,
-         getDayShop(i),
-         isOff ? (status || 'Congé ☀️') : (workHours.entry ? `${workHours.entry} H` : '-'),
-         isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-         isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-         isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-         isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(workHours.hours),
-         formatWorkedHoursNbNotation(dayH)
-       ]);
-     }
+     const body = weekDisplayRows.map((row) => {
+       const isOff = row.isOff;
+       return [
+         row.dayLabel,
+         row.shopName,
+         isOff ? (row.status || 'Congé ☀️') : (row.entry ? `${row.entry} H` : '-'),
+         isOff ? '-' : (row.pause ? `${row.pause} H` : '-'),
+         isOff ? '-' : (row.return ? `${row.return} H` : '-'),
+         isOff ? '-' : (row.exit ? `${row.exit} H` : '-'),
+         isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(row.hours),
+         formatWorkedHoursNbNotation(isOff ? 0 : row.hours)
+       ];
+     });
 
      body.push([
        'Total semaine',
@@ -276,31 +322,21 @@ const EmployeeWeeklyRecapModal = ({
 
   const exportToExcel = () => {
     console.log('EmployeeWeeklyRecapModal: Exporting to Excel');
-         const data = [];
-     
-     for (let i = 0; i < 7; i++) {
-       const dayName = getDayName(i);
-       const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
-       const status = getDayStatus(i);
-       const isOff = !!status;
-       const workHours = calculateWorkHours(i);
-       
-       // Déterminer si c'est une maladie
-       const isSick = status && typeof status === 'string' && status.toLowerCase().includes('maladie');
-       
-       const dayH = isOff ? 0 : workHours.hours;
-       data.push({
-         'Jour': `${dayName} ${dayDate}`,
-         'Boutique': getDayShop(i),
-         'ENTRÉE': isOff ? (isSick ? 'MALADIE' : (status || 'Congé ☀️')) : (workHours.entry ? `${workHours.entry} H` : '-'),
-         'PAUSE': isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-'),
-         'RETOUR': isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-'),
-         'SORTIE': isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-'),
-         'Heures effectives': isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(workHours.hours),
-         'Nb (h)': formatWorkedHoursNbNotation(dayH),
+         const data = weekDisplayRows.map((row) => {
+       const isOff = row.isOff;
+       const isSick = row.status && typeof row.status === 'string' && row.status.toLowerCase().includes('maladie');
+       return {
+         'Jour': row.dayLabel,
+         'Boutique': row.shopName,
+         'ENTRÉE': isOff ? (isSick ? 'MALADIE' : (row.status || 'Congé ☀️')) : (row.entry ? `${row.entry} H` : '-'),
+         'PAUSE': isOff ? '-' : (row.pause ? `${row.pause} H` : '-'),
+         'RETOUR': isOff ? '-' : (row.return ? `${row.return} H` : '-'),
+         'SORTIE': isOff ? '-' : (row.exit ? `${row.exit} H` : '-'),
+         'Heures effectives': isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(row.hours),
+         'Nb (h)': formatWorkedHoursNbNotation(isOff ? 0 : row.hours),
          'Statut': isSick ? 'MALADIE' : (isOff ? 'CONGÉ' : 'TRAVAIL')
-       });
-     }
+       };
+     });
 
      const weekTot = calculateWeekHours();
      data.push({
@@ -433,66 +469,47 @@ const EmployeeWeeklyRecapModal = ({
              </tr>
            </thead>
            <tbody>
-             {Array.from({ length: 7 }, (_, i) => {
-               const dayName = getDayName(i);
-               const dayDate = format(addDays(mondayOfWeek, i), 'dd/MM', { locale: fr });
-               const status = getDayStatus(i);
-               const isOff = !!status;
-               const workHours = calculateWorkHours(i);
-               
-               // Couleurs alternées pour les jours
-               const pastelColors = [
-                 '#E3F2FD', // Light Blue
-                 '#E8F5E8', // Light Green
-                 '#FFEBEE', // Light Red
-                 '#E3F2FD', // Light Blue
-                 '#F3E5F5', // Light Purple
-                 '#FFF8E1', // Light Yellow
-                 '#E3F2FD'  // Light Blue
-               ];
-               
-               return (
-                 <tr key={i} style={{
-                   backgroundColor: isOff ? '#FFF3E0' : pastelColors[i % pastelColors.length]
+             {weekDisplayRows.map((row) => (
+                 <tr key={row.key} style={{
+                   backgroundColor: row.isOff ? '#FFF3E0' : '#E3F2FD'
                  }}>
                    <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '600' }}>
-                     {dayName} {dayDate}
+                     {row.dayLabel}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: '600', textAlign: 'center' }}>
-                     {getDayShop(i)}
+                     {row.shopName}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                     {status ? (
-                       <span style={{ color: status.toLowerCase().includes('maladie') ? '#dc3545' : '#FF9800', fontWeight: '600' }}>
-                         {status}
+                     {row.isOff ? (
+                       <span style={{ color: row.status?.toLowerCase().includes('maladie') ? '#dc3545' : '#FF9800', fontWeight: '600' }}>
+                         {row.status}
                        </span>
                      ) : (
-                       workHours.entry ? `${workHours.entry} H` : '-'
+                       row.entry ? `${row.entry} H` : '-'
                      )}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                     {isOff ? '-' : (workHours.pause ? `${workHours.pause} H` : '-')}
+                     {row.isOff ? '-' : (row.pause ? `${row.pause} H` : '-')}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                     {isOff ? '-' : (workHours.return ? `${workHours.return} H` : '-')}
+                     {row.isOff ? '-' : (row.return ? `${row.return} H` : '-')}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                     {isOff ? '-' : (workHours.exit ? `${workHours.exit} H` : '-')}
+                     {row.isOff ? '-' : (row.exit ? `${row.exit} H` : '-')}
                    </td>
                    <td style={{ 
                      border: '1px solid #ddd', 
                      padding: '8px', 
                      fontWeight: '600',
-                     color: isOff ? '#FF9800' : '#333'
+                     color: row.isOff ? '#FF9800' : '#333'
                    }}>
-                     {isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(workHours.hours)}
+                     {row.isOff ? formatWorkedHoursForDisplay(0) : formatWorkedHoursForDisplay(row.hours)}
                    </td>
                    <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>
-                     {formatWorkedHoursNbNotation(isOff ? 0 : workHours.hours)}
+                     {formatWorkedHoursNbNotation(row.isOff ? 0 : row.hours)}
                    </td>
                  </tr>
-               );
-             })}
+               ))}
              <tr style={{ backgroundColor: '#f0f0f0', fontWeight: '700' }}>
                <td colSpan="6" style={{ border: '1px solid #ddd', padding: '8px' }}>Total semaine</td>
                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{formatWorkedHoursForDisplay(totalHours)}</td>

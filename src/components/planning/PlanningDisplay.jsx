@@ -12,6 +12,7 @@ import ResetModal from './ResetModal';
 import RecapModal from './RecapModal';
 import ShopWeekInsightsModal from './ShopWeekInsightsModal';
 import ShopPresenceMapModal from './ShopPresenceMapModal';
+import ShopWeeklyHtmlReportModal from './ShopWeeklyHtmlReportModal';
 import WeeklyWorkMatrixModal from './WeeklyWorkMatrixModal';
 import EmployeeRecapCompact from './EmployeeRecapCompact';
 import MonthlyRecapModals from './MonthlyRecapModals';
@@ -94,6 +95,7 @@ const PlanningDisplay = ({
 }) => {
   const [currentDay, setCurrentDay] = useState(0);
   const [showShopWeekInsights, setShowShopWeekInsights] = useState(false);
+  const [showShopWeeklyHtmlReport, setShowShopWeeklyHtmlReport] = useState(false);
   const [showPresenceMap, setShowPresenceMap] = useState(false);
   const [showWeeklyWorkMatrix, setShowWeeklyWorkMatrix] = useState(false);
 
@@ -3380,6 +3382,7 @@ const PlanningDisplay = ({
             onImport={onImport}
             onReset={() => setShowResetModal(true)}
             onOpenShopWeekInsights={() => setShowShopWeekInsights(true)}
+            onOpenShopWeeklyHtmlReport={() => setShowShopWeeklyHtmlReport(true)}
             onOpenPresenceMap={() => setShowPresenceMap(true)}
             onOpenWeeklyWorkMatrix={() => setShowWeeklyWorkMatrix(true)}
             handleManualSave={handleManualSave}
@@ -4019,6 +4022,16 @@ const PlanningDisplay = ({
         changeShop={changeShop}
         changeMonth={changeMonth}
         changeToSpecificWeek={changeToSpecificWeek}
+      />
+
+      <ShopWeeklyHtmlReportModal
+        isOpen={showShopWeeklyHtmlReport}
+        onClose={() => setShowShopWeeklyHtmlReport(false)}
+        planningData={userScopedPlanningData}
+        shops={accessibleShops}
+        selectedShop={selectedShop}
+        selectedWeek={validWeek}
+        onFeedback={setLocalFeedback}
       />
 
       <ShopPresenceMapModal

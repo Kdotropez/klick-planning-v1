@@ -496,6 +496,11 @@ const VERSION_HIGHLIGHTS = {
   '3.10.162': [
     'Demarrage rapide: ouverture immediate avec copie locale, sync Supabase en arriere-plan.',
     'Requete Supabase allégée au boot; timeout reduit a 5 s si pas de copie locale.'
+  ],
+  '3.10.163': [
+    'Recap hebdo employe: une ligne par boutique pour les journees multi-boutiques.',
+    'Exports PDF/Excel du recap hebdo alignes sur le detail multi-boutiques.',
+    'Nouveau rapport equipe HTML par boutique: qui travaille, horaires, heures jour/semaine.'
   ]
 };
 

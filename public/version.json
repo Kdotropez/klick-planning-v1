@@ -1,7 +1,16 @@
 {
-  "version": "3.10.162",
+  "version": "3.10.163",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.163",
+      "date": "2026-05-29",
+      "changes": [
+        "Récap hebdomadaire employé : une ligne par boutique quand la journée est multi-boutiques (ex. Port Grimaud le matin + Sainte-Maxime le soir).",
+        "Exports PDF et Excel du récap hebdo alignés sur le même détail multi-boutiques.",
+        "Nouveau rapport 📋 Rapport équipe HTML : tableau clair par boutique (qui travaille, horaires, heures jour et semaine)."
+      ]
+    },
     {
       "version": "3.10.162",
       "date": "2026-05-29",

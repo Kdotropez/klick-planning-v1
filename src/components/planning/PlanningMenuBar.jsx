@@ -32,6 +32,7 @@ const PlanningMenuBar = ({
   onImport,
   onReset,
   onOpenShopWeekInsights,
+  onOpenShopWeeklyHtmlReport,
   onOpenPresenceMap,
   onOpenWeeklyWorkMatrix,
   handleManualSave,
@@ -221,6 +222,31 @@ const PlanningMenuBar = ({
             title="KPI: heures, effectifs, couverture par jour, absences (ex-vue globale + dashboard)"
           >
             Pilotage semaine
+          </Button>
+          )}
+
+          {can('canViewWeekInsights') && (
+          <Button
+            className="button-primary"
+            onClick={() => onOpenShopWeeklyHtmlReport && onOpenShopWeeklyHtmlReport()}
+            style={{
+              backgroundColor: '#0f766e',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0d9488')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#0f766e')}
+            title="Rapport HTML par boutique : qui travaille, horaires, heures jour et semaine"
+          >
+            📋 Rapport équipe HTML
           </Button>
           )}
 
