@@ -501,6 +501,10 @@ const VERSION_HIGHLIGHTS = {
     'Recap hebdo employe: une ligne par boutique pour les journees multi-boutiques.',
     'Exports PDF/Excel du recap hebdo alignes sur le detail multi-boutiques.',
     'Nouveau rapport equipe HTML par boutique: qui travaille, horaires, heures jour/semaine.'
+  ],
+  '3.10.164': [
+    'Rapport equipe HTML: cartographie Gantt, heatmap effectif/croisements, en-tetes lisibles.',
+    'Alerte creneaux seul(e) en boutique dans le rapport HTML.'
   ]
 };
 

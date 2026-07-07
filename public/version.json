@@ -1,7 +1,15 @@
 {
-  "version": "3.10.163",
+  "version": "3.10.164",
   "lastUpdate": "2026-05-29",
   "changelog": [
+    {
+      "version": "3.10.164",
+      "date": "2026-05-29",
+      "changes": [
+        "Rapport équipe HTML : cartographie Gantt (barres horaires superposées), heatmap d’effectif par créneau et liste des croisements.",
+        "En-têtes de jours corrigés (texte sombre lisible) + alerte créneaux seul(e) en boutique."
+      ]
+    },
     {
       "version": "3.10.163",
       "date": "2026-05-29",

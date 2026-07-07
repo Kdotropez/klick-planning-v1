@@ -8,11 +8,14 @@ import {
 import {
   buildEmployeeDaySchedule,
   buildPresenceWeekDays,
-  getDayColor
+  buildPresenceMatrix,
+  buildReadablePresenceDays,
+  buildDayPlanningGridHtml,
+  getDayColor,
+  PLANNING_GRID_EXPORT_CSS
 } from './presenceMapExport';
-import { getSlotEndTimeFormatted } from './slotDurationUtils';
+import { buildSlotRangeLines, getSlotEndTimeFormatted } from './slotDurationUtils';
 import {
-  calculateEmployeeDailyHours,
   formatWorkedHoursForDisplay,
   formatWorkedHoursNbNotation
 } from './planningUtils';
@@ -20,11 +23,26 @@ import { isEmployeeAssignedToShop, isEmployeeHidden } from './planningDataManage
 
 const normSlot = (v) => v === true || v === 1 || v === '1' || v === 'true';
 
+const BAR_COLORS = [
+  '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#ea580c'
+];
+
 const sanitizeFilePart = (value) =>
   String(value || 'boutique')
     .replace(/[^\w.-]+/g, '_')
     .replace(/_+/g, '_')
     .slice(0, 60);
+
+const timeToMinutes = (hhmm) => {
+  if (!hhmm || typeof hhmm !== 'string') return null;
+  const [h, m] = hhmm.split(':').map((v) => parseInt(v, 10) || 0);
+  return h * 60 + m;
+};
+
+const slotDurationCfg = (config) => ({
+  interval: config?.interval || 30,
+  endTime: config?.endTime
+});
 
 const computeWorkTimes = (dayPlanning, config) => {
   const timeSlots = config?.timeSlots || [];
@@ -59,8 +77,184 @@ const computeWorkTimes = (dayPlanning, config) => {
   return { status: null, entry, pause, returnTime, exit };
 };
 
+const coverageLevelClass = (count) => {
+  if (count <= 0) return 'cov-0';
+  if (count === 1) return 'cov-1';
+  if (count === 2) return 'cov-2';
+  return 'cov-3';
+};
+
+const buildDayCoverageCells = (day, planning, config, employeeIds, nameById) => {
+  const timeSlots = config?.timeSlots || [];
+  const durationCfg = slotDurationCfg(config);
+  if (!timeSlots.length) return [];
+
+  return timeSlots.map((slot, slotIndex) => {
+    const presentIds = employeeIds.filter((id) =>
+      normSlot(planning?.[id]?.[day.dayKey]?.[slotIndex])
+    );
+    const slotEnd = getSlotEndTimeFormatted(timeSlots, slotIndex, durationCfg);
+    return {
+      slot,
+      slotEnd,
+      label: `${slot}–${slotEnd}`,
+      count: presentIds.length,
+      names: presentIds.map((id) => nameById.get(id) || id)
+    };
+  });
+};
+
+const buildDayGanttHtml = (day, planning, config, employeeIds, nameById) => {
+  const durationCfg = slotDurationCfg(config);
+  const rows = [];
+
+  employeeIds.forEach((empId, colorIdx) => {
+    const dayPlanning = planning?.[empId]?.[day.dayKey];
+    const schedule = buildEmployeeDaySchedule(planning, empId, day, config);
+    if (schedule.type !== 'work') return;
+
+    const ranges = buildSlotRangeLines(dayPlanning, config?.timeSlots || [], durationCfg);
+    const segments = ranges
+      .map((range) => {
+        const [start, end] = range.split('-').map((s) => s.trim());
+        const startMin = timeToMinutes(start);
+        const endMin = timeToMinutes(end);
+        if (startMin == null || endMin == null) return null;
+        return { start, end, startMin, endMin: endMin <= startMin ? endMin + 24 * 60 : endMin };
+      })
+      .filter(Boolean);
+
+    if (!segments.length) return;
+    rows.push({
+      id: empId,
+      name: nameById.get(empId) || empId,
+      color: BAR_COLORS[colorIdx % BAR_COLORS.length],
+      segments,
+      hoursLabel: schedule.hoursLabel
+    });
+  });
+
+  if (!rows.length) {
+    return '<p class="carto-empty">Aucun horaire de travail ce jour — pas de cartographie possible.</p>';
+  }
+
+  let axisMin = Infinity;
+  let axisMax = -Infinity;
+  rows.forEach((row) => {
+    row.segments.forEach((seg) => {
+      axisMin = Math.min(axisMin, seg.startMin);
+      axisMax = Math.max(axisMax, seg.endMin);
+    });
+  });
+  if (!Number.isFinite(axisMin) || !Number.isFinite(axisMax) || axisMax <= axisMin) {
+    axisMin = 9 * 60;
+    axisMax = 20 * 60;
+  }
+  const span = axisMax - axisMin;
+
+  const axisMarks = [];
+  const firstHour = Math.floor(axisMin / 60);
+  const lastHour = Math.ceil(axisMax / 60);
+  for (let h = firstHour; h <= lastHour; h += 1) {
+    const min = h * 60;
+    const left = ((min - axisMin) / span) * 100;
+    if (left >= -2 && left <= 102) {
+      axisMarks.push(`<span class="gantt-tick" style="left:${left.toFixed(2)}%">${String(h).padStart(2, '0')}h</span>`);
+    }
+  }
+
+  const rowHtml = rows
+    .map((row) => {
+      const bars = row.segments
+        .map((seg) => {
+          const left = ((seg.startMin - axisMin) / span) * 100;
+          const width = Math.max(((seg.endMin - seg.startMin) / span) * 100, 1.5);
+          return `<div class="gantt-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${row.color}" title="${escapeHtml(`${seg.start} → ${seg.end}`)}">
+            <span class="gantt-bar-label">${escapeHtml(seg.start)}–${escapeHtml(seg.end)}</span>
+          </div>`;
+        })
+        .join('');
+      return `<div class="gantt-row">
+        <div class="gantt-name" style="border-left:4px solid ${row.color}">${escapeHtml(row.name)}</div>
+        <div class="gantt-track">${bars}</div>
+        <div class="gantt-hours">${escapeHtml(row.hoursLabel)}</div>
+      </div>`;
+    })
+    .join('');
+
+  return `<div class="gantt-wrap">
+    <div class="gantt-axis">${axisMarks.join('')}</div>
+    ${rowHtml}
+    <p class="gantt-hint">Les barres qui se superposent verticalement = personnes présentes en même time.</p>
+  </div>`;
+};
+
+const buildCoverageHeatmapHtml = (coverageCells) => {
+  const activeCells = coverageCells.filter((c) => c.count > 0);
+  if (!activeCells.length) {
+    return '<p class="carto-empty">Aucun créneau couvert ce jour.</p>';
+  }
+
+  const weakSlots = activeCells.filter((c) => c.count === 1);
+  const cellsHtml = coverageCells
+    .map((cell) => {
+      if (cell.count === 0) return '';
+      const title = cell.names.length ? `${cell.label} : ${cell.names.join(', ')}` : cell.label;
+      return `<div class="cov-cell ${coverageLevelClass(cell.count)}" title="${escapeHtml(title)}">
+        <span class="cov-time">${escapeHtml(cell.slot)}</span>
+        <span class="cov-count">${cell.count}</span>
+      </div>`;
+    })
+    .join('');
+
+  const weakHtml =
+    weakSlots.length > 0
+      ? `<div class="weak-slots">
+          <strong>⚠️ Créneaux seul(e) en boutique (${weakSlots.length}) :</strong>
+          ${weakSlots
+            .map(
+              (c) =>
+                `<span class="weak-chip">${escapeHtml(c.label)} — ${escapeHtml(c.names[0] || '?')}</span>`
+            )
+            .join('')}
+        </div>`
+      : '';
+
+  return `<div class="coverage-heatmap">${cellsHtml}</div>${weakHtml}`;
+};
+
+const buildTeamMomentsHtml = (teamMoments) => {
+  if (!teamMoments?.length) {
+    return '<p class="carto-muted">Pas de chevauchement (2+ personnes) enregistré ce jour.</p>';
+  }
+  return `<div class="team-block">
+    <h3>👥 En boutique en même temps</h3>
+    ${teamMoments
+      .map(
+        (m) =>
+          `<div class="team-line"><strong>${escapeHtml(m.timeLabel)}</strong> — ${escapeHtml(m.names.join(' · '))} <span class="team-count">(${m.count} pers.)</span></div>`
+      )
+      .join('')}
+  </div>`;
+};
+
 const SHOP_REPORT_EXTRA_STYLES = `
-  .shop-report .overview-table th.day-col { text-align: center; min-width: 72px; }
+  ${PLANNING_GRID_EXPORT_CSS}
+  .shop-report .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0 0 14px;
+    padding: 10px 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;
+    font-size: 12px; color: #334155;
+  }
+  .shop-report .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .shop-report .legend-swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.12); }
+  .shop-report .overview-table th {
+    background: #0f766e !important;
+    color: #fff !important;
+  }
+  .shop-report .overview-table th.day-col {
+    text-align: center; min-width: 72px;
+    font-size: 11px !important;
+  }
   .shop-report .overview-table td.day-cell { text-align: center; font-size: 12px; line-height: 1.35; }
   .shop-report .overview-table td.name-col { font-weight: 700; white-space: nowrap; }
   .shop-report .overview-table td.total-col { font-weight: 800; text-align: center; background: #ecfdf5 !important; }
@@ -69,44 +263,219 @@ const SHOP_REPORT_EXTRA_STYLES = `
   .shop-report .cell-maladie { color: #dc2626; font-weight: 600; }
   .shop-report .cell-repos { color: #94a3b8; }
   .shop-report .day-block {
-    margin-top: 18px;
-    border-radius: 10px;
+    margin-top: 20px;
+    border-radius: 12px;
     overflow: hidden;
-    border: 1px solid #e2e8f0;
+    border: 2px solid #cbd5e1;
+    background: #fff;
+    page-break-inside: avoid;
   }
   .shop-report .day-block-header {
-    padding: 10px 14px;
+    padding: 12px 16px;
     font-weight: 800;
-    font-size: 14px;
+    font-size: 15px;
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 16px;
+    gap: 8px 12px;
     align-items: center;
+    border-bottom: 3px solid;
   }
   .shop-report .day-block-header .badge {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    padding: 3px 10px;
+    padding: 4px 11px;
     border-radius: 999px;
-    background: rgba(255,255,255,0.65);
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.12);
+    color: #0f172a;
   }
+  .shop-report .day-block-header .badge-warn {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #9a3412;
+  }
+  .shop-report .day-block-header .badge-info {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1e40af;
+  }
+  .shop-report .carto-section {
+    padding: 12px 14px 14px;
+    border-top: 1px solid #e2e8f0;
+  }
+  .shop-report .carto-section:first-of-type { border-top: none; }
+  .shop-report .carto-title {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #0f766e;
+  }
+  .shop-report .carto-empty, .shop-report .carto-muted {
+    margin: 0; font-size: 12px; color: #64748b; font-style: italic;
+  }
+  .shop-report .gantt-wrap {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 8px 8px 6px;
+    border: 1px solid #e2e8f0;
+  }
+  .shop-report .gantt-axis {
+    position: relative;
+    height: 18px;
+    margin: 0 0 4px 108px;
+    border-bottom: 1px dashed #cbd5e1;
+  }
+  .shop-report .gantt-tick {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: #64748b;
+    font-weight: 600;
+  }
+  .shop-report .gantt-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 44px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .shop-report .gantt-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #0f172a;
+    padding: 4px 6px 4px 8px;
+    background: #fff;
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .shop-report .gantt-track {
+    position: relative;
+    height: 28px;
+    background: repeating-linear-gradient(90deg, #fff 0, #fff 8px, #f1f5f9 8px, #f1f5f9 9px);
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+  }
+  .shop-report .gantt-bar {
+    position: absolute;
+    top: 3px;
+    height: 22px;
+    border-radius: 5px;
+    min-width: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .shop-report .gantt-bar-label {
+    font-size: 8px;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+    padding: 0 3px;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.35);
+  }
+  .shop-report .gantt-hours {
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    color: #0f766e;
+  }
+  .shop-report .gantt-hint {
+    margin: 6px 0 0;
+    font-size: 10px;
+    color: #64748b;
+    text-align: center;
+  }
+  .shop-report .coverage-heatmap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .shop-report .cov-cell {
+    min-width: 52px;
+    padding: 6px 4px;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.08);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .shop-report .cov-cell.cov-0 { background: #fecaca; color: #991b1b; }
+  .shop-report .cov-cell.cov-1 { background: #fed7aa; color: #9a3412; }
+  .shop-report .cov-cell.cov-2 { background: #bbf7d0; color: #166534; }
+  .shop-report .cov-cell.cov-3 { background: #86efac; color: #14532d; font-weight: 800; }
+  .shop-report .cov-time { display: block; font-size: 9px; font-weight: 600; }
+  .shop-report .cov-count { display: block; font-size: 14px; font-weight: 800; line-height: 1.1; }
+  .shop-report .weak-slots {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    border-radius: 8px;
+    font-size: 11px;
+    color: #9a3412;
+    line-height: 1.5;
+  }
+  .shop-report .weak-chip {
+    display: inline-block;
+    margin: 4px 6px 0 0;
+    padding: 2px 8px;
+    background: #fff;
+    border-radius: 999px;
+    border: 1px solid #fdba74;
+    font-weight: 600;
+  }
+  .shop-report .team-block {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+  }
+  .shop-report .team-block h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #065f46;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .shop-report .team-line {
+    font-size: 12px;
+    color: #14532d;
+    margin-bottom: 4px;
+    line-height: 1.45;
+  }
+  .shop-report .team-line strong { color: #047857; }
+  .shop-report .team-count { color: #059669; font-weight: 700; font-size: 11px; }
   .shop-report .day-detail-table { margin: 0; min-width: 0 !important; width: 100% !important; }
-  .shop-report .day-detail-table th { font-size: 12px; }
-  .shop-report .day-detail-table td { font-size: 13px; }
+  .shop-report .day-detail-table th {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    font-size: 11px !important;
+  }
+  .shop-report .day-detail-table td { font-size: 12px; }
   .shop-report .day-empty {
     padding: 12px 14px;
     color: #64748b;
     font-style: italic;
     background: #f8fafc;
   }
-  .shop-report .team-strip {
-    padding: 8px 14px 12px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
-    font-size: 13px;
-    line-height: 1.5;
+  .shop-report .status-list {
+    display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px;
   }
-  .shop-report .team-strip strong { color: #0f172a; }
+  .shop-report .status-chip {
+    font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 999px;
+  }
+  .shop-report .status-chip.conge { background: #ffedd5; color: #c2410c; }
+  .shop-report .status-chip.maladie { background: #fee2e2; color: #dc2626; }
 `;
 
 export const collectShopReportEmployees = (shop, planningData, weekDate) => {
@@ -132,12 +501,27 @@ export const buildShopWeeklyReportBodyHtml = ({
 }) => {
   const employeeIds = employees.map((e) => e.id);
   const nameById = new Map(employees.map((e) => [e.id, e.name]));
+  const matrix = buildPresenceMatrix({
+    planning,
+    config,
+    employeeIds,
+    employeeNameById: nameById,
+    weekDays
+  });
+  const readableDays = buildReadablePresenceDays({
+    planning,
+    config,
+    employeeIds,
+    employeeNameById: nameById,
+    weekDays,
+    matrix
+  });
 
   const overviewHead = weekDays
-    .map(
-      (day) =>
-        `<th class="day-col" style="background:${getDayColor(day.index).header}">${escapeHtml(day.shortLabel)}</th>`
-    )
+    .map((day) => {
+      const palette = getDayColor(day.index);
+      return `<th class="day-col" style="background:${palette.header} !important;color:${palette.text} !important;border-bottom:2px solid ${palette.border} !important">${escapeHtml(day.shortLabel)}</th>`;
+    })
     .join('');
 
   const overviewRows = [];
@@ -169,90 +553,93 @@ export const buildShopWeeklyReportBodyHtml = ({
     }
   });
 
-  const dayBlocks = weekDays.map((day) => {
+  const dayBlocks = readableDays.map(({ day, roster, workingCount, teamMoments }, dayIndex) => {
     const palette = getDayColor(day.index);
-    const workers = [];
-    let dayTotalHours = 0;
+    const congeCount = roster.filter((r) => r.type === 'conge').length;
+    const maladieCount = roster.filter((r) => r.type === 'maladie').length;
+    const dayTotalHours = roster
+      .filter((r) => r.type === 'work')
+      .reduce((s, r) => s + (r.hours || 0), 0);
 
-    employeeIds.forEach((empId) => {
-      const schedule = buildEmployeeDaySchedule(planning, empId, day, config);
-      const dayPlanning = planning?.[empId]?.[day.dayKey];
-      const times = computeWorkTimes(dayPlanning, config);
-      if (schedule.type === 'work') {
-        dayTotalHours += schedule.hours;
-        workers.push({
-          id: empId,
-          name: nameById.get(empId) || empId,
-          schedule,
-          times,
-          sortKey: times?.entry || '99:99'
-        });
-      } else if (schedule.type === 'conge' || schedule.type === 'maladie') {
-        workers.push({
-          id: empId,
-          name: nameById.get(empId) || empId,
-          schedule,
-          times: null,
-          sortKey: schedule.type
-        });
-      }
+    const coverageCells = buildDayCoverageCells(day, planning, config, employeeIds, nameById);
+    const maxCoverage = Math.max(0, ...coverageCells.map((c) => c.count));
+    const soloSlots = coverageCells.filter((c) => c.count === 1).length;
+
+    const statusChips = roster
+      .filter((r) => r.type === 'conge' || r.type === 'maladie')
+      .map(
+        (r) =>
+          `<span class="status-chip ${r.type === 'maladie' ? 'maladie' : 'conge'}">${escapeHtml(r.name)} — ${r.type === 'maladie' ? 'Maladie 🤒' : 'Congé ☀️'}</span>`
+      )
+      .join('');
+
+    const ganttHtml = buildDayGanttHtml(day, planning, config, employeeIds, nameById);
+    const heatmapHtml = buildCoverageHeatmapHtml(coverageCells);
+    const teamHtml = buildTeamMomentsHtml(teamMoments);
+    const gridHtml = buildDayPlanningGridHtml({
+      day,
+      planning,
+      config,
+      employeeIds,
+      employeeNameById: nameById,
+      useFullNames: true
     });
 
-    workers.sort((a, b) => {
-      const order = { work: 0, conge: 1, maladie: 2 };
-      const ta = order[a.schedule.type] ?? 9;
-      const tb = order[b.schedule.type] ?? 9;
-      if (ta !== tb) return ta - tb;
-      return String(a.sortKey).localeCompare(String(b.sortKey), 'fr');
-    });
+    const detailRows = roster
+      .filter((r) => r.type === 'work')
+      .map((r) => {
+        const dayPlanning = planning?.[r.id]?.[day.dayKey];
+        const times = computeWorkTimes(dayPlanning, config) || {};
+        return `<tr>
+          <td class="name-col">${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(times.entry ? `${times.entry} H` : '—')}</td>
+          <td>${escapeHtml(times.pause ? `${times.pause} H` : '—')}</td>
+          <td>${escapeHtml(times.returnTime ? `${times.returnTime} H` : '—')}</td>
+          <td>${escapeHtml(times.exit ? `${times.exit} H` : '—')}</td>
+          <td style="font-weight:700;text-align:center">${escapeHtml(r.hoursLabel)}</td>
+        </tr>`;
+      })
+      .join('');
 
-    const workingCount = workers.filter((w) => w.schedule.type === 'work').length;
-    const namesStrip = workers
-      .filter((w) => w.schedule.type === 'work')
-      .map((w) => `<strong>${escapeHtml(w.name)}</strong> (${escapeHtml(w.schedule.rangesLabel)})`)
-      .join(' · ');
+    const detailTable =
+      detailRows.length > 0
+        ? `<table class="day-detail-table">
+            <thead><tr><th>Employé</th><th>Entrée</th><th>Pause</th><th>Retour</th><th>Sortie</th><th>Heures</th></tr></thead>
+            <tbody>${detailRows}</tbody>
+          </table>`
+        : '<div class="day-empty">Personne en horaires de travail ce jour.</div>';
 
-    let bodyHtml;
-    if (!workers.length) {
-      bodyHtml = `<div class="day-empty">Personne planifiée dans cette boutique ce jour.</div>`;
-    } else {
-      const rows = workers
-        .map((w) => {
-          if (w.schedule.type === 'conge') {
-            return `<tr><td>${escapeHtml(w.name)}</td><td colspan="5" class="cell-conge">Congé ☀️</td></tr>`;
-          }
-          if (w.schedule.type === 'maladie') {
-            return `<tr><td>${escapeHtml(w.name)}</td><td colspan="5" class="cell-maladie">Maladie 🤒</td></tr>`;
-          }
-          const t = w.times || {};
-          return `<tr>
-            <td class="name-col">${escapeHtml(w.name)}</td>
-            <td>${escapeHtml(t.entry ? `${t.entry} H` : '—')}</td>
-            <td>${escapeHtml(t.pause ? `${t.pause} H` : '—')}</td>
-            <td>${escapeHtml(t.returnTime ? `${t.returnTime} H` : '—')}</td>
-            <td>${escapeHtml(t.exit ? `${t.exit} H` : '—')}</td>
-            <td style="font-weight:700;text-align:center">${escapeHtml(w.schedule.hoursLabel)}</td>
-          </tr>`;
-        })
-        .join('');
-      bodyHtml = `<table class="day-detail-table">
-        <thead><tr>
-          <th>Employé</th><th>Entrée</th><th>Pause</th><th>Retour</th><th>Sortie</th><th>Heures</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-      if (namesStrip) {
-        bodyHtml += `<div class="team-strip">Présents : ${namesStrip}</div>`;
-      }
-    }
-
-    return `<section class="day-block">
-      <div class="day-block-header" style="background:${palette.header};color:${palette.text};border-bottom:2px solid ${palette.border}">
-        <span>${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'd MMMM yyyy', { locale: fr }))}</span>
-        <span class="badge">${workingCount} en boutique</span>
-        <span class="badge">${escapeHtml(formatWorkedHoursForDisplay(dayTotalHours))} au total</span>
+    return `<section class="day-block" id="jour-${dayIndex + 1}">
+      <div class="day-block-header" style="background:${palette.header};color:${palette.text};border-color:${palette.border}">
+        <span>Jour ${dayIndex + 1} — ${escapeHtml(day.weekday)} ${escapeHtml(format(parseISO(day.dayKey), 'd MMMM yyyy', { locale: fr }))}</span>
+        <span class="badge badge-info">${workingCount} en boutique</span>
+        ${congeCount ? `<span class="badge badge-warn">${congeCount} congé(s)</span>` : ''}
+        ${maladieCount ? `<span class="badge badge-warn">${maladieCount} maladie(s)</span>` : ''}
+        <span class="badge">Effectif max ${maxCoverage} · ${escapeHtml(formatWorkedHoursForDisplay(dayTotalHours))}</span>
+        ${soloSlots ? `<span class="badge badge-warn">${soloSlots} créneau(x) seul(e)</span>` : ''}
       </div>
-      ${bodyHtml}
+
+      ${statusChips ? `<div class="carto-section"><div class="status-list">${statusChips}</div></div>` : ''}
+
+      <div class="carto-section">
+        <h3 class="carto-title">🗺️ Cartographie horaire — qui est là quand</h3>
+        ${ganttHtml}
+      </div>
+
+      <div class="carto-section">
+        <h3 class="carto-title">📊 Effectif par créneau (survolez / imprimez pour le détail)</h3>
+        <p class="carto-muted" style="margin:0 0 8px">Orange = 1 personne seule · Vert = 2+ personnes ensemble</p>
+        ${heatmapHtml}
+      </div>
+
+      <div class="carto-section">${teamHtml}</div>
+
+      ${gridHtml ? `<div class="carto-section">${gridHtml}</div>` : ''}
+
+      <div class="carto-section">
+        <h3 class="carto-title">📝 Tableau horaire détaillé</h3>
+        ${detailTable}
+      </div>
     </section>`;
   });
 
@@ -261,9 +648,17 @@ export const buildShopWeeklyReportBodyHtml = ({
 
   return `<div class="schedule-sheet readable-presence shop-report">
     <style>${SHOP_REPORT_EXTRA_STYLES}</style>
-    <h2 class="section-title">Vue d'ensemble — qui travaille et combien d'heures</h2>
+
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:#fed7aa"></span> 1 seul(e) — créneau à surveiller</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#bbf7d0"></span> 2 personnes</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#86efac"></span> 3+ personnes</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span> Barre horaire employé (Gantt)</span>
+    </div>
+
+    <h2 class="section-title">Vue d'ensemble — ${escapeHtml(shopName)}</h2>
     <p style="margin:0 0 10px;color:#64748b;font-size:13px">
-      ${activeCount} employé(s) avec des heures cette semaine · Total boutique : <strong>${escapeHtml(formatWorkedHoursForDisplay(shopWeekTotal))}</strong>
+      ${activeCount} employé(s) avec des heures · Total semaine : <strong>${escapeHtml(formatWorkedHoursForDisplay(shopWeekTotal))}</strong>
     </p>
     <table class="overview-table">
       <thead>
@@ -274,10 +669,14 @@ export const buildShopWeeklyReportBodyHtml = ({
         </tr>
       </thead>
       <tbody>
-        ${overviewRows.length ? overviewRows.join('') : '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:16px">Aucune heure enregistrée cette semaine dans cette boutique.</td></tr>'}
+        ${overviewRows.length ? overviewRows.join('') : '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:16px">Aucune heure enregistrée cette semaine.</td></tr>'}
       </tbody>
     </table>
-    <h2 class="section-title">Détail jour par jour — horaires et présence</h2>
+
+    <h2 class="section-title">Cartographie semaine — présence et chevauchements</h2>
+    <p style="margin:0 0 12px;color:#64748b;font-size:13px">
+      Pour chaque jour : barres horaires superposées (qui se croise), heatmap d'effectif, moments communs et grille planning.
+    </p>
     ${dayBlocks.join('')}
   </div>`;
 };
@@ -321,7 +720,7 @@ export const exportShopWeeklyHtmlReport = ({
       `Boutique : ${shopName}`,
       `Semaine : ${weekLabel}`,
       `Généré le : ${new Date().toLocaleString('fr-FR')}`,
-      'Lecture optimale en mode paysage sur téléphone.'
+      'Cartographie : barres horaires + effectif par créneau + croisements.'
     ]
   });
 
