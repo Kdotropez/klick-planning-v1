@@ -50,7 +50,7 @@ import {
   loadCompletePlanningBackupByWeekKey,
   getCurrentCompleteBackupInfo,
   loadCompletePlanningData,
-  loadCompletePlanningDataWithRetry,
+  probeSupabaseDatabaseHealth,
   findHistoricalBackupsWithShopWeek,
   getGlobalBackupTimeline,
   inspectShopWeekInventory,
@@ -101,7 +101,8 @@ const App = () => {
   const bootstrapBackgroundSyncRef = useRef(false);
   const retrySupabaseStartupSyncRef = useRef(null);
   const BOOTSTRAP_REMOTE_TIMEOUT_MS = 5000;
-  const BOOTSTRAP_BACKGROUND_TIMEOUT_MS = 45000;
+  const BOOTSTRAP_PER_ATTEMPT_TIMEOUT_MS = 70000;
+  const BOOTSTRAP_LOAD_ATTEMPTS = 3;
   // TTL verrou global (allongé pour limiter les déconnexions pendant SAUVE SUPABASE)
   const GLOBAL_LOCK_TTL_MS = 3 * 60 * 1000;
   const GLOBAL_HEARTBEAT_MS = 25 * 1000;
@@ -401,7 +402,7 @@ const App = () => {
       if (bootstrapBackgroundSyncRef.current) return;
       bootstrapBackgroundSyncRef.current = true;
 
-      const finishBackgroundSync = (remoteData, ok, failureHint = '') => {
+      const finishBackgroundSync = async (remoteData, ok, failureHint = '') => {
         if (ok && isValidPlanningPayload(remoteData)) {
           applyPlanningPayload(remoteData);
           try {
@@ -421,33 +422,60 @@ const App = () => {
             detail = 'Configuration Supabase absente sur ce déploiement (VITE_SUPABASE_URL / VITE_SUPABASE_KEY).';
           } else if (!remoteData) {
             detail =
-              'Aucune réponse valide du cloud (réseau, timeout 45 s, ou table plannings vide / RLS).';
+              'Aucune réponse valide du cloud (réseau, timeout, ou table plannings vide / RLS).';
           } else {
             detail = 'Données cloud reçues mais invalides (aucune boutique).';
+          }
+        }
+        if (hasConfig) {
+          const probe = await probeSupabaseDatabaseHealth(25000);
+          if (!probe.ok && probe.hint) {
+            detail = probe.hint;
           }
         }
         if (!loadLocalPlanningFallback()) {
           detail += ' Pas de copie locale (fréquent juste après une mise à jour qui vide le cache).';
         }
 
-        setRestoredInfo(`❌ Supabase inaccessible — ${detail} Utilisez « Réessayer Supabase » ou vérifiez la connexion.`);
+        setRestoredInfo(`❌ Supabase inaccessible — ${detail} Utilisez « Réessayer Supabase » après avoir réactivé le projet.`);
         setFeedback('⚠️ Connexion bloquée tant que le cloud ne charge pas.');
         console.warn('⚠️ Sync Supabase arrière-plan: pas de version cloud valide.', detail);
         setIsSupabaseStartupReady(false);
       };
 
-      withTimeout(
-        loadCompletePlanningDataWithRetry({ attempts: 3, skipNormalize: true, delayMs: 1000 }),
-        BOOTSTRAP_BACKGROUND_TIMEOUT_MS,
-        'Sync Supabase arrière-plan'
-      )
+      const loadPlanningWithPerAttemptRetries = async () => {
+        let lastResult = null;
+        let lastError = null;
+        for (let attempt = 1; attempt <= BOOTSTRAP_LOAD_ATTEMPTS; attempt += 1) {
+          try {
+            lastResult = await withTimeout(
+              loadCompletePlanningData({ skipNormalize: true }),
+              BOOTSTRAP_PER_ATTEMPT_TIMEOUT_MS,
+              `Sync Supabase (tentative ${attempt}/${BOOTSTRAP_LOAD_ATTEMPTS})`
+            );
+            if (isValidPlanningPayload(lastResult)) {
+              return lastResult;
+            }
+          } catch (error) {
+            lastError = error;
+            console.warn(`⚠️ Tentative ${attempt}/${BOOTSTRAP_LOAD_ATTEMPTS} échouée:`, error);
+          }
+          if (attempt < BOOTSTRAP_LOAD_ATTEMPTS) {
+            await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          }
+        }
+        if (lastError) throw lastError;
+        return lastResult;
+      };
+
+      loadPlanningWithPerAttemptRetries()
         .then((remoteData) => {
           finishBackgroundSync(remoteData, isValidPlanningPayload(remoteData));
         })
         .catch((error) => {
           console.warn('⚠️ Sync Supabase arrière-plan impossible:', error);
           const hint = String(error?.message || '').includes('timeout')
-            ? 'Délai dépassé (45 s) — connexion lente ou Supabase surchargé.'
+            ? 'Délai dépassé — la base Supabase met trop de temps à répondre (souvent projet en pause ou erreur 522).'
             : '';
           finishBackgroundSync(null, false, hint);
         });
@@ -927,6 +955,14 @@ const App = () => {
           ok: false,
           message: `⛔ Planning utilisé sur ${ownerText || 'un autre poste'}. Attendez ${remainingSeconds ?? '?'} s.`
         };
+      }
+      if (lockResult.reason === 'supabase-lock-unavailable') {
+        const probe = await probeSupabaseDatabaseHealth(20000);
+        const failMsg = probe.hint
+          || 'Impossible d’acquérir le verrou sur Supabase (base injoignable ou table planning_locks). Réessayez dans 1 minute.';
+        alert(`❌ Connexion impossible.\n\n${failMsg}`);
+        setFeedback('❌ Verrou Supabase indisponible — vérifiez l’état du projet Supabase.');
+        return { ok: false, message: `❌ ${failMsg}` };
       }
       const failMsg =
         'Fermez les autres onglets Klick-planning sur ce poste et réessayez.';

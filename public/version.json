@@ -1,7 +1,15 @@
 {
-  "version": "3.10.173",
+  "version": "3.10.174",
   "lastUpdate": "2026-07-22",
   "changelog": [
+    {
+      "version": "3.10.174",
+      "date": "2026-07-22",
+      "changes": [
+        "Mise a jour version.",
+        "Changelog a completer."
+      ]
+    },
     {
       "version": "3.10.173",
       "date": "2026-07-22",

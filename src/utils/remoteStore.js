@@ -971,6 +971,46 @@ export const loadCompletePlanningDataWithRetry = async (options = {}) => {
   return lastResult;
 };
 
+/** Vérifie si la base Postgres du projet répond (pas seulement l’API auth). */
+export const probeSupabaseDatabaseHealth = async (timeoutMs = 25000) => {
+  if (!isReady()) {
+    return { ok: false, reason: 'not_configured' };
+  }
+  try {
+    const query = supabase.from('plannings').select('shop_id').limit(1);
+    const { error } = await Promise.race([
+      query,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`database_probe_timeout_${timeoutMs}ms`)), timeoutMs);
+      })
+    ]);
+    if (error) {
+      const code = error.code || '';
+      const msg = error.message || '';
+      return {
+        ok: false,
+        reason: 'query_error',
+        code,
+        message: msg,
+        hint:
+          code === 'PGRST301' || /522|timeout|fetch/i.test(msg)
+            ? 'Le projet Supabase ne répond pas (base en pause, surchargée ou erreur 522). Ouvrez supabase.com/dashboard → votre projet → Restore / Resume si le projet est en pause.'
+            : 'Erreur lecture table plannings — vérifiez RLS et l’état du projet Supabase.'
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    const msg = String(error?.message || error);
+    return {
+      ok: false,
+      reason: /timeout|522/i.test(msg) ? 'network_timeout' : 'network',
+      message: msg,
+      hint:
+        'La base Supabase ne répond pas (timeout ou erreur 522). Sur l’offre gratuite, un projet inactif est mis en pause : reprenez-le depuis le dashboard Supabase, puis « Réessayer Supabase » ici.'
+    };
+  }
+};
+
 export const loadRemotePlanning = async (shopId, weekKey) => {
   console.log('🔍 loadRemotePlanning called with:', { shopId, weekKey });
   if (!isReady() || !shopId || !weekKey) {

@@ -545,6 +545,10 @@ const VERSION_HIGHLIGHTS = {
     'Chargement cloud: 3 tentatives et delai allonge (moins de faux « Supabase inaccessible » apres mise a jour).',
     'Sauvegarde: fusion avec le cloud meme sans ligne complete_file (reconstruction multi-lignes).',
     'Verrou multi-postes: plus de repli localStorage quand Supabase est configure (evite deux PC en parallele).'
+  ],
+  '3.10.174': [
+    'Diagnostic: message explicite si la base Supabase ne repond pas (projet en pause / erreur 522).',
+    'Demarrage: 3 tentatives avec 70 s chacune (au lieu d un seul bloc 45 s).'
   ]
 };
 
