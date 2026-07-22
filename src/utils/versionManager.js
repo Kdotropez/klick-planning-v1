@@ -539,6 +539,12 @@ const VERSION_HIGHLIGHTS = {
   '3.10.172': [
     'Demarrage: Supabase toujours charge en premier — la copie locale du navigateur ne remplace plus le cloud.',
     'Suppression du mode priorite JSON au demarrage (meme logique sur tous les postes).'
+  ],
+  '3.10.173': [
+    'Demarrage: connexion bloquee tant que Supabase n a pas fourni un planning valide (plus de contournement silencieux).',
+    'Chargement cloud: 3 tentatives et delai allonge (moins de faux « Supabase inaccessible » apres mise a jour).',
+    'Sauvegarde: fusion avec le cloud meme sans ligne complete_file (reconstruction multi-lignes).',
+    'Verrou multi-postes: plus de repli localStorage quand Supabase est configure (evite deux PC en parallele).'
   ]
 };
 

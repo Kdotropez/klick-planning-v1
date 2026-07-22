@@ -345,37 +345,40 @@ export const saveCompletePlanningData = async (completePlanningData, options = {
     let mergeApplied = false;
 
     if (!replaceEntirely) {
-      const remoteRow = await fetchCompleteRemoteWithRetry(3);
+      let remoteRow = await fetchCompleteRemoteWithRetry(3);
       if (!remoteRow) {
-        console.error('❌ Fusion Supabase impossible : version cloud introuvable.');
-        return {
-          ok: false,
-          reason: 'remote_unavailable',
-          message:
-            'Impossible de lire le planning sur Supabase. Sauvegarde ANNULÉE pour protéger Port Grimaud, Saint-Tropez et les autres boutiques. Réessayez dans quelques minutes ou exportez un JSON local.'
-        };
+        const reconstructed = await loadCompletePlanningData({ skipNormalize: true });
+        if (isCompletePlanningData(reconstructed)) {
+          console.log('ℹ️ complete_file absent — fusion avec planning reconstruit depuis Supabase.');
+          remoteRow = reconstructed;
+        }
       }
-
-      const localForMerge = Array.isArray(allowedShopIds) && allowedShopIds.length > 0
-        ? restrictLocalDataForMerge(dataToSave, allowedShopIds)
-        : dataToSave;
-
-      const merged = mergeCompletePlanningWithRemote(localForMerge, remoteRow);
-      preservedShopIds = merged._mergeReport?.preservedShopIds || [];
-      const { _mergeReport, ...withoutReport } = merged;
-      dataToSave = normalizeCompletePlanningData(withoutReport);
-      mergeApplied = true;
-
-      if (preservedShopIds.length > 0) {
+      if (!remoteRow) {
         console.warn(
-          `🛡️ Fusion Supabase: ${preservedShopIds.length} boutique(s) conservée(s) depuis le cloud:`,
-          preservedShopIds.join(', ')
+          'ℹ️ Aucun planning cloud existant — création initiale de complete_file (première sauvegarde).'
         );
-      }
-      if (allowedShopIds?.length) {
-        console.log(
-          `🛡️ Sauvegarde limitée aux boutique(s) autorisée(s): ${allowedShopIds.join(', ')}`
-        );
+      } else {
+        const localForMerge = Array.isArray(allowedShopIds) && allowedShopIds.length > 0
+          ? restrictLocalDataForMerge(dataToSave, allowedShopIds)
+          : dataToSave;
+
+        const merged = mergeCompletePlanningWithRemote(localForMerge, remoteRow);
+        preservedShopIds = merged._mergeReport?.preservedShopIds || [];
+        const { _mergeReport, ...withoutReport } = merged;
+        dataToSave = normalizeCompletePlanningData(withoutReport);
+        mergeApplied = true;
+
+        if (preservedShopIds.length > 0) {
+          console.warn(
+            `🛡️ Fusion Supabase: ${preservedShopIds.length} boutique(s) conservée(s) depuis le cloud:`,
+            preservedShopIds.join(', ')
+          );
+        }
+        if (allowedShopIds?.length) {
+          console.log(
+            `🛡️ Sauvegarde limitée aux boutique(s) autorisée(s): ${allowedShopIds.join(', ')}`
+          );
+        }
       }
     }
 
@@ -878,7 +881,6 @@ export const getSupabaseBackupDiagnostics = async () => {
   }
 };
 
-// Fonction pour charger le fichier complet de planning
 export const loadCompletePlanningData = async (options = {}) => {
   const { skipNormalize = false } = options;
   console.log('🔍 loadCompletePlanningData called');
@@ -951,6 +953,22 @@ export const loadCompletePlanningData = async (options = {}) => {
     console.error('❌ Exception dans loadCompletePlanningData:', error);
     return null;
   }
+};
+
+/** Chargement cloud avec plusieurs tentatives (démarrage, réseau lent). */
+export const loadCompletePlanningDataWithRetry = async (options = {}) => {
+  const { attempts = 3, skipNormalize = false, delayMs = 800 } = options;
+  let lastResult = null;
+  for (let i = 0; i < attempts; i += 1) {
+    lastResult = await loadCompletePlanningData({ skipNormalize });
+    if (isCompletePlanningData(lastResult)) {
+      return lastResult;
+    }
+    if (i < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
+    }
+  }
+  return lastResult;
 };
 
 export const loadRemotePlanning = async (shopId, weekKey) => {

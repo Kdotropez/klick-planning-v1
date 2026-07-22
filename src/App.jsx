@@ -50,6 +50,7 @@ import {
   loadCompletePlanningBackupByWeekKey,
   getCurrentCompleteBackupInfo,
   loadCompletePlanningData,
+  loadCompletePlanningDataWithRetry,
   findHistoricalBackupsWithShopWeek,
   getGlobalBackupTimeline,
   inspectShopWeekInventory,
@@ -98,8 +99,9 @@ const App = () => {
   const mergeShopJsonInputRef = useRef(null);
   const heartbeatFailCountRef = useRef(0);
   const bootstrapBackgroundSyncRef = useRef(false);
+  const retrySupabaseStartupSyncRef = useRef(null);
   const BOOTSTRAP_REMOTE_TIMEOUT_MS = 5000;
-  const BOOTSTRAP_BACKGROUND_TIMEOUT_MS = 20000;
+  const BOOTSTRAP_BACKGROUND_TIMEOUT_MS = 45000;
   // TTL verrou global (allongé pour limiter les déconnexions pendant SAUVE SUPABASE)
   const GLOBAL_LOCK_TTL_MS = 3 * 60 * 1000;
   const GLOBAL_HEARTBEAT_MS = 25 * 1000;
@@ -340,8 +342,10 @@ const App = () => {
         if (result?.lock && result.lock.user_id !== holderId) {
           return { ok: false, reason: 'locked-by-other', lock: result.lock };
         }
+        return { ok: false, reason: 'supabase-lock-unavailable' };
       } catch (error) {
-        console.warn('⚠️ Verrou Supabase indisponible, repli verrou local:', error);
+        console.warn('⚠️ Verrou Supabase indisponible:', error);
+        return { ok: false, reason: 'supabase-lock-unavailable' };
       }
     }
 
@@ -397,7 +401,7 @@ const App = () => {
       if (bootstrapBackgroundSyncRef.current) return;
       bootstrapBackgroundSyncRef.current = true;
 
-      const finishBackgroundSync = (remoteData, ok) => {
+      const finishBackgroundSync = (remoteData, ok, failureHint = '') => {
         if (ok && isValidPlanningPayload(remoteData)) {
           applyPlanningPayload(remoteData);
           try {
@@ -406,22 +410,34 @@ const App = () => {
           setRestoredInfo('☁️ Version commune Supabase chargée — connexion autorisée.');
           setFeedback('✅ Planning synchronisé depuis le cloud (même version que les autres postes).');
           console.log('✅ Sync Supabase arrière-plan terminée.');
-        } else {
-          const emergencyLocal = loadLocalPlanningFallback();
-          if (emergencyLocal) {
-            applyPlanningPayload(emergencyLocal);
-          }
-          setRestoredInfo(
-            '⚠️ Supabase inaccessible — copie locale de secours uniquement. Rechargez quand le réseau est OK.'
-          );
-          setFeedback('⚠️ Hors sync multi-postes tant que Supabase ne charge pas.');
-          console.warn('⚠️ Sync Supabase arrière-plan: pas de version cloud valide.');
+          setIsSupabaseStartupReady(true);
+          return;
         }
-        setIsSupabaseStartupReady(true);
+
+        const hasConfig = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_KEY);
+        let detail = failureHint;
+        if (!detail) {
+          if (!hasConfig) {
+            detail = 'Configuration Supabase absente sur ce déploiement (VITE_SUPABASE_URL / VITE_SUPABASE_KEY).';
+          } else if (!remoteData) {
+            detail =
+              'Aucune réponse valide du cloud (réseau, timeout 45 s, ou table plannings vide / RLS).';
+          } else {
+            detail = 'Données cloud reçues mais invalides (aucune boutique).';
+          }
+        }
+        if (!loadLocalPlanningFallback()) {
+          detail += ' Pas de copie locale (fréquent juste après une mise à jour qui vide le cache).';
+        }
+
+        setRestoredInfo(`❌ Supabase inaccessible — ${detail} Utilisez « Réessayer Supabase » ou vérifiez la connexion.`);
+        setFeedback('⚠️ Connexion bloquée tant que le cloud ne charge pas.');
+        console.warn('⚠️ Sync Supabase arrière-plan: pas de version cloud valide.', detail);
+        setIsSupabaseStartupReady(false);
       };
 
       withTimeout(
-        loadCompletePlanningData({ skipNormalize: true }),
+        loadCompletePlanningDataWithRetry({ attempts: 3, skipNormalize: true, delayMs: 1000 }),
         BOOTSTRAP_BACKGROUND_TIMEOUT_MS,
         'Sync Supabase arrière-plan'
       )
@@ -430,8 +446,16 @@ const App = () => {
         })
         .catch((error) => {
           console.warn('⚠️ Sync Supabase arrière-plan impossible:', error);
-          finishBackgroundSync(null, false);
+          const hint = String(error?.message || '').includes('timeout')
+            ? 'Délai dépassé (45 s) — connexion lente ou Supabase surchargé.'
+            : '';
+          finishBackgroundSync(null, false, hint);
         });
+    };
+
+    retrySupabaseStartupSyncRef.current = () => {
+      bootstrapBackgroundSyncRef.current = false;
+      syncRemotePlanningInBackground();
     };
 
     const bootstrapFromSupabase = async () => {
@@ -481,6 +505,15 @@ const App = () => {
       );
       if (localFallback) {
         console.log('ℹ️ Copie locale présente mais non utilisée au démarrage — sync Supabase obligatoire.');
+      }
+      const hasSupabaseConfig = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_KEY);
+      if (!hasSupabaseConfig) {
+        openReady(
+          '❌ Supabase non configuré sur ce déploiement (VITE_SUPABASE_URL / VITE_SUPABASE_KEY).',
+          'Connexion bloquée — vérifiez les variables sur Vercel.',
+          false
+        );
+        return;
       }
       syncRemotePlanningInBackground();
       } catch (error) {
@@ -863,6 +896,13 @@ const App = () => {
   // useEffect(() => { ... }, [planningData]);
 
   // Gestion de l'identification
+  const handleRetrySupabaseStartup = () => {
+    setIsSupabaseStartupReady(false);
+    setRestoredInfo('⏳ Nouvelle tentative de chargement Supabase…');
+    setFeedback('ℹ️ Patientez — le cloud doit répondre avant connexion.');
+    retrySupabaseStartupSyncRef.current?.();
+  };
+
   const handleUserIdentification = async (user) => {
     console.log('🆔 Utilisateur identifié:', user);
 
@@ -2850,6 +2890,7 @@ const App = () => {
           isSupabaseStartupReady={isSupabaseStartupReady}
           isBootstrapComplete={isBootstrapComplete}
           startupInfo={restoredInfo}
+          onRetrySupabaseStartup={handleRetrySupabaseStartup}
         />
       </ErrorBoundary>
     );

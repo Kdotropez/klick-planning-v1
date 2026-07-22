@@ -9,7 +9,8 @@ const UserIdentificationModal = ({
   onEmergencyUnlock,
   isSupabaseStartupReady = true,
   isBootstrapComplete = true,
-  startupInfo = ''
+  startupInfo = '',
+  onRetrySupabaseStartup
 }) => {
   const [userCode, setUserCode] = useState('');
   const [userName, setUserName] = useState('');
@@ -206,6 +207,25 @@ const UserIdentificationModal = ({
               }}>
                 {startupInfo}
               </p>
+            )}
+            {isBootstrapComplete && !isSupabaseStartupReady && typeof onRetrySupabaseStartup === 'function' && (
+              <button
+                type="button"
+                onClick={onRetrySupabaseStartup}
+                style={{
+                  marginTop: '12px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  backgroundColor: '#fff',
+                  color: '#1565c0'
+                }}
+              >
+                Réessayer Supabase
+              </button>
             )}
           </div>
 
