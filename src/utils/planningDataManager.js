@@ -153,6 +153,10 @@ export const hideEmployee = (planningData, employeeId, hideFromDate, shopId = nu
   };
 };
 
+/** Date de masquage identique sur toutes les boutiques (évite les écarts Saint-Tropez / etc.). */
+export const updateEmployeeHideDate = (planningData, employeeId, hideFromDate) =>
+  hideEmployee(planningData, employeeId, hideFromDate, null);
+
 export const showEmployee = (planningData, employeeId, shopId = null) => {
   console.log(`🔓 Affichage de l'employé ${employeeId}${shopId ? ` (boutique: ${shopId})` : ''}`);
   

@@ -549,6 +549,13 @@ const VERSION_HIGHLIGHTS = {
   '3.10.174': [
     'Diagnostic: message explicite si la base Supabase ne repond pas (projet en pause / erreur 522).',
     'Demarrage: 3 tentatives avec 70 s chacune (au lieu d un seul bloc 45 s).'
+  ],
+  '3.10.175': [
+    'Employes masques: date hiddenFrom synchronisee sur toutes les boutiques + save Supabase avant local.',
+    'Reactiver / masquer TOUS: une seule sauvegarde Supabase (plus de requetes paralleles).',
+    'Outbox: flush via complete_file avec fusion (plus d ecriture semaine seule).',
+    'SAUVE SUPABASE: une seule ecriture complete_file (allège la base).',
+    'Compteur masques: isEmployeeHidden (visibleFrom / reembauche).'
   ]
 };
 

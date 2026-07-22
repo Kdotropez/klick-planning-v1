@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { isEmployeeHidden, getArchivedEmployeeIds, reactivateEmployee, promptEmployeeReactivationOptions } from '../../utils/planningDataManager';
+import { isEmployeeHidden, getArchivedEmployeeIds, reactivateEmployee, promptEmployeeReactivationOptions, updateEmployeeHideDate, hideEmployee } from '../../utils/planningDataManager';
 import { saveCompletePlanningData } from '../../utils/remoteStore';
 import { getSaveMergeOptionsForUser } from '../../config/userCodes';
 
@@ -42,6 +42,23 @@ const HiddenEmployeesModal = ({
 
   if (!isOpen) return null;
 
+  const persistEmployeeChanges = async (updatedData, successMessage, failureMessage) => {
+    const remoteResult = await saveCompletePlanningData(
+      updatedData,
+      getSaveMergeOptionsForUser(currentUser)
+    );
+    if (remoteResult?.ok && remoteResult.planningData) {
+      localStorage.setItem('planningData', JSON.stringify(remoteResult.planningData));
+      if (onEmployeeUpdate) {
+        onEmployeeUpdate(remoteResult.planningData);
+      }
+      alert(successMessage);
+      return remoteResult.planningData;
+    }
+    alert(failureMessage);
+    return null;
+  };
+
   const handleShowEmployee = async (employeeId) => {
     if (!employeeId) return;
 
@@ -56,26 +73,14 @@ const HiddenEmployeesModal = ({
 
       const updatedData = reactivateEmployee(planningData, employeeId, options);
 
-      const remoteResult = await saveCompletePlanningData(
+      const saved = await persistEmployeeChanges(
         updatedData,
-        getSaveMergeOptionsForUser(currentUser)
+        `✅ « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom}.\n\n` +
+          'Les horaires antérieurs sont conservés (masqués avant cette date).',
+        `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.\n\n` +
+          'Réessayez ou utilisez « SAUVE SUPABASE ».'
       );
-      if (remoteResult?.ok && remoteResult.planningData) {
-        localStorage.setItem('planningData', JSON.stringify(remoteResult.planningData));
-        if (onEmployeeUpdate) {
-          onEmployeeUpdate(remoteResult.planningData);
-        }
-        alert(
-          `✅ « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom}.\n\n` +
-            'Les horaires antérieurs sont conservés (masqués avant cette date).'
-        );
-        onClose();
-      } else {
-        alert(
-          `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.\n\n` +
-            'Réessayez ou utilisez « SAUVE SUPABASE » après une réactivation réussie.'
-        );
-      }
+      if (saved) onClose();
     } catch (e) {
       console.error('Erreur lors de la réactivation:', e);
       alert('❌ Erreur lors de la réactivation de l\'employé');
@@ -88,97 +93,93 @@ const HiddenEmployeesModal = ({
     console.log('⚠️ Cette fonction n\'est plus utilisée - le masquage se fait sur la carte');
   };
 
-  // Nouvelle fonction pour modifier la date de masquage d'un employé
   const handleUpdateHideDate = async (employeeId, newHideDate) => {
-    if (!employeeId || !newHideDate || !currentShop) return;
-    
+    if (!employeeId || !newHideDate) return;
+
     try {
-      console.log('🔧 handleUpdateHideDate appelé avec:', { employeeId, newHideDate });
-      
-      // Valider le format de la date
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dateRegex.test(newHideDate)) {
         alert('❌ Format de date invalide. Utilisez le format AAAA-MM-JJ (ex: 2024-12-31)');
         return;
       }
-      
-      // Vérifier que la date est valide
+
       const testDate = new Date(newHideDate);
       if (isNaN(testDate.getTime())) {
         alert('❌ Date invalide. Veuillez entrer une date valide.');
         return;
       }
-      
-      // Trouver l'employé pour l'affichage
-      const currentShopData = planningData?.shops?.find((shop) => shop.id === currentShop);
-      const employee = currentShopData?.employees?.find((emp) => emp.id === employeeId);
-      const employeeName = employee?.name || employeeId;
-      
-      console.log('🔍 Employé trouvé:', { employee, employeeName });
-      
-      // Mettre à jour les données
-      const updatedShops = planningData.shops.map(shop => ({
-        ...shop,
-        employees: shop.id !== currentShop
-          ? (shop.employees || [])
-          : (shop.employees || []).map(emp =>
-              emp && emp.id === employeeId ? { ...emp, hiddenFrom: newHideDate } : emp
-            )
-      }));
-      
-      const updatedData = {
-        ...planningData,
-        shops: updatedShops
-      };
-      
-      console.log('📊 Données mises à jour:', {
-        oldHiddenFrom: employee?.hiddenFrom,
-        newHiddenFrom: newHideDate,
-        updatedDataShops: updatedData.shops.length
+
+      const employeeName =
+        hiddenEmployees.find((e) => e.id === employeeId)?.name ||
+        allEmployees.find((e) => e.id === employeeId)?.name ||
+        employeeId;
+
+      const updatedData = updateEmployeeHideDate(planningData, employeeId, newHideDate);
+
+      const saved = await persistEmployeeChanges(
+        updatedData,
+        `✅ Date de masquage modifiée pour « ${employeeName} » : ${newHideDate}\n\nEnregistré dans Supabase (toutes les boutiques).`,
+        `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée pour « ${employeeName} ».`
+      );
+      if (!saved) return;
+
+      const hiddenMap = new Map();
+      (saved.shops || []).forEach((shop) => {
+        (shop.employees || []).forEach((emp) => {
+          if (!emp?.id || !isEmployeeHidden(emp)) return;
+          if (!hiddenMap.has(emp.id)) hiddenMap.set(emp.id, { ...emp });
+        });
       });
-      
-      // Sauvegarder dans localStorage
-      localStorage.setItem('planningData', JSON.stringify(updatedData));
-      console.log('💾 Données sauvegardées dans localStorage');
-      
-      // Sauvegarder dans Supabase
-      try {
-        console.log('💾 Sauvegarde de la modification de date dans Supabase...');
-        const { saveCompletePlanningData } = await import('../../utils/remoteStore');
-        const remoteResult = await saveCompletePlanningData(
-          updatedData,
-          getSaveMergeOptionsForUser(currentUser)
-        );
-        if (remoteResult?.ok) {
-          console.log('✅ Date de masquage modifiée et sauvegardée dans Supabase');
-          alert(`✅ Date de masquage modifiée pour "${employeeName}" : ${newHideDate}\n\nLa modification a été sauvegardée localement et dans Supabase.`);
-        } else {
-          console.log('❌ Échec sauvegarde Supabase de la modification de date');
-          alert(`✅ Date de masquage modifiée pour "${employeeName}" : ${newHideDate}\n\n⚠️ La modification a été sauvegardée localement mais la sauvegarde Supabase a échoué.`);
-        }
-      } catch (error) {
-        console.error('❌ Erreur sauvegarde Supabase de la modification de date:', error);
-        alert(`✅ Date de masquage modifiée pour "${employeeName}" : ${newHideDate}\n\n⚠️ La modification a été sauvegardée localement mais la sauvegarde Supabase a échoué.`);
-      }
-      
-      // Appeler la fonction de mise à jour pour rafraîchir l'interface
-      console.log('🔄 Appel de onEmployeeUpdate avec les données mises à jour');
-      if (onEmployeeUpdate) {
-        onEmployeeUpdate(updatedData);
-        console.log('✅ onEmployeeUpdate appelé avec succès');
-      } else {
-        console.log('❌ onEmployeeUpdate n\'est pas défini');
-      }
-      
-      // Rafraîchir la liste des employés masqués
-      const refreshedShop = updatedData.shops?.find((shop) => shop.id === currentShop);
-      const hidden = (refreshedShop?.employees || []).filter((emp) => !!emp?.hiddenFrom);
-      setHiddenEmployees(hidden);
-      console.log('📋 Liste des employés masqués mise à jour:', hidden.length, 'employés');
-      
+      setHiddenEmployees(Array.from(hiddenMap.values()));
     } catch (e) {
       console.error('❌ Erreur lors de la modification de la date de masquage:', e);
       alert('❌ Erreur lors de la modification de la date de masquage');
+    }
+  };
+
+  const handleReactivateAll = async () => {
+    if (!hiddenEmployees.length) return;
+    try {
+      const options = promptEmployeeReactivationOptions(`${hiddenEmployees.length} employé(s) masqué(s)`);
+      if (!options) return;
+
+      let updatedData = planningData;
+      for (const emp of hiddenEmployees) {
+        updatedData = reactivateEmployee(updatedData, emp.id, options);
+      }
+
+      const saved = await persistEmployeeChanges(
+        updatedData,
+        `✅ ${hiddenEmployees.length} employé(s) réactivé(s) à partir du ${options.visibleFrom}.\n\nUne seule sauvegarde Supabase.`,
+        '⚠️ Sauvegarde Supabase échouée — aucune réactivation appliquée.'
+      );
+      if (saved) onClose();
+    } catch (e) {
+      console.error('Erreur réactivation groupée:', e);
+      alert('❌ Erreur lors de la réactivation groupée');
+    }
+  };
+
+  const handleHideAllWithDate = async (newDate) => {
+    if (!newDate || !hiddenEmployees.length) return;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(newDate)) {
+      alert('❌ Format de date invalide (AAAA-MM-JJ).');
+      return;
+    }
+    try {
+      let updatedData = planningData;
+      for (const emp of hiddenEmployees) {
+        updatedData = hideEmployee(updatedData, emp.id, newDate, null);
+      }
+      await persistEmployeeChanges(
+        updatedData,
+        `✅ Date de masquage ${newDate} appliquée à ${hiddenEmployees.length} employé(s) (toutes boutiques).`,
+        '⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.'
+      );
+    } catch (e) {
+      console.error('Erreur masquage groupé:', e);
+      alert('❌ Erreur lors du masquage groupé');
     }
   };
 
@@ -465,9 +466,9 @@ const HiddenEmployeesModal = ({
               <button
                 onClick={() => {
                   if (window.confirm(
-                    `Êtes-vous sûr de vouloir réactiver TOUS les employés masqués de cette boutique (${hiddenEmployees.length}) ?`
+                    `Réactiver TOUS les employés masqués (${hiddenEmployees.length}) avec une seule date de réembauche et une sauvegarde Supabase ?`
                   )) {
-                    hiddenEmployees.forEach(emp => handleShowEmployee(emp.id));
+                    handleReactivateAll();
                   }
                 }}
                 style={{
@@ -494,7 +495,7 @@ const HiddenEmployeesModal = ({
                     new Date().toISOString().split('T')[0]
                   );
                   if (newDate) {
-                    hiddenEmployees.forEach(emp => handleUpdateHideDate(emp.id, newDate));
+                    handleHideAllWithDate(newDate);
                   }
                 }}
                 style={{

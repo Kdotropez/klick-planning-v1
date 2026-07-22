@@ -7,7 +7,7 @@ import { checkUserPermission } from '../../config/userCodes';
 import UserManagementModal from '../admin/UserManagementModal';
 import HiddenEmployeesModal from './HiddenEmployeesModal';
 import AuditLogModal from './AuditLogModal';
-import { getHiddenEmployees } from '../../utils/planningDataManager';
+import { getHiddenEmployees, isEmployeeHidden } from '../../utils/planningDataManager';
 import { listAuditLogs, clearAuditLogs } from '../../utils/auditLog';
 import '../../assets/styles.css';
 
@@ -137,7 +137,7 @@ const PlanningMenuBar = ({
   useEffect(() => {
     if (planningData) {
       const currentShopData = planningData.shops?.find((shop) => shop.id === currentShop);
-      const hiddenInCurrentShop = (currentShopData?.employees || []).filter((emp) => !!emp?.hiddenFrom);
+      const hiddenInCurrentShop = (currentShopData?.employees || []).filter((emp) => isEmployeeHidden(emp));
       setHiddenEmployeesCount(hiddenInCurrentShop.length);
     }
   }, [planningData, currentShop]);

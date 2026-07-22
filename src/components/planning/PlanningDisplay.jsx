@@ -35,7 +35,7 @@ import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { usePlanningLock } from '../../hooks/usePlanningLock';
 
 import TouchOptimizationBanner from '../common/TouchOptimizationBanner';
-import { saveRemotePlanning, saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
+import { saveCompletePlanningData, cleanAndResaveData, loadCompletePlanningData, initRemoteOutbox } from '@/utils/remoteStore';
 import { heartbeat } from '../../utils/collabLock';
 import { testSupabaseConnection, testSupabaseTables } from '@/utils/testSupabase';
 import { addAuditLog } from '@/utils/auditLog';
@@ -1347,20 +1347,7 @@ const PlanningDisplay = ({
         // Attendre un peu pour s'assurer que le state est mis à jour
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Sauvegarder d'abord la semaine courante (enregistrement visible par boutique/semaine)
-        try {
-          const weekSaved = await saveRemotePlanning(updatedSnapshot, selectedShop, validWeek);
-          if (weekSaved) {
-            console.log('✅ Sauvegarde semaine Supabase réussie');
-            setLocalFeedback('💾 Semaine sauvegardée (Supabase)');
-          } else {
-            console.log('❌ Échec sauvegarde semaine Supabase');
-          }
-        } catch (error) {
-          console.error('❌ Erreur sauvegarde semaine Supabase:', error);
-        }
-
-        // Puis sauvegarde du fichier complet (backup) avec les données fraîches
+        // Sauvegarde unique sur complete_file (fusion cloud) — évite la double écriture semaine + complete
         try { 
           console.log('🔄 Sauvegarde complète avec données fraîches...');
           const remoteResult = await saveCompletePlanningData(

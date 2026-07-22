@@ -46,9 +46,8 @@ export const initRemoteOutbox = () => {
       // Vérifier disponibilité basique
       if (!supabase) { it.attempt = (it.attempt || 0) + 1; it.nextTryAt = now + backoffFor(it.attempt); writeOutbox(items); continue; }
       try {
-        // Optionnel: vérifier le verrou ailleurs avant flush (côté appelant)
-        const ok = await saveRemotePlanning(it.data, it.shopId, it.weekKey, true);
-        if (ok) {
+        const result = await saveCompletePlanningData(it.data);
+        if (result?.ok) {
           dequeueIf(x => x.id === it.id);
         } else {
           it.attempt = (it.attempt || 0) + 1; it.nextTryAt = now + backoffFor(it.attempt); writeOutbox(items);
