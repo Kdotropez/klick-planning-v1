@@ -879,7 +879,10 @@ const PlanningDisplay = ({
       shopName: planningData?.shops?.find((s) => s.id === selectedShop)?.name || selectedShop
     });
     try {
-      const remoteResult = await saveCompletePlanningData(updatedData);
+      const remoteResult = await saveCompletePlanningData(
+        updatedData,
+        getSaveMergeOptionsForUser(currentUser)
+      );
       if (remoteResult?.ok) {
         if (remoteResult.planningData) {
           setPlanningData(remoteResult.planningData);

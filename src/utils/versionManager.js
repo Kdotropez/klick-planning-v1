@@ -513,6 +513,11 @@ const VERSION_HIGHLIGHTS = {
   '3.10.166': [
     'Rapport equipe HTML: cases a cocher pour choisir les sections a imprimer.',
     'Preferences sections memorisees; export partiel (panorama, matrice, detail jour...).'
+  ],
+  '3.10.167': [
+    'Demarrage: connexion bloquee jusqu a la fin de la sync Supabase (evite une copie locale obsolete).',
+    'Fusion cloud: les employes reactives ne sont plus remasques par un cache local stale.',
+    'Ecran identification: message d attente explicite avant connexion.'
   ]
 };
 

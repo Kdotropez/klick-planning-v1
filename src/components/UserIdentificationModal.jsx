@@ -182,6 +182,18 @@ const UserIdentificationModal = ({
                 ⏳ Chargement des données en cours…
               </p>
             )}
+            {isBootstrapComplete && !isSupabaseStartupReady && (
+              <p style={{
+                marginTop: '10px',
+                padding: '8px 12px',
+                backgroundColor: 'rgba(255,193,7,0.25)',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                color: '#fff'
+              }}>
+                ⏳ Mise à jour depuis Supabase en cours — ne vous connectez pas tant que le bandeau n’est pas vert.
+              </p>
+            )}
             {isBootstrapComplete && startupInfo && (
               <p style={{
                 marginTop: '14px',

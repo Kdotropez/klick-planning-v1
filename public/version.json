@@ -1,7 +1,16 @@
 {
-  "version": "3.10.166",
-  "lastUpdate": "2026-05-29",
+  "version": "3.10.167",
+  "lastUpdate": "2026-07-22",
   "changelog": [
+    {
+      "version": "3.10.167",
+      "date": "2026-07-22",
+      "changes": [
+        "Démarrage : connexion bloquée jusqu’à la fin de la synchronisation Supabase (évite une copie locale obsolète).",
+        "Fusion cloud : les employés réactivés ne sont plus remasqués par un cache local stale.",
+        "Écran d’identification : message d’attente explicite avant connexion."
+      ]
+    },
     {
       "version": "3.10.166",
       "date": "2026-05-29",

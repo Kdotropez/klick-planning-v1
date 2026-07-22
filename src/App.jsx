@@ -397,20 +397,33 @@ const App = () => {
       if (bootstrapBackgroundSyncRef.current) return;
       bootstrapBackgroundSyncRef.current = true;
 
+      const finishBackgroundSync = (remoteData, ok) => {
+        if (ok && isValidPlanningPayload(remoteData)) {
+          applyPlanningPayload(remoteData);
+          setRestoredInfo('☁️ Planning synchronisé depuis Supabase — connexion autorisée.');
+          setFeedback('✅ Version cloud chargée. Vous pouvez vous identifier.');
+          console.log('✅ Sync Supabase arrière-plan terminée.');
+        } else {
+          setRestoredInfo(
+            '⚠️ Supabase inaccessible — copie locale conservée. Risque de conflit si un autre poste a modifié le planning.'
+          );
+          setFeedback('⚠️ Sync cloud impossible — vérifiez la connexion avant de modifier le planning.');
+          console.warn('⚠️ Sync Supabase arrière-plan: pas de version cloud valide.');
+        }
+        setIsSupabaseStartupReady(true);
+      };
+
       withTimeout(
         loadCompletePlanningData({ skipNormalize: true }),
         BOOTSTRAP_BACKGROUND_TIMEOUT_MS,
         'Sync Supabase arrière-plan'
       )
         .then((remoteData) => {
-          if (!isValidPlanningPayload(remoteData)) return;
-          applyPlanningPayload(remoteData);
-          setRestoredInfo('☁️ Planning synchronisé depuis Supabase.');
-          setIsSupabaseStartupReady(true);
-          console.log('✅ Sync Supabase arrière-plan terminée.');
+          finishBackgroundSync(remoteData, isValidPlanningPayload(remoteData));
         })
         .catch((error) => {
           console.warn('⚠️ Sync Supabase arrière-plan impossible:', error);
+          finishBackgroundSync(null, false);
         });
     };
 
@@ -462,10 +475,11 @@ const App = () => {
       if (localFallback) {
         applyPlanningPayload(localFallback, { persist: false });
         openReady(
-          '📁 Ouverture rapide (copie locale). Synchronisation Supabase en cours…',
-          'ℹ️ Connexion possible — mise à jour cloud en arrière-plan.'
+          '⏳ Copie locale affichée — synchronisation Supabase obligatoire avant connexion…',
+          'ℹ️ Patientez jusqu’à la mise à jour cloud (bouton connexion grisé).',
+          false
         );
-        console.log('✅ Bootstrap rapide: localStorage, sync cloud différée.');
+        console.log('✅ Bootstrap rapide: localStorage, sync cloud avant connexion.');
         syncRemotePlanningInBackground();
         return;
       }
