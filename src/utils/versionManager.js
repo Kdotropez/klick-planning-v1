@@ -535,6 +535,10 @@ const VERSION_HIGHLIGHTS = {
   ],
   '3.10.171': [
     'Mode JSON restaure: choix explicite Charger Supabase ou garder le JSON (plus de demarrage silencieux sans cloud).'
+  ],
+  '3.10.172': [
+    'Demarrage: Supabase toujours charge en premier — la copie locale du navigateur ne remplace plus le cloud.',
+    'Suppression du mode priorite JSON au demarrage (meme logique sur tous les postes).'
   ]
 };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { saveToLocalStorage } from './utils/localStorage';
@@ -190,7 +190,6 @@ const App = () => {
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
   const [isSupabaseStartupReady, setIsSupabaseStartupReady] = useState(false);
   const [isBootstrapComplete, setIsBootstrapComplete] = useState(false);
-  const [awaitingLocalJsonChoice, setAwaitingLocalJsonChoice] = useState(false);
   const [supabaseSessionOffline, setSupabaseSessionOffline] = useState(false);
   const [inactivityCounterPosition, setInactivityCounterPosition] = useState(() => {
     try {
@@ -273,49 +272,6 @@ const App = () => {
       shopName: getShopNameById(shopId || '', data)
     });
   };
-
-  const handleLoadSupabaseOnStartup = useCallback(async () => {
-    localStorage.removeItem('planning_prefer_local_until_save');
-    setAwaitingLocalJsonChoice(false);
-    setIsSupabaseStartupReady(false);
-    setRestoredInfo('⏳ Chargement Supabase…');
-    setFeedback('ℹ️ Récupération de la version cloud…');
-    try {
-      const remoteData = await loadCompletePlanningData({ skipNormalize: true });
-      const valid =
-        remoteData && Array.isArray(remoteData.shops) && remoteData.shops.length > 0;
-      if (valid) {
-        const normalized = normalizeCompletePlanningData(remoteData);
-        setPlanningData(normalized);
-        localStorage.setItem('planningData', JSON.stringify(normalized));
-        setRestoredInfo('☁️ Version Supabase chargée — connexion autorisée.');
-        setFeedback('✅ Vous pouvez vous identifier.');
-        setIsSupabaseStartupReady(true);
-      } else {
-        setAwaitingLocalJsonChoice(true);
-        setRestoredInfo('⚠️ Supabase inaccessible. Réessayez ou conservez le JSON local (boutons ci-dessous).');
-        setIsSupabaseStartupReady(false);
-      }
-    } catch (error) {
-      console.warn('handleLoadSupabaseOnStartup:', error);
-      setAwaitingLocalJsonChoice(true);
-      setRestoredInfo('⚠️ Erreur Supabase. Réessayez ou conservez le JSON local (boutons ci-dessous).');
-      setIsSupabaseStartupReady(false);
-    }
-  }, []);
-
-  const handleKeepLocalJsonOnStartup = useCallback(() => {
-    const confirmed = window.confirm(
-      'Conserver le fichier JSON de CE poste sans charger Supabase ?\n\n' +
-        '⚠️ Les autres postes travaillent sur le cloud.\n' +
-        'Faites SAUVE SUPABASE dès que possible pour éviter les écarts.'
-    );
-    if (!confirmed) return;
-    setAwaitingLocalJsonChoice(false);
-    setIsSupabaseStartupReady(true);
-    setRestoredInfo('📁 JSON local actif — SAUVE SUPABASE pour mettre à jour le cloud.');
-    setFeedback('ℹ️ Mode JSON local jusqu’à la prochaine SAUVE SUPABASE réussie.');
-  }, []);
 
   const initGlobalLock = () => {
     const url = import.meta.env.VITE_SUPABASE_URL;
@@ -444,14 +400,21 @@ const App = () => {
       const finishBackgroundSync = (remoteData, ok) => {
         if (ok && isValidPlanningPayload(remoteData)) {
           applyPlanningPayload(remoteData);
-          setRestoredInfo('☁️ Planning synchronisé depuis Supabase — connexion autorisée.');
-          setFeedback('✅ Version cloud chargée. Vous pouvez vous identifier.');
+          try {
+            localStorage.removeItem('planning_prefer_local_until_save');
+          } catch (_) {}
+          setRestoredInfo('☁️ Version commune Supabase chargée — connexion autorisée.');
+          setFeedback('✅ Planning synchronisé depuis le cloud (même version que les autres postes).');
           console.log('✅ Sync Supabase arrière-plan terminée.');
         } else {
+          const emergencyLocal = loadLocalPlanningFallback();
+          if (emergencyLocal) {
+            applyPlanningPayload(emergencyLocal);
+          }
           setRestoredInfo(
-            '⚠️ Supabase inaccessible — copie locale conservée. Risque de conflit si un autre poste a modifié le planning.'
+            '⚠️ Supabase inaccessible — copie locale de secours uniquement. Rechargez quand le réseau est OK.'
           );
-          setFeedback('⚠️ Sync cloud impossible — vérifiez la connexion avant de modifier le planning.');
+          setFeedback('⚠️ Hors sync multi-postes tant que Supabase ne charge pas.');
           console.warn('⚠️ Sync Supabase arrière-plan: pas de version cloud valide.');
         }
         setIsSupabaseStartupReady(true);
@@ -496,7 +459,9 @@ const App = () => {
       setMode('identification');
 
       const localFallback = loadLocalPlanningFallback();
-      const preferLocalUntilSave = localStorage.getItem('planning_prefer_local_until_save') === '1';
+      try {
+        localStorage.removeItem('planning_prefer_local_until_save');
+      } catch (_) {}
 
       const openReady = (info, feedback, ready = true) => {
         setIsSupabaseStartupReady(ready);
@@ -505,82 +470,27 @@ const App = () => {
         if (feedback) setFeedback(feedback);
       };
 
-      // Ouverture rapide : copie locale immédiate, Supabase en arrière-plan
-      if (localFallback && preferLocalUntilSave) {
-        applyPlanningPayload(localFallback);
-        setAwaitingLocalJsonChoice(true);
-        openReady(
-          '⚠️ Mode « JSON restauré » sur ce poste — le cloud n’a pas été chargé automatiquement. Choisissez une action ci-dessous avant de vous connecter.',
-          null,
-          false
-        );
-        console.log('⚠️ Bootstrap: attente choix JSON local vs Supabase.');
-        return;
-      }
-
-      if (localFallback) {
-        applyPlanningPayload(localFallback, { persist: false });
-        openReady(
-          '⏳ Copie locale affichée — synchronisation Supabase obligatoire avant connexion…',
-          'ℹ️ Patientez jusqu’à la mise à jour cloud (bouton connexion grisé).',
-          false
-        );
-        console.log('✅ Bootstrap rapide: localStorage, sync cloud avant connexion.');
-        syncRemotePlanningInBackground();
-        return;
-      }
-
-      // Pas de copie locale : afficher l'écran tout de suite, charger Supabase (max 5 s)
+      // Supabase = vérité commune : toujours synchroniser avant connexion (la copie locale n'est pas affichée comme source).
       setIsBootstrapComplete(true);
-      setRestoredInfo('⏳ Chargement Supabase…');
-      setFeedback('ℹ️ Chargement du planning depuis le cloud…');
-
-      let remoteData = null;
-      try {
-        remoteData = await withTimeout(
-          loadCompletePlanningData({ skipNormalize: true }),
-          BOOTSTRAP_REMOTE_TIMEOUT_MS,
-          'Chargement Supabase au démarrage'
-        );
-      } catch (bootstrapLoadError) {
-        console.warn('⚠️ Bootstrap Supabase timeout ou erreur réseau:', bootstrapLoadError);
-        remoteData = null;
+      openReady(
+        '⏳ Chargement de la version commune Supabase…',
+        localFallback
+          ? 'ℹ️ La copie de ce navigateur est ignorée au démarrage — attente du cloud (comme sur les autres postes).'
+          : 'ℹ️ Patientez avant de vous connecter.',
+        false
+      );
+      if (localFallback) {
+        console.log('ℹ️ Copie locale présente mais non utilisée au démarrage — sync Supabase obligatoire.');
       }
-
-      if (isValidPlanningPayload(remoteData)) {
-        applyPlanningPayload(remoteData);
-        openReady('☁️ Version commune Supabase chargée au démarrage.');
-        console.log('✅ Bootstrap Supabase réussi: version commune appliquée.');
-      } else {
-        localStorage.removeItem('planningData');
-        setPlanningData(createNewPlanningData());
-        openReady(
-          '⚠️ Supabase inaccessible ou trop lent. Import JSON possible après connexion.',
-          'ℹ️ Mode hors ligne : import JSON possible après connexion.'
-        );
-        console.warn('⚠️ Bootstrap: Supabase KO — mode hors ligne.');
-        syncRemotePlanningInBackground();
-      }
+      syncRemotePlanningInBackground();
       } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
-      const localFallbackOnError = loadLocalPlanningFallback();
-      if (localFallbackOnError) {
-        applyPlanningPayload(localFallbackOnError);
-        setIsSupabaseStartupReady(true);
+        console.error('Erreur lors du chargement des données:', error);
         setIsBootstrapComplete(true);
+        setIsSupabaseStartupReady(false);
         setMode('identification');
-        setRestoredInfo('📁 Version locale utilisée (erreur Supabase au démarrage).');
-        setFeedback('ℹ️ Erreur Supabase — reprise sur la copie locale.');
+        setRestoredInfo('⚠️ Erreur au démarrage — nouvelle tentative de sync Supabase…');
+        setFeedback('ℹ️ Connexion bloquée tant que le cloud n’est pas chargé.');
         syncRemotePlanningInBackground();
-      } else {
-        localStorage.removeItem('planningData');
-        setPlanningData(createNewPlanningData());
-        setIsSupabaseStartupReady(true);
-        setIsBootstrapComplete(true);
-        setMode('identification');
-        setRestoredInfo('⚠️ Erreur Supabase au démarrage. Connexion possible en mode hors ligne (import JSON).');
-        setFeedback('ℹ️ Supabase indisponible — import JSON après connexion.');
-      }
       } finally {
         setIsBootstrapComplete(true);
       }
@@ -1938,11 +1848,7 @@ const App = () => {
 
       setPlanningData(importedData);
       localStorage.setItem('planningData', JSON.stringify(importedData));
-      if (restoreInPlace) {
-        localStorage.setItem('planning_prefer_local_until_save', '1');
-      } else {
-        localStorage.removeItem('planning_prefer_local_until_save');
-      }
+      localStorage.removeItem('planning_prefer_local_until_save');
 
       const shopId = resolvePreferredShopId(currentUser, importedData);
       if (shopId) setSelectedShop(shopId);
@@ -1951,7 +1857,7 @@ const App = () => {
         setSelectedWeek(getCurrentWeekKey());
         setMode('planning');
         setFeedback(`✅ JSON restauré : ${shopCount} boutique(s) — ${file.name}`);
-        alert(`✅ Planning restauré depuis ${file.name}\n\n${shopCount} boutique(s). Vérifiez vos semaines avant SAUVE SUPABASE.`);
+        alert(`✅ Planning restauré depuis ${file.name}\n\n${shopCount} boutique(s).\n\n⚠️ Faites « SAUVE SUPABASE » tout de suite pour mettre à jour le cloud.\nAu prochain démarrage, c’est toujours Supabase qui fait foi.`);
       } else {
         setMode('week-selection');
         setFeedback('✅ Import réussi — sélectionnez une semaine.');
@@ -2944,9 +2850,6 @@ const App = () => {
           isSupabaseStartupReady={isSupabaseStartupReady}
           isBootstrapComplete={isBootstrapComplete}
           startupInfo={restoredInfo}
-          showLocalJsonPriorityChoice={awaitingLocalJsonChoice}
-          onLoadSupabaseOnStartup={handleLoadSupabaseOnStartup}
-          onKeepLocalJsonOnStartup={handleKeepLocalJsonOnStartup}
         />
       </ErrorBoundary>
     );

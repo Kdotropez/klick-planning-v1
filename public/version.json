@@ -1,7 +1,15 @@
 {
-  "version": "3.10.171",
+  "version": "3.10.172",
   "lastUpdate": "2026-07-22",
   "changelog": [
+    {
+      "version": "3.10.172",
+      "date": "2026-07-22",
+      "changes": [
+        "Démarrage : Supabase chargé en premier sur tous les postes — la copie locale du navigateur ne remplace plus le cloud.",
+        "Fin du mode « priorité JSON » au démarrage (aligné multi-postes)."
+      ]
+    },
     {
       "version": "3.10.171",
       "date": "2026-07-22",
