@@ -523,6 +523,11 @@ const VERSION_HIGHLIGHTS = {
     'Reactivation employe: date de reembauche obligatoire (partielle ou totale).',
     'Visibilite planning/recaps/Excel a partir de visibleFrom; masques exclus de l export Excel par defaut.',
     'Case optionnelle « inclure employes masques » sur l export Excel global.'
+  ],
+  '3.10.169': [
+    'Reactivation: plus jamais de suppression d horaires — masquage avant la date de reembauche seulement.',
+    'Annuler a une etape = aucune modification (y compris local et Supabase).',
+    'Sauvegarde employe uniquement apres confirmation Supabase reussie.'
   ]
 };
 

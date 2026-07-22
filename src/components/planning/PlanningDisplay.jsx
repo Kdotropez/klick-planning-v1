@@ -879,36 +879,33 @@ const PlanningDisplay = ({
   const HIDE_EMPLOYEE_SINCE_DATE = '2026-01-01';
 
   const persistEmployeeStatusChange = useCallback(async (updatedData, successMessage, auditAction, auditDetails) => {
-    setPlanningData(updatedData);
-    localStorage.setItem('planningData', JSON.stringify(updatedData));
-    addAuditLog({
-      action: auditAction,
-      details: auditDetails,
-      userCode: currentUser?.code,
-      userName: currentUser?.name,
-      shopId: selectedShop,
-      shopName: planningData?.shops?.find((s) => s.id === selectedShop)?.name || selectedShop
-    });
     try {
       const remoteResult = await saveCompletePlanningData(
         updatedData,
         getSaveMergeOptionsForUser(currentUser)
       );
       if (remoteResult?.ok) {
-        if (remoteResult.planningData) {
-          setPlanningData(remoteResult.planningData);
-          saveToLocalStorage('planningData', remoteResult.planningData);
-        }
+        const dataToApply = remoteResult.planningData || updatedData;
+        setPlanningData(dataToApply);
+        saveToLocalStorage('planningData', dataToApply);
+        addAuditLog({
+          action: auditAction,
+          details: auditDetails,
+          userCode: currentUser?.code,
+          userName: currentUser?.name,
+          shopId: selectedShop,
+          shopName: planningData?.shops?.find((s) => s.id === selectedShop)?.name || selectedShop
+        });
         const preservedNote = remoteResult.preservedShopNames?.length
           ? ` — boutiques conservées: ${remoteResult.preservedShopNames.join(', ')}`
           : '';
         setLocalFeedback(`${successMessage}${preservedNote}`);
       } else {
-        setLocalFeedback(`${successMessage} (local seulement — échec Supabase)`);
+        setLocalFeedback('❌ Modification annulée — sauvegarde Supabase non confirmée (aucun changement local).');
       }
     } catch (error) {
       console.error('Erreur sauvegarde Supabase employé:', error);
-      setLocalFeedback(`${successMessage} (local seulement — échec Supabase)`);
+      setLocalFeedback('❌ Modification annulée — erreur Supabase (aucun changement local).');
     }
   }, [setPlanningData, selectedShop, planningData, currentUser]);
 
@@ -985,12 +982,11 @@ const PlanningDisplay = ({
       if (!options) return;
 
       const updatedData = reactivateEmployee(planningData, employeeId, options);
-      const modeLabel = options.mode === 'total' ? 'totale' : 'partielle';
       await persistEmployeeStatusChange(
         updatedData,
-        `🔓 « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom} (${modeLabel})`,
+        `🔓 « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom} (historique conservé)`,
         'Reactivation Employe',
-        `Employe ${employeeName} reactive a partir du ${options.visibleFrom} mode ${modeLabel}.`
+        `Employe ${employeeName} reactive a partir du ${options.visibleFrom} sans suppression horaires.`
       );
     } catch (e) {
       console.error('Erreur réactivation employé:', e);

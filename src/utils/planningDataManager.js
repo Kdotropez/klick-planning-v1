@@ -205,64 +205,39 @@ export const promptEmployeeReactivationOptions = (employeeName = 'Employé') => 
   const defaultDate = format(new Date(), 'yyyy-MM-dd');
   const visibleFromRaw = window.prompt(
     `Date de réembauche pour « ${employeeName} » (AAAA-MM-JJ) :\n\n` +
-      'Visible dans le planning, les récaps et Excel uniquement à partir de cette date.',
+      '• Annuler ou laisser vide = AUCUNE modification\n' +
+      '• Les horaires déjà enregistrés ne sont jamais supprimés\n' +
+      '• Avant cette date : masqués à l’écran et dans Excel\n' +
+      '• À partir de cette date : employé visible dans le planning',
     defaultDate
   );
-  if (visibleFromRaw == null || !String(visibleFromRaw).trim()) return null;
+  if (visibleFromRaw == null) return null;
+  if (!String(visibleFromRaw).trim()) return null;
 
   const visibleFrom = String(visibleFromRaw).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(visibleFrom)) {
-    alert('❌ Format invalide. Utilisez AAAA-MM-JJ (ex. 2026-03-01).');
+    alert('❌ Format invalide. Utilisez AAAA-MM-JJ (ex. 2026-03-01).\n\nAucune modification effectuée.');
     return null;
   }
   const parsed = parseISO(visibleFrom);
   if (Number.isNaN(parsed.getTime())) {
-    alert('❌ Date invalide.');
+    alert('❌ Date invalide.\n\nAucune modification effectuée.');
     return null;
   }
 
-  const eraseHistory = window.confirm(
-    `Réactivation TOTALE pour « ${employeeName} » ?\n\n` +
-      `OUI = effacer tout le planning enregistré AVANT le ${visibleFrom}\n` +
-      `NON = réactivation PARTIELLE (historique conservé, invisible avant la date)`
+  const confirmed = window.confirm(
+    `Confirmer la réactivation de « ${employeeName} » à partir du ${visibleFrom} ?\n\n` +
+      '✅ Les horaires antérieurs restent ENREGISTRÉS (jamais supprimés).\n' +
+      'Ils seront masqués avant cette date dans le planning et l’export Excel.\n\n' +
+      'Cliquez Annuler pour ne rien changer.'
   );
+  if (!confirmed) return null;
 
-  return {
-    visibleFrom,
-    mode: eraseHistory ? 'total' : 'partial'
-  };
-};
-
-const clearEmployeePlanningBeforeDate = (planningData, employeeId, visibleFrom) => {
-  const cutoff = toPlanningDateKey(visibleFrom);
-  if (!cutoff || !employeeId) return planningData;
-  const id = String(employeeId);
-
-  return {
-    ...planningData,
-    shops: (planningData.shops || []).map((shop) => {
-      const weeks = shop.weeks || {};
-      const nextWeeks = {};
-      Object.entries(weeks).forEach(([weekKey, weekData]) => {
-        const planning = { ...(weekData?.planning || {}) };
-        const slice = planning[id];
-        if (slice && typeof slice === 'object') {
-          const kept = {};
-          Object.entries(slice).forEach(([dayKey, cell]) => {
-            if (toPlanningDateKey(dayKey) >= cutoff) kept[dayKey] = cell;
-          });
-          if (Object.keys(kept).length === 0) delete planning[id];
-          else planning[id] = kept;
-        }
-        nextWeeks[weekKey] = { ...weekData, planning };
-      });
-      return { ...shop, weeks: nextWeeks };
-    })
-  };
+  return { visibleFrom };
 };
 
 export const reactivateEmployee = (planningData, employeeId, options = {}) => {
-  const { visibleFrom, mode = 'partial' } = options;
+  const { visibleFrom } = options;
   const dateKey = toPlanningDateKey(visibleFrom);
   if (!dateKey) {
     throw new Error('Date de réembauche invalide');
@@ -282,10 +257,6 @@ export const reactivateEmployee = (planningData, employeeId, options = {}) => {
       )
     }))
   };
-
-  if (mode === 'total') {
-    updated = clearEmployeePlanningBeforeDate(updated, employeeId, dateKey);
-  }
 
   return updated;
 };

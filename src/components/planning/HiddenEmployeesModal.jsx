@@ -55,10 +55,6 @@ const HiddenEmployeesModal = ({
       if (!options) return;
 
       const updatedData = reactivateEmployee(planningData, employeeId, options);
-      localStorage.setItem('planningData', JSON.stringify(updatedData));
-      if (onEmployeeUpdate) {
-        onEmployeeUpdate(updatedData);
-      }
 
       const remoteResult = await saveCompletePlanningData(
         updatedData,
@@ -69,14 +65,17 @@ const HiddenEmployeesModal = ({
         if (onEmployeeUpdate) {
           onEmployeeUpdate(remoteResult.planningData);
         }
-        alert(`✅ « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom} et enregistré(e) sur Supabase.`);
+        alert(
+          `✅ « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom}.\n\n` +
+            'Les horaires antérieurs sont conservés (masqués avant cette date).'
+        );
+        onClose();
       } else {
         alert(
-          `⚠️ « ${employeeName} » réactivé(e) localement, mais la sauvegarde Supabase a échoué.\n\n` +
-            'Utilisez « SAUVE SUPABASE » avant de fermer, sinon un autre poste peut réappliquer l’ancien état.'
+          `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.\n\n` +
+            'Réessayez ou utilisez « SAUVE SUPABASE » après une réactivation réussie.'
         );
       }
-      onClose();
     } catch (e) {
       console.error('Erreur lors de la réactivation:', e);
       alert('❌ Erreur lors de la réactivation de l\'employé');

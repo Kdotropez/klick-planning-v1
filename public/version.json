@@ -1,7 +1,16 @@
 {
-  "version": "3.10.168",
+  "version": "3.10.169",
   "lastUpdate": "2026-07-22",
   "changelog": [
+    {
+      "version": "3.10.169",
+      "date": "2026-07-22",
+      "changes": [
+        "Réactivation : les horaires antérieurs ne sont jamais supprimés (masquage avant la date de réembauche uniquement).",
+        "Annuler à une étape = aucune modification (local ni Supabase).",
+        "Masquage / réactivation : appliqué seulement après sauvegarde Supabase confirmée."
+      ]
+    },
     {
       "version": "3.10.168",
       "date": "2026-07-22",
