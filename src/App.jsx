@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { saveToLocalStorage } from './utils/localStorage';
@@ -190,6 +190,7 @@ const App = () => {
   const [showInactivityCounter, setShowInactivityCounter] = useState(false);
   const [isSupabaseStartupReady, setIsSupabaseStartupReady] = useState(false);
   const [isBootstrapComplete, setIsBootstrapComplete] = useState(false);
+  const [awaitingLocalJsonChoice, setAwaitingLocalJsonChoice] = useState(false);
   const [supabaseSessionOffline, setSupabaseSessionOffline] = useState(false);
   const [inactivityCounterPosition, setInactivityCounterPosition] = useState(() => {
     try {
@@ -272,6 +273,49 @@ const App = () => {
       shopName: getShopNameById(shopId || '', data)
     });
   };
+
+  const handleLoadSupabaseOnStartup = useCallback(async () => {
+    localStorage.removeItem('planning_prefer_local_until_save');
+    setAwaitingLocalJsonChoice(false);
+    setIsSupabaseStartupReady(false);
+    setRestoredInfo('⏳ Chargement Supabase…');
+    setFeedback('ℹ️ Récupération de la version cloud…');
+    try {
+      const remoteData = await loadCompletePlanningData({ skipNormalize: true });
+      const valid =
+        remoteData && Array.isArray(remoteData.shops) && remoteData.shops.length > 0;
+      if (valid) {
+        const normalized = normalizeCompletePlanningData(remoteData);
+        setPlanningData(normalized);
+        localStorage.setItem('planningData', JSON.stringify(normalized));
+        setRestoredInfo('☁️ Version Supabase chargée — connexion autorisée.');
+        setFeedback('✅ Vous pouvez vous identifier.');
+        setIsSupabaseStartupReady(true);
+      } else {
+        setAwaitingLocalJsonChoice(true);
+        setRestoredInfo('⚠️ Supabase inaccessible. Réessayez ou conservez le JSON local (boutons ci-dessous).');
+        setIsSupabaseStartupReady(false);
+      }
+    } catch (error) {
+      console.warn('handleLoadSupabaseOnStartup:', error);
+      setAwaitingLocalJsonChoice(true);
+      setRestoredInfo('⚠️ Erreur Supabase. Réessayez ou conservez le JSON local (boutons ci-dessous).');
+      setIsSupabaseStartupReady(false);
+    }
+  }, []);
+
+  const handleKeepLocalJsonOnStartup = useCallback(() => {
+    const confirmed = window.confirm(
+      'Conserver le fichier JSON de CE poste sans charger Supabase ?\n\n' +
+        '⚠️ Les autres postes travaillent sur le cloud.\n' +
+        'Faites SAUVE SUPABASE dès que possible pour éviter les écarts.'
+    );
+    if (!confirmed) return;
+    setAwaitingLocalJsonChoice(false);
+    setIsSupabaseStartupReady(true);
+    setRestoredInfo('📁 JSON local actif — SAUVE SUPABASE pour mettre à jour le cloud.');
+    setFeedback('ℹ️ Mode JSON local jusqu’à la prochaine SAUVE SUPABASE réussie.');
+  }, []);
 
   const initGlobalLock = () => {
     const url = import.meta.env.VITE_SUPABASE_URL;
@@ -464,11 +508,13 @@ const App = () => {
       // Ouverture rapide : copie locale immédiate, Supabase en arrière-plan
       if (localFallback && preferLocalUntilSave) {
         applyPlanningPayload(localFallback);
+        setAwaitingLocalJsonChoice(true);
         openReady(
-          '📁 JSON restauré conservé (priorité locale jusqu’à la prochaine SAUVE SUPABASE).',
-          'ℹ️ Votre JSON importé est actif — Supabase ignoré pour l’instant.'
+          '⚠️ Mode « JSON restauré » sur ce poste — le cloud n’a pas été chargé automatiquement. Choisissez une action ci-dessous avant de vous connecter.',
+          null,
+          false
         );
-        console.log('✅ Bootstrap: priorité copie locale (import JSON récent).');
+        console.log('⚠️ Bootstrap: attente choix JSON local vs Supabase.');
         return;
       }
 
@@ -2898,6 +2944,9 @@ const App = () => {
           isSupabaseStartupReady={isSupabaseStartupReady}
           isBootstrapComplete={isBootstrapComplete}
           startupInfo={restoredInfo}
+          showLocalJsonPriorityChoice={awaitingLocalJsonChoice}
+          onLoadSupabaseOnStartup={handleLoadSupabaseOnStartup}
+          onKeepLocalJsonOnStartup={handleKeepLocalJsonOnStartup}
         />
       </ErrorBoundary>
     );

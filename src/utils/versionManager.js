@@ -532,6 +532,9 @@ const VERSION_HIGHLIGHTS = {
   '3.10.170': [
     'Date de reembauche: masquage jour par jour (plus seulement au dimanche de la semaine).',
     'Planning: employe invisible sur les jours anterieurs a visibleFrom pour la semaine en cours.'
+  ],
+  '3.10.171': [
+    'Mode JSON restaure: choix explicite Charger Supabase ou garder le JSON (plus de demarrage silencieux sans cloud).'
   ]
 };
 

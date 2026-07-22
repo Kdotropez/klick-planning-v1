@@ -1,7 +1,15 @@
 {
-  "version": "3.10.170",
+  "version": "3.10.171",
   "lastUpdate": "2026-07-22",
   "changelog": [
+    {
+      "version": "3.10.171",
+      "date": "2026-07-22",
+      "changes": [
+        "Mode « JSON restauré » : choix explicite « Charger Supabase » ou « Garder le JSON local » au démarrage.",
+        "Plus de démarrage silencieux sans le cloud après une restauration JSON."
+      ]
+    },
     {
       "version": "3.10.170",
       "date": "2026-07-22",

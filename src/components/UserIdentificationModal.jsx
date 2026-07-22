@@ -9,7 +9,10 @@ const UserIdentificationModal = ({
   onEmergencyUnlock,
   isSupabaseStartupReady = true,
   isBootstrapComplete = true,
-  startupInfo = ''
+  startupInfo = '',
+  showLocalJsonPriorityChoice = false,
+  onLoadSupabaseOnStartup = null,
+  onKeepLocalJsonOnStartup = null
 }) => {
   const [userCode, setUserCode] = useState('');
   const [userName, setUserName] = useState('');
@@ -182,7 +185,7 @@ const UserIdentificationModal = ({
                 ⏳ Chargement des données en cours…
               </p>
             )}
-            {isBootstrapComplete && !isSupabaseStartupReady && (
+            {isBootstrapComplete && !isSupabaseStartupReady && !showLocalJsonPriorityChoice && (
               <p style={{
                 marginTop: '10px',
                 padding: '8px 12px',
@@ -193,6 +196,51 @@ const UserIdentificationModal = ({
               }}>
                 ⏳ Mise à jour depuis Supabase en cours — ne vous connectez pas tant que le bandeau n’est pas vert.
               </p>
+            )}
+            {isBootstrapComplete && showLocalJsonPriorityChoice && (
+              <div style={{
+                marginTop: '12px',
+                padding: '12px 14px',
+                backgroundColor: 'rgba(220,53,69,0.35)',
+                borderRadius: '8px',
+                fontSize: '0.88rem',
+                color: '#fff',
+                lineHeight: 1.45
+              }}>
+                <strong>Ce poste ignore Supabase</strong> (restauration JSON antérieure).
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => onLoadSupabaseOnStartup?.()}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#28a745',
+                      color: '#fff',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ☁️ Charger Supabase (recommandé)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onKeepLocalJsonOnStartup?.()}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #fff',
+                      background: 'transparent',
+                      color: '#fff',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📁 Garder le JSON local
+                  </button>
+                </div>
+              </div>
             )}
             {isBootstrapComplete && startupInfo && (
               <p style={{
