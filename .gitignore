@@ -62,4 +62,9 @@ backup_*/
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Copie manuelle / sauvegardes locales (hors build)
+src/**/*Copie*
+src/**/*.bak*
+src/**/* - Copie*

@@ -56,7 +56,9 @@ import {
   inspectShopWeekInventory,
   getSupabaseBackupDiagnostics,
   listShopWeekArchiveEntries,
-  listRemoteShops
+  listRemoteShops,
+  getLastCompleteFileLoadStats,
+  COMPLETE_FILE_PAYLOAD_WARN_BYTES
 } from './utils/remoteStore';
 import { addAuditLog } from './utils/auditLog';
 import { versionChecker } from './utils/versionChecker';
@@ -409,7 +411,12 @@ const App = () => {
             localStorage.removeItem('planning_prefer_local_until_save');
           } catch (_) {}
           setRestoredInfo('☁️ Version commune Supabase chargée — connexion autorisée.');
-          setFeedback('✅ Planning synchronisé depuis le cloud (même version que les autres postes).');
+          const loadStats = getLastCompleteFileLoadStats();
+          const sizeNote =
+            loadStats?.bytes > COMPLETE_FILE_PAYLOAD_WARN_BYTES
+              ? ` ⚠️ Fichier cloud lourd (~${(loadStats.bytes / (1024 * 1024)).toFixed(1)} Mo) — privilégiez une sauvegarde à la fois si Supabase ralentit.`
+              : '';
+          setFeedback(`✅ Planning synchronisé depuis le cloud (même version que les autres postes).${sizeNote}`);
           console.log('✅ Sync Supabase arrière-plan terminée.');
           setIsSupabaseStartupReady(true);
           return;

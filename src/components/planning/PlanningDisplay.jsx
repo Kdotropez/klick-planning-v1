@@ -833,39 +833,25 @@ const PlanningDisplay = ({
       return;
     }
     try {
-      let updatedSnapshot = null;
-      setPlanningData((prev) => {
-        updatedSnapshot = renameEmployeeInPlanningData(prev, employeeId, trimmed);
-        try {
-          saveToLocalStorage('planningData', updatedSnapshot);
-        } catch (_) {
-          /* ignore */
-        }
-        return updatedSnapshot;
-      });
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const payload = updatedSnapshot || renameEmployeeInPlanningData(planningData, employeeId, trimmed);
-      try {
-        const remoteResult = await saveCompletePlanningData(payload);
-        if (remoteResult?.ok) {
-          if (remoteResult.planningData) {
-            setPlanningData(remoteResult.planningData);
-            saveToLocalStorage('planningData', remoteResult.planningData);
-          }
-          setLocalFeedback(`✏️ Nom mis à jour partout : ${trimmed} — sauvegardé dans Supabase`);
-        } else {
-          setLocalFeedback(`✏️ Nom mis à jour localement : ${trimmed} — échec Supabase, refaites SAUVE SUPABASE`);
-        }
-      } catch (saveError) {
-        console.error('Erreur sauvegarde Supabase du renommage:', saveError);
-        setLocalFeedback(`✏️ Nom mis à jour localement : ${trimmed} — échec Supabase, refaites SAUVE SUPABASE`);
+      const payload = renameEmployeeInPlanningData(planningData, employeeId, trimmed);
+      const remoteResult = await saveCompletePlanningData(
+        payload,
+        getSaveMergeOptionsForUser(currentUser)
+      );
+      if (remoteResult?.ok) {
+        const dataToApply = remoteResult.planningData || payload;
+        setPlanningData(dataToApply);
+        saveToLocalStorage('planningData', dataToApply);
+        setLocalFeedback(`✏️ Nom mis à jour partout : ${trimmed} — sauvegardé dans Supabase`);
+      } else {
+        setLocalFeedback(`❌ Renommage annulé — Supabase non confirmé (aucun changement).`);
       }
       setForceRefresh((prev) => prev + 1);
     } catch (e) {
       console.error('Erreur renommage employé:', e);
       setLocalFeedback('❌ Erreur lors du renommage');
     }
-  }, [planningData, readOnly, setPlanningData]);
+  }, [planningData, readOnly, setPlanningData, currentUser]);
 
   const HIDE_EMPLOYEE_SINCE_DATE = '2026-01-01';
 

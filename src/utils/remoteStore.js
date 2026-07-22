@@ -79,6 +79,21 @@ const isCompletePlanningData = (data) => {
   );
 };
 
+export const COMPLETE_FILE_PAYLOAD_WARN_BYTES = 6 * 1024 * 1024;
+
+const estimateJsonPayloadBytes = (value) => {
+  try {
+    if (value == null) return 0;
+    return new Blob([JSON.stringify(value)]).size;
+  } catch {
+    return 0;
+  }
+};
+
+let lastCompleteFileLoadStats = null;
+
+export const getLastCompleteFileLoadStats = () => lastCompleteFileLoadStats;
+
 const HISTORY_SHOP_ID = 'backup_history';
 const HISTORY_WEEK_PREFIX = 'h_';
 const LEGACY_HISTORY_WEEK_PREFIX = 'snapshot_';
@@ -900,6 +915,17 @@ export const loadCompletePlanningData = async (options = {}) => {
       console.warn('⚠️ loadCompletePlanningData: échec lecture complete_file, on tente le fallback:', completeErr);
     }
     if (completeRow && isCompletePlanningData(completeRow.data)) {
+      const payloadBytes = estimateJsonPayloadBytes(completeRow.data);
+      lastCompleteFileLoadStats = {
+        bytes: payloadBytes,
+        updatedAt: completeRow.updated_at,
+        source: 'complete_file'
+      };
+      if (payloadBytes > COMPLETE_FILE_PAYLOAD_WARN_BYTES) {
+        console.warn(
+          `⚠️ complete_file volumineux (~${(payloadBytes / (1024 * 1024)).toFixed(1)} Mo) — risque de lenteur ou 522 sur Supabase nano.`
+        );
+      }
       const planningData = skipNormalize
         ? completeRow.data
         : normalizeCompletePlanningData(completeRow.data);

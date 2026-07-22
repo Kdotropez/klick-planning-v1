@@ -556,6 +556,11 @@ const VERSION_HIGHLIGHTS = {
     'Outbox: flush via complete_file avec fusion (plus d ecriture semaine seule).',
     'SAUVE SUPABASE: une seule ecriture complete_file (allège la base).',
     'Compteur masques: isEmployeeHidden (visibleFrom / reembauche).'
+  ],
+  '3.10.176': [
+    'Nettoyage: suppression des fichiers Copie / .bak du depot (+ gitignore).',
+    'Renommage employe: annule si Supabase echoue (plus de faux « mis a jour localement »).',
+    'Alerte si complete_file cloud > 6 Mo (risque lenteur Supabase nano).'
   ]
 };
 
