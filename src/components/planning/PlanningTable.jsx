@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, parse, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { calculateEmployeeDailyHours, formatWorkedHoursForDisplay } from '../../utils/planningUtils';
+import { isEmployeeHiddenOnWeekDay } from '../../utils/planningDataManager';
 import { getSlotEndTimeFormatted } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import '../../assets/styles.css';
@@ -499,7 +500,12 @@ const PlanningTable = ({
       .map((e) => e.id)
       .filter((id) => hasCongeOrMaladieThisDay(id) && !sel.includes(id));
     const shopEmployeeIds = new Set((currentShopEmployees || []).map((e) => e.id));
-    return Array.from(new Set([...sel, ...extra])).filter((id) => shopEmployeeIds.has(id));
+    return Array.from(new Set([...sel, ...extra]))
+      .filter((id) => shopEmployeeIds.has(id))
+      .filter((id) => {
+        const emp = (currentShopEmployees || []).find((e) => e.id === id);
+        return emp && !isEmployeeHiddenOnWeekDay(emp, validWeek, currentDay);
+      });
   }, [selectedEmployees, planning, validWeek, currentDay, currentShopEmployees]);
 
   const weekHoursByEmployee = useMemo(() => {
@@ -518,6 +524,8 @@ const PlanningTable = ({
         if (!shopConfig?.timeSlots?.length) return;
         for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
           const dayKey = format(addDays(parseISO(validWeek), dayIndex), 'yyyy-MM-dd');
+          const empMeta = (currentShopEmployees || []).find((e) => e.id === employeeId);
+          if (empMeta && isEmployeeHiddenOnWeekDay(empMeta, validWeek, dayIndex)) continue;
           const dayData = weekPlanning[employeeId][dayKey];
           if (!Array.isArray(dayData) || !dayData.some((slot) => slot === true)) continue;
           totalHours += calculateEmployeeDailyHours(

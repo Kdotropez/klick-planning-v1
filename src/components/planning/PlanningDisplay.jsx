@@ -28,7 +28,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch, hideEmployee, archiveEmployee, reactivateEmployee, promptEmployeeReactivationOptions, isEmployeeHidden } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch, hideEmployee, archiveEmployee, reactivateEmployee, promptEmployeeReactivationOptions, isEmployeeHidden, isEmployeeVisibleInWeek, isEmployeeHiddenOnWeekDay } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -615,18 +615,9 @@ const PlanningDisplay = ({
     return false;
   }, [selectedShop]);
 
-  const getWeekVisibilityReferenceDate = useCallback(() => {
-    if (!validWeek) return new Date();
-    try {
-      return addDays(parseISO(validWeek), 6);
-    } catch {
-      return new Date();
-    }
-  }, [validWeek]);
-
   const isEmployeeVisibleInCurrentWeek = useCallback(
-    (emp) => !!emp && !isEmployeeHidden(emp, getWeekVisibilityReferenceDate()) && isEmployeeAssignedToCurrentShop(emp),
-    [getWeekVisibilityReferenceDate, isEmployeeAssignedToCurrentShop]
+    (emp) => !!emp && isEmployeeVisibleInWeek(emp, validWeek) && isEmployeeAssignedToCurrentShop(emp),
+    [validWeek, isEmployeeAssignedToCurrentShop]
   );
 
   // Mettre à jour les employés visibles (noms canoniques multi-boutiques)
@@ -1169,7 +1160,11 @@ const PlanningDisplay = ({
     if (readOnly) {
       return;
     }
-    // SAUVEGARDE DE SÉCURITÉ AVANT TOUTE MODIFICATION
+    const empMeta = currentShopEmployees?.find((e) => e.id === employee);
+    if (empMeta && isEmployeeHiddenOnWeekDay(empMeta, validWeek, dayIndex)) {
+      setLocalFeedback('📅 Jour antérieur à la date de réembauche — non modifiable.');
+      return;
+    }
     if (selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
         const backupKey = `backup_${selectedShop}_${validWeek}_${Date.now()}`;
@@ -1293,7 +1288,7 @@ const PlanningDisplay = ({
       
       return updatedPlanning;
     });
-  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, validWeek, localSelectedEmployees, readOnly, isPlanningDateLocked]);
+  }, [config, mondayOfWeek, validatedData, validationState.lockedEmployees, lastModifiedDay, setPlanningData, selectedShop, validWeek, localSelectedEmployees, readOnly, isPlanningDateLocked, currentShopEmployees]);
 
   // Fonction pour marquer un créneau comme validé
   const markAsValidated = useCallback((employee, dayKey, slotIndex) => {
@@ -3990,7 +3985,7 @@ const PlanningDisplay = ({
             ?.find((s) => s.id === selectedShop)
             ?.employees?.find((e) => e.id === employeeId);
           if (!emp) return true;
-          return isEmployeeHidden(emp, getWeekVisibilityReferenceDate());
+          return isEmployeeHiddenOnWeekDay(emp, validWeek, currentDay);
         }}
       />
 

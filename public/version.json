@@ -1,7 +1,15 @@
 {
-  "version": "3.10.169",
+  "version": "3.10.170",
   "lastUpdate": "2026-07-22",
   "changelog": [
+    {
+      "version": "3.10.170",
+      "date": "2026-07-22",
+      "changes": [
+        "Date de réembauche : masquage jour par jour dans le planning (plus basé sur le seul dimanche de la semaine).",
+        "Jours antérieurs à visibleFrom : employé absent du tableau et heures non comptées pour ces jours."
+      ]
+    },
     {
       "version": "3.10.169",
       "date": "2026-07-22",

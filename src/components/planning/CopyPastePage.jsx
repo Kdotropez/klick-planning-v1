@@ -5,7 +5,8 @@ import {
   saveWeekPlanning,
   listShopWeeksWithData,
   getRawWeekPlanningForShop,
-  isEmployeeHidden
+  isEmployeeHidden,
+  isEmployeeVisibleInWeek
 } from '../../utils/planningDataManager';
 import { dayCellHasPlanningContent, resolveEmployeePlanningSlice } from '../../utils/planningUtils';
 import { saveToLocalStorage } from '../../utils/localStorage';
@@ -99,9 +100,14 @@ const CopyPastePage = ({
     if (planningData && selectedShop && isEmployeeAssignedToCurrentShop) {
       const shop = planningData.shops?.find((s) => s.id === selectedShop);
       if (shop?.employees) {
-        const weekRef = selectedWeek ? addDays(parseISO(normalizeWeekKey(selectedWeek)), 6) : new Date();
+        const weekRef = normalizeWeekKey(selectedWeek);
         const employees = shop.employees
-          .filter((emp) => emp && !isEmployeeHidden(emp, weekRef) && isEmployeeAssignedToCurrentShop(emp))
+          .filter(
+            (emp) =>
+              emp &&
+              isEmployeeVisibleInWeek(emp, weekRef) &&
+              isEmployeeAssignedToCurrentShop(emp)
+          )
           .map((emp) => ({
             id: emp.id,
             name: emp.name

@@ -201,6 +201,33 @@ export const isEmployeeHidden = (employee, referenceDate = new Date()) => {
   return false;
 };
 
+export const getPlanningDayKeyForWeekDay = (weekKey, dayIndex) => {
+  if (weekKey == null || dayIndex == null) return null;
+  try {
+    const monday = parseISO(String(weekKey));
+    if (Number.isNaN(monday.getTime())) return null;
+    return format(addDays(monday, Number(dayIndex)), 'yyyy-MM-dd');
+  } catch {
+    return null;
+  }
+};
+
+/** Masqué pour un jour précis du planning (lundi = index 0). */
+export const isEmployeeHiddenOnWeekDay = (employee, weekKey, dayIndex) => {
+  const dayKey = getPlanningDayKeyForWeekDay(weekKey, dayIndex);
+  if (!dayKey) return isEmployeeHidden(employee);
+  return isEmployeeHidden(employee, dayKey);
+};
+
+/** Visible au moins un jour de la semaine (liste employés / navigation semaine). */
+export const isEmployeeVisibleInWeek = (employee, weekKey) => {
+  if (!employee) return false;
+  for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+    if (!isEmployeeHiddenOnWeekDay(employee, weekKey, dayIndex)) return true;
+  }
+  return false;
+};
+
 export const promptEmployeeReactivationOptions = (employeeName = 'Employé') => {
   const defaultDate = format(new Date(), 'yyyy-MM-dd');
   const visibleFromRaw = window.prompt(

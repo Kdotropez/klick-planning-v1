@@ -528,6 +528,10 @@ const VERSION_HIGHLIGHTS = {
     'Reactivation: plus jamais de suppression d horaires — masquage avant la date de reembauche seulement.',
     'Annuler a une etape = aucune modification (y compris local et Supabase).',
     'Sauvegarde employe uniquement apres confirmation Supabase reussie.'
+  ],
+  '3.10.170': [
+    'Date de reembauche: masquage jour par jour (plus seulement au dimanche de la semaine).',
+    'Planning: employe invisible sur les jours anterieurs a visibleFrom pour la semaine en cours.'
   ]
 };
 
