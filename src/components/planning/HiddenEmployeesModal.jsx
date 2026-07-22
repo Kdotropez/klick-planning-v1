@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { unarchiveEmployee, isEmployeeHidden, getArchivedEmployeeIds } from '../../utils/planningDataManager';
+import { isEmployeeHidden, getArchivedEmployeeIds, reactivateEmployee, promptEmployeeReactivationOptions } from '../../utils/planningDataManager';
+import { saveCompletePlanningData } from '../../utils/remoteStore';
+import { getSaveMergeOptionsForUser } from '../../config/userCodes';
 
 const HiddenEmployeesModal = ({ 
   isOpen, 
@@ -9,7 +11,8 @@ const HiddenEmployeesModal = ({
   planningData, 
   onEmployeeUpdate,
   currentDate = new Date(),
-  currentShop
+  currentShop,
+  currentUser = null
 }) => {
   const [hiddenEmployees, setHiddenEmployees] = useState([]);
   const [allEmployees, setAllEmployees] = useState([]);
@@ -39,14 +42,39 @@ const HiddenEmployeesModal = ({
 
   if (!isOpen) return null;
 
-  const handleShowEmployee = (employeeId) => {
+  const handleShowEmployee = async (employeeId) => {
     if (!employeeId) return;
 
+    const employeeName =
+      hiddenEmployees.find((e) => e.id === employeeId)?.name ||
+      allEmployees.find((e) => e.id === employeeId)?.name ||
+      employeeId;
+
     try {
-      const updatedData = unarchiveEmployee(planningData, employeeId);
+      const options = promptEmployeeReactivationOptions(employeeName);
+      if (!options) return;
+
+      const updatedData = reactivateEmployee(planningData, employeeId, options);
       localStorage.setItem('planningData', JSON.stringify(updatedData));
       if (onEmployeeUpdate) {
         onEmployeeUpdate(updatedData);
+      }
+
+      const remoteResult = await saveCompletePlanningData(
+        updatedData,
+        getSaveMergeOptionsForUser(currentUser)
+      );
+      if (remoteResult?.ok && remoteResult.planningData) {
+        localStorage.setItem('planningData', JSON.stringify(remoteResult.planningData));
+        if (onEmployeeUpdate) {
+          onEmployeeUpdate(remoteResult.planningData);
+        }
+        alert(`✅ « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom} et enregistré(e) sur Supabase.`);
+      } else {
+        alert(
+          `⚠️ « ${employeeName} » réactivé(e) localement, mais la sauvegarde Supabase a échoué.\n\n` +
+            'Utilisez « SAUVE SUPABASE » avant de fermer, sinon un autre poste peut réappliquer l’ancien état.'
+        );
       }
       onClose();
     } catch (e) {
@@ -118,7 +146,10 @@ const HiddenEmployeesModal = ({
       try {
         console.log('💾 Sauvegarde de la modification de date dans Supabase...');
         const { saveCompletePlanningData } = await import('../../utils/remoteStore');
-        const remoteResult = await saveCompletePlanningData(updatedData);
+        const remoteResult = await saveCompletePlanningData(
+          updatedData,
+          getSaveMergeOptionsForUser(currentUser)
+        );
         if (remoteResult?.ok) {
           console.log('✅ Date de masquage modifiée et sauvegardée dans Supabase');
           alert(`✅ Date de masquage modifiée pour "${employeeName}" : ${newHideDate}\n\nLa modification a été sauvegardée localement et dans Supabase.`);

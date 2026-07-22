@@ -142,7 +142,7 @@ export const hideEmployee = (planningData, employeeId, hideFromDate, shopId = nu
       ? shop.employees
       : shop.employees.map(emp =>
           emp.id === employeeId
-            ? { ...emp, hiddenFrom: hideFromDate }
+            ? { ...emp, hiddenFrom: hideFromDate, visibleFrom: null }
             : emp
         )
   }));
@@ -162,7 +162,7 @@ export const showEmployee = (planningData, employeeId, shopId = null) => {
       ? shop.employees
       : shop.employees.map(emp =>
           emp.id === employeeId
-            ? { ...emp, hiddenFrom: null }
+            ? { ...emp, hiddenFrom: null, visibleFrom: null }
             : emp
         )
   }));
@@ -173,9 +173,121 @@ export const showEmployee = (planningData, employeeId, shopId = null) => {
   };
 };
 
-export const isEmployeeHidden = (employee, weekDate) => {
-  // Masqué ou archivé définitivement — reste invisible jusqu'à réactivation explicite.
-  return !!employee?.hiddenFrom || !!employee?.archived;
+export const toPlanningDateKey = (value) => {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string') return value.slice(0, 10);
+  try {
+    return format(value, 'yyyy-MM-dd');
+  } catch {
+    return null;
+  }
+};
+
+/** Masqué pour une date de référence (jour planning, semaine, export). */
+export const isEmployeeHidden = (employee, referenceDate = new Date()) => {
+  if (!employee) return true;
+  if (employee.archived === true) return true;
+
+  const refKey = toPlanningDateKey(referenceDate);
+  if (!refKey) return true;
+
+  const visibleFrom = toPlanningDateKey(employee.visibleFrom);
+  if (visibleFrom && refKey < visibleFrom) return true;
+
+  if (employee.hiddenFrom != null && employee.hiddenFrom !== '' && !visibleFrom) {
+    return true;
+  }
+
+  return false;
+};
+
+export const promptEmployeeReactivationOptions = (employeeName = 'Employé') => {
+  const defaultDate = format(new Date(), 'yyyy-MM-dd');
+  const visibleFromRaw = window.prompt(
+    `Date de réembauche pour « ${employeeName} » (AAAA-MM-JJ) :\n\n` +
+      'Visible dans le planning, les récaps et Excel uniquement à partir de cette date.',
+    defaultDate
+  );
+  if (visibleFromRaw == null || !String(visibleFromRaw).trim()) return null;
+
+  const visibleFrom = String(visibleFromRaw).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(visibleFrom)) {
+    alert('❌ Format invalide. Utilisez AAAA-MM-JJ (ex. 2026-03-01).');
+    return null;
+  }
+  const parsed = parseISO(visibleFrom);
+  if (Number.isNaN(parsed.getTime())) {
+    alert('❌ Date invalide.');
+    return null;
+  }
+
+  const eraseHistory = window.confirm(
+    `Réactivation TOTALE pour « ${employeeName} » ?\n\n` +
+      `OUI = effacer tout le planning enregistré AVANT le ${visibleFrom}\n` +
+      `NON = réactivation PARTIELLE (historique conservé, invisible avant la date)`
+  );
+
+  return {
+    visibleFrom,
+    mode: eraseHistory ? 'total' : 'partial'
+  };
+};
+
+const clearEmployeePlanningBeforeDate = (planningData, employeeId, visibleFrom) => {
+  const cutoff = toPlanningDateKey(visibleFrom);
+  if (!cutoff || !employeeId) return planningData;
+  const id = String(employeeId);
+
+  return {
+    ...planningData,
+    shops: (planningData.shops || []).map((shop) => {
+      const weeks = shop.weeks || {};
+      const nextWeeks = {};
+      Object.entries(weeks).forEach(([weekKey, weekData]) => {
+        const planning = { ...(weekData?.planning || {}) };
+        const slice = planning[id];
+        if (slice && typeof slice === 'object') {
+          const kept = {};
+          Object.entries(slice).forEach(([dayKey, cell]) => {
+            if (toPlanningDateKey(dayKey) >= cutoff) kept[dayKey] = cell;
+          });
+          if (Object.keys(kept).length === 0) delete planning[id];
+          else planning[id] = kept;
+        }
+        nextWeeks[weekKey] = { ...weekData, planning };
+      });
+      return { ...shop, weeks: nextWeeks };
+    })
+  };
+};
+
+export const reactivateEmployee = (planningData, employeeId, options = {}) => {
+  const { visibleFrom, mode = 'partial' } = options;
+  const dateKey = toPlanningDateKey(visibleFrom);
+  if (!dateKey) {
+    throw new Error('Date de réembauche invalide');
+  }
+
+  let updated = unarchiveEmployee(planningData, employeeId);
+  const id = String(employeeId);
+
+  updated = {
+    ...updated,
+    shops: (updated.shops || []).map((shop) => ({
+      ...shop,
+      employees: (shop.employees || []).map((emp) =>
+        emp && String(emp.id) === id
+          ? { ...emp, hiddenFrom: null, archived: false, visibleFrom: dateKey }
+          : emp
+      )
+    }))
+  };
+
+  if (mode === 'total') {
+    updated = clearEmployeePlanningBeforeDate(updated, employeeId, dateKey);
+  }
+
+  return updated;
 };
 
 /**
@@ -232,8 +344,10 @@ export const getHiddenEmployees = (planningData, currentDate = new Date()) => {
   
   planningData.shops.forEach(shop => {
     shop.employees.forEach(emp => {
-      if (emp.hiddenFrom && isEmployeeHidden(emp, currentDate)) {
-        // Vérifier si l'employé n'est pas déjà dans la liste
+      if (!emp?.id) return;
+      const legacyMasked = emp.hiddenFrom && !emp.visibleFrom;
+      const archived = emp.archived === true || getArchivedEmployeeIds(planningData).has(String(emp.id));
+      if ((legacyMasked || archived) && isEmployeeHidden(emp, currentDate)) {
         if (!hiddenEmployees.find(e => e.id === emp.id)) {
           hiddenEmployees.push(emp);
         }
@@ -664,7 +778,7 @@ const weekHasLocalData = (weekData) => {
 const isExplicitlyVisibleEmployee = (employee) => {
   if (!employee) return false;
   if (employee.archived === true) return false;
-  if (employee.hiddenFrom != null && employee.hiddenFrom !== '') return false;
+  if (employee.hiddenFrom != null && employee.hiddenFrom !== '' && !employee.visibleFrom) return false;
   return true;
 };
 
@@ -700,9 +814,12 @@ const mergeEmployeeLists = (localEmployees = [], remoteEmployees = [], archivedI
     const remoteEmp = remoteById.get(key);
     const merged = { ...(remoteEmp || {}), ...employee };
     if (!archivedIds.has(key) && remoteEmp && isExplicitlyVisibleEmployee(remoteEmp) && !isExplicitlyVisibleEmployee(employee)) {
-      // Cloud réactivé : ne pas ré-appliquer un masquage obsolète du cache local.
       merged.hiddenFrom = null;
       merged.archived = false;
+      if (remoteEmp.visibleFrom) merged.visibleFrom = remoteEmp.visibleFrom;
+    }
+    if (employee?.visibleFrom && !merged.visibleFrom) {
+      merged.visibleFrom = employee.visibleFrom;
     }
     if (archivedIds.has(key)) {
       merged.hiddenFrom = merged.hiddenFrom || '2026-01-01';
@@ -1334,8 +1451,28 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       return null;
     };
 
-    /** L'export Excel doit représenter la réalité du planning, même si une carte employé est masquée dans l'interface. */
-    const isEmployeeExcludedFromExcelExport = () => false;
+    /** Par défaut : exclure masqués et jours antérieurs à visibleFrom (réembauche). */
+    const excludeHiddenEmployees = opts?.includeHiddenEmployees !== true;
+
+    const resolveExportEmployeeMeta = (employeeRef) => {
+      if (employeeRef && typeof employeeRef === 'object' && (employeeRef.id || employeeRef.name)) {
+        return employeeRef;
+      }
+      return findEmployeeMetaByKey(employeeRef);
+    };
+
+    const isEmployeeExcludedFromExcelExport = (employeeRef, dayKey = null) => {
+      if (!excludeHiddenEmployees) return false;
+      const meta = resolveExportEmployeeMeta(employeeRef);
+      if (!meta) return false;
+      if (dayKey) return isEmployeeHidden(meta, dayKey);
+      if (meta.hiddenFrom && !meta.visibleFrom) return true;
+      if (meta.visibleFrom && meta.visibleFrom > monthEndStr) return true;
+      return false;
+    };
+
+    const shouldSkipEmployeeDayInExcel = (employeeRef, dayKey) =>
+      isEmployeeExcludedFromExcelExport(employeeRef, dayKey);
 
     /** Cellule Excel affichée en Nb (h) type 9.30 (vide si 0). */
     const hoursExcelCell = (h) => (h > 0 ? formatWorkedHoursNbNotation(h) : '');
@@ -1532,7 +1669,10 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
     const allEmployeesMapForExport = collectAllEmployeesForExcelExport();
     const allEmployeesForExcelExport = Array.from(allEmployeesMapForExport.values());
     const getEmployeesForShopExport = (shop) =>
-      allEmployeesForExcelExport.filter((emp) => employeeHasShopMembership(emp, shop?.id));
+      allEmployeesForExcelExport.filter(
+        (emp) =>
+          employeeHasShopMembership(emp, shop?.id) && !isEmployeeExcludedFromExcelExport(emp)
+      );
 
     // Calcule les heures hebdo pour UN employé dans UNE boutique en s'appuyant sur les créneaux booléens
     const calculateEmployeeWeeklyHours = (shop, weekStart, employeeRef) => {
@@ -1548,6 +1688,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           day.setDate(day.getDate() + i);
           const dayKey = format(day, 'yyyy-MM-dd');
           if (dayKey < monthStartStr || dayKey > monthEndStr) continue;
+          if (shouldSkipEmployeeDayInExcel(employeeRef, dayKey)) continue;
           totalHours += calculateEmployeeDailyHours(employeeRef, dayKey, weekPlanning, cfg);
         }
         return workedHoursNumericForExport(totalHours);
@@ -1568,6 +1709,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
           day.setDate(day.getDate() + i);
           const dayKey = format(day, 'yyyy-MM-dd');
           if (dayKey < monthStartStr || dayKey > monthEndStr) continue;
+          if (shouldSkipEmployeeDayInExcel(employeeRef, dayKey)) continue;
           totalHours += calculateEmployeeDailyHours(employeeRef, dayKey, weekPlanning, cfg);
         }
       });
@@ -1597,6 +1739,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
         day.setDate(day.getDate() + i);
         const dayKey = format(day, 'yyyy-MM-dd');
         if (dayKey < monthStartStr || dayKey > monthEndStr) continue;
+        if (shouldSkipEmployeeDayInExcel(employeeRef, dayKey)) continue;
         const slots = empWeek?.[dayKey];
         if (typeof slots === 'string' || !Array.isArray(slots)) continue;
 
@@ -1882,6 +2025,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
       allEmployees.forEach(emp => {
         const empName = employeeIdKey(emp.name) || employeeIdKey(emp.id);
         if (!empName) return;
+        if (isEmployeeExcludedFromExcelExport(emp)) return;
         const data = [];
         const shopTotals = new Map(); // shopId -> hours
         const shopNightTotals = new Map(); // shopId -> {t1,t2}
@@ -1903,6 +2047,7 @@ export const exportPlanningToExcel = (planningData, opts = {}) => {
             day.setDate(weekStart.getDate() + d);
             const dayKeyLoop = format(day, 'yyyy-MM-dd');
             if (dayKeyLoop < monthStartStr || dayKeyLoop > monthEndStr) continue;
+            if (shouldSkipEmployeeDayInExcel(emp, dayKeyLoop)) continue;
 
             const dayEntries = findDayEntriesForEmployee(emp, day);
             const dayLabel = `${format(day, 'EEEE', { locale: fr })} ${format(day, 'dd/MM', { locale: fr })}`;

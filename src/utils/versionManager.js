@@ -518,6 +518,11 @@ const VERSION_HIGHLIGHTS = {
     'Demarrage: connexion bloquee jusqu a la fin de la sync Supabase (evite une copie locale obsolete).',
     'Fusion cloud: les employes reactives ne sont plus remasques par un cache local stale.',
     'Ecran identification: message d attente explicite avant connexion.'
+  ],
+  '3.10.168': [
+    'Reactivation employe: date de reembauche obligatoire (partielle ou totale).',
+    'Visibilite planning/recaps/Excel a partir de visibleFrom; masques exclus de l export Excel par defaut.',
+    'Case optionnelle « inclure employes masques » sur l export Excel global.'
   ]
 };
 

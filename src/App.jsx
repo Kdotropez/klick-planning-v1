@@ -2432,6 +2432,12 @@ const App = () => {
             <label for="export-month-input" style="min-width:90px;font-size:12px">Mois:</label>
             <input id="export-month-input" type="month" style="flex:1;padding:6px 8px;font-size:12px" value="${exportMonthDefault}" />
           </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+            <label for="export-include-hidden" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input id="export-include-hidden" type="checkbox" />
+              Inclure les employés masqués (déconseillé)
+            </label>
+          </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
             <button id="export-month-cancel" style="padding:6px 10px;font-size:12px;background:#eee;border:1px solid #ccc;border-radius:4px;cursor:pointer">Annuler</button>
             <button id="export-month-ok" style="padding:6px 10px;font-size:12px;background:#1e88e5;color:#fff;border:1px solid #1565c0;border-radius:4px;cursor:pointer">Exporter</button>
@@ -2450,11 +2456,14 @@ const App = () => {
         if (!value) { cleanup(); return; }
         const [y, m] = value.split('-').map(Number);
         const monthDate = new Date(y, m - 1, 1);
+        const includeHiddenEmployees =
+          /** @type {HTMLInputElement} */ (document.getElementById('export-include-hidden'))?.checked === true;
         cleanup();
         const exportUserCode = exportContext.userCode || currentUser?.code;
         const ok = exportPlanningToExcel(planningData, {
           monthDate,
           userCode: exportUserCode,
+          includeHiddenEmployees,
           currentShopId: exportContext.currentShopId || selectedShop,
           currentWeekKey: exportContext.currentWeekKey || selectedWeek,
           currentWeekPlanning: exportContext.currentWeekPlanning || planning,

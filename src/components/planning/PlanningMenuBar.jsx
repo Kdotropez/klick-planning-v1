@@ -1165,6 +1165,7 @@ const PlanningMenuBar = ({
         onEmployeeUpdate={onEmployeeUpdate}
         currentDate={new Date()}
         currentShop={currentShop}
+        currentUser={currentUser}
       />
 
       <AuditLogModal

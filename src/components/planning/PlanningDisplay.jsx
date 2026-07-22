@@ -28,7 +28,7 @@ import NotesModal from './NotesModal';
 import ShopStatsPage from './ShopStatsPage';
 import RecapButtonsModule from './RecapButtonsModule';
 import LabourInspectionModal from './LabourInspectionModal';
-import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch, hideEmployee, archiveEmployee, unarchiveEmployee } from '../../utils/planningDataManager';
+import { getShopById, getWeekPlanning, saveWeekPlanning, saveWeekPlanningForEmployee, getAllEmployees, isEmployeeVisibleForRecap, resyncShopMarcheAmbulantGrid, getEmployeeMainShopId, determineEmployeeMainShop, renameEmployeeInPlanningData, syncEmployeeNamesAcrossShops, getEmployeeStoredNameVariants, employeeStoredNamesMatch, hideEmployee, archiveEmployee, reactivateEmployee, promptEmployeeReactivationOptions, isEmployeeHidden } from '../../utils/planningDataManager';
 import { calculateEmployeeDailyHours, dayCellHasPlanningContent, formatWorkedHoursForDisplay, formatWorkedHoursNbNotation, isAbsenceDayValue } from '../../utils/planningUtils';
 import { buildSlotRangeLines } from '../../utils/slotDurationUtils';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
@@ -612,9 +612,22 @@ const PlanningDisplay = ({
       : [];
     if (canWorkIn.length > 0) return canWorkIn.includes(selectedShop);
     if (employee.mainShop) return String(employee.mainShop) === selectedShop;
-    // Filtrage strict pour éviter les employés hors boutique.
     return false;
   }, [selectedShop]);
+
+  const getWeekVisibilityReferenceDate = useCallback(() => {
+    if (!validWeek) return new Date();
+    try {
+      return addDays(parseISO(validWeek), 6);
+    } catch {
+      return new Date();
+    }
+  }, [validWeek]);
+
+  const isEmployeeVisibleInCurrentWeek = useCallback(
+    (emp) => !!emp && !isEmployeeHidden(emp, getWeekVisibilityReferenceDate()) && isEmployeeAssignedToCurrentShop(emp),
+    [getWeekVisibilityReferenceDate, isEmployeeAssignedToCurrentShop]
+  );
 
   // Mettre à jour les employés visibles (noms canoniques multi-boutiques)
   useEffect(() => {
@@ -635,9 +648,7 @@ const PlanningDisplay = ({
     }
 
     const currentShopData = syncedPlanningData.shops?.find((shop) => shop.id === selectedShop);
-    const visibleEmployeesInCurrentShop = (currentShopData?.employees || []).filter((emp) =>
-      !!emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp)
-    );
+    const visibleEmployeesInCurrentShop = (currentShopData?.employees || []).filter(isEmployeeVisibleInCurrentWeek);
 
     const deduped = [];
     const seen = new Set();
@@ -657,7 +668,7 @@ const PlanningDisplay = ({
     setAllEmployees(allEmployeesData);
     setCurrentShopEmployees(dedupedWithCanonicalNames);
     console.log(`Employés visibles pour ${selectedShop} (semaine ${selectedWeek}):`, dedupedWithCanonicalNames.map((emp) => emp.name));
-  }, [planningData, selectedShop, selectedWeek, validWeek, isEmployeeAssignedToCurrentShop]);
+  }, [planningData, selectedShop, selectedWeek, validWeek, isEmployeeVisibleInCurrentWeek]);
 
   // Récupérer le planning de la semaine actuelle
   const weekData = selectedShop && validWeek ? getWeekPlanning(planningData, selectedShop, validWeek) : { planning: {}, selectedEmployees: [] };
@@ -970,12 +981,16 @@ const PlanningDisplay = ({
     const employeeName = employee?.name || employeeId;
 
     try {
-      const updatedData = unarchiveEmployee(planningData, employeeId);
+      const options = promptEmployeeReactivationOptions(employeeName);
+      if (!options) return;
+
+      const updatedData = reactivateEmployee(planningData, employeeId, options);
+      const modeLabel = options.mode === 'total' ? 'totale' : 'partielle';
       await persistEmployeeStatusChange(
         updatedData,
-        `🔓 Employé « ${employeeName} » réactivé (toutes boutiques)`,
+        `🔓 « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom} (${modeLabel})`,
         'Reactivation Employe',
-        `Employe ${employeeName} reactive sur toutes les boutiques.`
+        `Employe ${employeeName} reactive a partir du ${options.visibleFrom} mode ${modeLabel}.`
       );
     } catch (e) {
       console.error('Erreur réactivation employé:', e);
@@ -1081,9 +1096,7 @@ const PlanningDisplay = ({
       const freshPlanningData = syncEmployeeNamesAcrossShops(planningData, weekDate);
 
       const currentShopData = freshPlanningData.shops?.find((shop) => shop.id === selectedShop);
-      const visibleShopEmployees = (currentShopData?.employees || []).filter((emp) =>
-        !!emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp)
-      );
+      const visibleShopEmployees = (currentShopData?.employees || []).filter(isEmployeeVisibleInCurrentWeek);
       const currentShopEmployeeIds = Array.from(
         new Set(visibleShopEmployees.map((emp) => emp.id).filter(Boolean))
       );
@@ -1115,7 +1128,7 @@ const PlanningDisplay = ({
     validWeek,
     forceRefresh,
     planningData,
-    isEmployeeAssignedToCurrentShop,
+    isEmployeeVisibleInCurrentWeek,
     filterPlanningForShopEmployees,
     setSelectedEmployees
   ]);
@@ -1130,9 +1143,7 @@ const PlanningDisplay = ({
     if (getPlanningEntryCount(loadedPlanning) === 0) return;
 
     const currentShopData = planningData.shops?.find((shop) => shop.id === selectedShop);
-    const visibleShopEmployees = (currentShopData?.employees || []).filter((emp) =>
-      !!emp && !emp.hiddenFrom && isEmployeeAssignedToCurrentShop(emp)
-    );
+    const visibleShopEmployees = (currentShopData?.employees || []).filter(isEmployeeVisibleInCurrentWeek);
     const currentShopEmployeeIds = Array.from(new Set(visibleShopEmployees.map((emp) => emp.id).filter(Boolean)));
     const validSelectedEmployees = (weekDataFromLoadedState.selectedEmployees || [])
       .filter((empId) => currentShopEmployeeIds.includes(empId));
@@ -1149,7 +1160,7 @@ const PlanningDisplay = ({
     validWeek,
     planningData,
     getPlanningEntryCount,
-    isEmployeeAssignedToCurrentShop,
+    isEmployeeVisibleInCurrentWeek,
     filterPlanningForShopEmployees,
     setSelectedEmployees
   ]);
@@ -3979,8 +3990,11 @@ const PlanningDisplay = ({
         onReactivateEmployee={handleShowEmployee}
         onRenameEmployee={handleRenameEmployeeClick}
         isEmployeeHiddenInShop={(employeeId) => {
-          const emp = currentShopEmployees?.find((e) => e.id === employeeId);
-          return !!emp?.hiddenFrom;
+          const emp = planningData?.shops
+            ?.find((s) => s.id === selectedShop)
+            ?.employees?.find((e) => e.id === employeeId);
+          if (!emp) return true;
+          return isEmployeeHidden(emp, getWeekVisibilityReferenceDate());
         }}
       />
 
