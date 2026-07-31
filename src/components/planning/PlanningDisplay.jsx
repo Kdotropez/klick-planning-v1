@@ -855,11 +855,25 @@ const PlanningDisplay = ({
 
   const HIDE_EMPLOYEE_SINCE_DATE = '2026-01-01';
 
-  const persistEmployeeStatusChange = useCallback(async (updatedData, successMessage, auditAction, auditDetails) => {
+  const persistEmployeeStatusChange = useCallback(async (
+    updatedData,
+    successMessage,
+    auditAction,
+    auditDetails,
+    employeeStatusIds = null
+  ) => {
     try {
+      const statusIds = employeeStatusIds == null
+        ? []
+        : Array.isArray(employeeStatusIds)
+          ? employeeStatusIds.map(String)
+          : [String(employeeStatusIds)];
       const remoteResult = await saveCompletePlanningData(
         updatedData,
-        getSaveMergeOptionsForUser(currentUser)
+        {
+          ...getSaveMergeOptionsForUser(currentUser),
+          ...(statusIds.length ? { explicitEmployeeStatusIds: statusIds } : {})
+        }
       );
       if (remoteResult?.ok) {
         const dataToApply = remoteResult.planningData || updatedData;
@@ -908,7 +922,8 @@ const PlanningDisplay = ({
         updatedData,
         `🚫 Employé « ${employeeName} » masqué (toutes boutiques)`,
         'Masquage Employe',
-        `Employe ${employeeName} masque sur toutes les boutiques (reference ${HIDE_EMPLOYEE_SINCE_DATE}).`
+        `Employe ${employeeName} masque sur toutes les boutiques (reference ${HIDE_EMPLOYEE_SINCE_DATE}).`,
+        employeeId
       );
     } catch (e) {
       console.error('Erreur masquage employé:', e);
@@ -938,7 +953,8 @@ const PlanningDisplay = ({
         updatedData,
         `📦 Employé « ${employeeName} » archivé définitivement`,
         'Archivage Employe',
-        `Employe ${employeeName} archive definitivement.`
+        `Employe ${employeeName} archive definitivement.`,
+        employeeId
       );
     } catch (e) {
       console.error('Erreur archivage employé:', e);
@@ -963,7 +979,8 @@ const PlanningDisplay = ({
         updatedData,
         `🔓 « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom} (historique conservé)`,
         'Reactivation Employe',
-        `Employe ${employeeName} reactive a partir du ${options.visibleFrom} sans suppression horaires.`
+        `Employe ${employeeName} reactive a partir du ${options.visibleFrom} sans suppression horaires.`,
+        employeeId
       );
     } catch (e) {
       console.error('Erreur réactivation employé:', e);

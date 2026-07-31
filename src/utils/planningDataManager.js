@@ -134,14 +134,15 @@ export const unarchiveEmployee = (planningData, employeeId) => {
 };
 
 export const hideEmployee = (planningData, employeeId, hideFromDate, shopId = null) => {
-  console.log(`🔒 Masquage de l'employé ${employeeId} à partir du ${hideFromDate}${shopId ? ` (boutique: ${shopId})` : ''}`);
+  const id = String(employeeId);
+  console.log(`🔒 Masquage de l'employé ${id} à partir du ${hideFromDate}${shopId ? ` (boutique: ${shopId})` : ''}`);
   
   const updatedShops = planningData.shops.map(shop => ({
     ...shop,
     employees: shopId && shop.id !== shopId
       ? shop.employees
       : shop.employees.map(emp =>
-          emp.id === employeeId
+          emp?.id != null && String(emp.id) === id
             ? { ...emp, hiddenFrom: hideFromDate, visibleFrom: null }
             : emp
         )
@@ -158,14 +159,15 @@ export const updateEmployeeHideDate = (planningData, employeeId, hideFromDate) =
   hideEmployee(planningData, employeeId, hideFromDate, null);
 
 export const showEmployee = (planningData, employeeId, shopId = null) => {
-  console.log(`🔓 Affichage de l'employé ${employeeId}${shopId ? ` (boutique: ${shopId})` : ''}`);
+  const id = String(employeeId);
+  console.log(`🔓 Affichage de l'employé ${id}${shopId ? ` (boutique: ${shopId})` : ''}`);
   
   const updatedShops = planningData.shops.map(shop => ({
     ...shop,
     employees: shopId && shop.id !== shopId
       ? shop.employees
       : shop.employees.map(emp =>
-          emp.id === employeeId
+          emp?.id != null && String(emp.id) === id
             ? { ...emp, hiddenFrom: null, visibleFrom: null }
             : emp
         )
@@ -801,7 +803,12 @@ const mergeArchivedEmployeeIds = (localData, remoteData) => {
   return ids;
 };
 
-const mergeEmployeeLists = (localEmployees = [], remoteEmployees = [], archivedIds = new Set()) => {
+const mergeEmployeeLists = (
+  localEmployees = [],
+  remoteEmployees = [],
+  archivedIds = new Set(),
+  explicitEmployeeStatusIds = new Set()
+) => {
   const remoteById = new Map();
   (remoteEmployees || []).forEach((employee) => {
     if (employee?.id == null) return;
@@ -815,7 +822,14 @@ const mergeEmployeeLists = (localEmployees = [], remoteEmployees = [], archivedI
     const key = String(employee.id);
     const remoteEmp = remoteById.get(key);
     const merged = { ...(remoteEmp || {}), ...employee };
-    if (!archivedIds.has(key) && remoteEmp && isExplicitlyVisibleEmployee(remoteEmp) && !isExplicitlyVisibleEmployee(employee)) {
+    const isExplicitStatusChange = explicitEmployeeStatusIds.has(key);
+    if (
+      !isExplicitStatusChange &&
+      !archivedIds.has(key) &&
+      remoteEmp &&
+      isExplicitlyVisibleEmployee(remoteEmp) &&
+      !isExplicitlyVisibleEmployee(employee)
+    ) {
       merged.hiddenFrom = null;
       merged.archived = false;
       if (remoteEmp.visibleFrom) merged.visibleFrom = remoteEmp.visibleFrom;
@@ -860,14 +874,24 @@ const mergeShopWeeksPreservingRemote = (localWeeks = {}, remoteWeeks = {}) => {
   return merged;
 };
 
-const mergeShopWithRemote = (localShop, remoteShop, archivedIds = new Set()) => {
+const mergeShopWithRemote = (
+  localShop,
+  remoteShop,
+  archivedIds = new Set(),
+  explicitEmployeeStatusIds = new Set()
+) => {
   if (!remoteShop) return localShop;
   if (!localShop) return remoteShop;
   return {
     ...remoteShop,
     ...localShop,
     config: { ...(remoteShop.config || {}), ...(localShop.config || {}) },
-    employees: mergeEmployeeLists(localShop.employees, remoteShop.employees, archivedIds),
+    employees: mergeEmployeeLists(
+      localShop.employees,
+      remoteShop.employees,
+      archivedIds,
+      explicitEmployeeStatusIds
+    ),
     weeks: mergeShopWeeksPreservingRemote(localShop.weeks, remoteShop.weeks)
   };
 };
@@ -889,10 +913,13 @@ export const restrictLocalDataForMerge = (localData, allowedShopIds) => {
   return { ...localData, shops: filteredShops };
 };
 
-export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
+export const mergeCompletePlanningWithRemote = (localData, remoteData, mergeOptions = {}) => {
   const localShops = Array.isArray(localData?.shops) ? localData.shops : [];
   const remoteShops = Array.isArray(remoteData?.shops) ? remoteData.shops : [];
   const archivedIds = mergeArchivedEmployeeIds(localData, remoteData);
+  const explicitEmployeeStatusIds = new Set(
+    (mergeOptions.explicitEmployeeStatusIds || []).map(String)
+  );
   const remoteById = new Map(remoteShops.map((shop) => [String(shop.id), shop]));
   const seen = new Set();
   const preservedShopIds = [];
@@ -903,7 +930,9 @@ export const mergeCompletePlanningWithRemote = (localData, remoteData) => {
     const shopId = String(localShop.id);
     seen.add(shopId);
     const remoteShop = remoteById.get(shopId);
-    mergedShops.push(mergeShopWithRemote(localShop, remoteShop, archivedIds));
+    mergedShops.push(
+      mergeShopWithRemote(localShop, remoteShop, archivedIds, explicitEmployeeStatusIds)
+    );
   });
 
   remoteShops.forEach((remoteShop) => {

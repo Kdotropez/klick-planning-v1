@@ -557,6 +557,10 @@ const VERSION_HIGHLIGHTS = {
     'SAUVE SUPABASE: une seule ecriture complete_file (allège la base).',
     'Compteur masques: isEmployeeHidden (visibleFrom / reembauche).'
   ],
+  '3.10.177': [
+    'Masquage apres reactivation: la fusion Supabase n annule plus le masquage volontaire (ex. consulte 2025 puis masque).',
+    'Comparaison des IDs employe renforcee lors du masquage/reactivation.'
+  ],
   '3.10.176': [
     'Nettoyage: suppression des fichiers Copie / .bak du depot (+ gitignore).',
     'Renommage employe: annule si Supabase echoue (plus de faux « mis a jour localement »).',

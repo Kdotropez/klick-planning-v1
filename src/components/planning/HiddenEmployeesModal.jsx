@@ -42,10 +42,18 @@ const HiddenEmployeesModal = ({
 
   if (!isOpen) return null;
 
-  const persistEmployeeChanges = async (updatedData, successMessage, failureMessage) => {
+  const persistEmployeeChanges = async (updatedData, successMessage, failureMessage, employeeStatusIds = null) => {
+    const statusIds = employeeStatusIds == null
+      ? []
+      : Array.isArray(employeeStatusIds)
+        ? employeeStatusIds.map(String)
+        : [String(employeeStatusIds)];
     const remoteResult = await saveCompletePlanningData(
       updatedData,
-      getSaveMergeOptionsForUser(currentUser)
+      {
+        ...getSaveMergeOptionsForUser(currentUser),
+        ...(statusIds.length ? { explicitEmployeeStatusIds: statusIds } : {})
+      }
     );
     if (remoteResult?.ok && remoteResult.planningData) {
       localStorage.setItem('planningData', JSON.stringify(remoteResult.planningData));
@@ -78,7 +86,8 @@ const HiddenEmployeesModal = ({
         `✅ « ${employeeName} » réactivé(e) à partir du ${options.visibleFrom}.\n\n` +
           'Les horaires antérieurs sont conservés (masqués avant cette date).',
         `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.\n\n` +
-          'Réessayez ou utilisez « SAUVE SUPABASE ».'
+          'Réessayez ou utilisez « SAUVE SUPABASE ».',
+        employeeId
       );
       if (saved) onClose();
     } catch (e) {
@@ -119,7 +128,8 @@ const HiddenEmployeesModal = ({
       const saved = await persistEmployeeChanges(
         updatedData,
         `✅ Date de masquage modifiée pour « ${employeeName} » : ${newHideDate}\n\nEnregistré dans Supabase (toutes les boutiques).`,
-        `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée pour « ${employeeName} ».`
+        `⚠️ Sauvegarde Supabase échouée — aucune modification appliquée pour « ${employeeName} ».`,
+        employeeId
       );
       if (!saved) return;
 
@@ -151,7 +161,8 @@ const HiddenEmployeesModal = ({
       const saved = await persistEmployeeChanges(
         updatedData,
         `✅ ${hiddenEmployees.length} employé(s) réactivé(s) à partir du ${options.visibleFrom}.\n\nUne seule sauvegarde Supabase.`,
-        '⚠️ Sauvegarde Supabase échouée — aucune réactivation appliquée.'
+        '⚠️ Sauvegarde Supabase échouée — aucune réactivation appliquée.',
+        hiddenEmployees.map((emp) => emp.id)
       );
       if (saved) onClose();
     } catch (e) {
@@ -175,7 +186,8 @@ const HiddenEmployeesModal = ({
       await persistEmployeeChanges(
         updatedData,
         `✅ Date de masquage ${newDate} appliquée à ${hiddenEmployees.length} employé(s) (toutes boutiques).`,
-        '⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.'
+        '⚠️ Sauvegarde Supabase échouée — aucune modification appliquée.',
+        hiddenEmployees.map((emp) => emp.id)
       );
     } catch (e) {
       console.error('Erreur masquage groupé:', e);

@@ -338,7 +338,11 @@ export const cleanAndResaveData = async () => {
 
 // Fonction pour sauvegarder le fichier complet de planning
 export const saveCompletePlanningData = async (completePlanningData, options = {}) => {
-  const { replaceEntirely = false, allowedShopIds = null } = options;
+  const {
+    replaceEntirely = false,
+    allowedShopIds = null,
+    explicitEmployeeStatusIds = null
+  } = options;
 
   console.log('🔍 saveCompletePlanningData called with:', { 
     hasData: !!completePlanningData,
@@ -376,7 +380,9 @@ export const saveCompletePlanningData = async (completePlanningData, options = {
           ? restrictLocalDataForMerge(dataToSave, allowedShopIds)
           : dataToSave;
 
-        const merged = mergeCompletePlanningWithRemote(localForMerge, remoteRow);
+        const merged = mergeCompletePlanningWithRemote(localForMerge, remoteRow, {
+          explicitEmployeeStatusIds: explicitEmployeeStatusIds || []
+        });
         preservedShopIds = merged._mergeReport?.preservedShopIds || [];
         const { _mergeReport, ...withoutReport } = merged;
         dataToSave = normalizeCompletePlanningData(withoutReport);
