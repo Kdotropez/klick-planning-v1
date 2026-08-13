@@ -26,6 +26,9 @@ const PlanningMenuBar = ({
   onBackToConfig,
   onBackToStartup,
   onOpenSchoolMode,
+  sandboxMode = false,
+  onStartBraderieTest,
+  onExitBraderieTest,
   
   // Actions
   onExport,
@@ -391,7 +394,7 @@ const PlanningMenuBar = ({
         </Button>
         )}
 
-          {can('canRestoreSupabase') && (
+          {!sandboxMode && can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleRestoreFromSupabase}
@@ -415,7 +418,7 @@ const PlanningMenuBar = ({
           </Button>
           )}
 
-          {can('canRestoreSupabase') && (
+          {!sandboxMode && can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleRestoreBackupFromHistory}
@@ -439,7 +442,7 @@ const PlanningMenuBar = ({
           </Button>
           )}
 
-          {can('canRestoreSupabase') && (
+          {!sandboxMode && can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleBrowseShopWeekArchives}
@@ -463,7 +466,7 @@ const PlanningMenuBar = ({
           </Button>
           )}
 
-          {can('canRestoreSupabase') && (
+          {!sandboxMode && can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleRestoreShopWeekFromHistory}
@@ -487,7 +490,7 @@ const PlanningMenuBar = ({
           </Button>
           )}
 
-          {can('canRestoreSupabase') && handleMergeShopFromJson && (
+          {!sandboxMode && can('canRestoreSupabase') && handleMergeShopFromJson && (
           <Button
             className="button-primary"
             onClick={handleMergeShopFromJson}
@@ -512,7 +515,7 @@ const PlanningMenuBar = ({
           </Button>
           )}
 
-          {can('canRestoreSupabase') && (
+          {!sandboxMode && can('canRestoreSupabase') && (
           <Button
             className="button-primary"
             onClick={handleExploreBackupHistory}
@@ -537,7 +540,7 @@ const PlanningMenuBar = ({
           )}
 
         {/* LIGNE 2: Fonctions utilitaires et Navigation */}
-          {can('canImportData') && (
+          {!sandboxMode && can('canImportData') && (
           <Button
             className="button-primary"
             onClick={handleImportClick}
@@ -735,7 +738,7 @@ const PlanningMenuBar = ({
           🏠 Démarrage
         </Button>
 
-        {onOpenSchoolMode && can('canViewSchoolMode') && (
+        {onOpenSchoolMode && can('canViewSchoolMode') && !sandboxMode && (
           <Button
             className="button-primary"
             onClick={onOpenSchoolMode}
@@ -760,8 +763,62 @@ const PlanningMenuBar = ({
           </Button>
         )}
 
+        {!sandboxMode && onStartBraderieTest && (
+          <Button
+            className="button-primary"
+            onClick={() => onStartBraderieTest()}
+            style={{
+              backgroundColor: '#ef6c00',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e65100'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ef6c00'}
+            title="Tester les horaires de la semaine prochaine (Port Grimaud / Cavalaire) sans enregistrement"
+          >
+            🧪 Test braderie
+          </Button>
+        )}
+
+        {sandboxMode && onExitBraderieTest && (
+          <Button
+            className="button-primary"
+            onClick={() => {
+              if (window.confirm('Quitter le mode test braderie ?\n\nToutes les modifications de test seront perdues.')) {
+                onExitBraderieTest();
+              }
+            }}
+            style={{
+              backgroundColor: '#bf360c',
+              color: '#fff',
+              padding: '10px 14px',
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#870000'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#bf360c'}
+            title="Quitter le mode test sans enregistrer"
+          >
+            🚪 Quitter test braderie
+          </Button>
+        )}
+
         {/* LIGNE 3: Nouveaux boutons ajoutés */}
-        {can('canResetData') && (
+        {!sandboxMode && can('canResetData') && (
         <Button
           className="button-primary"
           onClick={() => setShowResetModal(true)}
@@ -807,7 +864,7 @@ const PlanningMenuBar = ({
           ↩️ Retour
         </Button>
 
-        {can('canRestoreSupabase') && (
+        {!sandboxMode && can('canRestoreSupabase') && (
         <Button
           className="button-primary"
           onClick={restoreFromBackup}
@@ -1077,7 +1134,7 @@ const PlanningMenuBar = ({
           {autoLockEnabled ? '🔒 Auto-verrouillage ON' : '🔓 Auto-verrouillage OFF'}
         </Button>
 
-        {can('canCopyWeek') && (
+        {!sandboxMode && can('canCopyWeek') && (
         <Button
           className="button-primary"
           onClick={onOpenCopyPastePage}
@@ -1101,7 +1158,7 @@ const PlanningMenuBar = ({
         </Button>
         )}
 
-        {can('canCopyWeek') && (
+        {!sandboxMode && can('canCopyWeek') && (
         <Button
           className="button-primary"
           onClick={copyWeekToNextWeek}

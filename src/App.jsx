@@ -24,6 +24,12 @@ import EmployeeManagement from './components/steps/EmployeeManagement';
 import EmployeeAssignment from './components/steps/EmployeeAssignment';
 import WeekSelection from './components/steps/WeekSelection';
 import PlanningDisplay from './components/planning/PlanningDisplay';
+import {
+  clonePlanningDataForBraderieTest,
+  getBraderieTestWeekKey,
+  promptBraderieTestShop,
+  resolveBraderieTestShopId,
+} from './utils/braderieTestMode';
 import { 
   createNewPlanningData, 
   addShop, 
@@ -582,11 +588,12 @@ const App = () => {
   // Sauvegarder les données dans localStorage (après bootstrap Supabase, jamais avec un planning vide)
   useEffect(() => {
     if (!isBootstrapComplete) return;
+    if (braderieTestMode) return;
     if (mode !== 'startup') {
       if (!Array.isArray(planningData?.shops) || planningData.shops.length === 0) return;
       saveToLocalStorage('planningData', planningData);
     }
-  }, [planningData, mode, isBootstrapComplete]);
+  }, [planningData, mode, isBootstrapComplete, braderieTestMode]);
 
   useEffect(() => {
     if (feedback) {
@@ -2317,10 +2324,52 @@ const App = () => {
   };
 
   const [schoolModeReturnMode, setSchoolModeReturnMode] = useState('main-startup');
+  const [braderieTestMode, setBraderieTestMode] = useState(false);
+  const [braderieSandboxData, setBraderieSandboxData] = useState(null);
+  const braderieReturnRef = useRef({ shop: null, week: null, mode: 'planning' });
 
   const handleOpenSchoolMode = () => {
     setSchoolModeReturnMode(mode);
     setMode('school-mode');
+  };
+
+  const handleEnterBraderieTest = (shopId = null) => {
+    if (!planningData?.shops?.length) {
+      setFeedback('❌ Aucune donnée planning — chargez Supabase avant le test braderie.');
+      return;
+    }
+    const pickedShopId = shopId || promptBraderieTestShop(planningData);
+    if (!pickedShopId) return;
+
+    const resolvedShop = resolveBraderieTestShopId(planningData, pickedShopId);
+    if (!planningData.shops.some((shop) => String(shop.id) === resolvedShop)) {
+      setFeedback(`❌ Boutique ${resolvedShop} introuvable dans le planning.`);
+      return;
+    }
+
+    braderieReturnRef.current = {
+      shop: selectedShop || null,
+      week: selectedWeek || null,
+      mode,
+    };
+    setBraderieSandboxData(clonePlanningDataForBraderieTest(planningData));
+    setBraderieTestMode(true);
+    setSelectedShop(resolvedShop);
+    setSelectedWeek(getBraderieTestWeekKey());
+    setMode('planning');
+    setFeedback(
+      '🧪 Mode test braderie — semaine prochaine, Port Grimaud / Cavalaire. Rien ne sera enregistré.'
+    );
+  };
+
+  const handleExitBraderieTest = () => {
+    setBraderieTestMode(false);
+    setBraderieSandboxData(null);
+    const previous = braderieReturnRef.current;
+    if (previous.shop) setSelectedShop(previous.shop);
+    if (previous.week) setSelectedWeek(previous.week);
+    setMode(previous.mode || 'planning');
+    setFeedback('✅ Mode test braderie quitté — aucune modification enregistrée.');
   };
 
 
@@ -2860,8 +2909,11 @@ const App = () => {
           )}
           
                       <PlanningDisplay
-              planningData={planningData}
-              setPlanningData={setPlanningData}
+              planningData={braderieTestMode ? braderieSandboxData : planningData}
+              setPlanningData={braderieTestMode ? setBraderieSandboxData : setPlanningData}
+              sandboxMode={braderieTestMode}
+              onExitSandbox={handleExitBraderieTest}
+              onStartBraderieTest={handleEnterBraderieTest}
               selectedShop={selectedShop}
               setSelectedShop={setSelectedShop}
               selectedWeek={selectedWeek}

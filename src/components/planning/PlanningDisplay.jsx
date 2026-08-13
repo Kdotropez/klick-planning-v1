@@ -52,6 +52,7 @@ import {
   openOrDownloadLandscapeHtml,
   downloadLandscapeHtmlFile,
 } from '../../utils/htmlLandscapeExport';
+import { BRADERIE_TEST_SHOP_IDS } from '../../utils/braderieTestMode';
 import '@/assets/styles.css';
 
 const normalizeWeekKey = (dateString) => {
@@ -91,8 +92,14 @@ const PlanningDisplay = ({
   onRestoreShopWeekFromHistory,
   onExploreBackupHistory,
   onMergeShopFromJson,
-  onExitApplication
+  onExitApplication,
+  sandboxMode = false,
+  onExitSandbox,
+  onStartBraderieTest,
 }) => {
+  const savePlanningDataLocally = useCallback((data) => {
+    if (!sandboxMode) saveToLocalStorage('planningData', data);
+  }, [sandboxMode]);
   const [currentDay, setCurrentDay] = useState(0);
   const [showShopWeekInsights, setShowShopWeekInsights] = useState(false);
   const [showShopWeeklyHtmlReport, setShowShopWeeklyHtmlReport] = useState(false);
@@ -140,10 +147,10 @@ const PlanningDisplay = ({
           }
         }
       };
-      saveToLocalStorage('planningData', next);
+      savePlanningDataLocally(next);
       return next;
     });
-  }, [setPlanningData]);
+  }, [setPlanningData, savePlanningDataLocally]);
 
   const handleSaveInspectionEmployeeContractData = useCallback((shopId, contractDataByEmployee) => {
     if (!shopId || !contractDataByEmployee || typeof contractDataByEmployee !== 'object') return;
@@ -163,10 +170,10 @@ const PlanningDisplay = ({
         })
       }));
       const next = { ...prev, shops: nextShops };
-      saveToLocalStorage('planningData', next);
+      savePlanningDataLocally(next);
       return next;
     });
-  }, [setPlanningData]);
+  }, [setPlanningData, savePlanningDataLocally]);
 
   // Nouveau système de verrou à bail avec identification personnalisée
   const currentUserIdRef = useRef(null);
@@ -386,13 +393,13 @@ const PlanningDisplay = ({
       const next = resyncShopMarcheAmbulantGrid(prev, selectedShop);
       if (next === prev) return prev;
       try {
-        saveToLocalStorage('planningData', next);
+        savePlanningDataLocally(next);
       } catch (_) {
         /* ignore */
       }
       return next;
     });
-  }, [selectedShop, setPlanningData]);
+  }, [selectedShop, setPlanningData, savePlanningDataLocally]);
 
   // Fonction pour calculer le total des heures de la boutique pour le mois
   const calculateShopMonthlyTotal = () => {
@@ -582,9 +589,12 @@ const PlanningDisplay = ({
   }, [planningData?.shops]);
 
   const accessibleShops = useMemo(() => {
+    if (sandboxMode) {
+      return shops.filter((shop) => BRADERIE_TEST_SHOP_IDS.includes(String(shop.id)));
+    }
     if (!currentUser?.code) return shops;
     return filterShopsForUser(currentUser.code, shops);
-  }, [currentUser, shops]);
+  }, [currentUser, shops, sandboxMode]);
 
   const userScopedPlanningData = useMemo(() => {
     if (!currentUser?.code) return planningData;
@@ -632,7 +642,7 @@ const PlanningDisplay = ({
     const syncedPlanningData = syncEmployeeNamesAcrossShops(planningData, weekDate);
     if (syncedPlanningData !== planningData) {
       try {
-        saveToLocalStorage('planningData', syncedPlanningData);
+        savePlanningDataLocally(syncedPlanningData);
       } catch (_) {
         /* ignore */
       }
@@ -841,7 +851,7 @@ const PlanningDisplay = ({
       if (remoteResult?.ok) {
         const dataToApply = remoteResult.planningData || payload;
         setPlanningData(dataToApply);
-        saveToLocalStorage('planningData', dataToApply);
+                savePlanningDataLocally(dataToApply);
         setLocalFeedback(`✏️ Nom mis à jour partout : ${trimmed} — sauvegardé dans Supabase`);
       } else {
         setLocalFeedback(`❌ Renommage annulé — Supabase non confirmé (aucun changement).`);
@@ -862,6 +872,10 @@ const PlanningDisplay = ({
     auditDetails,
     employeeStatusIds = null
   ) => {
+    if (sandboxMode) {
+      setLocalFeedback('🧪 Mode test braderie — modification du statut employé désactivée.');
+      return;
+    }
     try {
       const statusIds = employeeStatusIds == null
         ? []
@@ -878,7 +892,7 @@ const PlanningDisplay = ({
       if (remoteResult?.ok) {
         const dataToApply = remoteResult.planningData || updatedData;
         setPlanningData(dataToApply);
-        saveToLocalStorage('planningData', dataToApply);
+                savePlanningDataLocally(dataToApply);
         addAuditLog({
           action: auditAction,
           details: auditDetails,
@@ -1323,6 +1337,10 @@ const PlanningDisplay = ({
 
   // Fonction de sauvegarde forcée
   const handleManualSave = useCallback(async () => {
+          if (sandboxMode) {
+      setLocalFeedback('🧪 Mode test braderie — sauvegarde désactivée (aucun enregistrement).');
+      return;
+    }
           if (readOnly) {
       return;
     }
@@ -1344,7 +1362,7 @@ const PlanningDisplay = ({
           return updatedSnapshot;
         });
         if (updatedSnapshot) {
-          saveToLocalStorage('planningData', updatedSnapshot);
+          savePlanningDataLocally(updatedSnapshot);
         }
         
         // Attendre un peu pour s'assurer que le state est mis à jour
@@ -1360,7 +1378,7 @@ const PlanningDisplay = ({
           if (remoteResult?.ok) {
             if (remoteResult.planningData) {
               setPlanningData(remoteResult.planningData);
-              saveToLocalStorage('planningData', remoteResult.planningData);
+              savePlanningDataLocally(remoteResult.planningData);
             }
             console.log('✅ Sauvegarde complète Supabase réussie');
             const preservedNote = remoteResult.preservedShopNames?.length
@@ -1396,7 +1414,7 @@ const PlanningDisplay = ({
       console.error('Erreur sauvegarde manuelle:', error);
       setLocalFeedback('❌ Erreur lors de la sauvegarde');
     }
-  }, [planning, localSelectedEmployees, selectedShop, validWeek, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly, shops, currentUser?.code, currentUser?.name]);
+  }, [planning, localSelectedEmployees, selectedShop, validWeek, setPlanningData, setLocalFeedback, setHasUnsavedChanges, readOnly, shops, currentUser?.code, currentUser?.name, sandboxMode, savePlanningDataLocally]);
 
   const handleCloseApplication = useCallback(async () => {
     if (!window.confirm('Voulez-vous fermer l’application ?')) return;
@@ -1545,7 +1563,7 @@ const PlanningDisplay = ({
             return;
           }
           setPlanningData(parsed);
-          localStorage.setItem('planningData', JSON.stringify(parsed));
+          savePlanningDataLocally(parsed);
           setForceRefresh((prev) => prev + 1);
           setLocalFeedback(`✅ JSON local restauré (${latestKey})`);
           alert(`✅ Planning restauré depuis la sauvegarde locale.\n\n${parsed.shops.length} boutique(s).`);
@@ -1561,10 +1579,11 @@ const PlanningDisplay = ({
     } else {
       alert('❌ Sélecteur de fichier indisponible. Utilisez 📥 Importer les données.');
     }
-  }, [setPlanningData]);
+  }, [setPlanningData, savePlanningDataLocally]);
 
   // Fonction de sauvegarde automatique JSON
   const createAutoBackupJSON = useCallback((type = 'auto') => {
+    if (sandboxMode) return;
     if (readOnly) {
       return;
     }
@@ -1649,12 +1668,12 @@ const PlanningDisplay = ({
     // Sauvegarder les modifications actuelles avant de changer de semaine
     if (!readOnly && !isWeekFullyLocked && selectedShop && validWeek && planning && Object.keys(planning).length > 0) {
       try {
-        // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
-        const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
-        
-        let updatedPlanningData = latestPlanningData.shops ? latestPlanningData : planningData;
-        
-        // ⚡ STEP 2: SAVE for all employees (including multi-shop employees)
+        let updatedPlanningData = planningData;
+        if (!sandboxMode) {
+          const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
+          updatedPlanningData = latestPlanningData.shops ? latestPlanningData : planningData;
+        }
+
         localSelectedEmployees.forEach(employeeId => {
           updatedPlanningData = saveWeekPlanningForEmployee(
             updatedPlanningData,
@@ -1665,11 +1684,12 @@ const PlanningDisplay = ({
             selectedShop
           );
         });
-        
-        // ⚡ STEP 3: UPDATE both memory AND localStorage
+
         setPlanningData(updatedPlanningData);
-        localStorage.setItem('planningData', JSON.stringify(updatedPlanningData));
-        console.log('💾 Sauvegarde complète automatique avant changement de semaine (avec rechargement depuis localStorage)');
+        if (!sandboxMode) {
+          localStorage.setItem('planningData', JSON.stringify(updatedPlanningData));
+        }
+        console.log('💾 Sauvegarde complète automatique avant changement de semaine');
       } catch (error) {
         console.error('Erreur lors de la sauvegarde avant changement de semaine:', error);
       }
@@ -1727,13 +1747,13 @@ const PlanningDisplay = ({
       // Sauvegarder le planning actuel avant de changer de boutique
       if (!isWeekFullyLocked && selectedShop && validWeek && Object.keys(planning).length > 0) {
         console.log('Sauvegarde avant changement de boutique:', { selectedShop, selectedWeek: validWeek, planning, localSelectedEmployees });
-        
-        // ⚡ STEP 1: RELOAD planningData from localStorage to get the LATEST version
-        const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
-        
-        let updatedPlanningData = latestPlanningData.shops ? latestPlanningData : planningData;
-        
-        // ⚡ STEP 2: SAVE for all employees (including multi-shop employees)
+
+        let updatedPlanningData = planningData;
+        if (!sandboxMode) {
+          const latestPlanningData = JSON.parse(localStorage.getItem('planningData') || '{}');
+          updatedPlanningData = latestPlanningData.shops ? latestPlanningData : planningData;
+        }
+
         localSelectedEmployees.forEach(employeeId => {
           updatedPlanningData = saveWeekPlanningForEmployee(
             updatedPlanningData,
@@ -1741,14 +1761,15 @@ const PlanningDisplay = ({
             validWeek,
             planning,
             localSelectedEmployees,
-            selectedShop // on sauvegarde dans la boutique qu'on quitte
+            selectedShop
           );
         });
-        
-        // ⚡ STEP 3: UPDATE both memory AND localStorage
+
         setPlanningData(updatedPlanningData);
-        localStorage.setItem('planningData', JSON.stringify(updatedPlanningData));
-        console.log('💾 Sauvegarde complète automatique avant changement de boutique (avec rechargement depuis localStorage)');
+        if (!sandboxMode) {
+          localStorage.setItem('planningData', JSON.stringify(updatedPlanningData));
+        }
+        console.log('💾 Sauvegarde complète automatique avant changement de boutique');
       }
     } catch (e) {
       console.error("Erreur lors de la sauvegarde du planning avant changement de boutique :", e);
@@ -3163,6 +3184,51 @@ const PlanningDisplay = ({
       margin: '0 auto'
     }}>
         <TouchOptimizationBanner />
+
+      {sandboxMode && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: '10px',
+            background: 'linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%)',
+            border: '2px solid #fb8c00',
+            color: '#e65100',
+            fontWeight: 700,
+            textAlign: 'center',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+          }}
+        >
+          <span>
+            🧪 Mode test BRADERIE — semaine du {validWeek ? format(parseISO(validWeek), 'dd/MM/yyyy', { locale: fr }) : '?'} —
+            Port Grimaud / Cavalaire uniquement. Rien n&apos;est enregistré (ni local, ni Supabase).
+          </span>
+          {onExitSandbox && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Quitter le mode test braderie ?\n\nToutes les modifications de test seront perdues.')) {
+                  onExitSandbox();
+                }
+              }}
+              style={{
+                backgroundColor: '#e65100',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '8px 14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Quitter le test
+            </button>
+          )}
+        </div>
+      )}
       
       {localFeedback && (
         <p style={{ 
@@ -3283,6 +3349,7 @@ const PlanningDisplay = ({
               ⚙️ Menu actions (Pilotage, exports, sauvegardes…)
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {!sandboxMode && (
               <button
                 type="button"
                 onClick={handleManualSave}
@@ -3301,6 +3368,31 @@ const PlanningDisplay = ({
               >
                 💾 SAUVE SUPABASE
               </button>
+              )}
+              {sandboxMode && onExitSandbox && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Quitter le mode test braderie ?\n\nToutes les modifications de test seront perdues.')) {
+                      onExitSandbox();
+                    }
+                  }}
+                  style={{
+                    backgroundColor: '#e65100',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 14px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Quitter le mode test sans enregistrer"
+                >
+                  🧪 Quitter le test braderie
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleCloseApplication}
@@ -3373,6 +3465,9 @@ const PlanningDisplay = ({
             onBackToConfig={onBackToConfig}
             onBackToStartup={onBackToStartup}
             onOpenSchoolMode={onOpenSchoolMode}
+            sandboxMode={sandboxMode}
+            onStartBraderieTest={onStartBraderieTest}
+            onExitBraderieTest={onExitSandbox}
             onExport={handleExport}
             onImport={onImport}
             onReset={() => setShowResetModal(true)}

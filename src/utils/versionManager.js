@@ -557,6 +557,10 @@ const VERSION_HIGHLIGHTS = {
     'SAUVE SUPABASE: une seule ecriture complete_file (allège la base).',
     'Compteur masques: isEmployeeHidden (visibleFrom / reembauche).'
   ],
+  '3.10.178': [
+    'Mode test braderie: semaine prochaine Port Grimaud / Cavalaire sans enregistrement (local ni Supabase).',
+    'Bouton Test braderie dans le menu planning; bandeau orange et sortie sans perte du planning reel.'
+  ],
   '3.10.177': [
     'Masquage apres reactivation: la fusion Supabase n annule plus le masquage volontaire (ex. consulte 2025 puis masque).',
     'Comparaison des IDs employe renforcee lors du masquage/reactivation.'
