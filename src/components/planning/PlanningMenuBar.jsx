@@ -763,60 +763,6 @@ const PlanningMenuBar = ({
           </Button>
         )}
 
-        {!sandboxMode && onStartBraderieTest && (
-          <Button
-            className="button-primary"
-            onClick={() => onStartBraderieTest()}
-            style={{
-              backgroundColor: '#ef6c00',
-              color: '#fff',
-              padding: '10px 14px',
-              fontSize: '13px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e65100'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ef6c00'}
-            title="Tester les horaires de la semaine prochaine (Port Grimaud / Cavalaire) sans enregistrement"
-          >
-            🧪 Test braderie
-          </Button>
-        )}
-
-        {sandboxMode && onExitBraderieTest && (
-          <Button
-            className="button-primary"
-            onClick={() => {
-              if (window.confirm('Quitter le mode test braderie ?\n\nToutes les modifications de test seront perdues.')) {
-                onExitBraderieTest();
-              }
-            }}
-            style={{
-              backgroundColor: '#bf360c',
-              color: '#fff',
-              padding: '10px 14px',
-              fontSize: '13px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              whiteSpace: 'nowrap'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#870000'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#bf360c'}
-            title="Quitter le mode test sans enregistrer"
-          >
-            🚪 Quitter test braderie
-          </Button>
-        )}
-
         {/* LIGNE 3: Nouveaux boutons ajoutés */}
         {!sandboxMode && can('canResetData') && (
         <Button

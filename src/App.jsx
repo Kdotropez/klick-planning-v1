@@ -27,6 +27,7 @@ import PlanningDisplay from './components/planning/PlanningDisplay';
 import {
   clonePlanningDataForBraderieTest,
   getBraderieTestWeekKey,
+  isBraderieTestShopId,
   promptBraderieTestShop,
   resolveBraderieTestShopId,
 } from './utils/braderieTestMode';
@@ -2337,7 +2338,11 @@ const App = () => {
       setFeedback('❌ Aucune donnée planning — chargez Supabase avant le test braderie.');
       return;
     }
-    const pickedShopId = shopId || promptBraderieTestShop(planningData);
+
+    const autoShop =
+      shopId ||
+      (isBraderieTestShopId(selectedShop) ? selectedShop : null);
+    const pickedShopId = autoShop || promptBraderieTestShop(planningData);
     if (!pickedShopId) return;
 
     const resolvedShop = resolveBraderieTestShopId(planningData, pickedShopId);
@@ -2345,6 +2350,18 @@ const App = () => {
       setFeedback(`❌ Boutique ${resolvedShop} introuvable dans le planning.`);
       return;
     }
+
+    const shopLabel =
+      planningData.shops.find((shop) => String(shop.id) === resolvedShop)?.name || resolvedShop;
+    const testWeek = getBraderieTestWeekKey();
+    const confirmed = window.confirm(
+      `Activer le MODE TEST BRADERIE ?\n\n` +
+        `Boutique : ${shopLabel}\n` +
+        `Semaine test : à partir du ${testWeek}\n\n` +
+        `⚠️ Aucune sauvegarde (ni local, ni Supabase).\n` +
+        `Basculez le curseur sur OFF pour revenir au planning réel.`
+    );
+    if (!confirmed) return;
 
     braderieReturnRef.current = {
       shop: selectedShop || null,
@@ -2354,10 +2371,10 @@ const App = () => {
     setBraderieSandboxData(clonePlanningDataForBraderieTest(planningData));
     setBraderieTestMode(true);
     setSelectedShop(resolvedShop);
-    setSelectedWeek(getBraderieTestWeekKey());
+    setSelectedWeek(testWeek);
     setMode('planning');
     setFeedback(
-      '🧪 Mode test braderie — semaine prochaine, Port Grimaud / Cavalaire. Rien ne sera enregistré.'
+      `🧪 Mode braderie ON — ${shopLabel}, semaine du ${testWeek}. Curseur orange = test sans enregistrement.`
     );
   };
 

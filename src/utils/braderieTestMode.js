@@ -29,6 +29,9 @@ export const resolveBraderieTestShopId = (planningData, preferredId = null) => {
 export const getAvailableBraderieTestShops = (planningData) =>
   (planningData?.shops || []).filter((shop) => BRADERIE_TEST_SHOP_IDS.includes(String(shop.id)));
 
+export const isBraderieTestShopId = (shopId) =>
+  shopId != null && BRADERIE_TEST_SHOP_IDS.includes(String(shopId));
+
 export const promptBraderieTestShop = (planningData) => {
   const available = getAvailableBraderieTestShops(planningData);
   if (!available.length) {

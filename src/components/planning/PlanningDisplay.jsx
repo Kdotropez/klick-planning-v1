@@ -52,7 +52,7 @@ import {
   openOrDownloadLandscapeHtml,
   downloadLandscapeHtmlFile,
 } from '../../utils/htmlLandscapeExport';
-import { BRADERIE_TEST_SHOP_IDS } from '../../utils/braderieTestMode';
+import { BRADERIE_TEST_SHOP_IDS, isBraderieTestShopId } from '../../utils/braderieTestMode';
 import '@/assets/styles.css';
 
 const normalizeWeekKey = (dateString) => {
@@ -100,6 +100,24 @@ const PlanningDisplay = ({
   const savePlanningDataLocally = useCallback((data) => {
     if (!sandboxMode) saveToLocalStorage('planningData', data);
   }, [sandboxMode]);
+
+  const handleBraderieToggle = useCallback(() => {
+    if (sandboxMode) {
+      if (
+        window.confirm(
+          'Désactiver le mode braderie (OFF) ?\n\n' +
+            'Les horaires testés ne seront PAS enregistrés.\n' +
+            'Vous retrouverez le planning réel.'
+        )
+      ) {
+        onExitSandbox?.();
+      }
+      return;
+    }
+    if (onStartBraderieTest) {
+      onStartBraderieTest(isBraderieTestShopId(selectedShop) ? selectedShop : null);
+    }
+  }, [sandboxMode, onExitSandbox, onStartBraderieTest, selectedShop]);
   const [currentDay, setCurrentDay] = useState(0);
   const [showShopWeekInsights, setShowShopWeekInsights] = useState(false);
   const [showShopWeeklyHtmlReport, setShowShopWeeklyHtmlReport] = useState(false);
@@ -3188,45 +3206,21 @@ const PlanningDisplay = ({
       {sandboxMode && (
         <div
           style={{
-            padding: '12px 16px',
-            borderRadius: '10px',
-            background: 'linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%)',
-            border: '2px solid #fb8c00',
-            color: '#e65100',
-            fontWeight: 700,
+            padding: '14px 18px',
+            borderRadius: '12px',
+            background: 'linear-gradient(90deg, #ff6f00 0%, #ff9800 100%)',
+            border: '3px solid #e65100',
+            color: '#fff',
+            fontWeight: 800,
             textAlign: 'center',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
+            fontSize: '15px',
+            boxShadow: '0 4px 16px rgba(230, 81, 0, 0.45)',
+            letterSpacing: '0.3px',
           }}
         >
-          <span>
-            🧪 Mode test BRADERIE — semaine du {validWeek ? format(parseISO(validWeek), 'dd/MM/yyyy', { locale: fr }) : '?'} —
-            Port Grimaud / Cavalaire uniquement. Rien n&apos;est enregistré (ni local, ni Supabase).
-          </span>
-          {onExitSandbox && (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm('Quitter le mode test braderie ?\n\nToutes les modifications de test seront perdues.')) {
-                  onExitSandbox();
-                }
-              }}
-              style={{
-                backgroundColor: '#e65100',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '8px 14px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Quitter le test
-            </button>
-          )}
+          🧪 MODE BRADERIE ACTIF — TEST UNIQUEMENT — semaine du{' '}
+          {validWeek ? format(parseISO(validWeek), 'dd/MM/yyyy', { locale: fr }) : '?'} — rien n&apos;est
+          enregistré (local ni Supabase). Basculez le curseur sur OFF pour revenir au planning réel.
         </div>
       )}
       
@@ -3246,10 +3240,14 @@ const PlanningDisplay = ({
         textAlign: 'center',
         marginBottom: deviceInfo.isTablet ? '14px' : '12px',
         padding: deviceInfo.isTablet ? '16px 18px' : '12px 16px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: sandboxMode
+          ? 'linear-gradient(135deg, #ef6c00 0%, #e65100 100%)'
+          : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         borderRadius: deviceInfo.isTablet ? '20px' : '16px',
-        border: 'none',
-        boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+        border: sandboxMode ? '3px solid #bf360c' : 'none',
+        boxShadow: sandboxMode
+          ? '0 8px 32px rgba(230, 81, 0, 0.45)'
+          : '0 8px 32px rgba(102, 126, 234, 0.3)',
         position: 'relative',
         overflow: 'hidden',
         width: '100%',
@@ -3278,6 +3276,18 @@ const PlanningDisplay = ({
           zIndex: 1
         }}>
           {getWeekTitle()}
+          {sandboxMode && (
+            <span style={{
+              display: 'block',
+              fontSize: deviceInfo.isTablet ? '14px' : '13px',
+              marginTop: '6px',
+              letterSpacing: '1px',
+              fontWeight: 700,
+              color: '#fff3e0',
+            }}>
+              🧪 MODE BRADERIE — TEST SANS ENREGISTREMENT
+            </span>
+          )}
         </h2>
         <p style={{
           fontFamily: 'Roboto, sans-serif',
@@ -3308,7 +3318,7 @@ const PlanningDisplay = ({
       </div>
 
       {/* Indicateur de sauvegarde automatique */}
-      {nextAutoBackup && (
+      {!sandboxMode && nextAutoBackup && (
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -3338,16 +3348,80 @@ const PlanningDisplay = ({
               flexWrap: 'wrap',
               gap: 8,
               padding: '8px 12px',
-              background: '#f8fafc',
+              background: sandboxMode ? '#fff8e1' : '#f8fafc',
               borderRadius: '10px',
-              border: '1px solid #e2e8f0',
+              border: sandboxMode ? '2px solid #ef6c00' : '1px solid #e2e8f0',
               marginBottom: showPlanningMenuBar ? '8px' : 0,
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)'
+              boxShadow: sandboxMode
+                ? '0 2px 12px rgba(239, 108, 0, 0.25)'
+                : '0 2px 8px rgba(15, 23, 42, 0.08)'
             }}
           >
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#334155' }}>
-              ⚙️ Menu actions (Pilotage, exports, sauvegardes…)
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  background: sandboxMode ? '#ffe0b2' : '#f1f5f9',
+                  border: sandboxMode ? '2px solid #ef6c00' : '1px solid #cbd5e1',
+                }}
+              >
+                <span style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: sandboxMode ? '#bf360c' : '#475569',
+                  whiteSpace: 'nowrap',
+                }}>
+                  🧪 Mode braderie
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={sandboxMode}
+                  aria-label={sandboxMode ? 'Mode braderie activé' : 'Mode braderie désactivé'}
+                  onClick={handleBraderieToggle}
+                  style={{
+                    width: 58,
+                    height: 30,
+                    borderRadius: 15,
+                    border: 'none',
+                    background: sandboxMode ? '#ef6c00' : '#94a3b8',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 3,
+                      left: sandboxMode ? 31 : 3,
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                      transition: 'left 0.15s ease',
+                    }}
+                  />
+                </button>
+                <span style={{
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  color: sandboxMode ? '#e65100' : '#64748b',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {sandboxMode ? 'ON — test' : 'OFF — réel'}
+                </span>
+              </div>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: '#334155' }}>
+                ⚙️ Menu actions
+              </span>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {!sandboxMode && (
               <button
@@ -3369,29 +3443,15 @@ const PlanningDisplay = ({
                 💾 SAUVE SUPABASE
               </button>
               )}
-              {sandboxMode && onExitSandbox && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('Quitter le mode test braderie ?\n\nToutes les modifications de test seront perdues.')) {
-                      onExitSandbox();
-                    }
-                  }}
-                  style={{
-                    backgroundColor: '#e65100',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 14px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap'
-                  }}
-                  title="Quitter le mode test sans enregistrer"
-                >
-                  🧪 Quitter le test braderie
-                </button>
+              {sandboxMode && (
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#e65100',
+                  whiteSpace: 'nowrap',
+                }}>
+                  ⚠️ Pas de SAUVE SUPABASE en mode test
+                </span>
               )}
               <button
                 type="button"

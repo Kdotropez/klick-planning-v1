@@ -557,6 +557,10 @@ const VERSION_HIGHLIGHTS = {
     'SAUVE SUPABASE: une seule ecriture complete_file (allège la base).',
     'Compteur masques: isEmployeeHidden (visibleFrom / reembauche).'
   ],
+  '3.10.180': [
+    'Mode braderie: curseur ON/OFF visible en permanence dans la barre actions (OFF = planning reel, ON = test).',
+    'Bandeau orange + en-tete orange quand le mode test est actif; SAUVE SUPABASE masque en test.'
+  ],
   '3.10.179': [
     'Correction crash demarrage: etat mode test braderie declare avant les effets React.'
   ],
