@@ -557,6 +557,9 @@ const VERSION_HIGHLIGHTS = {
     'SAUVE SUPABASE: une seule ecriture complete_file (allège la base).',
     'Compteur masques: isEmployeeHidden (visibleFrom / reembauche).'
   ],
+  '3.10.179': [
+    'Correction crash demarrage: etat mode test braderie declare avant les effets React.'
+  ],
   '3.10.178': [
     'Mode test braderie: semaine prochaine Port Grimaud / Cavalaire sans enregistrement (local ni Supabase).',
     'Bouton Test braderie dans le menu planning; bandeau orange et sortie sans perte du planning reel.'

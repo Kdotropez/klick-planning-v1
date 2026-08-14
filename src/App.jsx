@@ -186,6 +186,10 @@ const App = () => {
   const [selectedWeek, setSelectedWeek] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [planning, setPlanning] = useState({});
+  const [schoolModeReturnMode, setSchoolModeReturnMode] = useState('main-startup');
+  const [braderieTestMode, setBraderieTestMode] = useState(false);
+  const [braderieSandboxData, setBraderieSandboxData] = useState(null);
+  const braderieReturnRef = useRef({ shop: null, week: null, mode: 'planning' });
 
   // États pour la gestion des licences
   const [showLicenseModal, setShowLicenseModal] = useState(false);
@@ -2322,11 +2326,6 @@ const App = () => {
     }
     setMode('startup'); // Retour à l'écran de démarrage du planning
   };
-
-  const [schoolModeReturnMode, setSchoolModeReturnMode] = useState('main-startup');
-  const [braderieTestMode, setBraderieTestMode] = useState(false);
-  const [braderieSandboxData, setBraderieSandboxData] = useState(null);
-  const braderieReturnRef = useRef({ shop: null, week: null, mode: 'planning' });
 
   const handleOpenSchoolMode = () => {
     setSchoolModeReturnMode(mode);
